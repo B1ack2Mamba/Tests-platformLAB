@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+}
+
+/*
+  Native (Capacitor) tweaks
+  - prevent header content from overlapping the Android status bar
+  - hide the brand mark in the mobile app (time must stay visible)
+*/
+html.native-app .app-header-inner {
+  /* Extra top breathing room in native shells + iOS safe-area */
+  padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+}
+
+html.native-app .app-brand {
+  display: none !important;
+}
+
+/*
+  Hermes green theme
+  - soft sage background
+  - cleaner compact surfaces
+  - emerald accents
+*/
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    /* Slightly larger base text for better readability on phones */
+    @apply text-slate-900 text-[15px] sm:text-base;
+  }
+
+  /* Standard cursor (mobile browsers ignore custom cursors anyway) */
+  html, body {
+    cursor: default;
+  }
+  a, button, [role="button"], label, summary {
+    cursor: pointer;
+  }
+  input, textarea, select {
+    cursor: text;
+  }
+
+  /* Match focus outline across the app */
+  :focus-visible {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  .bg-app {
+    background: #ffffff !important;
+  }
+
+  .bg-clean-white {
+    background: #ffffff !important;
+  }
+}
+
+@layer components {
+  /* Surfaces */
+  .card {
+    @apply relative rounded-2xl border p-4 shadow-md backdrop-blur-sm;
+    border-color: rgba(226, 232, 240, 0.96);
+    background: #ffffff !important;
+    box-shadow: 0 14px 28px -26px rgba(15, 23, 42, 0.06);
+  }
+
+  .card-plain {
+    @apply relative rounded-2xl border backdrop-blur-sm;
+    border-color: rgba(226, 232, 240, 0.96);
+    background: #ffffff;
+  }
+
+  .card-soft {
+    @apply rounded-xl border backdrop-blur-sm;
+    border-color: rgba(226, 232, 240, 0.96);
+    background-color: #ffffff !important;
+  }
+
+  .row {
+    @apply rounded-xl border px-3 py-2 shadow-sm backdrop-blur-sm;
+    border-color: rgba(226, 232, 240, 0.96);
+    background-color: #ffffff !important;
+  }
+
+  /* Buttons */
+  .btn {
+    /* Mobile-friendly tap target + a bit larger text. */
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[15px] font-medium leading-snug transition
+      whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-200/70 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-sm {
+    @apply min-h-[34px] rounded-lg px-3 py-1.5 text-[13px];
+  }
+
+  .btn-pill {
+    @apply rounded-full px-3 py-1 text-xs;
+  }
+
+  .btn-primary {
+    @apply border text-slate-950 shadow-sm;
+    border-color: rgba(37, 196, 117, 0.86);
+    background: linear-gradient(180deg, rgba(210, 255, 226, 1) 0%, rgba(142, 244, 183, 1) 100%);
+  }
+  .btn-primary:hover {
+    background: linear-gradient(180deg, rgba(201, 255, 221, 1) 0%, rgba(139, 242, 182, 1) 100%);
+  }
+
+  .btn-secondary {
+    @apply border bg-white text-slate-950 shadow-sm hover:bg-white;
+    border-color: rgba(226, 232, 240, 0.96);
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-slate-700 hover:bg-emerald-50/70;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full rounded-xl border bg-white px-3 py-2.5 text-[15px] text-slate-950 shadow-sm outline-none
+      placeholder:text-slate-300 focus:ring-2;
+    border-color: rgba(226, 232, 240, 0.96);
+  }
+  .input:focus {
+    border-color: rgba(37, 196, 117, 0.86);
+    --tw-ring-color: rgba(154, 248, 191, 0.42);
+  }
+
+  .textarea {
+    @apply w-full rounded-2xl border bg-white p-3 text-[15px] text-slate-950 placeholder:text-slate-300 shadow-sm;
+    border-color: rgba(226, 232, 240, 0.96);
+    @apply focus:ring-2;
+    --tw-ring-color: rgba(154, 248, 191, 0.42);
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .link {
+    @apply text-[#138a57] hover:text-[#0f6e46];
+  }
+}
+
+
+@media (max-width: 767px) {
+  .card {
+    padding: 0.95rem;
+    border-radius: 1.15rem;
+  }
+
+  .card-plain {
+    border-radius: 1.15rem;
+  }
+
+  .btn {
+    min-height: 46px;
+  }
+}

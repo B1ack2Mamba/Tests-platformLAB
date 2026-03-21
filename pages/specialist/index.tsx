@@ -1,0 +1,304 @@
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Layout } from "@/components/Layout";
+import { useSession } from "@/lib/useSession";
+import { isSpecialistUser } from "@/lib/specialist";
+
+type Room = { id: string; name: string; created_at: string; is_active: boolean; participants_can_see_digits?: boolean };
+
+export default function SpecialistHome() {
+  const { session, user } = useSession();
+
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const [name, setName] = useState("");
+  const [pwd, setPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [createErr, setCreateErr] = useState("");
+  const [deletingId, setDeletingId] = useState<string>("");
+
+  // settings modal
+  const [settingsRoom, setSettingsRoom] = useState<Room | null>(null);
+  const [digitsEnabled, setDigitsEnabled] = useState(false);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState("");
+  const loadReqRef = useRef(0);
+
+  const load = async () => {
+    if (!session) return;
+    const reqId = ++loadReqRef.current;
+    setLoading(true);
+    setErr("");
+    try {
+      const r = await fetch("/api/training/rooms/my", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось загрузить комнаты");
+      if (reqId !== loadReqRef.current) return;
+      setRooms(j.rooms || []);
+    } catch (e: any) {
+      if (reqId !== loadReqRef.current) return;
+      setErr(e?.message || "Ошибка");
+    } finally {
+      if (reqId === loadReqRef.current) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!session) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.access_token]);
+
+  const create = async () => {
+    if (!session) return;
+    setBusy(true);
+    setCreateErr("");
+    try {
+      const r = await fetch("/api/training/rooms/create", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ name, password: pwd }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось создать комнату");
+      setName("");
+      setPwd("");
+      await load();
+    } catch (e: any) {
+      setCreateErr(e?.message || "Ошибка");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeRoom = async (roomId: string, roomName?: string) => {
+    if (!session) return;
+    const ok = window.confirm(
+      `Удалить комнату${roomName ? ` "${roomName}"` : ""}?\n\nЭто удалит комнату, участников и результаты.`
+    );
+    if (!ok) return;
+    setDeletingId(roomId);
+    setErr("");
+    try {
+      const r = await fetch("/api/training/rooms/delete", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ room_id: roomId }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось удалить комнату");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "Ошибка");
+    } finally {
+      setDeletingId("");
+    }
+  };
+
+  const openSettings = (r: Room) => {
+    setSettingsRoom(r);
+    setDigitsEnabled(Boolean(r.participants_can_see_digits));
+    setSettingsMsg("");
+  };
+
+  const saveSettings = async () => {
+    if (!session || !settingsRoom) return;
+    setSettingsBusy(true);
+    setSettingsMsg("");
+    try {
+      const r = await fetch("/api/training/rooms/settings/update", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ room_id: settingsRoom.id, participants_can_see_digits: digitsEnabled }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось сохранить");
+      setRooms((prev) => prev.map((x) => (x.id === settingsRoom.id ? { ...x, participants_can_see_digits: digitsEnabled } : x)));
+      setSettingsMsg("Сохранено ✅");
+      setTimeout(() => setSettingsMsg(""), 2500);
+    } catch (e: any) {
+      setSettingsMsg(e?.message || "Ошибка");
+    } finally {
+      setSettingsBusy(false);
+    }
+  };
+
+
+  if (!session || !user) {
+    return (
+      <Layout title="Специалист">
+        <div className="card text-sm text-zinc-700">
+          Войдите, чтобы открыть кабинет специалиста.
+          <div className="mt-3">
+            <Link href="/auth?next=%2Fspecialist" className="btn btn-secondary btn-sm">
+              Вход / регистрация
+            </Link>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isSpecialistUser(user)) {
+    return (
+      <Layout title="Специалист">
+        <div className="card text-sm text-zinc-700">
+          Этот раздел доступен только специалисту.
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout title="Кабинет специалиста">
+      <div className="mb-4 card text-sm text-zinc-700">
+        Здесь вы создаёте комнаты тренинга, наблюдаете участников и открываете результаты в цифрах.
+        <div className="mt-3">
+          <Link href="/specialist/analysis" className="btn btn-secondary btn-sm">
+            Перейти в AI-аналитику клиентов
+          </Link>
+        </div>
+      </div>
+
+      <div className="mb-6 card">
+        <div className="text-sm font-semibold">Создать комнату</div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-1">
+            <div className="text-xs font-medium text-zinc-700">Название</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="input" />
+          </div>
+          <div className="grid gap-1">
+            <div className="text-xs font-medium text-zinc-700">Пароль</div>
+            <input value={pwd} onChange={(e) => setPwd(e.target.value)} className="input" />
+          </div>
+        </div>
+        {createErr ? <div className="mt-2 text-sm text-red-600">{createErr}</div> : null}
+        <button
+          onClick={create}
+          disabled={busy || !name.trim() || pwd.trim().length < 4}
+          className="mt-3 btn btn-primary disabled:opacity-50"
+        >
+          {busy ? "…" : "Создать"}
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-zinc-600">{loading ? "Загрузка…" : `Мои комнаты: ${rooms.length}`}</div>
+        <button onClick={load} disabled={loading} className="btn btn-secondary btn-sm">
+          Обновить
+        </button>
+      </div>
+
+      {err ? <div className="mt-3 card text-sm text-red-600">{err}</div> : null}
+
+      <div className="mt-3 grid gap-3">
+        {rooms.map((r) => (
+          <div key={r.id} className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+            <Link
+              href={`/specialist/rooms/${encodeURIComponent(r.id)}`}
+              className="card flex-1 hover:shadow"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-lg font-semibold">{r.name}</div>
+                  <div className="mt-1 text-xs text-zinc-500">
+                    {r.is_active ? "Активна" : "Не активна"} · {new Date(r.created_at).toLocaleString()}
+                  </div>
+                </div>
+                <div className="text-xs text-zinc-500">Открыть</div>
+              </div>
+
+              {r.participants_can_see_digits ? (
+                <div className="mt-2 inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800">
+                  Тренинг-режим: цифры участникам
+                </div>
+              ) : null}
+            </Link>
+
+            <Link
+              href={`/specialist/analysis?room_id=${encodeURIComponent(r.id)}`}
+              className="btn btn-secondary w-full sm:w-auto sm:min-h-[34px] sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-[13px]"
+              title="AI-аналитика"
+            >
+              AI-аналитика
+            </Link>
+
+            <button
+              onClick={() => openSettings(r)}
+              className="btn btn-secondary w-full sm:w-auto sm:min-h-[34px] sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-[13px]"
+              title="Настройки комнаты"
+            >
+              Настройки
+            </button>
+
+            <button
+              onClick={() => removeRoom(r.id, r.name)}
+              disabled={!!deletingId}
+              className="btn btn-secondary w-full text-red-600 hover:text-red-700 sm:w-auto sm:min-h-[34px] sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-[13px]"
+              title="Удалить комнату"
+            >
+              {deletingId === r.id ? "…" : "Удалить"}
+            </button>
+          </div>
+        ))}
+        {rooms.length === 0 && !loading ? (
+          <div className="card text-sm text-zinc-600">Пока нет комнат.</div>
+        ) : null}
+      </div>
+
+      {settingsRoom ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3">
+          <div className="w-full max-w-lg card shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold">Настройки комнаты</div>
+                <div className="mt-1 text-xs text-zinc-500">{settingsRoom.name}</div>
+              </div>
+              <button
+                onClick={() => setSettingsRoom(null)}
+                className="btn btn-secondary btn-sm"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl border bg-white/55 p-3">
+              <label className="flex cursor-pointer items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={digitsEnabled}
+                  onChange={(e) => setDigitsEnabled(e.target.checked)}
+                />
+                <div>
+                  <div className="font-medium text-zinc-900">Тренинг-режим: цифры участникам</div>
+                  <div className="mt-1 text-xs text-zinc-600">
+                    Если включено, участники будут видеть <b>только цифры</b> своих результатов в разделе «Мои результаты».
+                    Расшифровки/тексты при этом не показываются.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {settingsMsg ? <div className="mt-3 text-sm text-zinc-700">{settingsMsg}</div> : null}
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={saveSettings}
+                disabled={settingsBusy}
+                className="btn btn-primary disabled:opacity-50"
+              >
+                {settingsBusy ? "…" : "Сохранить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </Layout>
+  );
+}

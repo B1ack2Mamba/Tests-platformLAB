@@ -1,0 +1,429 @@
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { Layout } from "@/components/Layout";
+import { useSession } from "@/lib/useSession";
+import { getPreferredUserName } from "@/lib/nameAuth";
+import type { AnyTest } from "@/lib/testTypes";
+
+type Props = { tests: AnyTest[] };
+
+type RoomInfo = { id: string; name: string; created_by_email: string | null; is_active: boolean; participants_can_see_digits?: boolean };
+type MemberInfo = { role: string; display_name: string };
+
+type ProgressRow = { test_slug: string; started_at: string | null; completed_at: string | null; attempt_id: string | null };
+
+export default function TrainingRoom({ tests }: Props) {
+  const router = useRouter();
+  const roomId = String(router.query.roomId || "");
+  const { session, user } = useSession();
+
+  const NAME_KEY = "training_display_name_v1";
+
+  const [room, setRoom] = useState<RoomInfo | null>(null);
+  const [member, setMember] = useState<MemberInfo | null>(null);
+  const [progress, setProgress] = useState<ProgressRow[]>([]);
+  // Room-specific test settings (enabled/order/etc.)
+  const [roomTests, setRoomTests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [bootChecked, setBootChecked] = useState(false);
+  const [err, setErr] = useState("");
+
+  // join form (if not joined)
+  const [joinName, setJoinName] = useState("");
+  const [joinPwd, setJoinPwd] = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinError, setJoinError] = useState("");
+  const [joinConsent, setJoinConsent] = useState(false);
+
+  // rename display name (after joined)
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameMsg, setRenameMsg] = useState("");
+
+  const saveNameLocal = (name: string) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(NAME_KEY, name);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (joinName) return;
+    try {
+      const val = String(localStorage.getItem(NAME_KEY) || "").trim();
+      if (val) setJoinName(val);
+    } catch {
+      // ignore
+    }
+  }, [roomId, joinName]);
+
+  useEffect(() => {
+    const preferredName = getPreferredUserName(user);
+    if (preferredName && !joinName) setJoinName(preferredName);
+  }, [user, joinName]);
+
+  useEffect(() => {
+    if (member?.display_name) {
+      setRenameValue(member.display_name);
+    }
+  }, [member?.display_name]);
+
+  useEffect(() => {
+    if (!roomId || !member?.display_name) return;
+    if (!joinName) setJoinName(member.display_name);
+  }, [roomId, member?.display_name, joinName]);
+
+  const load = async () => {
+    if (!session || !roomId) return;
+    setLoading(true);
+    setErr("");
+    try {
+      const r = await fetch(`/api/training/rooms/bootstrap?room_id=${encodeURIComponent(roomId)}`, {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось загрузить комнату");
+      setRoom(j.room);
+      setMember(j.member);
+      setProgress(Array.isArray(j.progress) ? j.progress : []);
+      setRoomTests(Array.isArray(j.room_tests) ? j.room_tests : []);
+      if (!j.member && !joinName && j.prefill_display_name) setJoinName(String(j.prefill_display_name));
+    } catch (e: any) {
+      setErr(e?.message || "Ошибка");
+    } finally {
+      setLoading(false);
+      setBootChecked(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!session || !roomId) return;
+    setBootChecked(false);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.access_token, roomId]);
+
+  // presence ping
+  useEffect(() => {
+    if (!session || !roomId || !member) return;
+    const tick = async () => {
+      await fetch("/api/training/rooms/touch", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ room_id: roomId }),
+      }).catch(() => null);
+    };
+    tick();
+    const id = setInterval(tick, 90_000);
+    return () => clearInterval(id);
+  }, [session, roomId, member]);
+
+  const bySlug = useMemo(() => {
+    const m = new Map<string, ProgressRow>();
+    for (const row of progress) m.set(row.test_slug, row);
+    return m;
+  }, [progress]);
+
+  const testsBySlug = useMemo(() => {
+    const m = new Map<string, AnyTest>();
+    for (const t of tests) m.set(t.slug, t);
+    return m;
+  }, [tests]);
+
+  const enabledTests = useMemo(() => {
+    const base = Array.isArray(roomTests) && roomTests.length ? roomTests : tests.map((t, i) => ({ test_slug: t.slug, is_enabled: true, sort_order: i }));
+    const ordered = [...base].sort((a: any, b: any) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    return ordered
+      .filter((r: any) => !!r.is_enabled)
+      .map((r: any) => testsBySlug.get(String(r.test_slug)))
+      .filter(Boolean) as AnyTest[];
+  }, [roomTests, testsBySlug, tests]);
+
+  const join = async () => {
+    if (!session) return;
+    setJoinBusy(true);
+    setJoinError("");
+    try {
+      let queueToken = "";
+      for (let attemptNo = 1; attemptNo <= 14; attemptNo += 1) {
+        const payload: any = { room_id: roomId, password: joinPwd, display_name: joinName, personal_data_consent: joinConsent };
+        if (queueToken) payload.queue_token = queueToken;
+        const r = await fetch("/api/training/rooms/join", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify(payload),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j?.ok) {
+          setMember({ role: j.member.role, display_name: j.member.display_name });
+          const safeName = String(j.member.display_name || joinName);
+          saveNameLocal(safeName);
+          setJoinPwd("");
+          await load();
+          return;
+        }
+        if (r.status === 202 && j?.queued) {
+          if (j?.queue_token) queueToken = String(j.queue_token);
+          const retryAfter = Math.max(700, Number(j?.retry_after_ms || 1800));
+          const approx = Number(j?.approx_position || 0);
+          setJoinError(approx > 0
+            ? `Сейчас много входов. Подключаем вас в порядке очереди… Позиция примерно: ${approx}`
+            : String(j?.error || "Сейчас много входов, подключаем вас в порядке очереди…"));
+          await new Promise((resolve) => setTimeout(resolve, retryAfter));
+          continue;
+        }
+        throw new Error(j?.error || "Не удалось войти");
+      }
+      throw new Error("Слишком много одновременных входов. Попробуйте ещё раз через несколько секунд.");
+    } catch (e: any) {
+      setJoinError(e?.message || "Ошибка");
+    } finally {
+      setJoinBusy(false);
+    }
+  };
+
+  const saveRename = async () => {
+    if (!session || !roomId) return;
+    const name = (renameValue || "").trim();
+    if (!name) {
+      setRenameMsg("Имя пустое");
+      setTimeout(() => setRenameMsg(""), 2500);
+      return;
+    }
+    setRenameBusy(true);
+    setRenameMsg("");
+    try {
+      const r = await fetch("/api/training/rooms/update-member-name", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ room_id: roomId, display_name: name }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось сохранить");
+      setMember((prev) => (prev ? { ...prev, display_name: name } : prev));
+      saveNameLocal(name);
+      setRenameOpen(false);
+      setRenameMsg("Сохранено ✅");
+      setTimeout(() => setRenameMsg(""), 2500);
+    } catch (e: any) {
+      setRenameMsg(e?.message || "Ошибка");
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
+
+  const checkingRoomAccess = !!session && !!user && !!roomId && !bootChecked;
+
+  if (!session || !user) {
+    return (
+      <Layout title="Комната тренинга">
+        <div className="card text-sm text-zinc-700">
+          Нужно войти, чтобы открыть комнату.
+          <div className="mt-3">
+            <Link
+              href={`/auth?next=${encodeURIComponent(`/training/rooms/${roomId || ""}`)}`}
+              className="btn btn-secondary btn-sm"
+            >
+              Вход / регистрация
+            </Link>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout title={room ? room.name : "Комната тренинга"}>
+      {err ? <div className="mb-3 card text-sm text-red-600">{err}</div> : null}
+
+      <div className="mb-4 card">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm text-zinc-600">Комната</div>
+            <div className="text-lg font-semibold">{room?.name || "…"}</div>
+            {room?.participants_can_see_digits ? (
+              <div className="mt-1">
+                <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
+                  Тренинг-режим
+                </span>
+              </div>
+            ) : null}
+            <div className="mt-1 text-xs text-zinc-500">
+              {member ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>
+                    Вы вошли как: <b className="text-zinc-800">{member.display_name}</b>
+                  </span>
+                  <button
+                    onClick={() => setRenameOpen((v) => !v)}
+                    className="rounded-md border bg-white px-2 py-0.5 text-[11px] font-medium hover:bg-white/75"
+                  >
+                    {renameOpen ? "Скрыть" : "Изменить имя"}
+                  </button>
+                </div>
+              ) : (
+                "Вы ещё не вошли в комнату"
+              )}
+            </div>
+
+            {member && renameOpen ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  className="w-full max-w-[360px] rounded-xl border bg-white px-3 py-2 text-sm"
+                  placeholder="Ваше имя"
+                />
+                <button
+                  onClick={saveRename}
+                  disabled={renameBusy || !renameValue.trim()}
+                  className="btn btn-primary disabled:opacity-50"
+                >
+                  {renameBusy ? "…" : "Сохранить"}
+                </button>
+                {renameMsg ? <div className="text-xs text-zinc-600">{renameMsg}</div> : null}
+              </div>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+
+            <Link
+              href="/training/my-results"
+              className="btn btn-secondary btn-sm"
+            >
+              Мои результаты
+            </Link>
+
+            <button
+              onClick={load}
+              disabled={loading}
+              className="btn btn-secondary btn-sm"
+            >
+              {loading ? "…" : "Обновить"}
+            </button>
+
+          </div>
+        </div>
+
+        {checkingRoomAccess ? (
+          <div className="mt-4 card-soft p-4 text-sm text-zinc-600">Проверяем доступ к комнате…</div>
+        ) : !member ? (
+          <div className="mt-4 grid gap-2 card-soft p-3">
+            <div className="text-sm font-medium">Войти в комнату</div>
+            <div className="grid gap-1">
+              <div className="text-xs font-medium text-zinc-700">Имя</div>
+              <input value={joinName} onChange={(e) => setJoinName(e.target.value)} className="input" />
+            </div>
+            <div className="grid gap-1">
+              <div className="text-xs font-medium text-zinc-700">Пароль комнаты</div>
+              <input value={joinPwd} onChange={(e) => setJoinPwd(e.target.value)} className="input" />
+            </div>
+            <label className="mt-1 flex items-start gap-2 rounded-xl border border-zinc-200 bg-white/70 px-3 py-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                checked={joinConsent}
+                onChange={(e) => setJoinConsent(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-zinc-300"
+              />
+              <span>
+                Я даю согласие на обработку моих персональных данных для участия в тестировании, обработки результатов и предоставления их специалисту.
+              </span>
+            </label>
+            <div className="-mt-1 text-xs leading-5 text-zinc-500">
+              Продолжая, вы подтверждаете, что ознакомились с{' '}
+              <Link href="/legal/privacy" onClick={(e) => e.stopPropagation()} className="underline underline-offset-2 hover:text-zinc-700">
+                Политикой обработки персональных данных
+              </Link>{' '}
+              и{' '}
+              <Link href="/legal/personal-data-consent" onClick={(e) => e.stopPropagation()} className="underline underline-offset-2 hover:text-zinc-700">
+                Согласием на обработку персональных данных
+              </Link>
+              .
+            </div>
+            {joinError ? <div className="text-sm text-red-600">{joinError}</div> : null}
+            <div className="flex items-center gap-2">
+              <button onClick={join} disabled={joinBusy || !joinPwd || !joinName || !joinConsent} className="btn btn-primary">
+                {joinBusy ? "Входим…" : "Войти"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 text-xs text-zinc-500">
+            {room?.participants_can_see_digits
+              ? "Тренинг-режим включён: после прохождения тестов цифры будут доступны в «Мои результаты»."
+              : "Примечание: результаты в цифрах доступны только специалисту в комнате."}
+          </div>
+        )}
+      </div>
+
+      {checkingRoomAccess ? (
+        <div className="card text-sm text-zinc-600">Проверяем доступ и загружаем тесты…</div>
+      ) : member ? (
+        <div className="grid gap-3">
+          {enabledTests.map((t) => {
+            const pr = bySlug.get(t.slug);
+            const done = !!pr?.completed_at;
+            return (
+              <div key={t.slug} className="card">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-lg font-semibold">{t.title}</div>
+                      {t.slug === "16pf-a" ? (
+                        <span
+                          className="rounded-md border bg-white/55 px-2 py-0.5 text-[10px] font-semibold text-zinc-700"
+                          title="Сертифицированная методика"
+                        >
+                          Сертифицировано
+                        </span>
+                      ) : null}
+                    </div>
+                    {t.description ? <div className="mt-1 text-sm text-zinc-600">{t.description}</div> : null}
+                    <div className="mt-2 text-xs text-zinc-500">
+                      {done ? "✅ Завершён" : "⏳ Не пройден"} · {t.questions?.length ?? 0} вопросов
+                    </div>
+                  </div>
+                  <Link
+                    href={`/training/rooms/${encodeURIComponent(roomId)}/tests/${encodeURIComponent(t.slug)}/take`}
+                    className="btn btn-primary w-full sm:w-auto sm:self-start sm:shrink-0"
+                  >
+                    {done ? "Пройти ещё раз" : "Начать"}
+                  </Link>
+                </div>
+
+                {done && pr?.attempt_id ? (
+                  <div className="mt-3">
+                    <Link
+                      href={`/training/rooms/${encodeURIComponent(roomId)}/tests/${encodeURIComponent(t.slug)}/done?attempt=${encodeURIComponent(
+                        pr.attempt_id
+                      )}`}
+                      className="text-sm font-medium text-zinc-900 underline"
+                    >
+                      Открыть страницу завершения
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card text-sm text-zinc-600">
+          Войдите в комнату, чтобы увидеть тесты.
+        </div>
+      )}
+    </Layout>
+  );
+}
+
+export async function getServerSideProps() {
+  const { getAllTests } = await import("@/lib/loadTests");
+  const tests = await getAllTests();
+  return { props: { tests } };
+}

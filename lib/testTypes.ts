@@ -1,0 +1,471 @@
+// NOTE:
+// - Negotiation test uses tags A–E.
+// - Motivation cards test uses factors A,B,C,D,E,F,H,I.
+
+export type Tag = "A" | "B" | "C" | "D" | "E";
+
+export type MotivationFactor = "A" | "B" | "C" | "D" | "E" | "F" | "H" | "I";
+
+export type ForcedPairOption = {
+  tag: Tag;
+  text: string;
+};
+
+export type ForcedPairQuestion = {
+  order: number;
+  options: [ForcedPairOption, ForcedPairOption];
+};
+
+export type TestScoring = {
+  tags: Tag[];
+  tag_to_style: Record<Tag, string>;
+  thresholds_percent: {
+    strong_gte: number;
+    weak_lte: number;
+  };
+};
+
+export type ForcedPairTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "forced_pair_v1" | "forced_pair";
+  /** Optional pricing info (paywall). */
+  pricing?: {
+    /** Price to unlock interpretation (RUB). If absent, fallback to DB price_rub. */
+    interpretation_rub?: number;
+    /** Price for detailed summary (RUB). Defaults to 49 if used. */
+    details_rub?: number;
+  };
+  /** If true, there's a paid interpretation stored in Supabase (table public.test_interpretations). */
+  has_interpretation?: boolean;
+  questions: ForcedPairQuestion[];
+  scoring: TestScoring;
+};
+
+// ===================== Motivation cards (0..5 split per pair) =====================
+
+export type PairSplitOption = {
+  factor: MotivationFactor;
+  text: string;
+};
+
+export type PairSplitQuestion = {
+  order: number;
+  left: PairSplitOption;
+  right: PairSplitOption;
+  /** How many points are distributed per pair (usually 5). */
+  maxPoints: number;
+};
+
+export type PairSplitScoring = {
+  factors: MotivationFactor[];
+  factor_to_name: Record<MotivationFactor, string>;
+  groups?: {
+    hygiene?: MotivationFactor[];
+    motivators?: MotivationFactor[];
+  };
+  /** Level thresholds on a normalized 0..35 scale. */
+  thresholds_norm35?: {
+    low_max: number;
+    mid_max: number;
+  };
+};
+
+export type PairSplitTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "pair_split_v1" | "pair_sum5_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: PairSplitQuestion[];
+  scoring: PairSplitScoring;
+};
+
+// ===================== Color types / Structogram (Green/Red/Blue) =====================
+
+export type ABC = "A" | "B" | "C";
+
+export type ColorTypesChoiceQuestion = {
+  order: 1 | 2;
+  kind: "choice_abc";
+  prompt: string;
+  options: Record<ABC, string>;
+};
+
+export type ColorTypesRankQuestion = {
+  order: 3 | 4;
+  kind: "rank_abc";
+  prompt: string;
+  options: Record<ABC, string>;
+};
+
+export type ColorTypesPick3Question = {
+  order: 5 | 6;
+  kind: "pick3_6";
+  prompt: string;
+  options: Record<"1" | "2" | "3" | "4" | "5" | "6", string>;
+  /** How many options must be picked. Defaults to 3. */
+  pick: number;
+};
+
+export type ColorTypesQuestion = ColorTypesChoiceQuestion | ColorTypesRankQuestion | ColorTypesPick3Question;
+
+export type ColorTypesScoring = {
+  /** Base constant (12 in the original key). */
+  base: number;
+  /** Per-question matrix giving +/- contribution to parameters a (green) and b (red). */
+  matrix: {
+    q1: Record<ABC, { a: number; b: number }>;
+    q2: Record<ABC, { a: number; b: number }>;
+    q3: Record<string, { a: number; b: number }>;
+    q4: Record<string, { a: number; b: number }>;
+    q5: Record<string, { a: number; b: number }>;
+    q6: Record<string, { a: number; b: number }>;
+  };
+  labels?: {
+    green?: string;
+    red?: string;
+    blue?: string;
+  };
+};
+
+export type ColorTypesTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "color_types_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: ColorTypesQuestion[];
+  scoring: ColorTypesScoring;
+};
+
+// ===================== USK (Уровень субъективного контроля) =====================
+
+export type USKScale = "IO" | "ID" | "IN" | "IS" | "IP" | "IM" | "IZ";
+
+export type USKQuestion = {
+  order: number;
+  text: string;
+};
+
+export type USKScoring = {
+  scales: USKScale[];
+  scale_to_name: Record<USKScale, string>;
+  /** Items that add with sign (+) vs add with inverted sign (-). 1-based question indices. */
+  keys: Record<USKScale, { plus: number[]; minus: number[] }>;
+  /** Raw -> sten conversion. */
+  stens: Record<USKScale, { min: number; max: number; sten: number }[]>;
+};
+
+export type USKTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "usk_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: USKQuestion[];
+  scoring: USKScoring;
+};
+
+// ===================== Situational Guidance (Situational Leadership) =====================
+
+export type SituationalGuidanceStyle = "S1" | "S2" | "S3" | "S4";
+export type SituationalGuidanceReadiness = "R1" | "R2" | "R3" | "R4";
+export type SituationalGuidanceChoice = "A" | "B" | "C" | "D";
+
+export type SituationalGuidanceQuestion = {
+  order: number;
+  prompt: string;
+  options: Record<SituationalGuidanceChoice, string>;
+};
+
+export type SituationalGuidanceScoring = {
+  styles: SituationalGuidanceStyle[];
+  style_to_name: Record<SituationalGuidanceStyle, string>;
+  flexibility_norm?: {
+    low_max: number;
+    normal_min: number;
+    normal_max: number;
+    high_min: number;
+  };
+  /** Per-situation key: readiness + mapping from chosen option (A-D) to style (S1-S4) + points for flexibility. */
+  keys: Array<{
+    order: number;
+    readiness: SituationalGuidanceReadiness;
+    option_to_style: Record<SituationalGuidanceChoice, SituationalGuidanceStyle>;
+    points: Record<SituationalGuidanceChoice, number>;
+  }>;
+};
+
+export type SituationalGuidanceTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "situational_guidance_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: SituationalGuidanceQuestion[];
+  scoring: SituationalGuidanceScoring;
+};
+
+
+
+
+// ===================== Emotional Intelligence (ЭМИН, Д.В. Люсин) =====================
+
+export type EminPrimaryScale = "MP" | "MU" | "VP" | "VU" | "VE";
+export type EminScale = EminPrimaryScale | "MEI" | "VEI" | "PE" | "UE" | "OEI";
+
+export type EminQuestion = {
+  order: number;
+  text: string;
+};
+
+export type EminNormBin = {
+  label: string; // "очень низкий" | "низкий" | "средний" | "высокий" | "очень высокий"
+  min: number;
+  max: number | null; // null => "и выше"
+};
+
+export type EminScoring = {
+  primary_scales: EminPrimaryScale[];
+  derived_scales: Array<Exclude<EminScale, EminPrimaryScale>>;
+  scale_to_name: Record<EminScale, string>;
+  keys: Array<{
+    order: number;
+    scale: EminPrimaryScale;
+    sign: "+" | "-";
+  }>;
+  norms: Record<EminScale, EminNormBin[]>;
+  answer_scale?: {
+    min: number; // 0
+    max: number; // 3
+    labels: [string, string, string, string];
+  };
+};
+
+export type EminTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "emin_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: EminQuestion[];
+  scoring: EminScoring;
+};
+
+
+
+
+// ===================== Time management / Time perception =====================
+
+export type TimeManagementTag = "L" | "P" | "C";
+
+export type TimeManagementOption = {
+  tag: TimeManagementTag;
+  text: string;
+};
+
+export type TimeManagementQuestion = {
+  order: number;
+  text: string;
+  options: [TimeManagementOption, TimeManagementOption, TimeManagementOption];
+};
+
+export type TimeManagementScoring = {
+  tags: TimeManagementTag[];
+  tag_to_name: Record<TimeManagementTag, string>;
+  thresholds_count?: {
+    high_min: number;
+    medium_min: number;
+  };
+  blend_close_delta?: number;
+};
+
+export type TimeManagementTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  instructions?: string;
+  type: "time_management_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: TimeManagementQuestion[];
+  scoring: TimeManagementScoring;
+};
+
+
+
+
+
+// ===================== Learning typology / Learning styles =====================
+
+export type LearningTypologyTag = "OBS" | "EXP" | "PRA" | "THE";
+export type LearningTypologyChoice = "A" | "B" | "C" | "D";
+
+export type LearningTypologyOption = {
+  code: LearningTypologyChoice;
+  text: string;
+  /** One option can support one or several styles (for paired binary items). */
+  tags: LearningTypologyTag[];
+};
+
+export type LearningTypologyQuestion = {
+  order: number;
+  text: string;
+  options: LearningTypologyOption[];
+};
+
+export type LearningTypologyScoring = {
+  tags: LearningTypologyTag[];
+  tag_to_name: Record<LearningTypologyTag, string>;
+  thresholds_count?: {
+    dominant_min: number;
+    high_min: number;
+    medium_min: number;
+  };
+  blend_close_delta?: number;
+};
+
+export type LearningTypologyTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  instructions?: string;
+  type: "learning_typology_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: LearningTypologyQuestion[];
+  scoring: LearningTypologyScoring;
+};
+
+// ===================== Belbin Team Roles =====================
+
+export type BelbinLetter = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
+
+export type BelbinRole = "CW" | "CH" | "SH" | "PL" | "RI" | "ME" | "TW" | "CF";
+
+export type BelbinQuestion = {
+  order: number;
+  prompt: string;
+  options: Record<BelbinLetter, string>;
+};
+
+export type BelbinScoring = {
+  total_per_section: number;
+  letters: BelbinLetter[];
+  roles: BelbinRole[];
+  role_to_name: Record<BelbinRole, string>;
+  role_to_desc?: Record<BelbinRole, string>;
+  keys: Array<{
+    order: number;
+    letter_to_role: Record<BelbinLetter, BelbinRole>;
+    role_to_letter?: Record<BelbinRole, BelbinLetter>;
+  }>;
+  notes?: string;
+};
+
+export type BelbinTestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "belbin_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: BelbinQuestion[];
+  scoring: BelbinScoring;
+};
+
+
+// ===================== 16PF (Cattell) =====================
+
+export type PF16Factor = "A" | "B" | "C" | "E" | "F" | "G" | "H" | "I" | "L" | "M" | "N" | "O" | "Q1" | "Q2" | "Q3" | "Q4";
+
+export type PF16Question = {
+  order: number;
+  text: string;
+  options: Record<ABC, string>;
+};
+
+export type PF16Scoring = {
+  factors: PF16Factor[];
+  factor_to_name: Record<PF16Factor, string>;
+  // Key: for each factor, list of {q, accept} where q is 1-based question number and accept is in ["a","b","c"].
+  keys: Record<PF16Factor, { q: number; accept: Array<"a" | "b" | "c"> }[]>;
+  // Final scale is 0..10
+  thresholds_0_10: {
+    low_max: number; // 0..low_max => "низкий"
+    mid_max: number; // (low_max+1)..mid_max => "средний", else => "высокий"
+  };
+};
+
+export type PF16TestV1 = {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Optional long-form instructions shown on the test page. */
+  instructions?: string;
+  type: "16pf_v1";
+  pricing?: {
+    interpretation_rub?: number;
+    details_rub?: number;
+  };
+  has_interpretation?: boolean;
+  questions: PF16Question[];
+  scoring: PF16Scoring;
+};
+
+export type AnyTest =
+  | ForcedPairTestV1
+  | PairSplitTestV1
+  | ColorTypesTestV1
+  | USKTestV1
+  | SituationalGuidanceTestV1
+  | BelbinTestV1
+  | PF16TestV1
+  | EminTestV1
+  | TimeManagementTestV1
+  | LearningTypologyTestV1;
