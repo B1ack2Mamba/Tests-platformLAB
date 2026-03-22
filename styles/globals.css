@@ -790,20 +790,28 @@ html.native-app .app-brand {
 @layer components {
   .dashboard-wood-desk {
     background:
-      radial-gradient(circle at 24% 10%, rgba(255,255,255,0.12), transparent 18%),
-      radial-gradient(circle at 76% 0%, rgba(255,255,255,0.08), transparent 16%),
+      radial-gradient(1200px 420px at 18% 9%, rgba(255, 244, 222, 0.18), transparent 26%),
+      radial-gradient(980px 340px at 81% 15%, rgba(255, 233, 196, 0.13), transparent 23%),
+      radial-gradient(220px 120px at 24% 42%, rgba(82, 52, 24, 0.2), transparent 62%),
+      radial-gradient(260px 140px at 71% 66%, rgba(74, 46, 21, 0.18), transparent 65%),
+      linear-gradient(180deg, rgba(255,255,255,0.08), transparent 14%, rgba(42,24,11,0.08) 100%),
       repeating-linear-gradient(90deg,
-        rgba(255,255,255,0.02) 0px,
-        rgba(255,255,255,0.02) 2px,
-        rgba(68,41,18,0.04) 2px,
-        rgba(68,41,18,0.04) 6px,
-        rgba(255,255,255,0.015) 6px,
-        rgba(255,255,255,0.015) 13px),
-      linear-gradient(135deg, #6e4a2d 0%, #9a6a40 16%, #7c5331 38%, #a87a4a 58%, #7f5532 78%, #6a472a 100%);
+        rgba(255,255,255,0.03) 0px,
+        rgba(255,255,255,0.03) 1px,
+        rgba(70,42,20,0.1) 1px,
+        rgba(70,42,20,0.1) 4px,
+        rgba(176,129,78,0.04) 4px,
+        rgba(176,129,78,0.04) 8px,
+        rgba(90,57,28,0.12) 8px,
+        rgba(90,57,28,0.12) 14px,
+        rgba(196,149,95,0.04) 14px,
+        rgba(196,149,95,0.04) 22px),
+      linear-gradient(90deg, #6d4425 0%, #84522d 12%, #a46d3f 28%, #8f5c34 42%, #bb8450 56%, #8b5931 71%, #a06d42 84%, #744a2a 100%);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.12),
-      inset 0 -10px 24px rgba(39,23,9,0.18),
-      0 28px 60px -34px rgba(29,16,6,0.5);
+      inset 0 1px 0 rgba(255,255,255,0.18),
+      inset 0 -20px 34px rgba(38,20,8,0.28),
+      inset 0 0 0 1px rgba(84,52,24,0.2),
+      0 30px 65px -34px rgba(29,16,6,0.55);
   }
 
   .dashboard-wood-desk::before {
@@ -811,36 +819,219 @@ html.native-app .app-brand {
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.03), transparent 22%),
-      repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 32px);
+      radial-gradient(ellipse 300px 90px at 21% 44%, rgba(78, 49, 22, 0.22), transparent 62%),
+      radial-gradient(ellipse 280px 86px at 64% 28%, rgba(84, 52, 26, 0.16), transparent 60%),
+      radial-gradient(ellipse 240px 80px at 84% 70%, rgba(120, 76, 40, 0.16), transparent 58%),
+      repeating-linear-gradient(91deg,
+        rgba(255,255,255,0.02) 0px,
+        rgba(255,255,255,0.02) 1px,
+        rgba(44,26,12,0.05) 1px,
+        rgba(44,26,12,0.05) 7px,
+        transparent 7px,
+        transparent 18px),
+      linear-gradient(180deg, rgba(255,255,255,0.06), transparent 18%, rgba(53,29,11,0.05));
     pointer-events: none;
-    mix-blend-mode: screen;
+    mix-blend-mode: multiply;
+    opacity: 0.98;
+  }
+
+  .dashboard-wood-desk::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.16), transparent 8%, transparent 84%, rgba(43,24,10,0.14)),
+      radial-gradient(circle at 50% 0%, rgba(255,255,255,0.15), transparent 32%);
+    pointer-events: none;
   }
 
   .dashboard-wood-desk-glow {
-    background: rgba(255,255,255,0.16);
+    background: rgba(255, 244, 221, 0.26);
   }
 
   .dashboard-folder-card {
     background:
-      linear-gradient(180deg, rgba(227,191,124,0.98), rgba(198,148,78,0.98));
+      linear-gradient(180deg, rgba(232, 206, 160, 0.98) 0%, rgba(216, 185, 135, 0.98) 34%, rgba(202, 164, 111, 0.99) 72%, rgba(188, 146, 92, 0.99) 100%);
     box-shadow:
-      0 18px 24px -20px rgba(36,20,7,0.6),
-      inset 0 1px 0 rgba(255,239,211,0.7),
-      inset 0 -12px 18px rgba(128, 88, 38, 0.16);
+      0 28px 30px -24px rgba(36,20,7,0.62),
+      0 14px 18px rgba(68, 42, 18, 0.2),
+      inset 0 1px 0 rgba(255,245,219,0.94),
+      inset 0 -18px 18px rgba(124, 84, 39, 0.14);
+  }
+
+  .dashboard-folder-shadow-strip {
+    position: absolute;
+    inset: auto 12px 8px 12px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(72, 45, 20, 0.2);
+    filter: blur(12px);
+    pointer-events: none;
+  }
+
+  .dashboard-folder-spine {
+    position: absolute;
+    inset: 14px auto 18px 12px;
+    width: 12px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(183,138,84,0.96), rgba(135,95,49,0.96));
+    box-shadow: inset 1px 0 0 rgba(255,241,212,0.45), inset -1px 0 0 rgba(95,61,28,0.18);
+    opacity: 0.78;
+  }
+
+  .dashboard-folder-tab {
+    position: absolute;
+    top: -0.08rem;
+    left: 1.1rem;
+    width: 5rem;
+    height: 1.28rem;
+    border-radius: 0.95rem 0.95rem 0.36rem 0.36rem;
+    background: linear-gradient(180deg, rgba(243,220,175,1), rgba(214,176,114,1));
+    box-shadow:
+      inset 0 1px 0 rgba(255,246,224,0.98),
+      0 2px 4px rgba(76, 48, 20, 0.16);
+  }
+
+  .dashboard-folder-pocket {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 73%;
+    border-radius: 1.08rem 1.08rem 1.42rem 1.42rem;
+    background:
+      linear-gradient(180deg, rgba(228,190,128,0.98) 0%, rgba(210,163,97,0.99) 70%, rgba(194,147,84,0.99) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(250,231,195,0.72),
+      inset 0 -12px 16px rgba(122, 79, 33, 0.16);
+    pointer-events: none;
+  }
+
+  .dashboard-folder-mouth {
+    position: absolute;
+    left: 0.9rem;
+    right: 0.9rem;
+    top: 3.15rem;
+    height: 0.44rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(139,98,56,0.18), rgba(255,255,255,0.05));
+    pointer-events: none;
+  }
+
+  .dashboard-folder-inner-shadow {
+    position: absolute;
+    left: 0.9rem;
+    right: 0.9rem;
+    top: 2.05rem;
+    height: 2.5rem;
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, rgba(104, 69, 34, 0.08), rgba(255,255,255,0));
+    pointer-events: none;
+  }
+
+  .dashboard-folder-gloss {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04) 26%, transparent 50%, rgba(121,83,39,0.06));
+    pointer-events: none;
   }
 
   .dashboard-folder-name-slip {
-    border-color: rgba(165, 127, 83, 0.28);
-    background: linear-gradient(180deg, rgba(255,254,250,0.98), rgba(243,236,224,0.98));
+    position: relative;
+    border-color: rgba(161, 128, 87, 0.38);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.99), rgba(247,240,227,0.985));
     color: #5a3c1f;
     box-shadow:
-      0 8px 14px -12px rgba(34,19,8,0.35),
-      inset 0 1px 0 rgba(255,255,255,0.92);
+      0 12px 18px -14px rgba(34,19,8,0.4),
+      0 2px 4px rgba(83, 52, 24, 0.1),
+      inset 0 1px 0 rgba(255,255,255,0.98);
+  }
+
+  .dashboard-folder-name-slip::after {
+    content: "";
+    position: absolute;
+    inset: 0.28rem auto 0.28rem 0.45rem;
+    width: 2px;
+    border-radius: 999px;
+    background: rgba(188, 150, 104, 0.28);
   }
 
   .dashboard-project-sheet {
     cursor: grab;
+    background:
+      linear-gradient(180deg, rgba(255,254,249,0.995) 0%, rgba(250,245,236,0.995) 56%, rgba(242,234,220,0.995) 100%);
+    box-shadow:
+      0 26px 28px -24px rgba(28,16,6,0.52),
+      0 12px 16px rgba(88,58,29,0.12),
+      inset 0 1px 0 rgba(255,255,255,0.98),
+      inset 0 -1px 0 rgba(197,180,154,0.4);
+  }
+
+  .dashboard-project-sheet::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(180deg, rgba(122,93,60,0.045) 0px, rgba(122,93,60,0.045) 1px, transparent 1px, transparent 22px),
+      radial-gradient(circle at 12% 14%, rgba(113,86,53,0.04), transparent 18%),
+      radial-gradient(circle at 82% 78%, rgba(113,86,53,0.03), transparent 16%);
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
+  .dashboard-project-sheet-impression {
+    position: absolute;
+    top: 0.95rem;
+    left: 0.9rem;
+    right: 0.9rem;
+    height: 0.38rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(123,95,66,0.08), rgba(255,255,255,0));
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  .dashboard-project-sheet-lines {
+    position: absolute;
+    left: 0.95rem;
+    right: 0.95rem;
+    bottom: 2.8rem;
+    height: 2.25rem;
+    background:
+      repeating-linear-gradient(180deg,
+        transparent 0,
+        transparent 0.68rem,
+        rgba(184, 162, 133, 0.28) 0.68rem,
+        rgba(184, 162, 133, 0.28) 0.74rem);
+    opacity: 0.65;
+    pointer-events: none;
+  }
+
+  .dashboard-project-sheet-corner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1.62rem;
+    height: 1.62rem;
+    background: linear-gradient(135deg, rgba(231,219,196,0.98), rgba(255,255,255,0.95));
+    box-shadow: -4px 5px 10px rgba(62, 40, 18, 0.11);
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+  }
+
+  .dashboard-project-sheet-pin {
+    position: absolute;
+    top: 0.56rem;
+    left: 50%;
+    width: 1.26rem;
+    height: 0.34rem;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(191, 160, 112, 0.96), rgba(145, 112, 67, 0.98));
+    box-shadow:
+      0 1px 2px rgba(62, 39, 18, 0.22),
+      inset 0 1px 0 rgba(255, 235, 198, 0.62);
+    opacity: 0.75;
   }
 
   .dashboard-project-sheet:active,

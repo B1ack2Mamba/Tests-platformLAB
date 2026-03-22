@@ -1056,16 +1056,24 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         }}
       >
         <div className="dashboard-folder-shadow-strip" />
+        <div className="dashboard-folder-spine" />
         <div className="dashboard-folder-tab" />
         <div className="dashboard-folder-pocket" />
+        <div className="dashboard-folder-mouth" />
+        <div className="dashboard-folder-inner-shadow" />
         <div className="dashboard-folder-gloss" />
-        <div className="absolute left-4 top-3 text-lg leading-none text-[#8b6232] opacity-70">{icon.symbol}</div>
-        <div className="pointer-events-none absolute left-3 right-3 top-2 z-20 flex flex-col gap-1">
+        <div className="absolute left-4 top-3 text-lg leading-none text-[#8b6232] opacity-55">{icon.symbol}</div>
+        <div className="pointer-events-none absolute left-3 right-3 top-2 z-20 flex flex-col gap-1.5">
           {preview.length ? preview.map((project, index) => (
             <div
               key={project.id}
               className="dashboard-folder-name-slip rounded-[10px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
-              style={{ marginLeft: `${index * 10}px`, marginRight: `${Math.max(0, 12 - index * 4)}px`, transform: `translateY(${index * 5}px) rotate(${index % 2 === 0 ? -0.6 : 0.4}deg)` }}
+              style={{
+                marginLeft: `${index * 11}px`,
+                marginRight: `${Math.max(0, 14 - index * 4)}px`,
+                transform: `translateY(${index * 7}px) rotate(${index % 2 === 0 ? -1.15 : 0.85}deg)`,
+                zIndex: 30 - index,
+              }}
             >
               <span className="block truncate">{project.person?.full_name || project.title || "Проект"}</span>
             </div>
@@ -1147,6 +1155,8 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
       >
         <div className="dashboard-project-sheet-corner" />
         <div className="dashboard-project-sheet-pin" aria-hidden="true" />
+        <div className="dashboard-project-sheet-impression" aria-hidden="true" />
+        <div className="dashboard-project-sheet-lines" aria-hidden="true" />
         <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8b6b49]">Лист проекта</div>
         <div className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-[#3f2a18]">{displayName}</div>
         <div className="mt-3 text-[10px] uppercase tracking-[0.12em] text-[#9d7b56]">Общая оценка</div>
