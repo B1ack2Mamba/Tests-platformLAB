@@ -703,150 +703,153 @@ export default function DashboardPage() {
   return (
     <Layout title="Кабинет специалиста">
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+        {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-        <div className="relative z-10">
-          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
-
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-white/70 bg-white/86 px-4 py-3 shadow-[0_18px_34px_-28px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7a5b37]">Кабинет специалиста</div>
-              <div className="mt-1 text-xl font-semibold text-[#2c1b10]">{displayName}</div>
-              <div className="text-sm text-[#6a4b31]">{workspaceName}</div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#64462c]">
-              <span className="dashboard-desk-meta-pill">Проектов: {projects.length}</span>
-              <span className="dashboard-desk-meta-pill">Папок: {folders.length}</span>
-              <span className="dashboard-desk-meta-pill">Попыток: {totalAttempts}</span>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push("/assessments")}>Каталог тестов</button>
-            </div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-white/70 bg-white/88 px-4 py-3 shadow-[0_18px_34px_-28px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7a5b37]">Кабинет специалиста</div>
+            <div className="mt-1 text-xl font-semibold text-[#2c1b10]">{displayName}</div>
+            <div className="text-sm text-[#6a4b31]">{workspaceName}</div>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="dashboard-desk-meta-pill">Баланс: {walletLoading ? '…' : isUnlimited ? '∞' : `${balance_rub} ₽`}</span>
+            <span className="dashboard-desk-meta-pill">{greeneryLabel}</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim()) void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => router.push('/projects/new')}>Создать проект</button>
+          </div>
+        </div>
 
-              <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
-                <div className="dashboard-office-scene-backdrop absolute inset-0" />
-                <div className="dashboard-office-scene-vignette absolute inset-0" />
+        <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
+          <div className="dashboard-office-scene-backdrop absolute inset-0" />
+          <div className="dashboard-office-scene-vignette absolute inset-0" />
 
-                <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-                  <div className="dashboard-board-zone pointer-events-none absolute z-[2] rounded-[1.2rem]" style={{ left: `${BOARD_ZONE.x}px`, top: `${BOARD_ZONE.y}px`, width: `${BOARD_ZONE.width}px`, height: `${BOARD_ZONE.height}px` }} />
-                  <div className="dashboard-board-handwriting absolute z-[4]" style={{ left: `${BOARD_ZONE.x + 56}px`, top: `${BOARD_ZONE.y + 34}px`, width: "520px" }}>
-                    <div className="dashboard-board-marker-title">Кошелёк</div>
-                    <div className="dashboard-board-marker-line">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
-                    <div className="dashboard-board-marker-subline">Вложено: {isUnlimited ? "без лимита" : `${investedRub} ₽`} · {greeneryLabel}</div>
-                    <div className="dashboard-board-marker-title mt-5">Личный кабинет</div>
-                    <div className="dashboard-board-marker-line">{displayName}</div>
-                    <div className="dashboard-board-marker-subline">{workspaceName}</div>
-                    <div className="dashboard-board-marker-subline">{data?.profile?.email || user.email || "email не указан"}</div>
-                    <div className="dashboard-board-marker-note">На доске доступны быстрые действия по проектам и папкам.</div>
-                    <div className="dashboard-board-actions mt-4 flex flex-wrap gap-3">
-                      <button type="button" className="dashboard-board-action" onClick={() => router.push("/projects/new")}>Создать проект</button>
-                      <button type="button" className="dashboard-board-action dashboard-board-action-secondary" onClick={() => {
-                        const name = window.prompt("Название новой папки", "Новая папка");
-                        if (name && name.trim()) void createFolderNamed(name.trim(), "folder");
-                      }}>Новая папка</button>
-                    </div>
+          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+            <div className="pointer-events-none absolute left-[120px] top-[110px] z-[4] max-w-[520px] rounded-[28px] border border-white/40 bg-white/10 px-10 py-8 text-[#44506a] backdrop-blur-[1px]">
+              <div className="text-[38px] font-semibold tracking-tight">Кошелёк</div>
+              <div className="mt-1 text-[36px] font-semibold">{walletLoading ? '…' : isUnlimited ? '∞' : `${balance_rub} ₽`}</div>
+              <div className="mt-3 text-[22px]">Вложено: {isUnlimited ? 'без лимита' : `${investedRub} ₽`} · {greeneryLabel}</div>
+              <div className="mt-8 text-[34px] font-semibold tracking-tight">Личный кабинет</div>
+              <div className="mt-2 text-[44px] font-semibold leading-none">{displayName}</div>
+              <div className="mt-3 text-[24px]">{workspaceName}</div>
+              <div className="mt-2 text-[22px]">{data?.profile?.email || user.email || 'email не указан'}</div>
+            </div>
+
+            <div className="absolute left-[120px] top-[620px] z-[8] flex gap-8">
+              <button type="button" className="dashboard-board-action" onClick={() => router.push('/projects/new')}>Создать проект</button>
+              <button type="button" className="dashboard-board-action dashboard-board-action-secondary" onClick={() => { const name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim()) void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
+            </div>
+
+            <div
+              className={`dashboard-trash-zone absolute z-[6] ${trashHover ? 'dashboard-trash-zone-active' : ''}`}
+              style={{ left: `${TRASH_ZONE.x}px`, top: `${TRASH_ZONE.y}px`, width: `${TRASH_ZONE.width}px`, height: `${TRASH_ZONE.height}px` }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                if (draggedProjectId) beginTrashHover('project', draggedProjectId);
+                else if (draggedFolderId) beginTrashHover('folder', draggedFolderId);
+              }}
+              onDragLeave={() => clearTrashHover()}
+              onDrop={(e) => {
+                e.preventDefault();
+                clearTrashHover();
+              }}
+            />
+
+            <div className="absolute z-[12] overflow-hidden" style={{ left: `${TRAY_CLIP.x}px`, top: `${TRAY_CLIP.y}px`, width: `${TRAY_CLIP.width}px`, height: `${TRAY_CLIP.height}px` }}>
+              {trayFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
+                const itemId = `folder:${folder.id}`;
+                const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
+                return (
+                  <div key={folder.id} className="absolute" style={{ left: position.x - TRAY_CLIP.x, top: position.y - TRAY_CLIP.y, zIndex: position.z }}>
+                    <FolderDesktopIcon
+                      folder={folder}
+                      projects={folderProjects}
+                      busy={busyFolderId === folder.id}
+                      onOpen={() => setActiveFolderId(folder.id)}
+                      onManage={() => setFolderActionTarget(folder)}
+                      onDropProject={(projectId) => moveProject(projectId, folder.id)}
+                      draggingProjectId={draggingProjectId}
+                      onDragStart={() => {
+                        setDraggingFolderId(folder.id);
+                        bringDeskItemToFront(itemId);
+                      }}
+                      onDragEnd={() => setDraggingFolderId(null)}
+                    />
                   </div>
-                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ left: `${TRAY_ZONE.x}px`, top: `${TRAY_ZONE.y}px`, width: `${TRAY_ZONE.width}px`, height: `${TRAY_ZONE.height}px` }} />
-                  <div
-                    className={`dashboard-trash-zone absolute z-[6] ${trashHover ? "dashboard-trash-zone-active" : ""}`}
-                    style={{ left: `${TRASH_ZONE.x}px`, top: `${TRASH_ZONE.y}px`, width: `${TRASH_ZONE.width}px`, height: `${TRASH_ZONE.height}px` }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      const draggedProjectId = e.dataTransfer.getData("text/project-id") || draggingProjectId;
-                      const draggedFolderId = e.dataTransfer.getData("text/folder-id") || draggingFolderId;
-                      if (draggedProjectId) beginTrashHover("project", draggedProjectId);
-                      else if (draggedFolderId) beginTrashHover("folder", draggedFolderId);
+                );
+              })}
+            </div>
+
+            <div className="dashboard-tray-divider-cover absolute z-[14]" style={{ left: `${TRAY_ZONE.x + 4}px`, top: `${TRAY_ZONE.y + 64}px`, width: `${TRAY_ZONE.width - 10}px`, height: `96px` }} />
+
+            {looseFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
+              const itemId = `folder:${folder.id}`;
+              const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
+              return (
+                <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
+                  <FolderDesktopIcon
+                    folder={folder}
+                    projects={folderProjects}
+                    busy={busyFolderId === folder.id}
+                    onOpen={() => setActiveFolderId(folder.id)}
+                    onManage={() => setFolderActionTarget(folder)}
+                    onDropProject={(projectId) => moveProject(projectId, folder.id)}
+                    draggingProjectId={draggingProjectId}
+                    onDragStart={() => {
+                      setDraggingFolderId(folder.id);
+                      bringDeskItemToFront(itemId);
                     }}
-                    onDragLeave={() => clearTrashHover()}
-                    onDrop={(e) => {
-                      e.preventDefault();
+                    onDragEnd={() => setDraggingFolderId(null)}
+                  />
+                </div>
+              );
+            })}
+
+            {folderBuckets.uncategorized.map((project, projectIndex) => {
+              const itemId = `project:${project.id}`;
+              const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
+              return (
+                <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
+                  <ProjectDesktopIcon
+                    project={project}
+                    busy={busyFolderId === `delete:${project.id}`}
+                    onOpen={() => setPreviewProject(project)}
+                    onDragStart={() => {
+                      setDraggingProjectId(project.id);
+                      bringDeskItemToFront(itemId);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingProjectId(null);
                       clearTrashHover();
                     }}
+                    onDelete={() => deleteProject(project.id)}
                   />
-
-                  <div className="absolute z-[12] overflow-hidden" style={{ left: `${TRAY_CLIP.x}px`, top: `${TRAY_CLIP.y}px`, width: `${TRAY_CLIP.width}px`, height: `${TRAY_CLIP.height}px` }}>
-                    {trayFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
-                      const itemId = `folder:${folder.id}`;
-                      const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
-                      return (
-                        <div key={folder.id} className="absolute" style={{ left: position.x - TRAY_CLIP.x, top: position.y - TRAY_CLIP.y, zIndex: position.z }}>
-                          <FolderDesktopIcon
-                            folder={folder}
-                            projects={folderProjects}
-                            busy={busyFolderId === folder.id}
-                            onOpen={() => setActiveFolderId(folder.id)}
-                            onManage={() => setFolderActionTarget(folder)}
-                            onDropProject={(projectId) => moveProject(projectId, folder.id)}
-                            draggingProjectId={draggingProjectId}
-                            onDragStart={() => { setDraggingFolderId(folder.id); bringDeskItemToFront(itemId); }}
-                            onDragEnd={() => setDraggingFolderId(null)}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="dashboard-tray-divider-cover absolute z-[14]" style={{ left: `${TRAY_ZONE.x + 4}px`, top: `${TRAY_ZONE.y + 64}px`, width: `${TRAY_ZONE.width - 10}px`, height: `96px` }} />
-
-                  {looseFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
-                    const itemId = `folder:${folder.id}`;
-                    const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
-                    return (
-                      <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
-                        <FolderDesktopIcon
-                          folder={folder}
-                          projects={folderProjects}
-                          busy={busyFolderId === folder.id}
-                          onOpen={() => setActiveFolderId(folder.id)}
-                          onManage={() => setFolderActionTarget(folder)}
-                          onDropProject={(projectId) => moveProject(projectId, folder.id)}
-                          draggingProjectId={draggingProjectId}
-                          onDragStart={() => { setDraggingFolderId(folder.id); bringDeskItemToFront(itemId); }}
-                          onDragEnd={() => setDraggingFolderId(null)}
-                        />
-                      </div>
-                    );
-                  })}
-
-                  {folderBuckets.uncategorized.map((project, projectIndex) => {
-                    const itemId = `project:${project.id}`;
-                    const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
-                    return (
-                      <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
-                        <ProjectDesktopIcon
-                          project={project}
-                          busy={busyFolderId === `delete:${project.id}`}
-                          onOpen={() => setPreviewProject(project)}
-                          onDragStart={() => {
-                            setDraggingProjectId(project.id);
-                            bringDeskItemToFront(itemId);
-                          }}
-                          onDragEnd={() => { setDraggingProjectId(null); clearTrashHover(); }}
-                          onDelete={() => deleteProject(project.id)}
-                        />
-                      </div>
-                    );
-                  })}
-
-                  <button
-                    type="button"
-                    className="dashboard-pen-trigger absolute bottom-12 right-10 z-[220]"
-                    onClick={() => router.push("/projects/new")}
-                    aria-label="Создать проект оценки"
-                    title="Создать проект оценки"
-                  >
-                    <span className="dashboard-pen-body" />
-                    <span className="dashboard-pen-cap" />
-                    <span className="dashboard-pen-tip" />
-                  </button>
-
-                  {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
-                    <div className="absolute inset-x-8 bottom-12 rounded-2xl border border-dashed border-black/10 bg-white/88 p-8 text-center text-sm text-[#4b3727] shadow-[0_14px_30px_-24px_rgba(31,18,10,0.22)]">
-                      Здесь пока пусто. Создай первый проект или добавь папку в стойку справа.
-                    </div>
-                  ) : null}
                 </div>
+              );
+            })}
+
+            <button
+              type="button"
+              className="dashboard-pen-trigger absolute bottom-12 right-10 z-[220]"
+              onClick={() => router.push('/projects/new')}
+              aria-label="Создать проект оценки"
+              title="Создать проект оценки"
+            >
+              <span className="dashboard-pen-body" />
+              <span className="dashboard-pen-cap" />
+              <span className="dashboard-pen-tip" />
+            </button>
+
+            {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
+              <div className="absolute inset-x-8 bottom-12 rounded-2xl border border-dashed border-black/10 bg-white/88 p-8 text-center text-sm text-[#4b3727] shadow-[0_14px_30px_-24px_rgba(31,18,10,0.22)]">
+                Здесь пока пусто. Создай первый проект или добавь папку в стойку справа.
               </div>
-            </div>
+            ) : null}
           </div>
+        </div>
+      </div>
 
       {activeFolder ? (
         <FolderModal
@@ -914,8 +917,6 @@ export default function DashboardPage() {
           onSelect={(iconKey) => updateFolderIcon(iconPickerFolder, iconKey)}
         />
       ) : null}
-        </div>
-      </div>
     </Layout>
   );
 }
