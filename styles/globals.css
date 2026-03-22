@@ -1622,7 +1622,7 @@ html.native-app .app-brand {
 
   .dashboard-folder-card {
     width: 10.6rem;
-    height: 11rem;
+    height: 11.8rem;
     border-radius: 4px 10px 10px 10px;
     background:
       linear-gradient(180deg, rgba(220,195,153,0.995) 0%, rgba(209,181,136,0.995) 42%, rgba(194,161,117,0.995) 100%);
@@ -2161,5 +2161,28 @@ html.native-app .app-brand {
       display: grid;
       gap: 0.9rem;
     }
+  }
+}
+
+
+@layer components {
+  .dashboard-tray-zone {
+    left: 1.1rem;
+    top: 14.8rem;
+    width: 14.8rem;
+    height: 14.4rem;
+  }
+
+  .dashboard-folder-card {
+    height: 11.8rem;
+  }
+
+  .dashboard-project-paper-angled-wrap {
+    transform-origin: 50% 50%;
+  }
+
+  .dashboard-project-paper {
+    width: 12.2rem;
+    min-height: 9rem;
   }
 }

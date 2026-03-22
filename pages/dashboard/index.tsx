@@ -59,7 +59,7 @@ const DESK_FOLDER_HEIGHT = 196;
 const DESK_SHEET_WIDTH = 212;
 const DESK_SHEET_HEIGHT = 164;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
-const TRAY_ZONE = { x: 20, y: 164, width: 262, height: 286 };
+const TRAY_ZONE = { x: 24, y: 250, width: 250, height: 250 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -162,18 +162,18 @@ function getDeskStorageKey(workspaceId: string) {
 
 function getDefaultFolderPosition(index: number): DeskPosition {
   return {
-    x: TRAY_ZONE.x + 36 + (index % 2) * 8,
-    y: TRAY_ZONE.y + 10 + index * 16,
+    x: TRAY_ZONE.x + 44 + (index % 3) * 6,
+    y: TRAY_ZONE.y + 18 + index * 8,
     z: 20 + index,
   };
 }
 
 function getDefaultProjectPosition(index: number): DeskPosition {
-  const row = Math.floor(index / 4);
-  const col = index % 4;
+  const row = Math.floor(index / 3);
+  const col = index % 3;
   return {
-    x: 420 + col * 186 + (row % 2) * 14,
-    y: 360 + row * 96 + (col % 2) * 10,
+    x: 360 + col * 250 + (row % 2) * 14,
+    y: 470 + row * 92 + col * 8,
     z: 140 + index,
   };
 }
@@ -727,14 +727,14 @@ export default function DashboardPage() {
                 </button>
 
                 <div className="dashboard-office-workzone absolute inset-x-6 bottom-6 top-[13.5rem] overflow-hidden rounded-[26px]" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-                  <div className="dashboard-tray-zone pointer-events-none absolute left-[0.9rem] top-[8.6rem] z-[3] h-[15rem] w-[15rem] rounded-[1.2rem]" />
+                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ left: '1.1rem', top: '14.8rem', width: '14.8rem', height: '14.4rem' }} />
                   <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/12 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
                     Папки можно складывать в лоток слева, а листы — свободно раскладывать под углом по столу.
                   </div>
 
-                  {folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => {
+                  {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
                     const itemId = `folder:${folder.id}`;
-                    const position = deskPositions[itemId] || getDefaultFolderPosition(folder.sort_order || 0);
+                    const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
                     return (
                       <div
                         key={folder.id}
@@ -880,9 +880,9 @@ export default function DashboardPage() {
               Листы можно раскладывать по всему столу, класть друг на друга и собирать в папки.
             </div>
 
-            {folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => {
+            {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
               const itemId = `folder:${folder.id}`;
-              const position = deskPositions[itemId] || getDefaultFolderPosition(folder.sort_order || 0);
+              const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
               return (
                 <div
                   key={folder.id}
@@ -1275,11 +1275,10 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 9) - 4) * 2.1;
-  const lift = 54 + (tiltSeed % 3) * 8;
+  const tilt = ((tiltSeed % 7) - 3) * 1.6;
 
   return (
-    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `perspective(1400px) rotateX(66deg) rotateZ(${tilt}deg) translateY(-${lift}px)` }}>
+    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `rotate(${tilt}deg)` }}>
       {onDelete ? (
         <button
           type="button"
