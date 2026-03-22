@@ -59,6 +59,7 @@ const DESK_FOLDER_HEIGHT = 152;
 const DESK_SHEET_WIDTH = 188;
 const DESK_SHEET_HEIGHT = 246;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
+const TRAY_ZONE = { x: 26, y: 168, width: 246, height: 254 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -151,26 +152,28 @@ function clampDesk(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function isInsideTrayZone(x: number, y: number) {
+  return x >= TRAY_ZONE.x && x <= TRAY_ZONE.x + TRAY_ZONE.width && y >= TRAY_ZONE.y && y <= TRAY_ZONE.y + TRAY_ZONE.height;
+}
+
 function getDeskStorageKey(workspaceId: string) {
   return `${DESK_STORAGE_PREFIX}${workspaceId}`;
 }
 
 function getDefaultFolderPosition(index: number): DeskPosition {
-  const row = Math.floor(index / 5);
-  const col = index % 5;
   return {
-    x: 40 + col * 242 + (row % 2) * 20,
-    y: 30 + row * 178,
+    x: TRAY_ZONE.x + 10 + (index % 2) * 18,
+    y: TRAY_ZONE.y + 18 + index * 18,
     z: 20 + index,
   };
 }
 
 function getDefaultProjectPosition(index: number): DeskPosition {
-  const row = Math.floor(index / 6);
-  const col = index % 6;
+  const row = Math.floor(index / 4);
+  const col = index % 4;
   return {
-    x: 54 + col * 184 + ((row + 1) % 2) * 16,
-    y: 248 + row * 206 + (col % 2) * 10,
+    x: 320 + col * 206 + (row % 2) * 18,
+    y: 318 + row * 148 + (col % 2) * 12,
     z: 140 + index,
   };
 }
@@ -363,16 +366,35 @@ export default function DashboardPage() {
   const placeDeskItem = useCallback((itemId: string, kind: "folder" | "project", x: number, y: number) => {
     const maxX = kind === "folder" ? DESK_WIDTH - DESK_FOLDER_WIDTH - 24 : DESK_WIDTH - DESK_SHEET_WIDTH - 24;
     const maxY = kind === "folder" ? DESK_HEIGHT - DESK_FOLDER_HEIGHT - 24 : DESK_HEIGHT - DESK_SHEET_HEIGHT - 24;
+    const nextX = clampDesk(x, 24, maxX);
+    const nextY = clampDesk(y, 24, maxY);
+
+    if (kind === "folder") {
+      const folderId = itemId.replace("folder:", "");
+      const folderIndex = Math.max(0, folders.findIndex((item) => item.id === folderId));
+      const snapped = isInsideTrayZone(nextX, nextY) ? getDefaultFolderPosition(folderIndex) : { x: nextX, y: nextY, z: 20 + folderIndex };
+      setDeskPositions((prev) => ({
+        ...prev,
+        [itemId]: {
+          ...(prev[itemId] || { z: deskLayer + 1 }),
+          x: snapped.x,
+          y: snapped.y,
+          z: prev[itemId]?.z || deskLayer + 1,
+        },
+      }));
+      return;
+    }
+
     setDeskPositions((prev) => ({
       ...prev,
       [itemId]: {
         ...(prev[itemId] || { z: deskLayer + 1 }),
-        x: clampDesk(x, 24, maxX),
-        y: clampDesk(y, 24, maxY),
+        x: nextX,
+        y: nextY,
         z: prev[itemId]?.z || deskLayer + 1,
       },
     }));
-  }, [deskLayer]);
+  }, [deskLayer, folders]);
 
   const handleDeskDrop = useCallback((e: any) => {
     e.preventDefault();
@@ -705,8 +727,9 @@ export default function DashboardPage() {
                 </button>
 
                 <div className="dashboard-office-workzone absolute inset-x-6 bottom-6 top-[13.5rem] overflow-hidden rounded-[26px]" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+                  <div className="dashboard-tray-zone pointer-events-none absolute left-[0.9rem] top-[8.6rem] z-[3] h-[15rem] w-[15rem] rounded-[1.2rem]" />
                   <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/12 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
-                    Перетаскивай листы и папки по всему столу, клади их друг на друга и собирай папки мышкой.
+                    Папки можно складывать в лоток слева, а листы — свободно раскладывать под углом по столу.
                   </div>
 
                   {folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => {
@@ -1155,7 +1178,7 @@ type FolderDesktopIconProps = {
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
   const icon = getFolderIcon(folder.icon_key);
-  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.18;
+  const tilt = ((folder.sort_order || 0) % 4 - 1.5) * 0.12;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1252,7 +1275,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 9) - 4) * 0.22;
+  const tilt = ((tiltSeed % 11) - 5) * 0.85;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
