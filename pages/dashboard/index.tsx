@@ -734,6 +734,16 @@ export default function DashboardPage() {
 
                 <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
                   <div className="dashboard-board-zone pointer-events-none absolute z-[2] rounded-[1.2rem]" style={{ left: `${BOARD_ZONE.x}px`, top: `${BOARD_ZONE.y}px`, width: `${BOARD_ZONE.width}px`, height: `${BOARD_ZONE.height}px` }} />
+                  <div className="dashboard-board-handwriting pointer-events-none absolute z-[4]" style={{ left: `${BOARD_ZONE.x + 72}px`, top: `${BOARD_ZONE.y + 42}px`, width: "420px" }}>
+                    <div className="dashboard-board-marker-title">Кошелёк</div>
+                    <div className="dashboard-board-marker-line">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
+                    <div className="dashboard-board-marker-subline">Вложено: {isUnlimited ? "без лимита" : `${investedRub} ₽`} · {greeneryLabel}</div>
+                    <div className="dashboard-board-marker-title mt-6">Личный кабинет</div>
+                    <div className="dashboard-board-marker-line">{displayName}</div>
+                    <div className="dashboard-board-marker-subline">{workspaceName}</div>
+                    <div className="dashboard-board-marker-subline">{data?.profile?.email || user.email || "email не указан"}</div>
+                    <div className="dashboard-board-marker-note">Маркерная сводка по владельцу рабочего пространства</div>
+                  </div>
                   <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ left: `${TRAY_ZONE.x}px`, top: `${TRAY_ZONE.y}px`, width: `${TRAY_ZONE.width}px`, height: `${TRAY_ZONE.height}px` }} />
 
                   {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {

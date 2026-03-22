@@ -2677,3 +2677,40 @@ html.native-app .app-brand {
   .dashboard-office-scene { min-height: 780px; }
   .dashboard-sticky-note { width: 11.5rem; min-height: 10.8rem; }
 }
+
+.dashboard-board-handwriting {
+  color: rgba(32, 40, 58, 0.82);
+  transform: rotate(-1.3deg);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.22);
+}
+.dashboard-board-marker-title {
+  font-family: "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive;
+  font-size: 1.55rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: rgba(24, 37, 62, 0.78);
+  letter-spacing: 0.02em;
+}
+.dashboard-board-marker-line {
+  margin-top: 0.4rem;
+  font-family: "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 700;
+  color: rgba(18, 30, 56, 0.74);
+}
+.dashboard-board-marker-subline {
+  margin-top: 0.28rem;
+  font-family: "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive;
+  font-size: 1.1rem;
+  line-height: 1.3;
+  color: rgba(38, 52, 82, 0.7);
+}
+.dashboard-board-marker-note {
+  margin-top: 0.9rem;
+  max-width: 24rem;
+  font-family: "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive;
+  font-size: 0.96rem;
+  line-height: 1.35;
+  color: rgba(54, 70, 104, 0.55);
+}
