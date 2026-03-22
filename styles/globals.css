@@ -567,3 +567,235 @@ html.native-app .app-brand {
 @keyframes dashboardVineGrow {
   to { stroke-dashoffset: 0; }
 }
+
+@layer components {
+  .dashboard-experience {
+    background:
+      radial-gradient(circle at 14% 8%, rgba(255,255,255,0.18), transparent 18%),
+      radial-gradient(circle at 86% 12%, rgba(255,255,255,0.12), transparent 20%),
+      repeating-linear-gradient(90deg,
+        rgba(255,255,255,0.035) 0px,
+        rgba(255,255,255,0.035) 2px,
+        rgba(80,47,20,0.02) 2px,
+        rgba(80,47,20,0.02) 7px,
+        rgba(255,255,255,0.02) 7px,
+        rgba(255,255,255,0.02) 13px),
+      linear-gradient(135deg, #6b472a 0%, #8a6138 18%, #a07345 34%, #835a34 52%, #af8355 76%, #7a5432 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.18),
+      inset 0 -10px 30px rgba(40,22,8,0.18),
+      0 34px 80px -40px rgba(26, 16, 6, 0.58);
+  }
+
+  .dashboard-surface-gradient {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0)),
+      linear-gradient(90deg, rgba(255,255,255,0.03), rgba(0,0,0,0.02), rgba(255,255,255,0.02));
+    mix-blend-mode: screen;
+  }
+
+  .dashboard-panel {
+    border-color: rgba(176, 145, 104, 0.48) !important;
+    background:
+      linear-gradient(180deg, rgba(255,252,245,0.96), rgba(248,240,227,0.94)) !important;
+    box-shadow:
+      0 18px 40px -28px rgba(29,16,7,0.36),
+      0 4px 10px rgba(90, 59, 28, 0.08),
+      inset 0 1px 0 rgba(255,255,255,0.88);
+    backdrop-filter: blur(6px);
+  }
+
+  .dashboard-window-card {
+    position: relative;
+  }
+
+  .dashboard-window-card::after {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    border-radius: 28px;
+    border: 1px solid rgba(165, 138, 105, 0.14);
+    pointer-events: none;
+  }
+
+  .dashboard-window-card-main {
+    transform: rotate(-0.65deg);
+  }
+
+  .dashboard-window-card-side {
+    transform: rotate(1deg);
+  }
+
+  .dashboard-wallet {
+    background:
+      linear-gradient(180deg, rgba(255,252,246,0.98), rgba(246,238,225,0.94)) !important;
+  }
+
+  .dashboard-stat-chip {
+    border: 1px solid rgba(173, 145, 111, 0.22);
+    border-radius: 1rem;
+    padding: 0.95rem 1rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(247,240,229,0.94));
+    box-shadow:
+      0 10px 24px -18px rgba(45,26,10,0.26),
+      inset 0 1px 0 rgba(255,255,255,0.92);
+  }
+
+  .dashboard-action-btn-primary {
+    border: 1px solid rgba(144, 118, 67, 0.6);
+    background: linear-gradient(180deg, rgba(247,242,233,0.98), rgba(226,212,185,0.98));
+    color: #3e2917;
+    box-shadow:
+      0 18px 30px -22px rgba(55,33,13,0.42),
+      inset 0 1px 0 rgba(255,255,255,0.96);
+  }
+
+  .dashboard-action-btn-secondary {
+    border: 1px solid rgba(154, 130, 92, 0.38);
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,234,223,0.96));
+    color: #3e2917;
+    box-shadow:
+      0 18px 30px -24px rgba(55,33,13,0.24),
+      inset 0 1px 0 rgba(255,255,255,0.96);
+  }
+
+  .dashboard-action-btn::before {
+    background: linear-gradient(120deg, rgba(255,255,255,0.42), transparent 46%, rgba(255,255,255,0.14));
+  }
+
+  .dashboard-action-badge-shell {
+    background: rgba(255, 255, 255, 0.55);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      0 10px 22px -18px rgba(66,43,20,0.36);
+  }
+
+  .dashboard-desk-surface {
+    background:
+      radial-gradient(circle at 50% -20%, rgba(255,255,255,0.12), transparent 24%),
+      repeating-linear-gradient(90deg,
+        rgba(255,255,255,0.03) 0px,
+        rgba(255,255,255,0.03) 3px,
+        rgba(73,46,20,0.02) 3px,
+        rgba(73,46,20,0.02) 9px,
+        rgba(255,255,255,0.018) 9px,
+        rgba(255,255,255,0.018) 16px),
+      linear-gradient(135deg, rgba(114,77,45,0.92), rgba(138,96,57,0.96) 28%, rgba(110,72,41,0.94) 56%, rgba(155,111,68,0.98));
+    border-color: rgba(99, 65, 35, 0.42) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      inset 0 -8px 20px rgba(43,24,8,0.14),
+      0 22px 60px -32px rgba(26, 16, 6, 0.55);
+  }
+
+  .dashboard-folder-card {
+    background:
+      linear-gradient(180deg, rgba(228,194,132,0.98), rgba(200,157,94,0.98));
+    box-shadow:
+      0 18px 24px -20px rgba(36,20,7,0.6),
+      inset 0 1px 0 rgba(255,239,211,0.7),
+      inset 0 -12px 18px rgba(128, 88, 38, 0.16);
+  }
+
+  .dashboard-folder-tab {
+    position: absolute;
+    top: 0.25rem;
+    left: 1rem;
+    width: 4rem;
+    height: 1.1rem;
+    border-radius: 0.8rem 0.8rem 0.25rem 0.25rem;
+    background: linear-gradient(180deg, rgba(232,204,148,1), rgba(205,165,103,1));
+    box-shadow: inset 0 1px 0 rgba(255,240,214,0.78);
+  }
+
+  .dashboard-folder-gloss {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent 46%, rgba(121,83,39,0.08));
+  }
+
+  .dashboard-folder-preview-sheet {
+    border-color: rgba(187, 151, 105, 0.38);
+    background: linear-gradient(180deg, rgba(255,252,245,0.95), rgba(245,237,224,0.95));
+    color: #6b4a2a;
+  }
+
+  .dashboard-project-sheet {
+    background:
+      linear-gradient(180deg, rgba(255,253,247,0.98), rgba(243,234,219,0.98));
+    box-shadow:
+      0 18px 30px -24px rgba(28,16,6,0.45),
+      0 6px 10px rgba(88,58,29,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.96);
+  }
+
+  .dashboard-project-sheet::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(180deg, rgba(122,93,60,0.03) 0px, rgba(122,93,60,0.03) 1px, transparent 1px, transparent 22px);
+    opacity: 0.65;
+    pointer-events: none;
+  }
+
+  .dashboard-project-sheet-corner {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 1.45rem;
+    height: 1.45rem;
+    background: linear-gradient(135deg, rgba(230,218,193,0.98), rgba(255,255,255,0.9));
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+    box-shadow: -2px 3px 6px rgba(62, 40, 18, 0.08);
+  }
+
+  .dashboard-panel-vined > :not(.dashboard-vine-shell):not(.dashboard-panel-glow) {
+    position: relative;
+    z-index: 2;
+  }
+
+  .dashboard-vine-shell {
+    overflow: hidden;
+    border-radius: inherit;
+    box-sizing: border-box;
+    padding: 16px;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .dashboard-vine-stroke {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke: rgba(58, 92, 44, 0.6);
+    filter: drop-shadow(0 3px 4px rgba(20, 45, 16, 0.18));
+  }
+
+  .dashboard-vine-stroke-main {
+    stroke-width: 2.4;
+    stroke-dasharray: 220;
+    stroke-dashoffset: 220;
+    animation: dashboardVineGrow 1700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .dashboard-vine-stroke-soft {
+    stroke-width: 1.7;
+    stroke-dasharray: 180;
+    stroke-dashoffset: 180;
+    opacity: 0.92;
+    animation: dashboardVineGrow 1900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 180ms;
+  }
+
+  .dashboard-vine-leaf {
+    fill: rgba(84, 134, 69, 0.94);
+    stroke: rgba(210, 241, 201, 0.64);
+    stroke-width: 0.8;
+    opacity: 0;
+    filter: drop-shadow(0 3px 6px rgba(27, 54, 24, 0.2));
+    animation: dashboardLeafBloom 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}

@@ -110,30 +110,30 @@ function getGreeneryLevel(amountRub: number, isUnlimited = false): GreeneryLevel
 function getGreeneryLabel(level: GreeneryLevel) {
   switch (level) {
     case 4:
-      return "Зрелый сад";
+      return "Премиальный кабинет";
     case 3:
-      return "Сильное дерево";
+      return "Густая зелень";
     case 2:
-      return "Молодое дерево";
+      return "Живой интерьер";
     case 1:
-      return "Саженец";
+      return "Первые вьюны";
     default:
-      return "Росток";
+      return "Чистый кабинет";
   }
 }
 
 function getGreeneryHint(level: GreeneryLevel) {
   switch (level) {
     case 4:
-      return "Кабинет уже выглядит как живая среда: дерево раскрыто, а рамки окон обросли мягкой зеленью.";
+      return "Окна и панели уже мягко обрамлены реалистичной зеленью, а кабинет выглядит как дорогой живой интерьер.";
     case 3:
-      return "Дерево окрепло, а вьюны уже заметно обрамляют панели и рабочие окна.";
+      return "Вьюны уже хорошо видны по рамкам и собирают интерьер в цельную живую композицию.";
     case 2:
-      return "Зелень уже начала собирать пространство: дерево выросло, а по краям панелей пошли первые вьюны.";
+      return "Зелень заметно оживляет панели: по краям окон уже идут первые уверенные линии вьюнов.";
     case 1:
-      return "Появился уверенный саженец и первые живые линии вокруг окон.";
+      return "Появились первые аккуратные вьюны вокруг окон и карточек.";
     default:
-      return "Пока в кабинете только маленький росток. Чем больше пополнений, тем гуще станет вся зелень.";
+      return "Пока кабинет остаётся чистым и строгим. Чем больше пополнений, тем богаче станет живая зелень вокруг окон.";
   }
 }
 
@@ -439,12 +439,12 @@ export default function DashboardPage() {
         <div className="relative z-10">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-900 shadow-[0_12px_30px_-24px_rgba(16,94,64,0.5)] backdrop-blur-xl">
-            Живая система оценки
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/75 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#5a3d22] shadow-[0_12px_30px_-24px_rgba(58,39,20,0.35)] backdrop-blur-xl">
+            Премиальный рабочий стол
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1.6fr_0.7fr] items-stretch">
-            <div className="card dashboard-panel dashboard-panel-vined relative h-full overflow-hidden">
+            <div className="card dashboard-panel dashboard-window-card dashboard-window-card-main dashboard-panel-vined relative h-full overflow-hidden">
               <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
               <div className="dashboard-panel-glow absolute -right-16 top-0 h-40 w-40 rounded-full bg-emerald-300/25 blur-3xl" />
               <div className="relative">
@@ -452,7 +452,7 @@ export default function DashboardPage() {
                 <div className="mt-2 text-2xl font-semibold text-slate-950 sm:text-[2rem]">{displayName}</div>
                 <div className="mt-2 text-sm text-slate-600">{workspaceName}</div>
                 <div className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-                  Кабинет теперь растёт от реального вклада: чем больше пополнений, тем крупнее дерево и тем гуще зелень вокруг панелей. {greeneryHint}
+                  Кабинет теперь собран как дорогой офисный стол сверху: рабочие окна лежат на поверхности как бумаги и папки, а живая зелень появляется по мере реальных пополнений. {greeneryHint}
                 </div>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <PremiumActionButton
@@ -485,7 +485,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="card dashboard-panel dashboard-panel-vined dashboard-wallet h-full relative overflow-hidden border-emerald-100 bg-white/70">
+            <div className="card dashboard-panel dashboard-window-card dashboard-window-card-side dashboard-panel-vined dashboard-wallet h-full relative overflow-hidden border-emerald-100 bg-white/70">
               <VineFrame growthLevel={greeneryLevel} density="light" pulseToken={mechanicPulse} />
               <div className="pointer-events-none absolute -right-16 top-1 h-44 w-44 rounded-full bg-white/70 blur-2xl" />
               <div className="pointer-events-none absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-[22px] border border-white/70 bg-white/80 text-xl text-emerald-900 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">₽</div>
@@ -495,7 +495,7 @@ export default function DashboardPage() {
                   <div className="mt-1 text-2xl font-semibold text-slate-950">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
                   <div className="mt-2 max-w-[22rem] text-xs leading-5 text-slate-500">Баланс для открытия уровней результата, AI-интерпретаций и расширенных функций.</div>
                   <div className="mt-3 rounded-2xl border border-emerald-100 bg-white/70 px-3 py-2 text-xs leading-5 text-emerald-900/80">
-                    Чем больше вложено рублей в кабинет, тем гуще зелень и крупнее дерево: {isUnlimited ? "без лимита" : `${investedRub} ₽`}. Сейчас это стадия «{greeneryLabel}».
+                    Чем больше вложено рублей в кабинет, тем гуще зелень вокруг окон и рабочих панелей: {isUnlimited ? "без лимита" : `${investedRub} ₽`}. Сейчас это стадия «{greeneryLabel}».
                   </div>
                 </div>
               </div>
@@ -519,7 +519,7 @@ export default function DashboardPage() {
           </div>
 
       {isAdmin ? (
-        <section className="card dashboard-panel dashboard-panel-vined relative mt-6 overflow-hidden">
+        <section className="card dashboard-panel dashboard-desk-surface dashboard-panel-vined relative mt-6 overflow-hidden">
           <VineFrame growthLevel={greeneryLevel} density="light" pulseToken={mechanicPulse} />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -535,8 +535,8 @@ export default function DashboardPage() {
         <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-900">Рабочий стол проектов</div>
-            <div className="mt-1 text-sm text-slate-500">Папки открываются поверх стола, а свободные проекты лежат отдельными иконками.</div>
+            <div className="text-sm font-semibold text-[#4a2f18]">Рабочий стол проектов</div>
+            <div className="mt-1 text-sm text-[#6f5033]">Вид сверху на дорогой дубовый стол: папки лежат как реальные офисные папки, а проекты — как отдельные листы, которые можно перетаскивать в папки.</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -556,8 +556,8 @@ export default function DashboardPage() {
           <div className="mt-4 rounded-[24px] border border-emerald-100 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-900">Новая папка на рабочем столе</div>
-                <div className="mt-1 text-xs text-slate-500">Выбери иконку, задай название и собери свои проекты в одну понятную группу.</div>
+                <div className="text-sm font-semibold text-[#4a2f18]">Новая папка на рабочем столе</div>
+                <div className="mt-1 text-xs text-[#7b5a38]">Создай отдельную папку на столе и собирай в неё листы проектов как в реальном кабинете.</div>
               </div>
               <div className="flex flex-wrap gap-2">
                 {FOLDER_ICONS.map((icon) => {
@@ -719,17 +719,17 @@ function DashboardBackdrop({ pulseToken, greeneryLevel }: DashboardBackdropProps
     <>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 dashboard-surface-gradient" />
-        <div className="absolute -left-20 top-4 h-72 w-72 rounded-full bg-emerald-300/25 blur-3xl" />
-        <div className="absolute right-[-4rem] top-0 h-80 w-80 rounded-full bg-white/55 blur-3xl" />
-        <div className="absolute bottom-[-4rem] left-1/3 h-64 w-64 rounded-full bg-teal-200/20 blur-3xl" />
+        <div className="absolute left-[6%] top-[3%] h-56 w-[42%] rounded-[40px] bg-white/20 blur-3xl" />
+        <div className="absolute right-[4%] top-[6%] h-48 w-[30%] rounded-[40px] bg-white/22 blur-3xl" />
+        <div className="absolute inset-y-0 left-[11%] w-px bg-white/8" />
+        <div className="absolute inset-y-0 left-[42%] w-px bg-black/5" />
+        <div className="absolute inset-y-0 right-[18%] w-px bg-white/7" />
+        <div className="absolute inset-x-0 top-[18%] h-px bg-white/7" />
+        <div className="absolute inset-x-0 top-[53%] h-px bg-black/5" />
       </div>
 
-      <TreeGrowthScene greeneryLevel={greeneryLevel} pulseToken={pulseToken} />
-
-      {greeneryLevel <= 1 ? (
-        <div className="pointer-events-none absolute right-[4%] top-[12%] z-[1] opacity-70 blur-[0.2px]">
-          <SproutAura key={`sprout-aura-${pulseToken}`} />
-        </div>
+      {greeneryLevel >= 1 ? (
+        <div key={`desk-breath-${pulseToken}-${greeneryLevel}`} className="pointer-events-none absolute right-[4%] top-[6%] z-[1] h-40 w-40 rounded-full bg-emerald-200/10 blur-3xl" />
       ) : null}
     </>
   );
@@ -750,83 +750,6 @@ function PremiumActionButton({ label, onClick, pulseToken, variant = "primary", 
   );
 }
 
-function TreeGrowthScene({ greeneryLevel, pulseToken }: { greeneryLevel: GreeneryLevel; pulseToken: number }) {
-  const sceneClass =
-    greeneryLevel >= 4
-      ? "h-[27rem] w-[28rem] max-w-[46vw] opacity-[0.98]"
-      : greeneryLevel === 3
-      ? "h-[24rem] w-[25rem] max-w-[44vw] opacity-[0.96]"
-      : greeneryLevel === 2
-      ? "h-[20rem] w-[21rem] max-w-[38vw] opacity-[0.94]"
-      : greeneryLevel === 1
-      ? "h-[16rem] w-[17rem] max-w-[32vw] opacity-[0.9]"
-      : "h-[11rem] w-[12rem] max-w-[24vw] opacity-[0.84]";
-
-  return (
-    <div className={`dashboard-tree-scene pointer-events-none absolute bottom-[-0.8rem] left-[-1.4rem] z-[1] transition-all duration-700 ${sceneClass}`}>
-      <svg key={`tree-growth-level-${greeneryLevel}-${pulseToken}`} viewBox="0 0 360 360" className="h-full w-full" fill="none" aria-hidden="true">
-        <ellipse cx="135" cy="318" rx="78" ry="22" className="dashboard-tree-ground" />
-
-        <g className="dashboard-tree-sprout">
-          <path d="M120 312C128 300 136 292 144 286" className="dashboard-tree-sprout-stem" />
-          <path d="M143 286C131 280 121 280 112 288C123 292 133 292 143 286Z" className="dashboard-tree-sprout-leaf" />
-          <path d="M143 286C152 276 164 272 178 278C169 287 158 290 143 286Z" className="dashboard-tree-sprout-leaf dashboard-tree-sprout-leaf-alt" />
-        </g>
-
-        {greeneryLevel >= 1 ? <path d="M143 286C150 252 160 220 177 191C194 162 211 139 223 110" className="dashboard-tree-trunk" /> : null}
-        {greeneryLevel >= 1 ? <path d="M167 208C153 214 139 224 124 239" className="dashboard-tree-branch dashboard-tree-branch-e" /> : null}
-        {greeneryLevel >= 2 ? <path d="M179 190C162 175 145 165 126 159" className="dashboard-tree-branch dashboard-tree-branch-a" /> : null}
-        {greeneryLevel >= 2 ? <path d="M204 145C192 124 177 108 156 96" className="dashboard-tree-branch dashboard-tree-branch-c" /> : null}
-        {greeneryLevel >= 3 ? <path d="M191 166C211 157 229 143 245 120" className="dashboard-tree-branch dashboard-tree-branch-b" /> : null}
-        {greeneryLevel >= 3 ? <path d="M214 131C234 123 252 108 267 86" className="dashboard-tree-branch dashboard-tree-branch-d" /> : null}
-
-        {greeneryLevel >= 1 ? (
-          <g className="dashboard-tree-canopy dashboard-tree-canopy-c">
-            <circle cx="154" cy="96" r="22" />
-            <circle cx="186" cy="80" r="19" />
-            <circle cx="214" cy="98" r="17" />
-          </g>
-        ) : null}
-        {greeneryLevel >= 2 ? (
-          <g className="dashboard-tree-canopy dashboard-tree-canopy-a">
-            <circle cx="118" cy="152" r="28" />
-            <circle cx="150" cy="132" r="30" />
-            <circle cx="176" cy="156" r="24" />
-          </g>
-        ) : null}
-        {greeneryLevel >= 3 ? (
-          <g className="dashboard-tree-canopy dashboard-tree-canopy-b">
-            <circle cx="206" cy="122" r="29" />
-            <circle cx="242" cy="102" r="32" />
-            <circle cx="266" cy="132" r="22" />
-          </g>
-        ) : null}
-
-        {greeneryLevel >= 4 ? (
-          <g className="dashboard-tree-canopy dashboard-tree-canopy-rich">
-            <circle cx="101" cy="188" r="18" />
-            <circle cx="126" cy="188" r="15" />
-            <circle cx="286" cy="152" r="18" />
-            <circle cx="246" cy="72" r="14" />
-            <circle cx="217" cy="58" r="12" />
-          </g>
-        ) : null}
-      </svg>
-    </div>
-  );
-}
-
-function SproutAura() {
-  return (
-    <svg viewBox="0 0 140 140" width="112" height="112" fill="none" aria-hidden="true" className="dashboard-sprout-aura">
-      <circle cx="70" cy="70" r="42" className="dashboard-sprout-aura-core" />
-      <path d="M70 94C70 76 70 63 70 48" className="dashboard-sprout-aura-stem" />
-      <path d="M70 55C54 44 41 44 30 55C45 60 58 60 70 55Z" className="dashboard-sprout-aura-leaf" />
-      <path d="M70 55C84 39 99 34 116 42C104 56 89 61 70 55Z" className="dashboard-sprout-aura-leaf dashboard-sprout-aura-leaf-alt" />
-    </svg>
-  );
-}
-
 function SproutBadge({ compact = false }: { compact?: boolean }) {
   const size = compact ? 28 : 32;
   return (
@@ -839,34 +762,45 @@ function SproutBadge({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function VineLeaf({ x, y, rotate = 0, scale = 1, className = "" }: { x: number; y: number; rotate?: number; scale?: number; className?: string }) {
+  return (
+    <path
+      d="M0 0C7 -8 15 -10 24 -2C18 10 8 12 0 0Z"
+      transform={`translate(${x} ${y}) rotate(${rotate}) scale(${scale})`}
+      className={`dashboard-vine-leaf ${className}`.trim()}
+    />
+  );
+}
+
 function VineFrame({ growthLevel, density = "rich", pulseToken = 0 }: VineFrameProps) {
   if (growthLevel === 0) return null;
 
   return (
-    <div key={`vines-${density}-${growthLevel}-${pulseToken}`} className={`dashboard-vine-shell pointer-events-none absolute inset-[8px] z-0 ${density === "rich" ? "opacity-95" : "opacity-80"}`}>
-      <CornerVine className="-left-3 -top-3" growthLevel={growthLevel} />
-      <CornerVine className="-right-3 -top-3 -scale-x-100" growthLevel={growthLevel} />
-      <CornerVine className="-bottom-3 -left-3 -scale-y-100" growthLevel={growthLevel} />
-      <CornerVine className="-bottom-3 -right-3 scale-y-[-1] scale-x-[-1]" growthLevel={growthLevel} />
-      {growthLevel >= 2 ? <EdgeVine side="top" growthLevel={growthLevel} /> : null}
-      {growthLevel >= 3 && density === "rich" ? <EdgeVine side="right" growthLevel={growthLevel} /> : null}
-      {growthLevel >= 4 && density === "rich" ? <EdgeVine side="bottom" growthLevel={growthLevel} /> : null}
+    <div key={`vines-${density}-${growthLevel}-${pulseToken}`} className={`dashboard-vine-shell pointer-events-none absolute inset-[10px] z-0 ${density === "rich" ? "opacity-100" : "opacity-90"}`}>
+      <CornerVine className="-left-5 -top-5" growthLevel={growthLevel} />
+      <CornerVine className="-right-5 -top-5 -scale-x-100" growthLevel={growthLevel} />
+      <CornerVine className="-bottom-5 -left-5 -scale-y-100" growthLevel={growthLevel} />
+      <CornerVine className="-bottom-5 -right-5 scale-y-[-1] scale-x-[-1]" growthLevel={growthLevel} />
+      {growthLevel >= 1 ? <EdgeVine side="top" growthLevel={growthLevel} /> : null}
+      {growthLevel >= 2 ? <EdgeVine side="right" growthLevel={growthLevel} /> : null}
+      {growthLevel >= 3 && density === "rich" ? <EdgeVine side="bottom" growthLevel={growthLevel} /> : null}
     </div>
   );
 }
 
 function CornerVine({ className = "", growthLevel }: { className?: string; growthLevel: GreeneryLevel }) {
   return (
-    <div className={`absolute h-20 w-24 sm:h-24 sm:w-28 ${className}`}>
-      <svg viewBox="0 0 160 150" className="h-full w-full" fill="none" aria-hidden="true">
-        <path d="M14 138C20 111 30 93 46 78C64 61 79 52 102 44C116 39 131 27 143 12" className="dashboard-vine-stroke dashboard-vine-stroke-main" />
-        {growthLevel >= 2 ? <path d="M36 134C46 110 57 95 72 84" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
-        {growthLevel >= 3 ? <path d="M64 77C56 66 48 62 37 61" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
-        {growthLevel >= 4 ? <path d="M100 44C95 30 90 23 79 16" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
-        <ellipse cx="55" cy="66" rx="8" ry="4.4" className="dashboard-vine-leaf" transform="rotate(-32 55 66)" />
-        {growthLevel >= 2 ? <ellipse cx="82" cy="51" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(18 82 51)" /> : null}
-        {growthLevel >= 3 ? <ellipse cx="108" cy="33" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(-25 108 33)" /> : null}
-        {growthLevel >= 4 ? <ellipse cx="37" cy="97" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(28 37 97)" /> : null}
+    <div className={`absolute h-24 w-32 sm:h-28 sm:w-36 ${className}`}>
+      <svg viewBox="0 0 180 160" className="h-full w-full" fill="none" aria-hidden="true">
+        <path d="M14 150C28 124 40 104 58 86C78 67 96 54 120 45C136 39 150 26 166 10" className="dashboard-vine-stroke dashboard-vine-stroke-main" />
+        {growthLevel >= 2 ? <path d="M34 148C48 122 58 104 74 89" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
+        {growthLevel >= 2 ? <path d="M76 86C70 72 60 63 46 59" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
+        {growthLevel >= 3 ? <path d="M116 45C112 31 102 19 87 12" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
+        <VineLeaf x={54} y={98} rotate={-34} scale={0.9} />
+        <VineLeaf x={76} y={74} rotate={14} scale={0.95} className="dashboard-vine-leaf-delay" />
+        {growthLevel >= 2 ? <VineLeaf x={98} y={57} rotate={-22} scale={0.82} className="dashboard-vine-leaf-delay" /> : null}
+        {growthLevel >= 3 ? <VineLeaf x={126} y={36} rotate={18} scale={0.88} className="dashboard-vine-leaf-delay-2" /> : null}
+        {growthLevel >= 4 ? <VineLeaf x={30} y={122} rotate={42} scale={0.76} className="dashboard-vine-leaf-delay-2" /> : null}
       </svg>
     </div>
   );
@@ -875,12 +809,14 @@ function CornerVine({ className = "", growthLevel }: { className?: string; growt
 function EdgeVine({ side, growthLevel }: { side: "top" | "right" | "bottom"; growthLevel: GreeneryLevel }) {
   if (side === "top") {
     return (
-      <div className="absolute left-16 right-16 top-0 h-7 opacity-80">
-        <svg viewBox="0 0 360 48" className="h-full w-full" fill="none" aria-hidden="true">
-          <path d="M10 34C62 10 102 10 152 26C204 42 260 40 350 16" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
-          <ellipse cx="92" cy="17" rx="7" ry="4" className="dashboard-vine-leaf" transform="rotate(-12 92 17)" />
-          <ellipse cx="170" cy="28" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(16 170 28)" />
-          {growthLevel >= 3 ? <ellipse cx="252" cy="26" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(-18 252 26)" /> : null}
+      <div className="absolute left-16 right-16 top-0 h-9 opacity-90">
+        <svg viewBox="0 0 360 58" className="h-full w-full" fill="none" aria-hidden="true">
+          <path d="M8 40C56 18 102 15 154 30C208 45 264 44 352 18" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+          <VineLeaf x={72} y={23} rotate={-18} scale={0.84} />
+          <VineLeaf x={122} y={31} rotate={14} scale={0.8} className="dashboard-vine-leaf-delay" />
+          <VineLeaf x={192} y={35} rotate={-10} scale={0.82} className="dashboard-vine-leaf-delay" />
+          {growthLevel >= 2 ? <VineLeaf x={260} y={28} rotate={22} scale={0.86} className="dashboard-vine-leaf-delay-2" /> : null}
+          {growthLevel >= 3 ? <VineLeaf x={310} y={20} rotate={-16} scale={0.78} className="dashboard-vine-leaf-delay-2" /> : null}
         </svg>
       </div>
     );
@@ -888,23 +824,26 @@ function EdgeVine({ side, growthLevel }: { side: "top" | "right" | "bottom"; gro
 
   if (side === "right") {
     return (
-      <div className="absolute right-0 top-16 bottom-16 w-5 opacity-75">
-        <svg viewBox="0 0 40 220" className="h-full w-full" fill="none" aria-hidden="true">
-          <path d="M14 8C28 38 28 70 18 104C10 138 12 172 28 212" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
-          <ellipse cx="26" cy="52" rx="7" ry="4" className="dashboard-vine-leaf" transform="rotate(72 26 52)" />
-          <ellipse cx="12" cy="120" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(-68 12 120)" />
-          {growthLevel >= 4 ? <ellipse cx="24" cy="180" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(58 24 180)" /> : null}
+      <div className="absolute right-0 top-14 bottom-14 w-8 opacity-85">
+        <svg viewBox="0 0 48 240" className="h-full w-full" fill="none" aria-hidden="true">
+          <path d="M18 10C34 44 34 80 22 116C12 152 13 188 32 230" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+          <VineLeaf x={26} y={58} rotate={72} scale={0.88} />
+          <VineLeaf x={12} y={108} rotate={-60} scale={0.86} className="dashboard-vine-leaf-delay" />
+          <VineLeaf x={28} y={162} rotate={64} scale={0.84} className="dashboard-vine-leaf-delay-2" />
+          {growthLevel >= 4 ? <VineLeaf x={16} y={212} rotate={-52} scale={0.78} className="dashboard-vine-leaf-delay-2" /> : null}
         </svg>
       </div>
     );
   }
 
   return (
-    <div className="absolute bottom-0 left-20 right-20 h-6 opacity-70">
-      <svg viewBox="0 0 360 40" className="h-full w-full" fill="none" aria-hidden="true">
-        <path d="M12 8C72 30 134 34 190 22C246 10 296 10 348 30" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
-        <ellipse cx="110" cy="24" rx="7" ry="4" className="dashboard-vine-leaf" transform="rotate(-8 110 24)" />
-        <ellipse cx="230" cy="16" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(14 230 16)" />
+    <div className="absolute bottom-0 left-20 right-20 h-8 opacity-80">
+      <svg viewBox="0 0 360 50" className="h-full w-full" fill="none" aria-hidden="true">
+        <path d="M12 12C68 32 130 36 190 25C246 15 300 15 348 32" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+        <VineLeaf x={92} y={26} rotate={-12} scale={0.84} />
+        <VineLeaf x={158} y={30} rotate={18} scale={0.84} className="dashboard-vine-leaf-delay" />
+        <VineLeaf x={228} y={22} rotate={-8} scale={0.82} className="dashboard-vine-leaf-delay" />
+        <VineLeaf x={286} y={28} rotate={14} scale={0.86} className="dashboard-vine-leaf-delay-2" />
       </svg>
     </div>
   );
@@ -922,14 +861,15 @@ type FolderDesktopIconProps = {
 };
 
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId }: FolderDesktopIconProps) {
-  const preview = projects.slice(0, 4);
+  const preview = projects.slice(0, 3);
   const icon = getFolderIcon(folder.icon_key);
+  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.9;
   return (
-    <div className="group relative flex flex-col items-center gap-2">
+    <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
       <button
         type="button"
         onClick={onOpen}
-        className={`relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-[28px] border bg-white shadow-sm transition hover:shadow-md ${draggingProjectId ? "border-emerald-300" : "border-emerald-200"} ${busy ? "opacity-70" : ""}`}
+        className={`dashboard-folder-card relative flex h-[8.2rem] w-[9.8rem] items-end justify-start overflow-hidden rounded-[24px] border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-emerald-400" : "border-[#b98743]"} ${busy ? "opacity-70" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -937,27 +877,28 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
           if (draggedId) onDropProject(draggedId);
         }}
       >
-        <div className={`absolute inset-0 bg-gradient-to-br ${icon.tileClass}`} />
-        <div className="absolute left-3 top-3 text-[30px] leading-none">{icon.symbol}</div>
-        <div className="relative z-10 mt-4 grid grid-cols-2 gap-1">
-          {preview.length ? preview.map((project) => (
+        <div className="dashboard-folder-tab" />
+        <div className="dashboard-folder-gloss" />
+        <div className="absolute left-4 top-3 text-lg leading-none text-[#835429] opacity-80">{icon.symbol}</div>
+        <div className="relative z-10 grid w-full grid-cols-3 gap-2 px-3 pb-3">
+          {preview.length ? preview.map((project, index) => (
             <div
               key={project.id}
-              className={`flex h-8 w-8 items-center justify-center rounded-xl border bg-gradient-to-br ${goalColor(project.goal)} text-[11px] font-semibold shadow-sm`}
+              className={`dashboard-folder-preview-sheet flex h-10 items-center justify-center rounded-[10px] border text-[10px] font-semibold shadow-sm ${index === 1 ? "translate-y-1" : ""}`}
             >
               {getInitials(project.person?.full_name || project.title || "PR")}
             </div>
           )) : (
-            <div className="col-span-2 text-xs text-slate-500">Пусто</div>
+            <div className="col-span-3 text-left text-xs text-[#7c6040]">Папка готова к наполнению</div>
           )}
         </div>
-        <div className="absolute bottom-2 right-3 rounded-full bg-white/90 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm">{projects.length}</div>
+        <div className="absolute bottom-2 right-3 rounded-full bg-white/88 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
       </button>
-      <div className="max-w-[112px] text-center text-sm font-medium leading-tight text-slate-800">{folder.name}</div>
+      <div className="max-w-[130px] text-center text-sm font-semibold leading-tight text-[#f7f1e8] [text-shadow:0_1px_3px_rgba(30,18,8,0.65)]">{folder.name}</div>
       <button
         type="button"
         onClick={onManage}
-        className="absolute right-1 top-1 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/95 text-sm text-slate-500 shadow-sm opacity-0 transition hover:text-slate-900 group-hover:opacity-100"
+        className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/70 bg-white/95 text-sm text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-slate-900 group-hover:opacity-100"
         title="Управление папкой"
         aria-label="Управление папкой"
       >
@@ -983,9 +924,12 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const total = project.tests?.length || 0;
   const completed = Math.min(project.attempts_count || 0, total || 0);
   const isDone = total > 0 && completed >= total;
+  const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
+  const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const tilt = ((tiltSeed % 7) - 3) * 0.7;
 
   return (
-    <div className="group relative flex flex-col items-center gap-2">
+    <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
       {onDelete ? (
         <button
           type="button"
@@ -993,7 +937,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
             e.stopPropagation();
             onDelete();
           }}
-          className="absolute right-1 top-1 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/95 text-xs text-slate-500 shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
+          className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/95 text-xs text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
           title="Удалить проект"
           aria-label="Удалить проект"
         >
@@ -1011,17 +955,18 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`relative flex ${compact ? "h-24 w-24" : "h-28 w-28"} items-center justify-center rounded-[28px] border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${isDone ? "border-emerald-300 bg-white" : "border-slate-200"} ${busy ? "opacity-60" : ""}`}
+        className={`dashboard-project-sheet relative flex ${compact ? "h-[8.5rem] w-[8rem]" : "h-[11rem] w-[9rem]"} flex-col items-start justify-start overflow-hidden rounded-[18px] border px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-xl ${isDone ? "border-[#d7bb8f]" : "border-[#dfd2bb]"} ${busy ? "opacity-60" : ""}`}
       >
-        <div className={`flex ${compact ? "h-14 w-14 text-lg" : "h-16 w-16 text-xl"} items-center justify-center rounded-2xl border bg-gradient-to-br ${goalColor(project.goal)} font-semibold shadow-sm`}>
-          {getInitials(displayName)}
-        </div>
-        <div className={`absolute right-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold shadow-sm ${isDone ? "bg-emerald-100 text-emerald-900" : "bg-white text-slate-600"}`}>
+        <div className="dashboard-project-sheet-corner" />
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8b6b49]">Лист проекта</div>
+        <div className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-[#3f2a18]">{displayName}</div>
+        <div className="mt-3 text-[10px] uppercase tracking-[0.12em] text-[#9d7b56]">Общая оценка</div>
+        <div className="mt-1 text-sm font-medium text-[#5a3d22]">{assessmentLine}</div>
+        <div className="mt-2 text-xs leading-5 text-[#7f5f3d]">{goal?.shortTitle || project.goal}</div>
+        <div className={`mt-auto rounded-full px-2 py-1 text-[10px] font-semibold shadow-sm ${isDone ? "bg-emerald-100 text-emerald-900" : "bg-white/90 text-[#6e5234]"}`}>
           {isDone ? "Готово" : `${completed}/${total || 0}`}
         </div>
       </button>
-      <div className="max-w-[116px] text-center text-sm font-semibold leading-tight text-slate-900">{displayName}</div>
-      <div className="max-w-[120px] text-center text-xs leading-tight text-slate-500">{goal?.shortTitle || project.goal}</div>
     </div>
   );
 }
@@ -1057,7 +1002,7 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
         onMoveToDesktop(draggedId);
       }}
     >
-      <div className="w-full max-w-5xl rounded-[32px] border border-emerald-200 bg-white/95 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-5xl rounded-[32px] border border-[#b68b58] bg-[#f8f0e3]/95 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className={`flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br text-3xl shadow-sm ${icon.tileClass}`}>{icon.symbol}</div>
