@@ -1047,7 +1047,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-folder-card relative flex h-[8.5rem] w-[10.25rem] items-end justify-start overflow-visible rounded-[24px] border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-emerald-400" : "border-[#b98743]"} ${busy ? "opacity-70" : ""}`}
+        className={`dashboard-folder-card relative flex h-[8.9rem] w-[10.85rem] items-end justify-start overflow-visible rounded-[22px] border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#9b7b44]" : "border-[#a97b3d]"} ${busy ? "opacity-70" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1055,15 +1055,17 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
           if (draggedId) onDropProject(draggedId);
         }}
       >
+        <div className="dashboard-folder-shadow-strip" />
         <div className="dashboard-folder-tab" />
+        <div className="dashboard-folder-pocket" />
         <div className="dashboard-folder-gloss" />
-        <div className="absolute left-4 top-3 text-lg leading-none text-[#835429] opacity-80">{icon.symbol}</div>
-        <div className="pointer-events-none absolute left-4 right-4 top-2 z-20 flex flex-col gap-1">
+        <div className="absolute left-4 top-3 text-lg leading-none text-[#8b6232] opacity-70">{icon.symbol}</div>
+        <div className="pointer-events-none absolute left-3 right-3 top-2 z-20 flex flex-col gap-1">
           {preview.length ? preview.map((project, index) => (
             <div
               key={project.id}
               className="dashboard-folder-name-slip rounded-[10px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
-              style={{ marginLeft: `${index * 8}px`, marginRight: `${Math.max(0, 10 - index * 3)}px`, transform: `translateY(${index * 2}px)` }}
+              style={{ marginLeft: `${index * 10}px`, marginRight: `${Math.max(0, 12 - index * 4)}px`, transform: `translateY(${index * 5}px) rotate(${index % 2 === 0 ? -0.6 : 0.4}deg)` }}
             >
               <span className="block truncate">{project.person?.full_name || project.title || "Проект"}</span>
             </div>
@@ -1073,13 +1075,12 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
             </div>
           )}
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-[74%] rounded-b-[24px] bg-gradient-to-b from-[#d4a865]/90 to-[#bd843c]/95" />
         <div className="relative z-10 flex w-full items-end justify-between px-4 pb-3">
           <div>
-            <div className="text-sm font-semibold leading-tight text-[#5b3c1e]">{folder.name}</div>
-            <div className="mt-1 text-[11px] text-[#714c28]">Открыть папку</div>
+            <div className="text-[15px] font-semibold leading-tight text-[#5b3c1e]">{folder.name}</div>
+            <div className="mt-1 text-[11px] text-[#6f4a24]">Открыть папку</div>
           </div>
-          <div className="rounded-full bg-white/88 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
+          <div className="rounded-full border border-[#d8c2a0] bg-[#fff8ec]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
         </div>
       </button>
       <button
@@ -1145,6 +1146,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         className={`dashboard-project-sheet relative flex ${compact ? "h-[8.5rem] w-[8rem]" : "h-[11rem] w-[9rem]"} flex-col items-start justify-start overflow-hidden rounded-[18px] border px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-xl ${isDone ? "border-[#d7bb8f]" : "border-[#dfd2bb]"} ${busy ? "opacity-60" : ""}`}
       >
         <div className="dashboard-project-sheet-corner" />
+        <div className="dashboard-project-sheet-pin" aria-hidden="true" />
         <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8b6b49]">Лист проекта</div>
         <div className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-[#3f2a18]">{displayName}</div>
         <div className="mt-3 text-[10px] uppercase tracking-[0.12em] text-[#9d7b56]">Общая оценка</div>
