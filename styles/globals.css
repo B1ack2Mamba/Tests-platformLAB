@@ -266,7 +266,7 @@ html.native-app .app-brand {
     opacity: 0.9;
   }
 
-  .dashboard-action-gear-shell {
+  .dashboard-action-badge-shell {
     position: relative;
     z-index: 1;
     display: inline-flex;
@@ -279,8 +279,8 @@ html.native-app .app-brand {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
   }
 
-  .dashboard-button-gear {
-    animation: dashboardButtonGearIntro 900ms cubic-bezier(0.22, 1, 0.36, 1);
+  .dashboard-button-sprout {
+    animation: dashboardButtonSprout 980ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .dashboard-puzzle-button {
@@ -319,6 +319,181 @@ html.native-app .app-brand {
     animation: dashboardGearCounterSpin 1200ms cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
   }
+
+  .dashboard-panel-vined {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .dashboard-action-badge-shell {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.78),
+      0 12px 20px -18px rgba(20, 83, 45, 0.34);
+  }
+
+  .dashboard-tree-ground {
+    fill: rgba(105, 161, 111, 0.16);
+    filter: blur(2px);
+  }
+
+  .dashboard-tree-sprout,
+  .dashboard-tree-canopy {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+  }
+
+  .dashboard-tree-sprout {
+    animation: dashboardTreeSprout 720ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .dashboard-tree-sprout-stem,
+  .dashboard-tree-trunk,
+  .dashboard-tree-branch,
+  .dashboard-sprout-aura-stem,
+  .dashboard-vine-stroke {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .dashboard-tree-sprout-stem {
+    stroke: rgba(61, 111, 71, 0.75);
+    stroke-width: 4;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: dashboardStrokeGrow 520ms ease forwards;
+  }
+
+  .dashboard-tree-sprout-leaf,
+  .dashboard-tree-canopy circle,
+  .dashboard-sprout-aura-leaf,
+  .dashboard-button-sprout-leaf,
+  .dashboard-vine-leaf {
+    fill: rgba(141, 213, 153, 0.95);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .dashboard-tree-sprout-leaf {
+    animation: dashboardLeafBloom 620ms 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .dashboard-tree-sprout-leaf-alt,
+  .dashboard-sprout-aura-leaf-alt,
+  .dashboard-button-sprout-leaf-alt {
+    fill: rgba(192, 242, 203, 0.95);
+    animation-delay: 280ms;
+  }
+
+  .dashboard-tree-trunk {
+    stroke: rgba(68, 95, 67, 0.66);
+    stroke-width: 9;
+    stroke-dasharray: 240;
+    stroke-dashoffset: 240;
+    animation: dashboardStrokeGrow 980ms 180ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .dashboard-tree-branch {
+    stroke: rgba(91, 128, 83, 0.58);
+    stroke-width: 5;
+    stroke-dasharray: 120;
+    stroke-dashoffset: 120;
+    animation: dashboardStrokeGrow 720ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .dashboard-tree-branch-a { animation-delay: 520ms; }
+  .dashboard-tree-branch-b { animation-delay: 640ms; }
+  .dashboard-tree-branch-c { animation-delay: 780ms; }
+  .dashboard-tree-branch-d { animation-delay: 920ms; }
+  .dashboard-tree-branch-e { animation-delay: 700ms; }
+
+  .dashboard-tree-canopy {
+    opacity: 0;
+    animation: dashboardCanopyBloom 860ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .dashboard-tree-canopy circle:nth-child(1) { fill: rgba(170, 232, 178, 0.76); }
+  .dashboard-tree-canopy circle:nth-child(2) { fill: rgba(150, 222, 162, 0.92); }
+  .dashboard-tree-canopy circle:nth-child(3) { fill: rgba(211, 249, 219, 0.86); }
+  .dashboard-tree-canopy-a { animation-delay: 880ms; }
+  .dashboard-tree-canopy-b { animation-delay: 1060ms; }
+  .dashboard-tree-canopy-c { animation-delay: 1240ms; }
+
+  .dashboard-sprout-aura {
+    animation: dashboardAuraFloat 2400ms ease-in-out infinite;
+  }
+
+  .dashboard-sprout-aura-core {
+    fill: rgba(255, 255, 255, 0.5);
+    stroke: rgba(181, 243, 195, 0.82);
+    stroke-width: 1.4;
+    filter: drop-shadow(0 18px 26px rgba(68, 130, 84, 0.18));
+  }
+
+  .dashboard-sprout-aura-stem {
+    stroke: rgba(73, 125, 82, 0.62);
+    stroke-width: 3.3;
+    stroke-dasharray: 46;
+    stroke-dashoffset: 46;
+    animation: dashboardStrokeGrow 720ms 120ms ease forwards;
+  }
+
+  .dashboard-sprout-aura-leaf {
+    animation: dashboardLeafBloom 760ms 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .dashboard-button-sprout-orb {
+    fill: rgba(255, 255, 255, 0.92);
+    stroke: rgba(167, 232, 186, 0.78);
+    stroke-width: 1.2;
+  }
+
+  .dashboard-button-sprout-stem {
+    fill: none;
+    stroke: rgba(23, 118, 68, 0.82);
+    stroke-width: 3.2;
+    stroke-linecap: round;
+    stroke-dasharray: 18;
+    stroke-dashoffset: 18;
+    animation: dashboardStrokeGrow 500ms 110ms ease forwards;
+  }
+
+  .dashboard-button-sprout-leaf {
+    animation: dashboardLeafBloom 640ms 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .dashboard-vine-stroke {
+    stroke: rgba(84, 146, 96, 0.48);
+    stroke-width: 2.6;
+    stroke-dasharray: 220;
+    stroke-dashoffset: 220;
+    animation: dashboardVineGrow 1600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .dashboard-vine-stroke-soft {
+    stroke-width: 2.1;
+    opacity: 0.78;
+    animation-delay: 220ms;
+  }
+
+  .dashboard-vine-leaf {
+    opacity: 0;
+    animation: dashboardLeafBloom 780ms 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    filter: drop-shadow(0 8px 12px rgba(98, 170, 106, 0.14));
+  }
+
+  .dashboard-vine-leaf-delay { animation-delay: 580ms; }
+  .dashboard-vine-leaf-delay-2 { animation-delay: 740ms; }
+
 }
 
 @keyframes dashboardGearSpin {
@@ -333,8 +508,38 @@ html.native-app .app-brand {
   100% { transform: rotate(-280deg) scale(1); }
 }
 
-@keyframes dashboardButtonGearIntro {
-  0% { transform: rotate(0deg) scale(0.86); }
-  40% { transform: rotate(170deg) scale(1.04); }
-  100% { transform: rotate(360deg) scale(1); }
+@keyframes dashboardButtonSprout {
+  0% { transform: scale(0.7) translateY(4px); opacity: 0.35; }
+  35% { transform: scale(1.06) translateY(-1px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes dashboardStrokeGrow {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes dashboardLeafBloom {
+  0% { transform: scale(0.2); opacity: 0; }
+  65% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes dashboardCanopyBloom {
+  0% { transform: translateY(12px) scale(0.7); opacity: 0; }
+  70% { transform: translateY(-2px) scale(1.02); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes dashboardTreeSprout {
+  0% { transform: scale(0.16) translateY(20px); opacity: 0.18; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes dashboardAuraFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes dashboardVineGrow {
+  to { stroke-dashoffset: 0; }
 }

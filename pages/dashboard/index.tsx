@@ -117,20 +117,14 @@ export default function DashboardPage() {
   const { balance_rub, loading: walletLoading, isUnlimited } = useWalletBalance();
   const isAdmin = isAdminEmail(user?.email);
   const [mechanicPulse, setMechanicPulse] = useState(0);
-  const [puzzleState, setPuzzleState] = useState<{ left: boolean; right: boolean }>({ left: true, right: false });
 
-  const triggerMechanics = useCallback((after?: () => void, delay = 220) => {
+  const triggerMechanics = useCallback((after?: () => void, delay = 680) => {
     setMechanicPulse((value) => value + 1);
     if (after) {
       window.setTimeout(() => {
         after();
       }, delay);
     }
-  }, []);
-
-  const togglePuzzleCluster = useCallback((side: "left" | "right") => {
-    setPuzzleState((current) => ({ ...current, [side]: !current[side] }));
-    setMechanicPulse((value) => value + 1);
   }, []);
 
   const loadDashboard = useCallback(async () => {
@@ -380,13 +374,7 @@ export default function DashboardPage() {
   return (
     <Layout title="Кабинет специалиста">
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
-        <DashboardBackdrop
-          pulseToken={mechanicPulse}
-          leftAssembled={puzzleState.left}
-          rightAssembled={puzzleState.right}
-          onToggleLeft={() => togglePuzzleCluster("left")}
-          onToggleRight={() => togglePuzzleCluster("right")}
-        />
+        <DashboardBackdrop pulseToken={mechanicPulse} />
 
         <div className="relative z-10">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
@@ -396,14 +384,15 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1.6fr_0.7fr] items-stretch">
-            <div className="card dashboard-panel h-full overflow-hidden">
+            <div className="card dashboard-panel dashboard-panel-vined relative h-full overflow-hidden">
+              <VineFrame pulseToken={mechanicPulse} density="rich" />
               <div className="dashboard-panel-glow absolute -right-16 top-0 h-40 w-40 rounded-full bg-emerald-300/25 blur-3xl" />
               <div className="relative">
                 <div className="text-sm font-medium text-emerald-900/70">Рабочее пространство</div>
                 <div className="mt-2 text-2xl font-semibold text-slate-950 sm:text-[2rem]">{displayName}</div>
                 <div className="mt-2 text-sm text-slate-600">{workspaceName}</div>
                 <div className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-                  Кабинет теперь дышит легче: мягкий зелёно-белый градиент, стеклянные панели, живая механика отклика и рабочий стол, который ощущается как дорогой конструктор оценки, а не как скучная анкета.
+                  Кабинет теперь дышит легче: мягкий зелёно-белый градиент, стеклянные панели, рост живого дерева по нажатию и тонкие вьюны вокруг окон, чтобы система ощущалась как дорогая, живая и собранная среда.
                 </div>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <PremiumActionButton
@@ -436,7 +425,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="card dashboard-panel dashboard-wallet h-full relative overflow-hidden border-emerald-100 bg-white/70">
+            <div className="card dashboard-panel dashboard-panel-vined dashboard-wallet h-full relative overflow-hidden border-emerald-100 bg-white/70">
+              <VineFrame pulseToken={mechanicPulse} density="light" />
               <div className="pointer-events-none absolute -right-16 top-1 h-44 w-44 rounded-full bg-white/70 blur-2xl" />
               <div className="pointer-events-none absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-[22px] border border-white/70 bg-white/80 text-xl text-emerald-900 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">₽</div>
               <div className="relative flex items-start justify-between gap-3 pr-14">
@@ -466,7 +456,8 @@ export default function DashboardPage() {
           </div>
 
       {isAdmin ? (
-        <section className="card dashboard-panel mt-6">
+        <section className="card dashboard-panel dashboard-panel-vined relative mt-6 overflow-hidden">
+          <VineFrame pulseToken={mechanicPulse} density="light" />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-900">Админ-панель</div>
@@ -477,7 +468,8 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      <section className="card dashboard-panel mt-6">
+      <section className="card dashboard-panel dashboard-panel-vined relative mt-6 overflow-hidden">
+        <VineFrame pulseToken={mechanicPulse} density="rich" />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">Рабочий стол проектов</div>
@@ -642,10 +634,6 @@ export default function DashboardPage() {
 
 type DashboardBackdropProps = {
   pulseToken: number;
-  leftAssembled: boolean;
-  rightAssembled: boolean;
-  onToggleLeft: () => void;
-  onToggleRight: () => void;
 };
 
 type PremiumActionButtonProps = {
@@ -656,7 +644,12 @@ type PremiumActionButtonProps = {
   compact?: boolean;
 };
 
-function DashboardBackdrop({ pulseToken, leftAssembled, rightAssembled, onToggleLeft, onToggleRight }: DashboardBackdropProps) {
+type VineFrameProps = {
+  pulseToken: number;
+  density?: "rich" | "light";
+};
+
+function DashboardBackdrop({ pulseToken }: DashboardBackdropProps) {
   return (
     <>
       <div className="pointer-events-none absolute inset-0">
@@ -666,39 +659,10 @@ function DashboardBackdrop({ pulseToken, leftAssembled, rightAssembled, onToggle
         <div className="absolute bottom-[-4rem] left-1/3 h-64 w-64 rounded-full bg-teal-200/20 blur-3xl" />
       </div>
 
-      <button
-        type="button"
-        onClick={onToggleLeft}
-        className="dashboard-puzzle-button absolute left-[-1.5rem] top-8 z-[1] h-56 w-56"
-        aria-label={leftAssembled ? "Разобрать пазл" : "Собрать пазл"}
-        title={leftAssembled ? "Разобрать пазл" : "Собрать пазл"}
-      >
-        <span className="dashboard-puzzle-note left-10 top-4">Нажми, чтобы {leftAssembled ? "разобрать" : "собрать"}</span>
-        <PuzzleCluster assembled={leftAssembled} palette={["#d9b0bb", "#9de4b4", "#85d9dc", "#f0d97e"]} />
-      </button>
+      <TreeGrowthScene pulseToken={pulseToken} />
 
-      <button
-        type="button"
-        onClick={onToggleRight}
-        className="dashboard-puzzle-button absolute bottom-6 right-[-1rem] z-[1] h-56 w-56"
-        aria-label={rightAssembled ? "Разобрать пазл" : "Собрать пазл"}
-        title={rightAssembled ? "Разобрать пазл" : "Собрать пазл"}
-      >
-        <span className="dashboard-puzzle-note right-12 top-3">Пазл системы</span>
-        <PuzzleCluster assembled={rightAssembled} palette={["#efb1c0", "#f3d273", "#8fddb0", "#5d87d5"]} mirrored />
-      </button>
-
-      <div className="pointer-events-none absolute left-[4%] top-[26%] z-[1] opacity-90">
-        <GearDecoration key={`gear-left-${pulseToken}`} size={148} tone="deep" className="dashboard-gear-run" />
-      </div>
-      <div className="pointer-events-none absolute left-[34%] top-[56%] z-[1] opacity-75">
-        <GearDecoration key={`gear-center-${pulseToken}`} size={128} tone="soft" className="dashboard-gear-counter-run" />
-      </div>
-      <div className="pointer-events-none absolute right-[23%] top-[18%] z-[1] opacity-95">
-        <GearDecoration key={`gear-right-${pulseToken}`} size={156} tone="deep" className="dashboard-gear-run" />
-      </div>
-      <div className="pointer-events-none absolute right-[8%] top-[42%] z-[1] opacity-90">
-        <GearDecoration key={`gear-right-small-${pulseToken}`} size={124} tone="soft" className="dashboard-gear-counter-run" />
+      <div className="pointer-events-none absolute right-[4%] top-[12%] z-[1] opacity-70 blur-[0.2px]">
+        <SproutAura key={`sprout-aura-${pulseToken}`} />
       </div>
     </>
   );
@@ -712,101 +676,104 @@ function PremiumActionButton({ label, onClick, pulseToken, variant = "primary", 
       className={`dashboard-action-btn ${variant === "primary" ? "dashboard-action-btn-primary" : "dashboard-action-btn-secondary"} ${compact ? "dashboard-action-btn-compact" : ""}`}
     >
       <span className="relative z-10">{label}</span>
-      <span className="dashboard-action-gear-shell" aria-hidden="true">
-        <GearDecoration key={`${label}-${pulseToken}`} size={compact ? 34 : 38} tone={variant === "primary" ? "accent" : "silver"} className="dashboard-button-gear" />
+      <span className="dashboard-action-badge-shell" aria-hidden="true">
+        <SproutBadge key={`${label}-${pulseToken}`} compact={compact} />
       </span>
     </button>
   );
 }
 
-type GearDecorationProps = {
-  size?: number;
-  tone?: "deep" | "soft" | "accent" | "silver";
-  className?: string;
-};
-
-function GearDecoration({ size = 120, tone = "deep", className = "" }: GearDecorationProps) {
-  const gradients: Record<NonNullable<GearDecorationProps["tone"]>, { outer: string; inner: string; ring: string; shadow: string }> = {
-    deep: { outer: "#395f9d", inner: "#4f75b2", ring: "#d8e7ff", shadow: "rgba(36,66,109,0.24)" },
-    soft: { outer: "#446ea9", inner: "#5d82ba", ring: "#dff1ff", shadow: "rgba(36,66,109,0.2)" },
-    accent: { outer: "#156b4f", inner: "#2ab877", ring: "#effff7", shadow: "rgba(18,111,75,0.24)" },
-    silver: { outer: "#94a3b8", inner: "#c7d2e4", ring: "#ffffff", shadow: "rgba(71,85,105,0.22)" },
-  };
-  const palette = gradients[tone];
+function TreeGrowthScene({ pulseToken }: { pulseToken: number }) {
   return (
-    <svg viewBox="0 0 120 120" width={size} height={size} className={className} fill="none" aria-hidden="true" style={{ filter: `drop-shadow(0 10px 16px ${palette.shadow})` }}>
-      {Array.from({ length: 8 }).map((_, index) => (
-        <rect
-          key={index}
-          x="54"
-          y="4"
-          width="12"
-          height="24"
-          rx="4"
-          transform={`rotate(${index * 45} 60 60)`}
-          fill={palette.outer}
-        />
-      ))}
-      <circle cx="60" cy="60" r="39" fill={palette.inner} stroke="#f8fffd" strokeOpacity="0.35" strokeWidth="2" />
-      <circle cx="60" cy="60" r="25" fill="#ffffff" fillOpacity="0.92" stroke={palette.ring} strokeOpacity="0.95" strokeWidth="3" />
-      <circle cx="60" cy="60" r="15" fill="none" stroke={palette.ring} strokeOpacity="0.9" strokeWidth="4" />
-    </svg>
-  );
-}
+    <div className="pointer-events-none absolute bottom-[-0.5rem] left-[-1.2rem] z-[1] h-[23rem] w-[24rem] max-w-[44vw] opacity-[0.92]">
+      <svg key={`tree-growth-${pulseToken}`} viewBox="0 0 360 360" className="h-full w-full" fill="none" aria-hidden="true">
+        <ellipse cx="135" cy="318" rx="78" ry="22" className="dashboard-tree-ground" />
 
-type PuzzleClusterProps = {
-  assembled: boolean;
-  palette: [string, string, string, string];
-  mirrored?: boolean;
-};
+        <g className="dashboard-tree-sprout">
+          <path d="M120 312C128 300 136 292 144 286" className="dashboard-tree-sprout-stem" />
+          <path d="M143 286C131 280 121 280 112 288C123 292 133 292 143 286Z" className="dashboard-tree-sprout-leaf" />
+          <path d="M143 286C152 276 164 272 178 278C169 287 158 290 143 286Z" className="dashboard-tree-sprout-leaf dashboard-tree-sprout-leaf-alt" />
+        </g>
 
-function PuzzleCluster({ assembled, palette, mirrored = false }: PuzzleClusterProps) {
-  const layouts = assembled
-    ? [
-        { x: 26, y: 24, rotate: -8 },
-        { x: 92, y: 8, rotate: 10 },
-        { x: 6, y: 92, rotate: -10 },
-        { x: 78, y: 86, rotate: 8 },
-      ]
-    : [
-        { x: 8, y: 8, rotate: -26 },
-        { x: 116, y: 2, rotate: 24 },
-        { x: -4, y: 120, rotate: -18 },
-        { x: 110, y: 118, rotate: 18 },
-      ];
+        <path d="M143 286C150 252 160 220 177 191C194 162 211 139 223 110" className="dashboard-tree-trunk" />
+        <path d="M179 190C162 175 145 165 126 159" className="dashboard-tree-branch dashboard-tree-branch-a" />
+        <path d="M191 166C211 157 229 143 245 120" className="dashboard-tree-branch dashboard-tree-branch-b" />
+        <path d="M204 145C192 124 177 108 156 96" className="dashboard-tree-branch dashboard-tree-branch-c" />
+        <path d="M214 131C234 123 252 108 267 86" className="dashboard-tree-branch dashboard-tree-branch-d" />
+        <path d="M167 208C153 214 139 224 124 239" className="dashboard-tree-branch dashboard-tree-branch-e" />
 
-  return (
-    <div className={`relative h-full w-full ${mirrored ? "scale-x-[-1]" : ""}`}>
-      {palette.map((color, index) => {
-        const piece = layouts[index];
-        return (
-          <div
-            key={`${color}-${index}`}
-            className="absolute transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-            style={{ transform: `translate(${piece.x}px, ${piece.y}px) rotate(${piece.rotate}deg)` }}
-          >
-            <PuzzlePiece color={color} />
-          </div>
-        );
-      })}
+        <g className="dashboard-tree-canopy dashboard-tree-canopy-a">
+          <circle cx="118" cy="152" r="28" />
+          <circle cx="150" cy="132" r="30" />
+          <circle cx="176" cy="156" r="24" />
+        </g>
+        <g className="dashboard-tree-canopy dashboard-tree-canopy-b">
+          <circle cx="206" cy="122" r="29" />
+          <circle cx="242" cy="102" r="32" />
+          <circle cx="266" cy="132" r="22" />
+        </g>
+        <g className="dashboard-tree-canopy dashboard-tree-canopy-c">
+          <circle cx="154" cy="96" r="22" />
+          <circle cx="186" cy="80" r="19" />
+          <circle cx="214" cy="98" r="17" />
+        </g>
+      </svg>
     </div>
   );
 }
 
-function PuzzlePiece({ color }: { color: string }) {
+function SproutAura() {
   return (
-    <svg width="90" height="90" viewBox="0 0 90 90" fill="none" aria-hidden="true" className="drop-shadow-[0_16px_24px_rgba(15,23,42,0.18)]">
-      <path
-        d="M27 6.75h15.75c4.297 0 6.75 2.453 6.75 6.75v5.625c0 5.452 4.423 9.875 9.875 9.875s9.875-4.423 9.875-9.875V13.5c0-4.297 2.453-6.75 6.75-6.75H83.25c4.297 0 6.75 2.453 6.75 6.75V27c0 4.297-2.453 6.75-6.75 6.75h-5.625c-5.452 0-9.875 4.423-9.875 9.875s4.423 9.875 9.875 9.875h5.625c4.297 0 6.75 2.453 6.75 6.75v13.5c0 4.297-2.453 6.75-6.75 6.75H66.375c-4.297 0-6.75-2.453-6.75-6.75v-5.625c0-5.452-4.423-9.875-9.875-9.875s-9.875 4.423-9.875 9.875v5.625c0 4.297-2.453 6.75-6.75 6.75H13.5c-4.297 0-6.75-2.453-6.75-6.75V60.75c0-4.297 2.453-6.75 6.75-6.75h5.625C24.577 54 29 49.577 29 44.125S24.577 34.25 19.125 34.25H13.5c-4.297 0-6.75-2.453-6.75-6.75V13.5c0-4.297 2.453-6.75 6.75-6.75H27Z"
-        fill={color}
-        stroke="rgba(255,255,255,0.6)"
-        strokeWidth="2.4"
-      />
+    <svg viewBox="0 0 140 140" width="112" height="112" fill="none" aria-hidden="true" className="dashboard-sprout-aura">
+      <circle cx="70" cy="70" r="42" className="dashboard-sprout-aura-core" />
+      <path d="M70 94C70 76 70 63 70 48" className="dashboard-sprout-aura-stem" />
+      <path d="M70 55C54 44 41 44 30 55C45 60 58 60 70 55Z" className="dashboard-sprout-aura-leaf" />
+      <path d="M70 55C84 39 99 34 116 42C104 56 89 61 70 55Z" className="dashboard-sprout-aura-leaf dashboard-sprout-aura-leaf-alt" />
     </svg>
   );
 }
 
+function SproutBadge({ compact = false }: { compact?: boolean }) {
+  const size = compact ? 28 : 32;
+  return (
+    <svg viewBox="0 0 48 48" width={size} height={size} fill="none" aria-hidden="true" className="dashboard-button-sprout">
+      <circle cx="24" cy="24" r="20" className="dashboard-button-sprout-orb" />
+      <path d="M24 31V18" className="dashboard-button-sprout-stem" />
+      <path d="M24 20C17 15 11 15 7 20C13 23 18 23 24 20Z" className="dashboard-button-sprout-leaf" />
+      <path d="M24 20C30 12 36 10 42 14C37 22 31 24 24 20Z" className="dashboard-button-sprout-leaf dashboard-button-sprout-leaf-alt" />
+    </svg>
+  );
+}
+
+function VineFrame({ pulseToken, density = "rich" }: VineFrameProps) {
+  return (
+    <div key={`vine-frame-${density}-${pulseToken}`} className={`pointer-events-none absolute inset-0 z-[1] ${density === "rich" ? "opacity-95" : "opacity-80"}`}>
+      <CornerVine className="left-0 top-0" />
+      <CornerVine className="right-0 top-0 -scale-x-100" />
+      <CornerVine className="bottom-0 left-0 -scale-y-100" />
+      <CornerVine className="bottom-0 right-0 scale-y-[-1] scale-x-[-1]" />
+    </div>
+  );
+}
+
+function CornerVine({ className = "" }: { className?: string }) {
+  return (
+    <div className={`absolute h-28 w-32 sm:h-32 sm:w-36 ${className}`}>
+      <svg viewBox="0 0 160 150" className="h-full w-full" fill="none" aria-hidden="true">
+        <path d="M14 138C20 111 30 93 46 78C64 61 79 52 102 44C116 39 131 27 143 12" className="dashboard-vine-stroke dashboard-vine-stroke-main" />
+        <path d="M36 134C46 110 57 95 72 84" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+        <path d="M64 77C56 66 48 62 37 61" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+        <path d="M100 44C95 30 90 23 79 16" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+        <ellipse cx="55" cy="66" rx="8" ry="4.4" className="dashboard-vine-leaf" transform="rotate(-32 55 66)" />
+        <ellipse cx="82" cy="51" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(18 82 51)" />
+        <ellipse cx="108" cy="33" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(-25 108 33)" />
+      </svg>
+    </div>
+  );
+}
+
 type FolderDesktopIconProps = {
+
   folder: FolderRow;
   projects: ProjectRow[];
   busy?: boolean;
