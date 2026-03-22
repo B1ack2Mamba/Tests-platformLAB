@@ -2988,3 +2988,94 @@ html.native-app .app-brand {
   font-size: 0.86rem;
   opacity: 0.86;
 }
+
+.dashboard-scene-widget {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px dashed transparent;
+  user-select: none;
+  cursor: grab;
+  transform-origin: center center;
+}
+
+.dashboard-scene-widget-editing {
+  border-color: rgba(54, 77, 124, 0.28);
+  background: rgba(255,255,255,0.14);
+  box-shadow: 0 10px 26px -20px rgba(22,31,51,0.35);
+}
+
+.dashboard-scene-widget-selected {
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.28), 0 14px 30px -22px rgba(17,24,39,0.35);
+}
+
+.dashboard-scene-widget-label {
+  display: block;
+  width: 100%;
+  white-space: pre-wrap;
+  line-height: 1.18;
+}
+
+.dashboard-scene-widget-marker .dashboard-scene-widget-label {
+  font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+  font-weight: 700;
+  color: rgba(58, 72, 99, 0.92);
+}
+
+.dashboard-scene-widget-note .dashboard-scene-widget-label {
+  font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+  font-weight: 500;
+  color: rgba(69, 80, 104, 0.86);
+}
+
+.dashboard-scene-widget-button {
+  justify-content: center;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 10px 18px -16px rgba(31, 24, 18, 0.32);
+}
+
+.dashboard-scene-widget-buttonPrimary {
+  background: linear-gradient(180deg, rgba(168, 241, 197, 0.96), rgba(115, 228, 164, 0.92));
+  border: 1px solid rgba(67, 170, 111, 0.42);
+}
+
+.dashboard-scene-widget-buttonSecondary {
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(154, 126, 90, 0.28);
+}
+
+.dashboard-scene-widget-button .dashboard-scene-widget-label {
+  font-weight: 700;
+  color: #3a2a18;
+  text-align: center;
+}
+
+.dashboard-scene-widget-rotate,
+.dashboard-scene-widget-resize {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(76, 97, 140, 0.3);
+  background: rgba(255,255,255,0.9);
+  color: #334155;
+  font-size: 13px;
+  box-shadow: 0 4px 10px rgba(15,23,42,0.14);
+}
+
+.dashboard-scene-widget-rotate {
+  right: -10px;
+  top: -12px;
+}
+
+.dashboard-scene-widget-resize {
+  right: -10px;
+  bottom: -12px;
+}

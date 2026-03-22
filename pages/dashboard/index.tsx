@@ -52,6 +52,33 @@ type WorkspacePayload = {
 type DeskPosition = { x: number; y: number; z: number };
 type DeskPositions = Record<string, DeskPosition>;
 
+type SceneWidgetKind = "text" | "button";
+type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
+type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary";
+type SceneWidget = {
+  id: string;
+  kind: SceneWidgetKind;
+  text: string;
+  action?: SceneWidgetAction;
+  tone?: SceneWidgetTone;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  fontSize: number;
+  z: number;
+};
+
+type WidgetInteractionMode = "drag" | "resize" | "rotate";
+type WidgetInteractionState = {
+  id: string;
+  mode: WidgetInteractionMode;
+  startX: number;
+  startY: number;
+  widget: SceneWidget;
+};
+
 const DESK_WIDTH = 1400;
 const DESK_HEIGHT = 760;
 const DESK_FOLDER_WIDTH = 164;
@@ -59,6 +86,7 @@ const DESK_FOLDER_HEIGHT = 142;
 const DESK_SHEET_WIDTH = 184;
 const DESK_SHEET_HEIGHT = 132;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
+const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
 const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
 const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
 const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
@@ -191,6 +219,33 @@ function getDeskStorageKey(workspaceId: string) {
   return `${DESK_STORAGE_PREFIX}${workspaceId}`;
 }
 
+function getSceneWidgetsStorageKey(workspaceId: string) {
+  return `${SCENE_WIDGETS_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function buildDefaultSceneWidgets(params: {
+  displayName: string;
+  workspaceName: string;
+  email: string;
+  balanceText: string;
+  investedText: string;
+  greeneryLabel: string;
+}): SceneWidget[] {
+  const { displayName, workspaceName, email, balanceText, investedText, greeneryLabel } = params;
+  return [
+    { id: "wallet-title", kind: "text", text: "Кошелёк", tone: "marker", x: 262, y: 150, width: 280, height: 56, rotation: -1.6, fontSize: 30, z: 20 },
+    { id: "wallet-value", kind: "text", text: balanceText, tone: "note", x: 264, y: 212, width: 200, height: 40, rotation: -1.2, fontSize: 28, z: 21 },
+    { id: "wallet-note", kind: "text", text: `Вложено: ${investedText} · ${greeneryLabel}`, tone: "note", x: 264, y: 265, width: 450, height: 48, rotation: -1, fontSize: 16, z: 22 },
+    { id: "profile-title", kind: "text", text: workspaceName, tone: "marker", x: 262, y: 364, width: 360, height: 52, rotation: -1.6, fontSize: 28, z: 23 },
+    { id: "profile-name", kind: "text", text: displayName, tone: "marker", x: 262, y: 426, width: 340, height: 58, rotation: -1, fontSize: 36, z: 24 },
+    { id: "profile-role", kind: "text", text: "admin", tone: "note", x: 264, y: 494, width: 180, height: 30, rotation: -1.1, fontSize: 16, z: 25 },
+    { id: "profile-email", kind: "text", text: email, tone: "note", x: 264, y: 530, width: 300, height: 34, rotation: -1.1, fontSize: 16, z: 26 },
+    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 1010, y: 170, width: 170, height: 46, rotation: -2.4, fontSize: 16, z: 30 },
+    { id: "create-folder", kind: "button", text: "Новая папка", action: "createFolder", tone: "buttonSecondary", x: 1010, y: 226, width: 160, height: 44, rotation: -2.1, fontSize: 15, z: 31 },
+    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonSecondary", x: 1010, y: 280, width: 168, height: 44, rotation: -2.2, fontSize: 15, z: 32 },
+  ];
+}
+
 function getDefaultFolderPosition(index: number): DeskPosition {
   return {
     x: TRAY_CLIP.x + 8 + index * 16,
@@ -258,6 +313,11 @@ export default function DashboardPage() {
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [trashHover, setTrashHover] = useState<{ kind: "project" | "folder"; id: string } | null>(null);
   const trashHoverTimer = useRef<number | null>(null);
+  const canEditScene = user?.email === "storyguild9@gmail.com" || isAdmin;
+  const [sceneEditMode, setSceneEditMode] = useState(false);
+  const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const widgetInteractionRef = useRef<WidgetInteractionState | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -277,6 +337,8 @@ export default function DashboardPage() {
   const greeneryLevel = useMemo(() => getGreeneryLevel(investedRub, isUnlimited), [investedRub, isUnlimited]);
   const greeneryLabel = useMemo(() => getGreeneryLabel(greeneryLevel), [greeneryLevel]);
   const greeneryHint = useMemo(() => getGreeneryHint(greeneryLevel), [greeneryLevel]);
+  const balanceText = walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`;
+  const investedText = isUnlimited ? "без лимита" : `${investedRub} ₽`;
 
   const triggerMechanics = useCallback((after?: () => void, delay = 220) => {
     setMechanicPulse((value) => value + 1);
@@ -323,6 +385,114 @@ export default function DashboardPage() {
     }
     loadDashboard();
   }, [router, session, sessionLoading, user, loadDashboard]);
+
+  const displayName = data?.profile?.full_name || (user?.user_metadata as any)?.full_name || user?.email || "Пользователь";
+  const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user?.user_metadata as any)?.company_name || "Рабочее пространство";
+  const defaultSceneWidgets = useMemo(
+    () => buildDefaultSceneWidgets({
+      displayName,
+      workspaceName,
+      email: data?.profile?.email || user?.email || "email не указан",
+      balanceText,
+      investedText,
+      greeneryLabel,
+    }),
+    [balanceText, data?.profile?.email, displayName, greeneryLabel, investedText, user?.email, workspaceName]
+  );
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id) return;
+    const key = getSceneWidgetsStorageKey(workspace.workspace.workspace_id);
+    let saved: SceneWidget[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (raw) saved = JSON.parse(raw) as SceneWidget[];
+      } catch {
+        saved = [];
+      }
+    }
+    setSceneWidgets(saved.length ? saved : defaultSceneWidgets);
+  }, [defaultSceneWidgets, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined" || !sceneWidgets.length) return;
+    window.localStorage.setItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id), JSON.stringify(sceneWidgets));
+  }, [sceneWidgets, workspace?.workspace?.workspace_id]);
+
+  const selectedWidget = useMemo(() => sceneWidgets.find((item) => item.id === selectedWidgetId) || null, [sceneWidgets, selectedWidgetId]);
+
+  const updateSceneWidget = useCallback((id: string, patch: Partial<SceneWidget>) => {
+    setSceneWidgets((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }, []);
+
+  const handleSceneWidgetAction = useCallback(
+    (action: SceneWidgetAction | undefined) => {
+      if (action === "createProject") {
+        router.push('/projects/new');
+        return;
+      }
+      if (action === "openCatalog") {
+        router.push('/assessments');
+        return;
+      }
+      if (action === "createFolder") {
+        const name = window.prompt('Название новой папки', 'Новая папка');
+        if (name && name.trim()) void createFolderNamed(name.trim(), 'folder');
+      }
+    },
+    [router]
+  );
+
+  const startWidgetInteraction = useCallback(
+    (e: any, widget: SceneWidget, mode: WidgetInteractionMode) => {
+      if (!sceneEditMode || !canEditScene) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setSelectedWidgetId(widget.id);
+      widgetInteractionRef.current = { id: widget.id, mode, startX: e.clientX, startY: e.clientY, widget: { ...widget } };
+    },
+    [canEditScene, sceneEditMode]
+  );
+
+  useEffect(() => {
+    if (!sceneEditMode) return;
+    const handleMove = (e: MouseEvent) => {
+      const current = widgetInteractionRef.current;
+      if (!current) return;
+      const dx = e.clientX - current.startX;
+      const dy = e.clientY - current.startY;
+      if (current.mode === "drag") {
+        updateSceneWidget(current.id, {
+          x: clampDesk(current.widget.x + dx, 40, DESK_WIDTH - current.widget.width - 40),
+          y: clampDesk(current.widget.y + dy, 40, DESK_HEIGHT - current.widget.height - 40),
+        });
+        return;
+      }
+      if (current.mode === "resize") {
+        updateSceneWidget(current.id, {
+          width: clampDesk(current.widget.width + dx, 110, 520),
+          height: clampDesk(current.widget.height + dy, 30, 180),
+        });
+        return;
+      }
+      updateSceneWidget(current.id, { rotation: current.widget.rotation + dx * 0.18 });
+    };
+    const handleUp = () => {
+      widgetInteractionRef.current = null;
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [sceneEditMode, updateSceneWidget]);
+
+  const resetSceneWidgets = useCallback(() => {
+    setSceneWidgets(defaultSceneWidgets);
+    setSelectedWidgetId(null);
+  }, [defaultSceneWidgets]);
 
   const projects = useMemo(() => workspace?.projects || [], [workspace?.projects]);
   const folders = useMemo(() => workspace?.folders || [], [workspace?.folders]);
@@ -685,6 +855,7 @@ export default function DashboardPage() {
     if (trashHoverTimer.current) window.clearTimeout(trashHoverTimer.current);
   }, []);
 
+
   if (!session || !user) {
     return (
       <Layout title="Кабинет">
@@ -693,8 +864,6 @@ export default function DashboardPage() {
     );
   }
 
-  const displayName = data?.profile?.full_name || (user.user_metadata as any)?.full_name || user.email || "Пользователь";
-  const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user.user_metadata as any)?.company_name || "Рабочее пространство";
   const trayFolders = folderBuckets.byFolder.filter(({ folder }, index) => {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return isInsideTrayZone(pos.x, pos.y);
@@ -719,29 +888,88 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="dashboard-desk-meta-pill">Баланс: {walletLoading ? '…' : isUnlimited ? '∞' : `${balance_rub} ₽`}</span>
+            <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
+            {canEditScene ? (
+              <>
+                <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setSceneEditMode((prev) => !prev)}>
+                  {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
+                </button>
+                {sceneEditMode ? (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
+                ) : null}
+              </>
+            ) : null}
           </div>
         </div>
+
+        {canEditScene && sceneEditMode && selectedWidget ? (
+          <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">
+            <div className="mb-3 text-sm font-semibold text-[#55361f]">Конструктор сцены · {selectedWidget.id}</div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <label className="text-xs text-[#7b5b3b]">X
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedWidget.x)} onChange={(e) => updateSceneWidget(selectedWidget.id, { x: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Y
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedWidget.y)} onChange={(e) => updateSceneWidget(selectedWidget.id, { y: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Ширина
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedWidget.width)} onChange={(e) => updateSceneWidget(selectedWidget.id, { width: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Высота
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedWidget.height)} onChange={(e) => updateSceneWidget(selectedWidget.id, { height: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b] md:col-span-1">Поворот
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={selectedWidget.rotation} onChange={(e) => updateSceneWidget(selectedWidget.id, { rotation: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b] md:col-span-1">Шрифт
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={selectedWidget.fontSize} onChange={(e) => updateSceneWidget(selectedWidget.id, { fontSize: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b] md:col-span-2">Текст
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={selectedWidget.text} onChange={(e) => updateSceneWidget(selectedWidget.id, { text: e.target.value })} />
+              </label>
+            </div>
+          </div>
+        ) : null}
 
         <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
           <div className="dashboard-office-scene-backdrop absolute inset-0" />
           <div className="dashboard-office-scene-vignette absolute inset-0" />
 
-          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-            <div
-              className="dashboard-board-handwriting absolute z-[4]"
-              style={{ left: `${BOARD_ZONE.x}px`, top: `${BOARD_ZONE.y}px`, width: `${BOARD_ZONE.width}px` }}
-            >
-              <div className="dashboard-board-marker-title">Кошелёк: {walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
-              <div className="dashboard-board-marker-subline">Вложено: {isUnlimited ? "без лимита" : `${investedRub} ₽`} · {greeneryLabel}</div>
-              <div className="dashboard-board-marker-note">ЛК: {displayName} · {workspaceName}</div>
-              <div className="dashboard-board-marker-note">{data?.profile?.email || user.email || "email не указан"}</div>
-            </div>
-
-            <div className="dashboard-board-actions absolute z-[8]" style={{ right: `168px`, top: `${BOARD_ZONE.y + 6}px` }}>
-              <button type="button" className="dashboard-board-action" onClick={() => router.push('/projects/new')}>Создать проект</button>
-              <button type="button" className="dashboard-board-action dashboard-board-action-secondary" onClick={() => { const name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim()) void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
+          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onClick={() => setSelectedWidgetId(null)} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+            <div className="absolute inset-0 z-[8]">
+              {sceneWidgets.map((widget) => {
+                const isSelected = widget.id === selectedWidgetId;
+                return (
+                  <div
+                    key={widget.id}
+                    className={`dashboard-scene-widget dashboard-scene-widget-${widget.kind} dashboard-scene-widget-${widget.tone || "note"} ${sceneEditMode ? "dashboard-scene-widget-editing" : ""} ${isSelected ? "dashboard-scene-widget-selected" : ""}`}
+                    style={{
+                      left: `${widget.x}px`,
+                      top: `${widget.y}px`,
+                      width: `${widget.width}px`,
+                      height: `${widget.height}px`,
+                      transform: `rotate(${widget.rotation}deg)`,
+                      zIndex: widget.z,
+                      fontSize: `${widget.fontSize}px`,
+                    }}
+                    onMouseDown={(e) => startWidgetInteraction(e, widget, "drag")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedWidgetId(widget.id);
+                      if (!sceneEditMode && widget.kind === "button") handleSceneWidgetAction(widget.action);
+                    }}
+                  >
+                    <span className="dashboard-scene-widget-label">{widget.text}</span>
+                    {sceneEditMode && isSelected ? (
+                      <>
+                        <button type="button" className="dashboard-scene-widget-rotate" onMouseDown={(e) => startWidgetInteraction(e, widget, "rotate")} aria-label="Повернуть элемент">↻</button>
+                        <button type="button" className="dashboard-scene-widget-resize" onMouseDown={(e) => startWidgetInteraction(e, widget, "resize")} aria-label="Изменить размер элемента">↘</button>
+                      </>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
 
             <div
