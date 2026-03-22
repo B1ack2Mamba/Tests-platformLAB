@@ -288,7 +288,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                 <InfoHint label="Как работает рекомендация?">
                   Мы считаем цель стартовой логикой, а не жёсткой клеткой. Ядро берётся по весам, соседние тесты можно добавить вручную.
                 </InfoHint>
-                <button type="button" onClick={restoreRecommended} className="btn btn-secondary btn-sm">Вернуть ядро</button>
+                <button type="button" onClick={restoreRecommended} className="btn btn-secondary btn-sm">Вернуть рекомендуемую основу тестов</button>
               </div>
             </div>
 

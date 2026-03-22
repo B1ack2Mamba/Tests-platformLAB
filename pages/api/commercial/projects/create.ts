@@ -26,8 +26,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const currentPosition = String(body.current_position || "").trim() || null;
   const targetRole = String(body.target_role || "").trim() || null;
   const notes = String(body.notes || "").trim() || null;
-  const manualTests: string[] = Array.isArray(body.tests)
-    ? Array.from(new Set<string>(body.tests.map((item: any) => String(item || "").trim()).filter(Boolean)))
+  const manualTests = Array.isArray(body.tests)
+    ? Array.from(new Set(body.tests.map((item: any) => String(item || "").trim()).filter(Boolean)))
     : [];
 
   if (!goal) return res.status(400).json({ ok: false, error: "Не выбрана цель оценки" });
