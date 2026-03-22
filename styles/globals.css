@@ -1538,3 +1538,266 @@ html.native-app .app-brand {
     }
   }
 }
+
+@layer components {
+  .dashboard-office-scene {
+    min-height: 920px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01) 28%, rgba(22,14,10,0.04) 100%),
+      url('/dashboard-office-desk-clean-realistic.png');
+    background-size: cover;
+    background-position: center center;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.26),
+      inset 0 -28px 64px rgba(20,12,8,0.14),
+      0 34px 70px -40px rgba(31,19,12,0.34);
+  }
+
+  .dashboard-office-scene-backdrop {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 24%, rgba(16,10,7,0.04) 100%),
+      radial-gradient(circle at 78% 14%, rgba(255,255,255,0.16), transparent 16%);
+  }
+
+  .dashboard-office-scene-vignette {
+    background:
+      linear-gradient(90deg, rgba(28,18,13,0.08), transparent 10%, transparent 90%, rgba(28,18,13,0.08)),
+      linear-gradient(180deg, rgba(24,14,10,0.04), transparent 18%, transparent 84%, rgba(24,14,10,0.1));
+  }
+
+  .dashboard-desk-nameplate {
+    max-width: 22rem;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(248,241,229,0.95), rgba(234,221,199,0.94));
+    border: 1px solid rgba(157, 127, 92, 0.42);
+    box-shadow:
+      0 18px 22px -18px rgba(38,24,15,0.4),
+      0 8px 12px rgba(56,35,22,0.1),
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      inset 0 -1px 0 rgba(150,114,78,0.2);
+    backdrop-filter: blur(1px);
+  }
+
+  .dashboard-desk-nameplate::before {
+    inset: 7px;
+    border-radius: 12px;
+    border-color: rgba(172, 140, 102, 0.18);
+  }
+
+  .dashboard-desk-wallet {
+    width: 17rem;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(248,241,229,0.94), rgba(232,215,188,0.94));
+    border: 1px solid rgba(157, 127, 92, 0.38);
+    box-shadow:
+      0 18px 22px -18px rgba(38,24,15,0.42),
+      0 8px 12px rgba(56,35,22,0.1),
+      inset 0 1px 0 rgba(255,255,255,0.88),
+      inset 0 -1px 0 rgba(150,114,78,0.18);
+  }
+
+  .dashboard-notebook-trigger {
+    width: 11.4rem;
+    min-height: 3.7rem;
+    transform: rotate(-5deg);
+    border-radius: 10px;
+    padding: 0.8rem 0.95rem 0.72rem;
+  }
+
+  .dashboard-pen-trigger {
+    width: 13.2rem;
+    height: 2.4rem;
+    transform: rotate(-10deg);
+  }
+
+  .dashboard-wood-desk-notes {
+    display: none;
+  }
+
+  .dashboard-folder-card {
+    width: 12.3rem;
+    height: 8.9rem;
+    border-radius: 4px 10px 10px 10px;
+    background:
+      linear-gradient(180deg, rgba(220,195,153,0.995) 0%, rgba(209,181,136,0.995) 42%, rgba(194,161,117,0.995) 100%);
+    border-color: rgba(130, 99, 63, 0.44);
+    box-shadow:
+      0 22px 24px -22px rgba(22,13,8,0.5),
+      0 10px 14px rgba(43,27,16,0.12),
+      inset 0 1px 0 rgba(255,249,240,0.9),
+      inset 0 -10px 14px rgba(113,83,47,0.12);
+  }
+
+  .dashboard-folder-shadow-strip {
+    position: absolute;
+    inset: auto 0.9rem 0.65rem 0.9rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    background: rgba(53,34,20,0.14);
+    filter: blur(8px);
+    pointer-events: none;
+  }
+
+  .dashboard-folder-spine {
+    inset: 14px auto 16px 9px;
+    width: 9px;
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(184,149,107,0.85), rgba(132,101,65,0.92));
+    opacity: 0.52;
+  }
+
+  .dashboard-folder-tab {
+    left: 0.9rem;
+    top: -0.2rem;
+    width: 4.5rem;
+    height: 1.25rem;
+    border-radius: 6px 6px 0 0;
+    background: linear-gradient(180deg, rgba(228,205,165,0.99), rgba(214,184,139,0.99));
+    border: 1px solid rgba(149,115,74,0.22);
+    border-bottom: none;
+  }
+
+  .dashboard-folder-pocket {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.8rem;
+    height: 70%;
+    border-radius: 4px 4px 8px 8px;
+    background: linear-gradient(180deg, rgba(213,180,131,0.995), rgba(192,156,110,0.995));
+    box-shadow:
+      inset 0 10px 16px rgba(255,245,228,0.16),
+      inset 0 -8px 10px rgba(118,85,47,0.08);
+  }
+
+  .dashboard-folder-mouth {
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 2.45rem;
+    height: 0.8rem;
+    background: linear-gradient(180deg, rgba(139,101,59,0.17), rgba(255,255,255,0));
+    border-radius: 999px;
+    filter: blur(0.6px);
+  }
+
+  .dashboard-folder-inner-shadow,
+  .dashboard-folder-gloss {
+    opacity: 0.8;
+  }
+
+  .dashboard-folder-name-slip {
+    min-height: 1.55rem;
+    padding-top: 0.28rem;
+    padding-bottom: 0.28rem;
+    border-radius: 5px;
+    border-color: rgba(175, 145, 107, 0.34);
+    background: linear-gradient(180deg, rgba(251,248,243,0.99), rgba(243,236,225,0.986));
+    color: #5d4121;
+    box-shadow:
+      0 8px 12px -10px rgba(34,19,8,0.35),
+      0 2px 3px rgba(83,52,24,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.96);
+  }
+
+  .dashboard-folder-name-slip::after {
+    inset: 0.22rem auto 0.22rem 0.35rem;
+    width: 1px;
+    background: rgba(188,150,104,0.22);
+  }
+
+  .dashboard-project-sheet {
+    width: 11.1rem;
+    height: 13.8rem;
+    cursor: grab;
+    border-radius: 2px;
+    background:
+      linear-gradient(180deg, rgba(253,251,247,0.998) 0%, rgba(247,241,231,0.996) 66%, rgba(239,231,218,0.994) 100%);
+    border-color: rgba(198,186,166,0.75);
+    box-shadow:
+      0 24px 24px -24px rgba(28,16,6,0.46),
+      0 10px 14px rgba(60,39,21,0.1),
+      inset 0 1px 0 rgba(255,255,255,0.96),
+      inset 0 -1px 0 rgba(191,173,145,0.22);
+  }
+
+  .dashboard-project-sheet::before,
+  .dashboard-project-sheet-impression,
+  .dashboard-project-sheet-lines,
+  .dashboard-project-sheet-rule,
+  .dashboard-project-sheet-pin,
+  .dashboard-project-sheet-corner {
+    display: none;
+  }
+
+  .dashboard-project-sheet-shadow {
+    inset: auto 0.95rem 0.6rem 0.95rem;
+    height: 0.8rem;
+    background: rgba(70,47,28,0.12);
+    filter: blur(8px);
+  }
+
+  .dashboard-project-sheet-topline {
+    position: absolute;
+    left: 0.95rem;
+    right: 0.95rem;
+    top: 0.72rem;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(143,119,86,0.18), rgba(143,119,86,0.03));
+    pointer-events: none;
+  }
+
+  .dashboard-project-sheet-rules {
+    position: absolute;
+    left: 0.95rem;
+    right: 0.95rem;
+    top: 4.2rem;
+    bottom: 3.4rem;
+    background: repeating-linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 20px,
+      rgba(192,174,149,0.22) 20px,
+      rgba(192,174,149,0.22) 21px
+    );
+    opacity: 0.48;
+    pointer-events: none;
+  }
+
+  .dashboard-project-sheet-compact {
+    width: 8.7rem;
+    height: 10.4rem;
+  }
+
+  .dashboard-project-label {
+    min-width: 3.2rem;
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    color: #988162;
+  }
+
+  .dashboard-project-stamp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3.6rem;
+    border-radius: 4px;
+    border: 1px solid rgba(178,160,133,0.38);
+    padding: 0.24rem 0.55rem;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: rgba(255,251,244,0.72);
+  }
+
+  .dashboard-project-stamp-ready {
+    color: #496843;
+    border-color: rgba(112,153,105,0.42);
+    background: rgba(237,246,234,0.9);
+  }
+
+  .dashboard-project-stamp-progress {
+    color: #6c5235;
+    border-color: rgba(174,150,119,0.38);
+    background: rgba(251,247,239,0.92);
+  }
+}

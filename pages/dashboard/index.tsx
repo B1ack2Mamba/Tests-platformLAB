@@ -1140,7 +1140,7 @@ type FolderDesktopIconProps = {
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
   const icon = getFolderIcon(folder.icon_key);
-  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.35;
+  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.18;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1155,7 +1155,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-folder-card relative flex items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#8d6b3f]" : "border-[#9a7443]"} ${busy ? "opacity-70" : ""}`}
+        className={`dashboard-folder-card relative flex items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#94724a]" : "border-[#aa8258]"} ${busy ? "opacity-70" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1170,39 +1170,44 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         <div className="dashboard-folder-mouth" />
         <div className="dashboard-folder-inner-shadow" />
         <div className="dashboard-folder-gloss" />
-        <div className="absolute left-4 top-3 text-lg leading-none text-[#8b6232] opacity-55">{icon.symbol}</div>
-        <div className="pointer-events-none absolute left-3 right-3 top-2 z-20 flex flex-col gap-1.5">
-          {preview.length ? preview.map((project, index) => (
-            <div
-              key={project.id}
-              className="dashboard-folder-name-slip rounded-[10px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
-              style={{
-                marginLeft: `${index * 11}px`,
-                marginRight: `${Math.max(0, 14 - index * 4)}px`,
-                transform: `translateY(${index * 7}px) rotate(${index % 2 === 0 ? -1.15 : 0.85}deg)`,
-                zIndex: 30 - index,
-              }}
-            >
-              <span className="block truncate">{project.title || project.person?.full_name || "Проект"}</span>
-            </div>
-          )) : (
-            <div className="dashboard-folder-name-slip rounded-[10px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
-              <span className="block truncate">Листы появятся здесь</span>
+        <div className="absolute left-4 top-3 text-sm leading-none text-[#8b6232] opacity-40">{icon.symbol}</div>
+
+        <div className="pointer-events-none absolute left-3 right-4 top-2 z-20 flex flex-col gap-1.5">
+          {preview.length ? preview.map((project, index) => {
+            const slipTitle = project.person?.full_name || project.title || "Проект";
+            return (
+              <div
+                key={project.id}
+                className="dashboard-folder-name-slip rounded-[7px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
+                style={{
+                  marginLeft: `${index * 9}px`,
+                  marginRight: `${Math.max(0, 18 - index * 5)}px`,
+                  transform: `translateY(${index * 7}px) rotate(${index % 2 === 0 ? -0.75 : 0.55}deg)`,
+                  zIndex: 30 - index,
+                }}
+              >
+                <span className="block truncate">{slipTitle}</span>
+              </div>
+            );
+          }) : (
+            <div className="dashboard-folder-name-slip rounded-[7px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
+              <span className="block truncate">Папка пуста</span>
             </div>
           )}
         </div>
+
         <div className="relative z-10 flex w-full items-end justify-between px-4 pb-3">
           <div>
-            <div className="text-[15px] font-semibold leading-tight text-[#5b3c1e]">{folder.name}</div>
-            <div className="mt-1 text-[11px] text-[#6f4a24]">Открыть папку</div>
+            <div className="text-[15px] font-semibold leading-tight text-[#5c3e1f]">{folder.name}</div>
+            <div className="mt-1 text-[11px] text-[#7a5830]">Открыть папку</div>
           </div>
-          <div className="rounded-full border border-[#d8c2a0] bg-[#fff8ec]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
+          <div className="rounded-full border border-[#d5be99] bg-[#fff9f0]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
         </div>
       </button>
       <button
         type="button"
         onClick={onManage}
-        className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/70 bg-white/95 text-sm text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-slate-900 group-hover:opacity-100"
+        className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#f2e7d3] bg-[#fffaf2]/96 text-sm text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-slate-900 group-hover:opacity-100"
         title="Управление папкой"
         aria-label="Управление папкой"
       >
@@ -1234,7 +1239,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 7) - 3) * 0.28;
+  const tilt = ((tiltSeed % 7) - 3) * 0.14;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1245,7 +1250,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
             e.stopPropagation();
             onDelete();
           }}
-          className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-white/80 bg-white/95 text-xs text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
+          className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#efe6d7] bg-[#fffbf4]/96 text-xs text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
           title="Удалить проект"
           aria-label="Удалить проект"
         >
@@ -1263,27 +1268,26 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-project-sheet relative flex flex-col items-start justify-start overflow-hidden border px-[0.8rem] py-[0.9rem] text-left transition hover:-translate-y-0.5 hover:shadow-xl ${compact ? "dashboard-project-sheet-compact" : ""} ${isDone ? "border-[#d7bb8f]" : "border-[#dfd2bb]"} ${busy ? "opacity-60" : ""}`}
+        className={`dashboard-project-sheet relative flex flex-col items-start justify-start overflow-hidden border px-[0.9rem] py-[0.95rem] text-left transition hover:-translate-y-0.5 hover:shadow-xl ${compact ? "dashboard-project-sheet-compact" : ""} ${isDone ? "border-[#d7bb8f]" : "border-[#dfd2bb]"} ${busy ? "opacity-60" : ""}`}
       >
         <div className="dashboard-project-sheet-shadow" aria-hidden="true" />
-        <div className="dashboard-project-sheet-corner" />
-        <div className="dashboard-project-sheet-pin" aria-hidden="true" />
-        <div className="dashboard-project-sheet-impression" aria-hidden="true" />
-        <div className="dashboard-project-sheet-lines" aria-hidden="true" />
-        <div className="dashboard-project-sheet-rule" aria-hidden="true" />
-        <div className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#857156]">Проект оценки</div>
-        <div className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-[#2c2114]">{titleLine}</div>
-        <div className="mt-2 grid w-full gap-1.5 text-[11px] leading-4 text-[#5d4a34]">
-          <div><span className="dashboard-project-label">Участник</span> {displayName}</div>
-          <div><span className="dashboard-project-label">Роль</span> {secondaryLine}</div>
-          <div><span className="dashboard-project-label">Цель</span> {goal?.shortTitle || project.goal}</div>
-          <div><span className="dashboard-project-label">Статус</span> {assessmentLine}</div>
+        <div className="dashboard-project-sheet-topline" aria-hidden="true" />
+        <div className="dashboard-project-sheet-rules" aria-hidden="true" />
+        <div className="text-[8.5px] font-semibold uppercase tracking-[0.18em] text-[#9a8464]">Лист проекта</div>
+        <div className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-[#2d2215]">{titleLine}</div>
+        <div className="mt-1 text-[11px] leading-4 text-[#5d4a34]">{displayName}</div>
+        <div className="mt-3 h-px w-full bg-[#ddd2c1]" />
+        <div className="mt-3 grid w-full gap-1.5 text-[11px] leading-4 text-[#5d4a34]">
+          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Цель</span><span className="text-right">{goal?.shortTitle || project.goal}</span></div>
+          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Роль</span><span className="text-right">{secondaryLine}</span></div>
+          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Статус</span><span className="text-right">{assessmentLine}</span></div>
+          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Тесты</span><span className="text-right">{total || 0}</span></div>
         </div>
-        <div className="mt-auto flex w-full items-end justify-between gap-2 text-[10px] text-[#6f5a42]">
-          <span>Тестов: {total || 0}</span>
+        <div className="mt-auto flex w-full items-center justify-between pt-3 text-[10px] text-[#6f5a42]">
           <span>Выполнено: {completed}</span>
+          <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
         </div>
-        <div className={`mt-2 rounded-sm border px-2 py-1 text-[10px] font-semibold ${isDone ? "border-[#b7ceb0] bg-[#eef7ea] text-[#355a31]" : "border-[#ddd2c0] bg-[#fbf8f2] text-[#6e5234]"}`}>
+        <div className={`dashboard-project-stamp mt-2 ${isDone ? "dashboard-project-stamp-ready" : "dashboard-project-stamp-progress"}`}>
           {isDone ? "Готово" : `${completed}/${total || 0}`}
         </div>
       </button>
