@@ -54,16 +54,16 @@ type DeskPositions = Record<string, DeskPosition>;
 
 const DESK_WIDTH = 1400;
 const DESK_HEIGHT = 760;
-const DESK_FOLDER_WIDTH = 188;
-const DESK_FOLDER_HEIGHT = 170;
-const DESK_SHEET_WIDTH = 236;
-const DESK_SHEET_HEIGHT = 184;
-const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1834:";
-const BOARD_ZONE = { x: 138, y: 86, width: 980, height: 304 };
-const TRAY_ZONE = { x: 1060, y: 560, width: 230, height: 154 };
-const TRAY_CLIP = { x: 1068, y: 544, width: 210, height: 112 };
-const SHEET_ZONE = { x: 96, y: 560, width: 760, height: 170 };
-const TRASH_ZONE = { x: 22, y: 440, width: 150, height: 170 };
+const DESK_FOLDER_WIDTH = 164;
+const DESK_FOLDER_HEIGHT = 142;
+const DESK_SHEET_WIDTH = 184;
+const DESK_SHEET_HEIGHT = 132;
+const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
+const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
+const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
+const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
+const SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
+const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -192,11 +192,9 @@ function getDeskStorageKey(workspaceId: string) {
 }
 
 function getDefaultFolderPosition(index: number): DeskPosition {
-  const slot = index % 3;
-  const row = Math.floor(index / 3);
   return {
-    x: TRAY_CLIP.x + 6 + slot * 28 + row * 4,
-    y: TRAY_CLIP.y - 14 + row * 10 + slot * 2,
+    x: TRAY_CLIP.x + 8 + index * 16,
+    y: TRAY_CLIP.y + 10 + index * 8,
     z: 30 + index,
   };
 }
@@ -204,9 +202,15 @@ function getDefaultFolderPosition(index: number): DeskPosition {
 function getDefaultProjectPosition(index: number): DeskPosition {
   const row = Math.floor(index / 3);
   const col = index % 3;
+  const offsets = [
+    { x: 0, y: 4 },
+    { x: 206, y: 16 },
+    { x: 418, y: 10 },
+  ];
+  const offset = offsets[col] || offsets[0];
   return {
-    x: SHEET_ZONE.x + col * 214 + (row % 2) * 14,
-    y: SHEET_ZONE.y + row * 16 + col * 6,
+    x: SHEET_ZONE.x + offset.x + row * 18,
+    y: SHEET_ZONE.y + offset.y + row * 12,
     z: 180 + index,
   };
 }
@@ -705,18 +709,18 @@ export default function DashboardPage() {
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
         {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-white/70 bg-white/88 px-4 py-3 shadow-[0_18px_34px_-28px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-          <div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+          <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7a5b37]">Кабинет специалиста</div>
-            <div className="mt-1 text-xl font-semibold text-[#2c1b10]">{displayName}</div>
-            <div className="text-sm text-[#6a4b31]">{workspaceName}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-xl font-semibold text-[#2c1b10]">{displayName}</span>
+              <span className="text-sm text-[#6a4b31]">{workspaceName}</span>
+              <span className="text-sm text-[#8b6a48]">{data?.profile?.email || user.email || "email не указан"}</span>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="dashboard-desk-meta-pill">Баланс: {walletLoading ? '…' : isUnlimited ? '∞' : `${balance_rub} ₽`}</span>
-            <span className="dashboard-desk-meta-pill">{greeneryLabel}</span>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim()) void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => router.push('/projects/new')}>Создать проект</button>
           </div>
         </div>
 
@@ -725,17 +729,17 @@ export default function DashboardPage() {
           <div className="dashboard-office-scene-vignette absolute inset-0" />
 
           <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-            <div className="pointer-events-none absolute left-[120px] top-[110px] z-[4] max-w-[520px] rounded-[28px] border border-white/40 bg-white/10 px-10 py-8 text-[#44506a] backdrop-blur-[1px]">
-              <div className="text-[38px] font-semibold tracking-tight">Кошелёк</div>
-              <div className="mt-1 text-[36px] font-semibold">{walletLoading ? '…' : isUnlimited ? '∞' : `${balance_rub} ₽`}</div>
-              <div className="mt-3 text-[22px]">Вложено: {isUnlimited ? 'без лимита' : `${investedRub} ₽`} · {greeneryLabel}</div>
-              <div className="mt-8 text-[34px] font-semibold tracking-tight">Личный кабинет</div>
-              <div className="mt-2 text-[44px] font-semibold leading-none">{displayName}</div>
-              <div className="mt-3 text-[24px]">{workspaceName}</div>
-              <div className="mt-2 text-[22px]">{data?.profile?.email || user.email || 'email не указан'}</div>
+            <div
+              className="dashboard-board-handwriting absolute z-[4]"
+              style={{ left: `${BOARD_ZONE.x}px`, top: `${BOARD_ZONE.y}px`, width: `${BOARD_ZONE.width}px` }}
+            >
+              <div className="dashboard-board-marker-title">Кошелёк: {walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
+              <div className="dashboard-board-marker-subline">Вложено: {isUnlimited ? "без лимита" : `${investedRub} ₽`} · {greeneryLabel}</div>
+              <div className="dashboard-board-marker-note">ЛК: {displayName} · {workspaceName}</div>
+              <div className="dashboard-board-marker-note">{data?.profile?.email || user.email || "email не указан"}</div>
             </div>
 
-            <div className="absolute left-[120px] top-[620px] z-[8] flex gap-8">
+            <div className="dashboard-board-actions absolute z-[8]" style={{ right: `168px`, top: `${BOARD_ZONE.y + 6}px` }}>
               <button type="button" className="dashboard-board-action" onClick={() => router.push('/projects/new')}>Создать проект</button>
               <button type="button" className="dashboard-board-action dashboard-board-action-secondary" onClick={() => { const name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim()) void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
             </div>
@@ -782,7 +786,7 @@ export default function DashboardPage() {
               })}
             </div>
 
-            <div className="dashboard-tray-divider-cover absolute z-[14]" style={{ left: `${TRAY_ZONE.x + 4}px`, top: `${TRAY_ZONE.y + 64}px`, width: `${TRAY_ZONE.width - 10}px`, height: `96px` }} />
+            <div className="dashboard-tray-divider-cover absolute z-[14]" style={{ left: `${TRAY_ZONE.x + 6}px`, top: `${TRAY_ZONE.y + 76}px`, width: `${TRAY_ZONE.width - 14}px`, height: `102px` }} />
 
             {looseFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
               const itemId = `folder:${folder.id}`;
@@ -1089,7 +1093,7 @@ type FolderDesktopIconProps = {
 
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
-  const tilt = getEntityTilt(folder.id, 3) * 0.85;
+  const tilt = getEntityTilt(folder.id, 2) * 0.42;
   return (
     <div className="group relative flex flex-col items-center gap-2">
       <button
@@ -1184,7 +1188,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const completed = Math.min(project.attempts_count || 0, total || 0);
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
-  const tilt = getEntityTilt(project.id, 2) * 0.55;
+  const tilt = getEntityTilt(project.id, 1) * 0.18;
 
   return (
     <div className="group relative dashboard-desk-sheet-wrap" style={{ transform: `rotate(${tilt}deg)` }}>
