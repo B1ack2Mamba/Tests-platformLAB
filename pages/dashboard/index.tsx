@@ -49,6 +49,16 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
+type DeskPosition = { x: number; y: number; z: number };
+type DeskPositions = Record<string, DeskPosition>;
+
+const DESK_WIDTH = 1400;
+const DESK_HEIGHT = 780;
+const DESK_FOLDER_WIDTH = 168;
+const DESK_FOLDER_HEIGHT = 152;
+const DESK_SHEET_WIDTH = 150;
+const DESK_SHEET_HEIGHT = 188;
+const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -137,6 +147,50 @@ function getGreeneryHint(level: GreeneryLevel) {
   }
 }
 
+function clampDesk(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getDeskStorageKey(workspaceId: string) {
+  return `${DESK_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function getDefaultFolderPosition(index: number): DeskPosition {
+  const row = Math.floor(index / 5);
+  const col = index % 5;
+  return {
+    x: 40 + col * 242 + (row % 2) * 20,
+    y: 30 + row * 178,
+    z: 20 + index,
+  };
+}
+
+function getDefaultProjectPosition(index: number): DeskPosition {
+  const row = Math.floor(index / 6);
+  const col = index % 6;
+  return {
+    x: 54 + col * 184 + ((row + 1) % 2) * 16,
+    y: 248 + row * 206 + (col % 2) * 10,
+    z: 140 + index,
+  };
+}
+
+function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved: DeskPositions): DeskPositions {
+  const next: DeskPositions = {};
+
+  folders.forEach((folder, index) => {
+    const key = `folder:${folder.id}`;
+    next[key] = saved[key] || getDefaultFolderPosition(index);
+  });
+
+  projects.forEach((project, index) => {
+    const key = `project:${project.id}`;
+    next[key] = saved[key] || getDefaultProjectPosition(index);
+  });
+
+  return next;
+}
+
 export default function DashboardPage() {
   const { session, user, loading: sessionLoading } = useSession();
   const router = useRouter();
@@ -158,6 +212,8 @@ export default function DashboardPage() {
   const { wallet, ledger, loading: walletLoading, isUnlimited } = useWallet();
   const isAdmin = isAdminEmail(user?.email);
   const [mechanicPulse, setMechanicPulse] = useState(0);
+  const [deskPositions, setDeskPositions] = useState<DeskPositions>({});
+  const [deskLayer, setDeskLayer] = useState(300);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -257,6 +313,84 @@ export default function DashboardPage() {
     const stillExists = folderBuckets.byFolder.some((item) => item.folder.id === activeFolderId);
     if (!stillExists) setActiveFolderId(null);
   }, [activeFolderId, folderBuckets.byFolder]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id) return;
+    const saved = typeof window !== "undefined"
+      ? (() => {
+          try {
+            const raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id));
+            return raw ? (JSON.parse(raw) as DeskPositions) : {};
+          } catch {
+            return {} as DeskPositions;
+          }
+        })()
+      : ({} as DeskPositions);
+
+    setDeskPositions((current) => {
+      const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...saved, ...current });
+      setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
+      return merged;
+    });
+  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id), JSON.stringify(deskPositions));
+  }, [deskPositions, workspace?.workspace?.workspace_id]);
+
+  const bringDeskItemToFront = useCallback((itemId: string) => {
+    setDeskLayer((current) => {
+      const next = current + 1;
+      setDeskPositions((prev) => ({
+        ...prev,
+        [itemId]: {
+          ...(prev[itemId] || { x: 48, y: 48, z: next }),
+          z: next,
+        },
+      }));
+      return next;
+    });
+  }, []);
+
+  const placeDeskItem = useCallback((itemId: string, kind: "folder" | "project", x: number, y: number) => {
+    const maxX = kind === "folder" ? DESK_WIDTH - DESK_FOLDER_WIDTH - 24 : DESK_WIDTH - DESK_SHEET_WIDTH - 24;
+    const maxY = kind === "folder" ? DESK_HEIGHT - DESK_FOLDER_HEIGHT - 24 : DESK_HEIGHT - DESK_SHEET_HEIGHT - 24;
+    setDeskPositions((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] || { z: deskLayer + 1 }),
+        x: clampDesk(x, 24, maxX),
+        y: clampDesk(y, 24, maxY),
+        z: prev[itemId]?.z || deskLayer + 1,
+      },
+    }));
+  }, [deskLayer]);
+
+  const handleDeskDrop = useCallback((e: any) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const draggedProjectId = e.dataTransfer.getData("text/project-id") || draggingProjectId;
+    const draggedFolderId = e.dataTransfer.getData("text/folder-id") || "";
+
+    if (draggedProjectId) {
+      const wasInFolder = !folderBuckets.uncategorized.some((project) => project.id === draggedProjectId);
+      const itemId = `project:${draggedProjectId}`;
+      bringDeskItemToFront(itemId);
+      placeDeskItem(itemId, "project", e.clientX - rect.left - DESK_SHEET_WIDTH / 2, e.clientY - rect.top - DESK_SHEET_HEIGHT / 2);
+      if (wasInFolder) {
+        moveProject(draggedProjectId, null);
+      }
+      setDraggingProjectId(null);
+      return;
+    }
+
+    if (draggedFolderId) {
+      const itemId = `folder:${draggedFolderId}`;
+      bringDeskItemToFront(itemId);
+      placeDeskItem(itemId, "folder", e.clientX - rect.left - DESK_FOLDER_WIDTH / 2, e.clientY - rect.top - DESK_FOLDER_HEIGHT / 2);
+    }
+  }, [bringDeskItemToFront, draggingProjectId, folderBuckets.uncategorized, moveProject, placeDeskItem]);
 
   async function createFolder() {
     const name = newFolderName.trim();
@@ -597,38 +731,72 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-          {folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => (
-            <FolderDesktopIcon
-              key={folder.id}
-              folder={folder}
-              projects={folderProjects}
-              busy={busyFolderId === folder.id}
-              onOpen={() => setActiveFolderId(folder.id)}
-              onManage={() => setFolderActionTarget(folder)}
-              onDropProject={(projectId) => moveProject(projectId, folder.id)}
-              draggingProjectId={draggingProjectId}
-            />
-          ))}
+        <div className="mt-5">
+          <div
+            className="dashboard-wood-desk relative min-h-[780px] overflow-hidden rounded-[30px] border border-[#6b4727]/35"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDeskDrop}
+          >
+            <div className="dashboard-wood-desk-glow pointer-events-none absolute inset-x-10 top-5 h-16 rounded-full blur-3xl" />
+            <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/10 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
+              Листы можно раскладывать по всему столу, класть друг на друга и собирать в папки.
+            </div>
 
-          {folderBuckets.uncategorized.map((project) => (
-            <ProjectDesktopIcon
-              key={project.id}
-              project={project}
-              busy={busyFolderId === `delete:${project.id}`}
-              onOpen={() => router.push(`/projects/${project.id}`)}
-              onDragStart={() => setDraggingProjectId(project.id)}
-              onDragEnd={() => setDraggingProjectId(null)}
-              onDelete={() => deleteProject(project.id)}
-            />
-          ))}
-        </div>
+            {folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => {
+              const itemId = `folder:${folder.id}`;
+              const position = deskPositions[itemId] || getDefaultFolderPosition(folder.sort_order || 0);
+              return (
+                <div
+                  key={folder.id}
+                  className="absolute"
+                  style={{ left: position.x, top: position.y, zIndex: position.z }}
+                >
+                  <FolderDesktopIcon
+                    folder={folder}
+                    projects={folderProjects}
+                    busy={busyFolderId === folder.id}
+                    onOpen={() => setActiveFolderId(folder.id)}
+                    onManage={() => setFolderActionTarget(folder)}
+                    onDropProject={(projectId) => moveProject(projectId, folder.id)}
+                    draggingProjectId={draggingProjectId}
+                    onDragStart={() => bringDeskItemToFront(itemId)}
+                    onDragEnd={() => undefined}
+                  />
+                </div>
+              );
+            })}
 
-        {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white/60 p-8 text-center text-sm text-slate-500">
-            Здесь пока пусто. Создай проект или папку, и рабочий стол оживёт.
+            {folderBuckets.uncategorized.map((project, projectIndex) => {
+              const itemId = `project:${project.id}`;
+              const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
+              return (
+                <div
+                  key={project.id}
+                  className="absolute"
+                  style={{ left: position.x, top: position.y, zIndex: position.z }}
+                >
+                  <ProjectDesktopIcon
+                    project={project}
+                    busy={busyFolderId === `delete:${project.id}`}
+                    onOpen={() => router.push(`/projects/${project.id}`)}
+                    onDragStart={() => {
+                      setDraggingProjectId(project.id);
+                      bringDeskItemToFront(itemId);
+                    }}
+                    onDragEnd={() => setDraggingProjectId(null)}
+                    onDelete={() => deleteProject(project.id)}
+                  />
+                </div>
+              );
+            })}
+
+            {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
+              <div className="absolute inset-x-8 top-28 rounded-2xl border border-dashed border-white/35 bg-white/10 p-8 text-center text-sm text-[#fff7eb] backdrop-blur-[2px]">
+                Здесь пока пусто. Создай проект или папку, и рабочий стол оживёт.
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </div>
       </section>
 
       {activeFolder ? (
@@ -850,7 +1018,6 @@ function EdgeVine({ side, growthLevel }: { side: "top" | "right" | "bottom"; gro
 }
 
 type FolderDesktopIconProps = {
-
   folder: FolderRow;
   projects: ProjectRow[];
   busy?: boolean;
@@ -858,18 +1025,29 @@ type FolderDesktopIconProps = {
   onManage: () => void;
   onDropProject: (projectId: string) => void;
   draggingProjectId: string | null;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 };
 
-function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId }: FolderDesktopIconProps) {
+function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
   const icon = getFolderIcon(folder.icon_key);
-  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.9;
+  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.7;
+
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
       <button
         type="button"
+        draggable
+        disabled={busy}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/folder-id", folder.id);
+          e.dataTransfer.effectAllowed = "move";
+          onDragStart();
+        }}
+        onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-folder-card relative flex h-[8.2rem] w-[9.8rem] items-end justify-start overflow-hidden rounded-[24px] border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-emerald-400" : "border-[#b98743]"} ${busy ? "opacity-70" : ""}`}
+        className={`dashboard-folder-card relative flex h-[8.5rem] w-[10.25rem] items-end justify-start overflow-visible rounded-[24px] border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-emerald-400" : "border-[#b98743]"} ${busy ? "opacity-70" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -880,21 +1058,30 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         <div className="dashboard-folder-tab" />
         <div className="dashboard-folder-gloss" />
         <div className="absolute left-4 top-3 text-lg leading-none text-[#835429] opacity-80">{icon.symbol}</div>
-        <div className="relative z-10 grid w-full grid-cols-3 gap-2 px-3 pb-3">
+        <div className="pointer-events-none absolute left-4 right-4 top-2 z-20 flex flex-col gap-1">
           {preview.length ? preview.map((project, index) => (
             <div
               key={project.id}
-              className={`dashboard-folder-preview-sheet flex h-10 items-center justify-center rounded-[10px] border text-[10px] font-semibold shadow-sm ${index === 1 ? "translate-y-1" : ""}`}
+              className="dashboard-folder-name-slip rounded-[10px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
+              style={{ marginLeft: `${index * 8}px`, marginRight: `${Math.max(0, 10 - index * 3)}px`, transform: `translateY(${index * 2}px)` }}
             >
-              {getInitials(project.person?.full_name || project.title || "PR")}
+              <span className="block truncate">{project.person?.full_name || project.title || "Проект"}</span>
             </div>
           )) : (
-            <div className="col-span-3 text-left text-xs text-[#7c6040]">Папка готова к наполнению</div>
+            <div className="dashboard-folder-name-slip rounded-[10px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
+              <span className="block truncate">Листы появятся здесь</span>
+            </div>
           )}
         </div>
-        <div className="absolute bottom-2 right-3 rounded-full bg-white/88 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
+        <div className="absolute inset-x-0 bottom-0 h-[74%] rounded-b-[24px] bg-gradient-to-b from-[#d4a865]/90 to-[#bd843c]/95" />
+        <div className="relative z-10 flex w-full items-end justify-between px-4 pb-3">
+          <div>
+            <div className="text-sm font-semibold leading-tight text-[#5b3c1e]">{folder.name}</div>
+            <div className="mt-1 text-[11px] text-[#714c28]">Открыть папку</div>
+          </div>
+          <div className="rounded-full bg-white/88 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
+        </div>
       </button>
-      <div className="max-w-[130px] text-center text-sm font-semibold leading-tight text-[#f7f1e8] [text-shadow:0_1px_3px_rgba(30,18,8,0.65)]">{folder.name}</div>
       <button
         type="button"
         onClick={onManage}
