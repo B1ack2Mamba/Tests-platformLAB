@@ -55,11 +55,11 @@ type DeskPositions = Record<string, DeskPosition>;
 const DESK_WIDTH = 1400;
 const DESK_HEIGHT = 780;
 const DESK_FOLDER_WIDTH = 168;
-const DESK_FOLDER_HEIGHT = 152;
-const DESK_SHEET_WIDTH = 188;
-const DESK_SHEET_HEIGHT = 246;
+const DESK_FOLDER_HEIGHT = 196;
+const DESK_SHEET_WIDTH = 212;
+const DESK_SHEET_HEIGHT = 164;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
-const TRAY_ZONE = { x: 26, y: 168, width: 246, height: 254 };
+const TRAY_ZONE = { x: 20, y: 164, width: 262, height: 286 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -162,8 +162,8 @@ function getDeskStorageKey(workspaceId: string) {
 
 function getDefaultFolderPosition(index: number): DeskPosition {
   return {
-    x: TRAY_ZONE.x + 10 + (index % 2) * 18,
-    y: TRAY_ZONE.y + 18 + index * 18,
+    x: TRAY_ZONE.x + 36 + (index % 2) * 8,
+    y: TRAY_ZONE.y + 10 + index * 16,
     z: 20 + index,
   };
 }
@@ -172,8 +172,8 @@ function getDefaultProjectPosition(index: number): DeskPosition {
   const row = Math.floor(index / 4);
   const col = index % 4;
   return {
-    x: 320 + col * 206 + (row % 2) * 18,
-    y: 318 + row * 148 + (col % 2) * 12,
+    x: 420 + col * 186 + (row % 2) * 14,
+    y: 360 + row * 96 + (col % 2) * 10,
     z: 140 + index,
   };
 }
@@ -1275,10 +1275,11 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 11) - 5) * 0.85;
+  const tilt = ((tiltSeed % 9) - 4) * 2.1;
+  const lift = 54 + (tiltSeed % 3) * 8;
 
   return (
-    <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
+    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `perspective(1400px) rotateX(66deg) rotateZ(${tilt}deg) translateY(-${lift}px)` }}>
       {onDelete ? (
         <button
           type="button"
@@ -1311,7 +1312,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         <span className="dashboard-project-paper-clip" aria-hidden="true" />
         <span className="dashboard-project-paper-clip-inner" aria-hidden="true" />
 
-        <span className="dashboard-project-paper-header">Лист проекта</span>
+        <span className="dashboard-project-paper-header">Проект оценки</span>
         <span className="dashboard-project-paper-title">{titleLine}</span>
 
         <span className="dashboard-project-paper-grid">
@@ -1336,6 +1337,10 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         <span className="dashboard-project-paper-footer">
           <span>{completed}/{total || 0} тестов</span>
           <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
+        </span>
+        <span className="dashboard-project-paper-footer dashboard-project-paper-footer-secondary">
+          <span>{assessmentLine}</span>
+          <span>{roleLine}</span>
         </span>
       </button>
     </div>
