@@ -650,13 +650,13 @@ export default function DashboardPage() {
     }
   }
 
-  const clearTrashHover = useCallback(() => {
+  function clearTrashHover() {
     if (trashHoverTimer.current) {
       window.clearTimeout(trashHoverTimer.current);
       trashHoverTimer.current = null;
     }
     setTrashHover(null);
-  }, []);
+  }
 
   const beginTrashHover = useCallback((kind: "project" | "folder", id: string) => {
     setTrashHover((current) => {
