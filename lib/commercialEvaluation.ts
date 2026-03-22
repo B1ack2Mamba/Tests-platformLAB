@@ -2,6 +2,7 @@ import { aiInterpretation } from "@/lib/aiInterpretation";
 import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
 import {
   getEvaluationPackageDefinition,
+  getGoalDefinition,
   type EvaluationPackage,
 } from "@/lib/commercialGoals";
 
@@ -91,16 +92,7 @@ function cleanText(value: string) {
 }
 
 function goalLabel(goal: string) {
-  switch (goal) {
-    case "role_fit":
-      return "Подбор на должность";
-    case "motivation":
-      return "Мотивация";
-    case "general_assessment":
-      return "Общая оценка";
-    default:
-      return "Оценка";
-  }
+  return getGoalDefinition(goal)?.shortTitle || "Оценка";
 }
 
 function buildCorrespondenceIndex(project: ProjectLike, attempts: AttemptLike[]) {
@@ -110,24 +102,39 @@ function buildCorrespondenceIndex(project: ProjectLike, attempts: AttemptLike[])
   const testsBonus = Math.min(8, attempts.length * 1.5);
   const score = Math.round(clamp(48, base * 0.78 + testsBonus + 12, 96));
 
-  if (project.goal === "role_fit") {
-    return {
-      score,
-      title: "Индекс соответствия роли",
-      body: `Индекс соответствия роли: ${score}/100. Ориентир собран по всем завершённым тестам и показывает, насколько профиль человека совпадает с задачами и ожиданиями по роли${project.target_role ? ` «${project.target_role}»` : ""}.`,
-    };
-  }
-  if (project.goal === "motivation") {
-    return {
-      score,
-      title: "Индекс мотивационного соответствия",
-      body: `Индекс мотивационного соответствия: ${score}/100. Он показывает, насколько внутренние драйверы, саморегуляция и эмоциональный профиль поддерживают устойчивую вовлечённость именно в выбранном контексте оценки.`,
-    };
-  }
+  const titleByGoal: Record<string, string> = {
+    role_fit: "Индекс соответствия роли",
+    general_assessment: "Индекс рабочего профиля",
+    motivation: "Индекс мотивационного профиля",
+    management_potential: "Индекс управленческого потенциала",
+    team_interaction: "Индекс командного взаимодействия",
+    leadership: "Индекс лидерского потенциала",
+    self_organization: "Индекс самоорганизации",
+    learning_agility: "Индекс обучаемости",
+    emotional_regulation: "Индекс эмоциональной устойчивости",
+    communication_influence: "Индекс коммуникации и влияния",
+  };
+
+  const contextByGoal: Record<string, string> = {
+    role_fit: `показывает, насколько профиль человека совпадает с задачами и ожиданиями по роли${project.target_role ? ` «${project.target_role}»` : ""}`,
+    general_assessment: "помогает быстро увидеть, насколько цельно и устойчиво человек выглядит по совокупности пройденных тестов",
+    motivation: "показывает, насколько внутренние драйверы и эмоциональный профиль поддерживают устойчивую вовлечённость",
+    management_potential: "показывает, насколько человек готов брать на себя координацию, ответственность и управленческие решения",
+    team_interaction: "показывает, насколько профиль человека поддерживает совместную работу, распределение ролей и рабочую совместимость",
+    leadership: "показывает, насколько у человека выражены лидерские паттерны, влияние и способность вести за собой",
+    self_organization: "показывает, насколько устойчиво человек держит ритм, сроки и собственную рабочую дисциплину",
+    learning_agility: "показывает, насколько быстро и осмысленно человек осваивает новое и перестраивает рабочий подход",
+    emotional_regulation: "показывает, насколько устойчиво человек регулирует эмоции и держится под давлением",
+    communication_influence: "показывает, насколько уверенно человек выстраивает контакт, доносит смысл и влияет на собеседника",
+  };
+
+  const title = titleByGoal[project.goal] || "Индекс рабочего профиля";
+  const context = contextByGoal[project.goal] || "помогает быстро увидеть цельность профиля по совокупности завершённых тестов";
+
   return {
     score,
-    title: "Индекс рабочего профиля",
-    body: `Индекс рабочего профиля: ${score}/100. Он помогает быстро увидеть, насколько устойчиво и согласованно человек выглядит по совокупности пройденных тестов для общей оценки сотрудника.`,
+    title,
+    body: `${title}: ${score}/100. Ориентир собран по всем завершённым тестам и ${context}.`,
   };
 }
 
@@ -136,11 +143,10 @@ function buildPortraitFallback(project: ProjectLike, attempts: AttemptLike[]) {
   const uniqueTraits = [...new Set(topTraits)].slice(0, 6);
   const person = project.person_name || "Участник";
   const role = project.target_role ? ` для роли «${project.target_role}»` : "";
-  const goalText = project.goal === "motivation"
-    ? "Фокус оценки смещён на мотивационные драйверы и условия, в которых человек раскрывается сильнее."
-    : project.goal === "general_assessment"
-    ? "Фокус оценки смещён на общий рабочий профиль, стиль взаимодействия и устойчивость поведения."
-    : "Фокус оценки смещён на соответствие роли и рабочие риски назначения.";
+  const goalDef = getGoalDefinition(project.goal);
+  const goalText = goalDef
+    ? `Фокус оценки смещён на направление «${goalDef.shortTitle.toLowerCase()}»: ${goalDef.description.toLowerCase()}`
+    : "Фокус оценки смещён на общий рабочий профиль и повторяющиеся паттерны поведения.";
 
   return [
     `${person}${role} показывает набор повторяющихся акцентов: ${uniqueTraits.length ? uniqueTraits.join(", ") : "ключевые показатели собраны, но без явного лидера"}.`,

@@ -41,4 +41,3 @@
   - `public.commercial_people`
   - `public.commercial_projects`
   - `public.commercial_project_tests`
-# Tests-platformLAB

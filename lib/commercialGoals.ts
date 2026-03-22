@@ -1,5 +1,20 @@
-export type AssessmentGoal = "role_fit" | "general_assessment" | "motivation";
+export const ASSESSMENT_GOAL_KEYS = [
+  "role_fit",
+  "general_assessment",
+  "motivation",
+  "management_potential",
+  "team_interaction",
+  "leadership",
+  "self_organization",
+  "learning_agility",
+  "emotional_regulation",
+  "communication_influence",
+] as const;
+
+export type AssessmentGoal = (typeof ASSESSMENT_GOAL_KEYS)[number];
 export type EvaluationPackage = "basic" | "premium" | "premium_ai_plus";
+
+type GoalTestWeights = Partial<Record<string, number>>;
 
 export type GoalDefinition = {
   key: AssessmentGoal;
@@ -10,45 +25,302 @@ export type GoalDefinition = {
   recommended: string[];
 };
 
+const TEST_PRIORITY_FALLBACK = [
+  "16pf-a",
+  "belbin",
+  "emin",
+  "usk",
+  "situational-guidance",
+  "motivation-cards",
+  "time-management",
+  "learning-typology",
+  "color-types",
+  "16pf-b",
+] as const;
+
+const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
+  role_fit: {
+    "16pf-a": 10,
+    belbin: 9,
+    usk: 8,
+    emin: 7,
+    "situational-guidance": 7,
+    "motivation-cards": 5,
+    "time-management": 4,
+    "color-types": 4,
+    "learning-typology": 3,
+    "16pf-b": 2,
+  },
+  general_assessment: {
+    "16pf-a": 10,
+    usk: 9,
+    emin: 8,
+    belbin: 7,
+    "motivation-cards": 6,
+    "time-management": 6,
+    "learning-typology": 5,
+    "color-types": 5,
+    "situational-guidance": 5,
+    "16pf-b": 2,
+  },
+  motivation: {
+    "motivation-cards": 10,
+    usk: 8,
+    emin: 7,
+    "16pf-a": 6,
+    "time-management": 5,
+    "color-types": 5,
+    "learning-typology": 4,
+    belbin: 3,
+    "situational-guidance": 3,
+    "16pf-b": 2,
+  },
+  management_potential: {
+    "situational-guidance": 10,
+    "16pf-a": 8,
+    emin: 8,
+    belbin: 7,
+    usk: 7,
+    "time-management": 5,
+    "motivation-cards": 4,
+    "color-types": 3,
+    "learning-typology": 3,
+    "16pf-b": 2,
+  },
+  team_interaction: {
+    belbin: 10,
+    emin: 8,
+    "16pf-a": 7,
+    usk: 6,
+    "color-types": 6,
+    "situational-guidance": 5,
+    "motivation-cards": 4,
+    "learning-typology": 3,
+    "time-management": 3,
+    "16pf-b": 2,
+  },
+  leadership: {
+    "situational-guidance": 10,
+    "16pf-a": 8,
+    belbin: 8,
+    emin: 7,
+    usk: 6,
+    "color-types": 5,
+    "motivation-cards": 4,
+    "time-management": 4,
+    "learning-typology": 3,
+    "16pf-b": 2,
+  },
+  self_organization: {
+    "time-management": 10,
+    usk: 9,
+    "16pf-a": 7,
+    emin: 5,
+    "motivation-cards": 5,
+    "learning-typology": 4,
+    "situational-guidance": 4,
+    belbin: 3,
+    "color-types": 3,
+    "16pf-b": 2,
+  },
+  learning_agility: {
+    "learning-typology": 10,
+    "16pf-a": 7,
+    "time-management": 6,
+    "motivation-cards": 6,
+    usk: 5,
+    emin: 5,
+    "color-types": 4,
+    belbin: 3,
+    "situational-guidance": 3,
+    "16pf-b": 2,
+  },
+  emotional_regulation: {
+    emin: 10,
+    usk: 8,
+    "16pf-a": 7,
+    "motivation-cards": 6,
+    "time-management": 5,
+    "color-types": 4,
+    belbin: 3,
+    "situational-guidance": 3,
+    "learning-typology": 3,
+    "16pf-b": 2,
+  },
+  communication_influence: {
+    emin: 9,
+    "16pf-a": 8,
+    belbin: 7,
+    "situational-guidance": 6,
+    "color-types": 6,
+    usk: 5,
+    "motivation-cards": 4,
+    "learning-typology": 3,
+    "time-management": 3,
+    "16pf-b": 2,
+  },
+};
+
+function scoreGoalTest(goal: AssessmentGoal, slug: string) {
+  return GOAL_TEST_WEIGHTS[goal]?.[slug] ?? 0;
+}
+
+function sortSlugsByGoal(goal: AssessmentGoal, slugs: string[]) {
+  const fallbackOrder = new Map(TEST_PRIORITY_FALLBACK.map((slug, index) => [slug, index]));
+  return [...new Set(slugs)]
+    .filter(Boolean)
+    .sort((a, b) => {
+      const scoreDelta = scoreGoalTest(goal, b) - scoreGoalTest(goal, a);
+      if (scoreDelta !== 0) return scoreDelta;
+      const fallbackDelta = (fallbackOrder.get(a as any) ?? 999) - (fallbackOrder.get(b as any) ?? 999);
+      if (fallbackDelta !== 0) return fallbackDelta;
+      return a.localeCompare(b, "ru");
+    });
+}
+
+function defaultScoredSlugs(goal: AssessmentGoal) {
+  return sortSlugsByGoal(goal, Object.keys(GOAL_TEST_WEIGHTS[goal] || {})).filter((slug) => scoreGoalTest(goal, slug) > 0);
+}
+
+export function isAssessmentGoal(value: unknown): value is AssessmentGoal {
+  return typeof value === "string" && (ASSESSMENT_GOAL_KEYS as readonly string[]).includes(value);
+}
+
+export function getGoalRecommendedTests(goal: AssessmentGoal, availableSlugs?: string[]) {
+  const basis = availableSlugs?.length ? availableSlugs : defaultScoredSlugs(goal);
+  return sortSlugsByGoal(goal, basis).filter((slug) => scoreGoalTest(goal, slug) >= 6).slice(0, 5);
+}
+
+export function getGoalAdditionalTests(goal: AssessmentGoal, availableSlugs?: string[]) {
+  const basis = availableSlugs?.length ? availableSlugs : defaultScoredSlugs(goal);
+  const recommended = new Set(getGoalRecommendedTests(goal, availableSlugs));
+  return sortSlugsByGoal(goal, basis).filter((slug) => !recommended.has(slug) && scoreGoalTest(goal, slug) > 0);
+}
+
+export function getGoalWeight(goal: AssessmentGoal, slug: string) {
+  return scoreGoalTest(goal, slug);
+}
+
 export const COMMERCIAL_GOALS: GoalDefinition[] = [
   {
     key: "role_fit",
-    title: "Подбор должности и оценка соответствия роли",
+    title: "Подбор на должность и оценка соответствия роли",
     shortTitle: "Подбор на должность",
-    description:
-      "Понять, подходит ли человек на конкретную должность, или какая роль раскрывает его сильнее всего.",
+    description: "Собрать профиль под конкретную роль, увидеть риски назначения и понять, какие задачи человеку подходят лучше всего.",
     outcomes: [
-      "соответствие должности",
-      "сильные и слабые стороны для роли",
-      "риски назначения и точки развития",
+      "соответствие роли и контексту работы",
+      "сильные стороны и риски назначения",
+      "рекомендации руководителю по адаптации",
     ],
-    recommended: ["16pf-a", "belbin", "usk", "emin", "situational-guidance"],
+    recommended: getGoalRecommendedTests("role_fit"),
   },
   {
     key: "general_assessment",
-    title: "Общая оценка сотрудника",
+    title: "Общая оценка личности и рабочего профиля",
     shortTitle: "Общая оценка",
-    description:
-      "Получить цельный рабочий профиль сотрудника: стиль поведения, саморегуляция, взаимодействие, риски и потенциал.",
+    description: "Получить цельный срез по стилю поведения, устойчивости, взаимодействию и общей рабочей собранности сотрудника.",
     outcomes: [
       "рабочий профиль сотрудника",
       "поведение под нагрузкой",
-      "рекомендации руководителю и HR",
+      "сильные и слабые стороны в повседневной работе",
     ],
-    recommended: ["16pf-a", "belbin", "emin", "usk", "time-management"],
+    recommended: getGoalRecommendedTests("general_assessment"),
   },
   {
     key: "motivation",
-    title: "Мотивация сотрудника",
+    title: "Мотивация и вовлечённость",
     shortTitle: "Мотивация",
-    description:
-      "Понять, что реально двигает человеком, что его демотивирует и как им управлять без потери вовлечённости.",
+    description: "Понять, что реально двигает человеком, что его демотивирует и как удерживать включённость без лишнего давления.",
     outcomes: [
       "ведущие мотиваторы",
       "демотиваторы и риск выгорания",
-      "управленческий ключ и рекомендации по удержанию",
+      "управленческие рекомендации по удержанию",
     ],
-    recommended: ["motivation-cards", "usk", "emin", "16pf-a"],
+    recommended: getGoalRecommendedTests("motivation"),
+  },
+  {
+    key: "management_potential",
+    title: "Управленческий потенциал",
+    shortTitle: "Управленческий потенциал",
+    description: "Проверить, насколько человек готов брать на себя координацию, управленческие решения и ответственность за других.",
+    outcomes: [
+      "готовность к управленческой роли",
+      "сильные и слабые стороны как руководителя",
+      "точки роста перед повышением",
+    ],
+    recommended: getGoalRecommendedTests("management_potential"),
+  },
+  {
+    key: "team_interaction",
+    title: "Командное взаимодействие",
+    shortTitle: "Командная роль",
+    description: "Понять, как человек встраивается в команду, где усиливает группу, а где может создавать трение.",
+    outcomes: [
+      "командная роль и стиль взаимодействия",
+      "риск конфликтов и перекосов",
+      "рекомендации по составу команды",
+    ],
+    recommended: getGoalRecommendedTests("team_interaction"),
+  },
+  {
+    key: "leadership",
+    title: "Лидерство и влияние",
+    shortTitle: "Лидерство",
+    description: "Проверить лидерский стиль, способность вести людей за собой и степень влияния в рабочих ситуациях.",
+    outcomes: [
+      "лидерский стиль",
+      "способ влияния на команду",
+      "риск давления, хаоса или пассивности",
+    ],
+    recommended: getGoalRecommendedTests("leadership"),
+  },
+  {
+    key: "self_organization",
+    title: "Самоорганизация и тайм-менеджмент",
+    shortTitle: "Самоорганизация",
+    description: "Оценить, насколько человек умеет держать ритм, управлять временем, доводить задачи и сохранять собранность.",
+    outcomes: [
+      "стиль управления временем",
+      "уровень самоконтроля и дисциплины",
+      "риски срыва сроков и перегруза",
+    ],
+    recommended: getGoalRecommendedTests("self_organization"),
+  },
+  {
+    key: "learning_agility",
+    title: "Обучаемость и стиль освоения",
+    shortTitle: "Обучаемость",
+    description: "Понять, как человек учится, как быстрее осваивает новое и какой формат развития для него реально рабочий.",
+    outcomes: [
+      "преобладающий стиль обучения",
+      "скорость включения в новое",
+      "рекомендации по обучению и адаптации",
+    ],
+    recommended: getGoalRecommendedTests("learning_agility"),
+  },
+  {
+    key: "emotional_regulation",
+    title: "Эмоциональная устойчивость и регуляция",
+    shortTitle: "Эмоциональная устойчивость",
+    description: "Проверить, как человек держит себя под давлением, насколько умеет регулировать эмоции и сохранять рабочий тонус.",
+    outcomes: [
+      "устойчивость к напряжению",
+      "саморегуляция в стрессе",
+      "риски эмоционального срыва или накопления напряжения",
+    ],
+    recommended: getGoalRecommendedTests("emotional_regulation"),
+  },
+  {
+    key: "communication_influence",
+    title: "Коммуникация и влияние",
+    shortTitle: "Коммуникация",
+    description: "Оценить, как человек выстраивает контакт, передаёт смысл, убеждает и влияет на собеседника в рабочих задачах.",
+    outcomes: [
+      "стиль коммуникации",
+      "качество контакта и влияния",
+      "риски недопонимания и перегибов во взаимодействии",
+    ],
+    recommended: getGoalRecommendedTests("communication_influence"),
   },
 ];
 
@@ -100,11 +372,6 @@ export const EVALUATION_PACKAGES: Array<{
 
 export function getGoalDefinition(goal: AssessmentGoal | string | null | undefined): GoalDefinition | null {
   return COMMERCIAL_GOALS.find((item) => item.key === goal) || null;
-}
-
-export function getGoalRecommendedTests(goal: AssessmentGoal): string[] {
-  const definition = getGoalDefinition(goal);
-  return definition ? [...definition.recommended] : [];
 }
 
 export function isEvaluationPackage(value: unknown): value is EvaluationPackage {

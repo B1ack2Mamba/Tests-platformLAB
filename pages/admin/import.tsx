@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import type { Tag } from "@/lib/testTypes";
@@ -81,6 +82,7 @@ export default function ImportPage() {
   if (!envOk) {
     return (
       <Layout title="Импорт теста (JSON)">
+      <div className="mb-4 flex justify-end"><Link href="/admin" className="btn btn-secondary btn-sm">К админ-панели</Link></div>
         <div className="card text-sm text-zinc-600">
           Supabase не настроен. Добавь переменные из <code className="rounded bg-white/60 px-1">.env.example</code>.
         </div>
@@ -91,6 +93,7 @@ export default function ImportPage() {
   if (loading) {
     return (
       <Layout title="Импорт теста (JSON)">
+      <div className="mb-4 flex justify-end"><Link href="/admin" className="btn btn-secondary btn-sm">К админ-панели</Link></div>
         <div className="card text-sm text-zinc-600">Загрузка…</div>
       </Layout>
     );
@@ -99,6 +102,7 @@ export default function ImportPage() {
   if (!user) {
     return (
       <Layout title="Импорт теста (JSON)">
+      <div className="mb-4 flex justify-end"><Link href="/admin" className="btn btn-secondary btn-sm">К админ-панели</Link></div>
         <div className="card text-sm text-zinc-600">
           Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.
         </div>
@@ -109,6 +113,7 @@ export default function ImportPage() {
   if (!isAdminEmail(user.email)) {
     return (
       <Layout title="Импорт теста (JSON)">
+      <div className="mb-4 flex justify-end"><Link href="/admin" className="btn btn-secondary btn-sm">К админ-панели</Link></div>
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           Доступ запрещён. Админ: <span className="font-mono">{ADMIN_EMAIL}</span>
         </div>
@@ -118,6 +123,7 @@ export default function ImportPage() {
 
   return (
     <Layout title="Импорт теста (JSON)">
+      <div className="mb-4 flex justify-end"><Link href="/admin" className="btn btn-secondary btn-sm">К админ-панели</Link></div>
       <div className="card">
         <div className="text-sm text-zinc-600">
           Вставь JSON теста (формат <code className="rounded bg-white/60 px-1">forced_pair_v1</code> или

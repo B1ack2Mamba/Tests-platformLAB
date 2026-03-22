@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
@@ -53,6 +54,7 @@ export default function CreditPage() {
 
   return (
     <Layout title="Админ: начисление в кошелёк">
+      <div className="mb-4 flex justify-end"><Link href="/admin" className="btn btn-secondary btn-sm">К админ-панели</Link></div>
       {!envOk ? (
         <div className="card text-sm text-zinc-600">
           Supabase не настроен. Добавь переменные из <code className="rounded bg-white/60 px-1">.env.example</code>.

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
-import { getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
+import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import { isAdminEmail } from "@/lib/admin";
@@ -49,22 +49,8 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
-type PromoCodeRow = {
-  id: string;
-  code: string;
-  amount_kopeks: number;
-  max_redemptions: number;
-  redeemed_count: number;
-  remaining_count: number;
-  is_active: boolean;
-  created_at: string;
-};
 
-const GOAL_ORDER: Record<AssessmentGoal, number> = {
-  role_fit: 1,
-  general_assessment: 2,
-  motivation: 3,
-};
+const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
 function sortProjects(list: ProjectRow[]) {
   return [...list].sort((a, b) => {
@@ -94,6 +80,17 @@ function goalColor(goal: AssessmentGoal) {
       return "from-emerald-200 to-green-100 text-emerald-950 border-emerald-300";
     case "general_assessment":
       return "from-teal-200 to-emerald-100 text-teal-950 border-teal-300";
+    case "management_potential":
+    case "leadership":
+      return "from-sky-200 to-cyan-100 text-sky-950 border-sky-300";
+    case "team_interaction":
+    case "communication_influence":
+      return "from-amber-200 to-yellow-100 text-amber-950 border-amber-300";
+    case "self_organization":
+    case "learning_agility":
+      return "from-violet-200 to-indigo-100 text-violet-950 border-violet-300";
+    case "emotional_regulation":
+      return "from-rose-200 to-pink-100 text-rose-950 border-rose-300";
     default:
       return "from-lime-200 to-emerald-100 text-lime-950 border-lime-300";
   }
@@ -117,12 +114,6 @@ export default function DashboardPage() {
   const [folderRenameValue, setFolderRenameValue] = useState("");
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderRow | null>(null);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
-  const [promoCodes, setPromoCodes] = useState<PromoCodeRow[]>([]);
-  const [promoCodeValue, setPromoCodeValue] = useState("");
-  const [promoAmountRub, setPromoAmountRub] = useState("500");
-  const [promoUses, setPromoUses] = useState("5");
-  const [promoBusy, setPromoBusy] = useState(false);
-  const [promoMessage, setPromoMessage] = useState("");
   const { balance_rub, loading: walletLoading, isUnlimited } = useWalletBalance();
   const isAdmin = isAdminEmail(user?.email);
 
@@ -131,21 +122,14 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const requests = [
+      const [profileResp, workspaceResp] = await Promise.all([
         fetch("/api/commercial/profile/me", {
           headers: { authorization: `Bearer ${session.access_token}` },
         }),
         fetch("/api/commercial/projects/list", {
           headers: { authorization: `Bearer ${session.access_token}` },
         }),
-      ] as Promise<Response>[];
-      if (isAdminEmail(user?.email)) {
-        requests.push(fetch("/api/admin/promo-codes/list", {
-          headers: { authorization: `Bearer ${session.access_token}` },
-        }));
-      }
-
-      const [profileResp, workspaceResp, promoResp] = await Promise.all(requests);
+      ]);
 
       const profileJson = await profileResp.json().catch(() => ({}));
       const workspaceJson = await workspaceResp.json().catch(() => ({}));
@@ -154,14 +138,6 @@ export default function DashboardPage() {
 
       setData(profileJson as DashboardPayload & { ok: true });
       setWorkspace(workspaceJson as WorkspacePayload);
-
-      if (promoResp) {
-        const promoJson = await promoResp.json().catch(() => ({}));
-        if (!promoResp.ok || !promoJson?.ok) throw new Error(promoJson?.error || "Не удалось загрузить промокоды");
-        setPromoCodes(Array.isArray(promoJson.promos) ? promoJson.promos : []);
-      } else {
-        setPromoCodes([]);
-      }
     } catch (e: any) {
       setError(e?.message || "Ошибка");
     } finally {
@@ -369,57 +345,6 @@ export default function DashboardPage() {
     }
   }
 
-  async function createPromoCode() {
-    if (!session || !isAdmin) return;
-    setPromoBusy(true);
-    setPromoMessage("");
-    try {
-      const resp = await fetch("/api/admin/promo-codes/create", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          code: promoCodeValue,
-          amount_rub: Number(promoAmountRub),
-          max_redemptions: Number(promoUses),
-        }),
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось создать промокод");
-      setPromoMessage(`Создан промокод ${json?.promo?.code || promoCodeValue}`);
-      setPromoCodeValue("");
-      await loadDashboard();
-    } catch (e: any) {
-      setPromoMessage(e?.message || "Ошибка создания промокода");
-    } finally {
-      setPromoBusy(false);
-    }
-  }
-
-  async function togglePromoCode(id: string, isActive: boolean) {
-    if (!session || !isAdmin) return;
-    setPromoBusy(true);
-    setPromoMessage("");
-    try {
-      const resp = await fetch("/api/admin/promo-codes/toggle", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ id, is_active: isActive }),
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось обновить промокод");
-      await loadDashboard();
-    } catch (e: any) {
-      setPromoMessage(e?.message || "Ошибка обновления промокода");
-    } finally {
-      setPromoBusy(false);
-    }
-  }
 
   if (!session || !user) {
     return (
@@ -469,60 +394,10 @@ export default function DashboardPage() {
         <section className="card mt-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-slate-900">Админ · промокоды</div>
-              <div className="mt-1 text-sm text-slate-500">Создание ограниченных промокодов по сумме депозита и количеству активаций.</div>
+              <div className="text-sm font-semibold text-slate-900">Админ-панель</div>
+              <div className="mt-1 text-sm text-slate-500">Промокоды и служебные инструменты вынесены в отдельную вкладку, чтобы кабинет остался рабочим, а не административным.</div>
             </div>
-            <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">{promoCodes.length} кодов</div>
-          </div>
-
-          <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="rounded-2xl border border-emerald-100 bg-white p-4">
-              <div className="grid gap-3">
-                <label className="grid gap-1">
-                  <span className="text-xs text-slate-600">Код</span>
-                  <input className="input" value={promoCodeValue} onChange={(e) => setPromoCodeValue(e.target.value.toUpperCase())} placeholder="Например: SPRING-500" />
-                </label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="grid gap-1">
-                    <span className="text-xs text-slate-600">Депозит, ₽</span>
-                    <input className="input" inputMode="numeric" value={promoAmountRub} onChange={(e) => setPromoAmountRub(e.target.value)} placeholder="500" />
-                  </label>
-                  <label className="grid gap-1">
-                    <span className="text-xs text-slate-600">Количество активаций</span>
-                    <input className="input" inputMode="numeric" value={promoUses} onChange={(e) => setPromoUses(e.target.value)} placeholder="5" />
-                  </label>
-                </div>
-                <button type="button" className="btn btn-primary" onClick={createPromoCode} disabled={promoBusy || !promoCodeValue.trim()}>
-                  {promoBusy ? "Создаём…" : "Создать промокод"}
-                </button>
-                {promoMessage ? <div className="text-sm text-slate-700">{promoMessage}</div> : null}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-emerald-100 bg-white/85 p-4">
-              <div className="max-h-[300px] overflow-auto">
-                <div className="grid gap-2">
-                  {promoCodes.length ? promoCodes.map((promo) => (
-                    <div key={promo.id} className="rounded-2xl border border-emerald-100 bg-white px-3 py-3 shadow-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">{promo.code}</div>
-                          <div className="mt-1 text-xs text-slate-500">{Math.floor(promo.amount_kopeks / 100)} ₽ · {promo.redeemed_count}/{promo.max_redemptions} активаций</div>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          disabled={promoBusy}
-                          onClick={() => togglePromoCode(promo.id, !promo.is_active)}
-                        >
-                          {promo.is_active ? "Отключить" : "Включить"}
-                        </button>
-                      </div>
-                    </div>
-                  )) : <div className="text-sm text-slate-500">Промокодов пока нет.</div>}
-                </div>
-              </div>
-            </div>
+            <Link href="/admin" className="btn btn-secondary btn-sm">Открыть /admin</Link>
           </div>
         </section>
       ) : null}

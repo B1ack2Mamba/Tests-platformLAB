@@ -1,10 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
-import { getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
+import { getGoalDefinition, isAssessmentGoal, type AssessmentGoal } from "@/lib/commercialGoals";
 
 function normalizeGoal(value: any): AssessmentGoal | null {
-  return value === "role_fit" || value === "general_assessment" || value === "motivation" ? value : null;
+  return isAssessmentGoal(value) ? value : null;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
