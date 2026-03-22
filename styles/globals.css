@@ -2418,3 +2418,97 @@ html.native-app .app-brand {
     border-color: rgba(255,255,255,0.2);
   }
 }
+
+.dashboard-office-scene {
+  background: #f5f1ea;
+}
+
+.dashboard-office-scene-backdrop {
+  background-image: url('/dashboard-office-desk-clean-v3.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 1;
+}
+
+.dashboard-office-scene-vignette {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02) 22%, rgba(0,0,0,0.02) 100%);
+  pointer-events: none;
+}
+
+.dashboard-office-workzone {
+  inset: 0;
+}
+
+.dashboard-desk-meta-pill {
+  border: 1px solid rgba(217, 197, 164, 0.9);
+  background: rgba(255,255,255,0.66);
+  padding: 0.38rem 0.7rem;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+}
+
+.dashboard-folder-card {
+  width: 11rem;
+  height: 9.8rem;
+  border-radius: 0.22rem 0.32rem 0.2rem 0.2rem;
+  box-shadow: 0 10px 16px -14px rgba(33,20,9,0.22), 0 5px 10px rgba(52,34,16,0.07), inset 0 1px 0 rgba(255,248,235,0.92);
+}
+
+.dashboard-folder-tab {
+  width: 4.5rem;
+  height: 0.8rem;
+  top: -0.12rem;
+}
+
+.dashboard-folder-name-slip {
+  background: rgba(255,250,243,0.95);
+}
+
+.dashboard-project-paper-angled-wrap {
+  transform-origin: 50% 100%;
+}
+
+.dashboard-project-paper {
+  width: 13.8rem;
+  min-height: 10.8rem;
+  border-radius: 1px;
+  box-shadow: 0 14px 18px -18px rgba(24,25,28,0.16), 0 4px 8px rgba(29,31,35,0.06);
+}
+
+.dashboard-project-paper-header {
+  letter-spacing: 0.18em;
+}
+
+.dashboard-project-paper-title {
+  font-size: 0.96rem;
+  line-height: 1.15rem;
+}
+
+.dashboard-project-paper-grid {
+  gap: 0.28rem;
+}
+
+.dashboard-project-paper-label {
+  font-size: 0.54rem;
+}
+
+.dashboard-project-paper-value {
+  font-size: 0.74rem;
+  line-height: 0.96rem;
+}
+
+.dashboard-project-paper-footer {
+  font-size: 0.58rem;
+}
+
+.dashboard-pen-trigger {
+  bottom: 1.5rem;
+  right: 2rem;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-office-scene {
+    min-height: 760px;
+  }
+}

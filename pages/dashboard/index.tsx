@@ -53,13 +53,13 @@ type DeskPosition = { x: number; y: number; z: number };
 type DeskPositions = Record<string, DeskPosition>;
 
 const DESK_WIDTH = 1400;
-const DESK_HEIGHT = 700;
-const DESK_FOLDER_WIDTH = 180;
-const DESK_FOLDER_HEIGHT = 170;
-const DESK_SHEET_WIDTH = 236;
-const DESK_SHEET_HEIGHT = 198;
+const DESK_HEIGHT = 760;
+const DESK_FOLDER_WIDTH = 176;
+const DESK_FOLDER_HEIGHT = 156;
+const DESK_SHEET_WIDTH = 228;
+const DESK_SHEET_HEIGHT = 172;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
-const TRAY_ZONE = { x: 1038, y: 372, width: 278, height: 220 };
+const TRAY_ZONE = { x: 1030, y: 402, width: 286, height: 196 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -161,9 +161,10 @@ function getDeskStorageKey(workspaceId: string) {
 }
 
 function getDefaultFolderPosition(index: number): DeskPosition {
+  const slot = index % 3;
   return {
-    x: TRAY_ZONE.x + 44 + (index % 3) * 6,
-    y: TRAY_ZONE.y + 18 + index * 8,
+    x: TRAY_ZONE.x + 18 + slot * 28,
+    y: TRAY_ZONE.y + 10 + slot * 10 + Math.floor(index / 3) * 10,
     z: 20 + index,
   };
 }
@@ -172,8 +173,8 @@ function getDefaultProjectPosition(index: number): DeskPosition {
   const row = Math.floor(index / 3);
   const col = index % 3;
   return {
-    x: 360 + col * 250 + (row % 2) * 14,
-    y: 470 + row * 92 + col * 8,
+    x: 120 + col * 255 + (row % 2) * 18,
+    y: 530 + row * 64 + col * 8,
     z: 140 + index,
   };
 }
@@ -597,89 +598,20 @@ export default function DashboardPage() {
   return (
     <Layout title="Кабинет специалиста">
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
-        <DashboardBackdrop pulseToken={mechanicPulse} greeneryLevel={greeneryLevel} />
 
         <div className="relative z-10">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/75 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#5a3d22] shadow-[0_12px_30px_-24px_rgba(58,39,20,0.35)] backdrop-blur-xl">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#5a3d22] shadow-[0_12px_30px_-24px_rgba(58,39,20,0.22)] backdrop-blur-xl">
             Премиальный рабочий стол
           </div>
 
-          <section className="card dashboard-panel dashboard-panel-vined relative mt-2 overflow-hidden">
-            <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-[#4a2f18]">Рабочий стол проектов</div>
-                <div className="mt-1 max-w-3xl text-sm leading-6 text-[#6f5033]">Реалистичная сцена рабочего стола: папки живут в стойке справа, листы проектов лежат на столе под лёгким углом, а по клику разворачиваются в подробный лист.</div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowCreateFolder((v) => !v); setMechanicPulse((value) => value + 1); }}
-                  className="btn btn-secondary btn-sm"
-                >
-                  {showCreateFolder ? "Скрыть папку" : "Новая папка"}
-                </button>
-                <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">
-                  Без папки: {folderBuckets.uncategorized.length}
-                </div>
-              </div>
-            </div>
-
-            {showCreateFolder ? (
-              <div className="mt-4 rounded-[24px] border border-emerald-100 bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-[#4a2f18]">Новая папка для стойки</div>
-                    <div className="mt-1 text-xs text-[#7b5a38]">Создай папку и складывай её в правую стойку, а листы проектов раскладывай по столу.</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {FOLDER_ICONS.map((icon) => {
-                      const selected = newFolderIcon === icon.key;
-                      return (
-                        <button
-                          key={icon.key}
-                          type="button"
-                          onClick={() => setNewFolderIcon(icon.key)}
-                          className={`flex h-11 w-11 items-center justify-center rounded-2xl border bg-gradient-to-br text-xl shadow-sm transition ${icon.tileClass} ${selected ? `ring-2 ${icon.ringClass} border-transparent` : "border-emerald-100 hover:border-emerald-200"}`}
-                          title={icon.label}
-                          aria-label={icon.label}
-                        >
-                          {icon.symbol}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <input
-                    className="input flex-1"
-                    placeholder="Например, Подбор / Команда / Архив"
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        createFolder();
-                      }
-                    }}
-                  />
-                  <button type="button" className="btn btn-primary" onClick={() => { setMechanicPulse((value) => value + 1); createFolder(); }} disabled={!newFolderName.trim() || busyFolderId === "new"}>
-                    {busyFolderId === "new" ? "Создаём…" : "Создать"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-5">
-              <div className="dashboard-office-scene relative min-h-[960px] overflow-hidden rounded-[34px] border border-[#4f3420]/20">
-                <div className="dashboard-office-scene-backdrop absolute inset-0" />
-                <div className="dashboard-office-scene-vignette absolute inset-0" />
-
-                <div className="dashboard-desk-nameplate absolute left-6 top-6 z-[220] max-w-[24rem] rounded-[22px] px-5 py-4 text-left">
+          <section className="card dashboard-panel relative mt-2 overflow-hidden">
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="rounded-[26px] border border-[#e8dcc7] bg-[#f8f3ea] px-5 py-4 shadow-[0_18px_34px_-30px_rgba(54,35,19,0.22)]">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#7a5b37]">Кабинет специалиста</div>
-                  <div className="mt-2 text-[1.45rem] font-semibold leading-tight text-[#2c1b10]">{displayName}</div>
+                  <div className="mt-2 text-[1.5rem] font-semibold leading-tight text-[#2c1b10]">{displayName}</div>
                   <div className="mt-1 text-sm text-[#5e4128]">{workspaceName}</div>
                   <div className="mt-2 text-xs leading-5 text-[#71553a]">{data?.profile?.email || user.email || "email не указан"}</div>
                   <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#64462c]">
@@ -689,58 +621,96 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="dashboard-desk-wallet absolute right-6 top-6 z-[220] w-[18.5rem] rounded-[22px] px-5 py-4 text-left">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#84633d]">Кошелёк</div>
-                      <div className="mt-2 text-[1.5rem] font-semibold text-[#2c1b10]">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
+                <div className="flex flex-1 flex-wrap items-start justify-end gap-3">
+                  <div className="rounded-[26px] border border-[#e8dcc7] bg-[#f8f3ea] px-5 py-4 shadow-[0_18px_34px_-30px_rgba(54,35,19,0.22)] min-w-[18rem] max-w-[20rem]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#84633d]">Кошелёк</div>
+                        <div className="mt-2 text-[1.5rem] font-semibold text-[#2c1b10]">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
+                      </div>
+                      <div className="rounded-full border border-[#dcc39b] bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#6b4b2f] shadow-sm">{greeneryLabel}</div>
                     </div>
-                    <div className="rounded-full border border-[#dcc39b] bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#6b4b2f] shadow-sm">{greeneryLabel}</div>
+                    <div className="mt-2 text-xs leading-5 text-[#6a4b31]">Вложено: {isUnlimited ? "без лимита" : `${investedRub} ₽`}. Зелень и атмосфера кабинета зависят от пополнений, но сама сцена остаётся чистой и рабочей.</div>
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => router.push("/wallet")}>Пополнить</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push("/wallet")}>Открыть</button>
+                    </div>
                   </div>
-                  <div className="mt-2 text-xs leading-5 text-[#6a4b31]">Вложено: {isUnlimited ? "без лимита" : `${investedRub} ₽`}. Чем больше пополнений, тем богаче зелень и атмосфера кабинета.</div>
-                  <div className="mt-3 flex gap-2">
-                    <button type="button" className="btn btn-primary btn-sm" onClick={() => triggerMechanics(() => router.push("/wallet"))}>Пополнить</button>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => triggerMechanics(() => router.push("/wallet"))}>Открыть</button>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateFolder((v) => !v)}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      {showCreateFolder ? "Скрыть папку" : "Новая папка"}
+                    </button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push("/assessments")}>Каталог тестов</button>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => router.push("/projects/new")}>Создать проект</button>
+                    <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">
+                      Без папки: {folderBuckets.uncategorized.length}
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <button
-                  type="button"
-                  className="dashboard-pen-trigger absolute bottom-16 right-12 z-[220]"
-                  onClick={() => triggerMechanics(() => router.push("/projects/new"), 180)}
-                  aria-label="Создать проект оценки"
-                  title="Создать проект оценки"
-                >
-                  <span className="dashboard-pen-body" />
-                  <span className="dashboard-pen-cap" />
-                  <span className="dashboard-pen-tip" />
-                  <span className="dashboard-pen-label">Создать проект оценки</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="dashboard-notebook-trigger absolute right-10 top-[12.7rem] z-[220]"
-                  onClick={() => triggerMechanics(() => router.push("/assessments"), 180)}
-                >
-                  <span className="dashboard-notebook-title">Каталог тестов</span>
-                  <span className="dashboard-notebook-subtitle">Открыть материалы</span>
-                </button>
-
-                <div className="dashboard-office-workzone absolute inset-x-6 bottom-6 top-[13.5rem] overflow-hidden rounded-[26px]" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ right: '2.15rem', top: '23.25rem', width: '17.35rem', height: '13.7rem' }} />
-                  <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/12 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
-                    Папки складывай в стойку справа, а листы проектов раскладывай по столу и открывай по клику.
+              {showCreateFolder ? (
+                <div className="rounded-[24px] border border-emerald-100 bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-[#4a2f18]">Новая папка для стойки</div>
+                      <div className="mt-1 text-xs text-[#7b5a38]">Создай папку и складывай её в правую стойку, а листы проектов раскладывай по столу.</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {FOLDER_ICONS.map((icon) => {
+                        const selected = newFolderIcon === icon.key;
+                        return (
+                          <button
+                            key={icon.key}
+                            type="button"
+                            onClick={() => setNewFolderIcon(icon.key)}
+                            className={`flex h-11 w-11 items-center justify-center rounded-2xl border bg-gradient-to-br text-xl shadow-sm transition ${icon.tileClass} ${selected ? `ring-2 ${icon.ringClass} border-transparent` : "border-emerald-100 hover:border-emerald-200"}`}
+                            title={icon.label}
+                            aria-label={icon.label}
+                          >
+                            {icon.symbol}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      className="input flex-1"
+                      placeholder="Например, Подбор / Команда / Архив"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          createFolder();
+                        }
+                      }}
+                    />
+                    <button type="button" className="btn btn-primary" onClick={createFolder} disabled={!newFolderName.trim() || busyFolderId === "new"}>
+                      {busyFolderId === "new" ? "Создаём…" : "Создать"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
+                <div className="dashboard-office-scene-backdrop absolute inset-0" />
+                <div className="dashboard-office-scene-vignette absolute inset-0" />
+
+                <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ right: '4.05rem', top: '31.4rem', width: '18.6rem', height: '12.2rem' }} />
 
                   {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
                     const itemId = `folder:${folder.id}`;
                     const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
                     return (
-                      <div
-                        key={folder.id}
-                        className="absolute"
-                        style={{ left: position.x, top: position.y, zIndex: position.z }}
-                      >
+                      <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
                         <FolderDesktopIcon
                           folder={folder}
                           projects={folderProjects}
@@ -760,11 +730,7 @@ export default function DashboardPage() {
                     const itemId = `project:${project.id}`;
                     const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
                     return (
-                      <div
-                        key={project.id}
-                        className="absolute"
-                        style={{ left: position.x, top: position.y, zIndex: position.z }}
-                      >
+                      <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
                         <ProjectDesktopIcon
                           project={project}
                           busy={busyFolderId === `delete:${project.id}`}
@@ -780,9 +746,21 @@ export default function DashboardPage() {
                     );
                   })}
 
+                  <button
+                    type="button"
+                    className="dashboard-pen-trigger absolute bottom-12 right-10 z-[220]"
+                    onClick={() => router.push("/projects/new")}
+                    aria-label="Создать проект оценки"
+                    title="Создать проект оценки"
+                  >
+                    <span className="dashboard-pen-body" />
+                    <span className="dashboard-pen-cap" />
+                    <span className="dashboard-pen-tip" />
+                  </button>
+
                   {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
-                    <div className="absolute inset-x-8 top-28 rounded-2xl border border-dashed border-white/35 bg-white/10 p-8 text-center text-sm text-[#fff7eb] backdrop-blur-[2px]">
-                      Здесь пока пусто. Нажми на ручку справа внизу, чтобы создать первый проект, или создай папку над столом.
+                    <div className="absolute inset-x-8 bottom-12 rounded-2xl border border-dashed border-black/10 bg-white/88 p-8 text-center text-sm text-[#4b3727] shadow-[0_14px_30px_-24px_rgba(31,18,10,0.22)]">
+                      Здесь пока пусто. Создай первый проект или добавь папку в стойку справа.
                     </div>
                   ) : null}
                 </div>
@@ -1128,7 +1106,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const tilt = ((tiltSeed % 7) - 3) * 1.1;
 
   return (
-    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `perspective(1600px) rotateX(58deg) rotateZ(${tilt}deg)` }}>
+    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `perspective(1800px) rotateX(74deg) rotateZ(${tilt * 0.65}deg)` }}>
       {onDelete ? (
         <button
           type="button"
