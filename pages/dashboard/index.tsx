@@ -116,6 +116,22 @@ export default function DashboardPage() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const { balance_rub, loading: walletLoading, isUnlimited } = useWalletBalance();
   const isAdmin = isAdminEmail(user?.email);
+  const [mechanicPulse, setMechanicPulse] = useState(0);
+  const [puzzleState, setPuzzleState] = useState<{ left: boolean; right: boolean }>({ left: true, right: false });
+
+  const triggerMechanics = useCallback((after?: () => void, delay = 220) => {
+    setMechanicPulse((value) => value + 1);
+    if (after) {
+      window.setTimeout(() => {
+        after();
+      }, delay);
+    }
+  }, []);
+
+  const togglePuzzleCluster = useCallback((side: "left" | "right") => {
+    setPuzzleState((current) => ({ ...current, [side]: !current[side] }));
+    setMechanicPulse((value) => value + 1);
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     if (!session) return;
@@ -176,6 +192,10 @@ export default function DashboardPage() {
   const activeFolder = useMemo(
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,
     [activeFolderId, folderBuckets.byFolder]
+  );
+  const totalAttempts = useMemo(
+    () => projects.reduce((sum, item) => sum + (item.attempts_count || 0), 0),
+    [projects]
   );
 
   useEffect(() => {
@@ -359,39 +379,94 @@ export default function DashboardPage() {
 
   return (
     <Layout title="Кабинет специалиста">
-      {error ? <div className="mb-4 card text-sm text-red-600">{error}</div> : null}
+      <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+        <DashboardBackdrop
+          pulseToken={mechanicPulse}
+          leftAssembled={puzzleState.left}
+          rightAssembled={puzzleState.right}
+          onToggleLeft={() => togglePuzzleCluster("left")}
+          onToggleRight={() => togglePuzzleCluster("right")}
+        />
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_0.7fr] items-stretch">
-        <div className="card h-full">
-          <div className="text-sm text-slate-500">Рабочее пространство</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-950">{displayName}</div>
-          <div className="mt-2 text-sm text-slate-600">{workspaceName}</div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/projects/new" className="btn btn-primary">Создать проект оценки</Link>
-            <Link href="/assessments" className="btn btn-secondary">Каталог тестов</Link>
+        <div className="relative z-10">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-900 shadow-[0_12px_30px_-24px_rgba(16,94,64,0.5)] backdrop-blur-xl">
+            Живая система оценки
           </div>
-          <div className="mt-4 text-sm text-slate-600">Рабочий стол проектов устроен как лаунчер: проекты лежат иконками, а папки собирают их в аккуратные группы.</div>
-        </div>
 
-        <div className="card h-full relative overflow-hidden border-emerald-100 bg-white">
-          <div className="pointer-events-none absolute -right-2 -top-6 text-[108px] font-light leading-none text-emerald-900/7 select-none">☿</div>
-          <div className="relative flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm text-slate-500">Кошелёк</div>
-              <div className="mt-1 text-2xl font-semibold text-slate-950">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
-              <div className="mt-1 max-w-[22rem] text-xs text-slate-500">Баланс для открытия уровней результата, AI-интерпретаций и расширенных функций.</div>
+          <div className="grid gap-4 lg:grid-cols-[1.6fr_0.7fr] items-stretch">
+            <div className="card dashboard-panel h-full overflow-hidden">
+              <div className="dashboard-panel-glow absolute -right-16 top-0 h-40 w-40 rounded-full bg-emerald-300/25 blur-3xl" />
+              <div className="relative">
+                <div className="text-sm font-medium text-emerald-900/70">Рабочее пространство</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950 sm:text-[2rem]">{displayName}</div>
+                <div className="mt-2 text-sm text-slate-600">{workspaceName}</div>
+                <div className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
+                  Кабинет теперь дышит легче: мягкий зелёно-белый градиент, стеклянные панели, живая механика отклика и рабочий стол, который ощущается как дорогой конструктор оценки, а не как скучная анкета.
+                </div>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <PremiumActionButton
+                    label="Создать проект оценки"
+                    variant="primary"
+                    pulseToken={mechanicPulse}
+                    onClick={() => triggerMechanics(() => router.push("/projects/new"))}
+                  />
+                  <PremiumActionButton
+                    label="Каталог тестов"
+                    variant="secondary"
+                    pulseToken={mechanicPulse}
+                    onClick={() => triggerMechanics(() => router.push("/assessments"))}
+                  />
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="dashboard-stat-chip">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Проекты</div>
+                    <div className="mt-1 text-2xl font-semibold text-slate-950">{projects.length}</div>
+                  </div>
+                  <div className="dashboard-stat-chip">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Папки</div>
+                    <div className="mt-1 text-2xl font-semibold text-slate-950">{folders.length}</div>
+                  </div>
+                  <div className="dashboard-stat-chip">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Попытки</div>
+                    <div className="mt-1 text-2xl font-semibold text-slate-950">{totalAttempts}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200 bg-white text-xl shadow-sm">₽</div>
+
+            <div className="card dashboard-panel dashboard-wallet h-full relative overflow-hidden border-emerald-100 bg-white/70">
+              <div className="pointer-events-none absolute -right-16 top-1 h-44 w-44 rounded-full bg-white/70 blur-2xl" />
+              <div className="pointer-events-none absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-[22px] border border-white/70 bg-white/80 text-xl text-emerald-900 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">₽</div>
+              <div className="relative flex items-start justify-between gap-3 pr-14">
+                <div>
+                  <div className="text-sm font-medium text-emerald-900/70">Кошелёк</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-950">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
+                  <div className="mt-2 max-w-[22rem] text-xs leading-5 text-slate-500">Баланс для открытия уровней результата, AI-интерпретаций и расширенных функций.</div>
+                </div>
+              </div>
+              <div className="relative mt-5 grid grid-cols-2 gap-3">
+                <PremiumActionButton
+                  label="Пополнить"
+                  variant="primary"
+                  compact
+                  pulseToken={mechanicPulse}
+                  onClick={() => triggerMechanics(() => router.push("/wallet"))}
+                />
+                <PremiumActionButton
+                  label="Открыть"
+                  variant="secondary"
+                  compact
+                  pulseToken={mechanicPulse}
+                  onClick={() => triggerMechanics(() => router.push("/wallet"))}
+                />
+              </div>
+            </div>
           </div>
-          <div className="relative mt-4 grid grid-cols-2 gap-2">
-            <Link href="/wallet" className="btn btn-primary btn-sm text-center">Пополнить</Link>
-            <Link href="/wallet" className="btn btn-secondary btn-sm text-center">Открыть</Link>
-          </div>
-        </div>
-      </div>
 
       {isAdmin ? (
-        <section className="card mt-6">
+        <section className="card dashboard-panel mt-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-900">Админ-панель</div>
@@ -402,7 +477,7 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      <section className="card mt-6">
+      <section className="card dashboard-panel mt-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">Рабочий стол проектов</div>
@@ -411,7 +486,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowCreateFolder((v) => !v)}
+              onClick={() => { setShowCreateFolder((v) => !v); setMechanicPulse((value) => value + 1); }}
               className="btn btn-secondary btn-sm"
             >
               {showCreateFolder ? "Скрыть папку" : "Новая папка"}
@@ -460,7 +535,7 @@ export default function DashboardPage() {
                   }
                 }}
               />
-              <button type="button" className="btn btn-primary" onClick={createFolder} disabled={!newFolderName.trim() || busyFolderId === "new"}>
+              <button type="button" className="btn btn-primary" onClick={() => { setMechanicPulse((value) => value + 1); createFolder(); }} disabled={!newFolderName.trim() || busyFolderId === "new"}>
                 {busyFolderId === "new" ? "Создаём…" : "Создать"}
               </button>
             </div>
@@ -559,7 +634,175 @@ export default function DashboardPage() {
           onSelect={(iconKey) => updateFolderIcon(iconPickerFolder, iconKey)}
         />
       ) : null}
+        </div>
+      </div>
     </Layout>
+  );
+}
+
+type DashboardBackdropProps = {
+  pulseToken: number;
+  leftAssembled: boolean;
+  rightAssembled: boolean;
+  onToggleLeft: () => void;
+  onToggleRight: () => void;
+};
+
+type PremiumActionButtonProps = {
+  label: string;
+  onClick: () => void;
+  pulseToken: number;
+  variant?: "primary" | "secondary";
+  compact?: boolean;
+};
+
+function DashboardBackdrop({ pulseToken, leftAssembled, rightAssembled, onToggleLeft, onToggleRight }: DashboardBackdropProps) {
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 dashboard-surface-gradient" />
+        <div className="absolute -left-20 top-4 h-72 w-72 rounded-full bg-emerald-300/25 blur-3xl" />
+        <div className="absolute right-[-4rem] top-0 h-80 w-80 rounded-full bg-white/55 blur-3xl" />
+        <div className="absolute bottom-[-4rem] left-1/3 h-64 w-64 rounded-full bg-teal-200/20 blur-3xl" />
+      </div>
+
+      <button
+        type="button"
+        onClick={onToggleLeft}
+        className="dashboard-puzzle-button absolute left-[-1.5rem] top-8 z-[1] h-56 w-56"
+        aria-label={leftAssembled ? "Разобрать пазл" : "Собрать пазл"}
+        title={leftAssembled ? "Разобрать пазл" : "Собрать пазл"}
+      >
+        <span className="dashboard-puzzle-note left-10 top-4">Нажми, чтобы {leftAssembled ? "разобрать" : "собрать"}</span>
+        <PuzzleCluster assembled={leftAssembled} palette={["#d9b0bb", "#9de4b4", "#85d9dc", "#f0d97e"]} />
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleRight}
+        className="dashboard-puzzle-button absolute bottom-6 right-[-1rem] z-[1] h-56 w-56"
+        aria-label={rightAssembled ? "Разобрать пазл" : "Собрать пазл"}
+        title={rightAssembled ? "Разобрать пазл" : "Собрать пазл"}
+      >
+        <span className="dashboard-puzzle-note right-12 top-3">Пазл системы</span>
+        <PuzzleCluster assembled={rightAssembled} palette={["#efb1c0", "#f3d273", "#8fddb0", "#5d87d5"]} mirrored />
+      </button>
+
+      <div className="pointer-events-none absolute left-[4%] top-[26%] z-[1] opacity-90">
+        <GearDecoration key={`gear-left-${pulseToken}`} size={148} tone="deep" className="dashboard-gear-run" />
+      </div>
+      <div className="pointer-events-none absolute left-[34%] top-[56%] z-[1] opacity-75">
+        <GearDecoration key={`gear-center-${pulseToken}`} size={128} tone="soft" className="dashboard-gear-counter-run" />
+      </div>
+      <div className="pointer-events-none absolute right-[23%] top-[18%] z-[1] opacity-95">
+        <GearDecoration key={`gear-right-${pulseToken}`} size={156} tone="deep" className="dashboard-gear-run" />
+      </div>
+      <div className="pointer-events-none absolute right-[8%] top-[42%] z-[1] opacity-90">
+        <GearDecoration key={`gear-right-small-${pulseToken}`} size={124} tone="soft" className="dashboard-gear-counter-run" />
+      </div>
+    </>
+  );
+}
+
+function PremiumActionButton({ label, onClick, pulseToken, variant = "primary", compact = false }: PremiumActionButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`dashboard-action-btn ${variant === "primary" ? "dashboard-action-btn-primary" : "dashboard-action-btn-secondary"} ${compact ? "dashboard-action-btn-compact" : ""}`}
+    >
+      <span className="relative z-10">{label}</span>
+      <span className="dashboard-action-gear-shell" aria-hidden="true">
+        <GearDecoration key={`${label}-${pulseToken}`} size={compact ? 34 : 38} tone={variant === "primary" ? "accent" : "silver"} className="dashboard-button-gear" />
+      </span>
+    </button>
+  );
+}
+
+type GearDecorationProps = {
+  size?: number;
+  tone?: "deep" | "soft" | "accent" | "silver";
+  className?: string;
+};
+
+function GearDecoration({ size = 120, tone = "deep", className = "" }: GearDecorationProps) {
+  const gradients: Record<NonNullable<GearDecorationProps["tone"]>, { outer: string; inner: string; ring: string; shadow: string }> = {
+    deep: { outer: "#395f9d", inner: "#4f75b2", ring: "#d8e7ff", shadow: "rgba(36,66,109,0.24)" },
+    soft: { outer: "#446ea9", inner: "#5d82ba", ring: "#dff1ff", shadow: "rgba(36,66,109,0.2)" },
+    accent: { outer: "#156b4f", inner: "#2ab877", ring: "#effff7", shadow: "rgba(18,111,75,0.24)" },
+    silver: { outer: "#94a3b8", inner: "#c7d2e4", ring: "#ffffff", shadow: "rgba(71,85,105,0.22)" },
+  };
+  const palette = gradients[tone];
+  return (
+    <svg viewBox="0 0 120 120" width={size} height={size} className={className} fill="none" aria-hidden="true" style={{ filter: `drop-shadow(0 10px 16px ${palette.shadow})` }}>
+      {Array.from({ length: 8 }).map((_, index) => (
+        <rect
+          key={index}
+          x="54"
+          y="4"
+          width="12"
+          height="24"
+          rx="4"
+          transform={`rotate(${index * 45} 60 60)`}
+          fill={palette.outer}
+        />
+      ))}
+      <circle cx="60" cy="60" r="39" fill={palette.inner} stroke="#f8fffd" strokeOpacity="0.35" strokeWidth="2" />
+      <circle cx="60" cy="60" r="25" fill="#ffffff" fillOpacity="0.92" stroke={palette.ring} strokeOpacity="0.95" strokeWidth="3" />
+      <circle cx="60" cy="60" r="15" fill="none" stroke={palette.ring} strokeOpacity="0.9" strokeWidth="4" />
+    </svg>
+  );
+}
+
+type PuzzleClusterProps = {
+  assembled: boolean;
+  palette: [string, string, string, string];
+  mirrored?: boolean;
+};
+
+function PuzzleCluster({ assembled, palette, mirrored = false }: PuzzleClusterProps) {
+  const layouts = assembled
+    ? [
+        { x: 26, y: 24, rotate: -8 },
+        { x: 92, y: 8, rotate: 10 },
+        { x: 6, y: 92, rotate: -10 },
+        { x: 78, y: 86, rotate: 8 },
+      ]
+    : [
+        { x: 8, y: 8, rotate: -26 },
+        { x: 116, y: 2, rotate: 24 },
+        { x: -4, y: 120, rotate: -18 },
+        { x: 110, y: 118, rotate: 18 },
+      ];
+
+  return (
+    <div className={`relative h-full w-full ${mirrored ? "scale-x-[-1]" : ""}`}>
+      {palette.map((color, index) => {
+        const piece = layouts[index];
+        return (
+          <div
+            key={`${color}-${index}`}
+            className="absolute transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+            style={{ transform: `translate(${piece.x}px, ${piece.y}px) rotate(${piece.rotate}deg)` }}
+          >
+            <PuzzlePiece color={color} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PuzzlePiece({ color }: { color: string }) {
+  return (
+    <svg width="90" height="90" viewBox="0 0 90 90" fill="none" aria-hidden="true" className="drop-shadow-[0_16px_24px_rgba(15,23,42,0.18)]">
+      <path
+        d="M27 6.75h15.75c4.297 0 6.75 2.453 6.75 6.75v5.625c0 5.452 4.423 9.875 9.875 9.875s9.875-4.423 9.875-9.875V13.5c0-4.297 2.453-6.75 6.75-6.75H83.25c4.297 0 6.75 2.453 6.75 6.75V27c0 4.297-2.453 6.75-6.75 6.75h-5.625c-5.452 0-9.875 4.423-9.875 9.875s4.423 9.875 9.875 9.875h5.625c4.297 0 6.75 2.453 6.75 6.75v13.5c0 4.297-2.453 6.75-6.75 6.75H66.375c-4.297 0-6.75-2.453-6.75-6.75v-5.625c0-5.452-4.423-9.875-9.875-9.875s-9.875 4.423-9.875 9.875v5.625c0 4.297-2.453 6.75-6.75 6.75H13.5c-4.297 0-6.75-2.453-6.75-6.75V60.75c0-4.297 2.453-6.75 6.75-6.75h5.625C24.577 54 29 49.577 29 44.125S24.577 34.25 19.125 34.25H13.5c-4.297 0-6.75-2.453-6.75-6.75V13.5c0-4.297 2.453-6.75 6.75-6.75H27Z"
+        fill={color}
+        stroke="rgba(255,255,255,0.6)"
+        strokeWidth="2.4"
+      />
+    </svg>
   );
 }
 
