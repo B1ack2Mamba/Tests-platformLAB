@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -17,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     id: String(attempt_id),
     user_id: user.id,
     test_slug: String(test_slug),
-    test_title: String(test_title || test_slug),
+    test_title: getTestDisplayTitle(String(test_slug), String(test_title || test_slug)),
     result,
     source: "local_runtime",
   };

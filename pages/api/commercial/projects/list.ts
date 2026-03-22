@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -55,7 +56,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         invite_token: item.invite_token || null,
         folder_id: item.folder_id || null,
         person: item.commercial_people || null,
-        tests: (item.commercial_project_tests || []).sort((a: any, b: any) => a.sort_order - b.sort_order),
+        tests: (item.commercial_project_tests || [])
+          .map((test: any) => ({
+            ...test,
+            test_title: getTestDisplayTitle(test?.test_slug, test?.test_title),
+          }))
+          .sort((a: any, b: any) => a.sort_order - b.sort_order),
         attempts_count: (item.commercial_project_attempts || []).length,
       })),
     });

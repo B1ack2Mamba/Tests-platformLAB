@@ -14,6 +14,7 @@ import {
 } from "@/lib/commercialGoals";
 import { getAllTests } from "@/lib/loadTests";
 import type { AnyTest } from "@/lib/testTypes";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 type WorkspacePayload = {
   ok: true;
@@ -125,17 +126,18 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
   const recommendedSlugs = useMemo(() => getGoalRecommendedTests(goal, allSlugs), [allSlugs, goal]);
   const additionalSlugs = useMemo(() => getGoalAdditionalTests(goal, allSlugs), [allSlugs, goal]);
   const recommendedTestSet = useMemo(() => new Set(recommendedSlugs), [recommendedSlugs]);
+  const testMap = useMemo(() => new Map(tests.map((item) => [item.slug, item])), [tests]);
   const selectedTestCards = useMemo(
-    () => selectedTests.map((slug) => tests.find((item) => item.slug === slug) || { slug, title: slug }),
-    [selectedTests, tests]
+    () => selectedTests.map((slug) => testMap.get(slug) || { slug, title: getTestDisplayTitle(slug) }),
+    [selectedTests, testMap]
   );
   const recommendedTests = useMemo(
-    () => recommendedSlugs.map((slug) => tests.find((item) => item.slug === slug)).filter(Boolean) as Pick<AnyTest, "slug" | "title">[],
-    [recommendedSlugs, tests]
+    () => recommendedSlugs.map((slug) => testMap.get(slug) || { slug, title: getTestDisplayTitle(slug) }),
+    [recommendedSlugs, testMap]
   );
   const additionalTests = useMemo(
-    () => additionalSlugs.map((slug) => tests.find((item) => item.slug === slug)).filter(Boolean) as Pick<AnyTest, "slug" | "title">[],
-    [additionalSlugs, tests]
+    () => additionalSlugs.map((slug) => testMap.get(slug) || { slug, title: getTestDisplayTitle(slug) }),
+    [additionalSlugs, testMap]
   );
   const selectedRecommendedCount = useMemo(
     () => selectedTests.filter((slug) => recommendedTestSet.has(slug)).length,
@@ -424,7 +426,7 @@ export async function getServerSideProps() {
   const tests = await getAllTests();
   return {
     props: {
-      tests: tests.map((test) => ({ slug: test.slug, title: test.title })),
+      tests: tests.map((test) => ({ slug: test.slug, title: getTestDisplayTitle(test.slug, test.title) })),
     },
   };
 }

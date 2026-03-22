@@ -2,8 +2,46 @@ import fs from "fs";
 import path from "path";
 import type { AnyTest } from "@/lib/testTypes";
 import { createSupabaseClient, getSupabaseEnv } from "@/lib/supabaseClient";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 const TESTS_DIR = path.join(process.cwd(), "data", "tests");
+
+function normalizeLoadedTest(test: AnyTest, priceOverride?: number): AnyTest {
+  const price = typeof priceOverride === "number" ? priceOverride : test.pricing?.interpretation_rub ?? 0;
+  const details = test.pricing?.details_rub ?? 49;
+  return {
+    ...test,
+    title: getTestDisplayTitle(test.slug, test.title),
+    pricing: { ...test.pricing, interpretation_rub: price, details_rub: details },
+    has_interpretation: price > 0,
+  };
+}
+
+function mergeTests(local: AnyTest[], dbTests: AnyTest[]) {
+  const map = new Map<string, AnyTest>();
+
+  for (const t of local) {
+    if (!t?.slug || t.slug === "16pf" || t.slug === "16pf-b") continue;
+    map.set(t.slug, normalizeLoadedTest(t));
+  }
+
+  for (const t of dbTests) {
+    if (!t?.slug || t.slug === "16pf" || t.slug === "16pf-b") continue;
+    const slug = String(t.slug);
+    const existing = map.get(slug);
+    map.set(
+      slug,
+      normalizeLoadedTest({
+        ...(existing || {} as AnyTest),
+        ...t,
+        title: getTestDisplayTitle(slug, t.title || existing?.title),
+        pricing: { ...(existing?.pricing || {}), ...(t.pricing || {}) },
+      } as AnyTest)
+    );
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title, "ru"));
+}
 
 function getAllTestsLocal(): AnyTest[] {
   if (!fs.existsSync(TESTS_DIR)) return [];
@@ -13,17 +51,10 @@ function getAllTestsLocal(): AnyTest[] {
     const parsed = JSON.parse(raw) as any;
     const { interpretation: _i, ...t } = parsed;
     const test = t as AnyTest;
-    const price = test.pricing?.interpretation_rub ?? 0;
-    const details = test.pricing?.details_rub ?? 49;
-    return {
-      ...test,
-      pricing: { ...test.pricing, interpretation_rub: price, details_rub: details },
-      has_interpretation: price > 0,
-    };
+    return normalizeLoadedTest(test);
   });
   return tests
     .filter((t) => t.slug !== "16pf" && t.slug !== "16pf-b")
-    .map((t) => (t.slug === "color-types" ? ({ ...t, title: "Цветотипы" } as AnyTest) : t))
     .sort((a, b) => a.title.localeCompare(b.title, "ru"));
 }
 
@@ -35,13 +66,7 @@ function getTestBySlugLocal(slug: string): AnyTest | null {
   const parsed = JSON.parse(raw) as any;
   const { interpretation: _i, ...t } = parsed;
   const test = t as AnyTest;
-  const price = test.pricing?.interpretation_rub ?? 0;
-  const details = test.pricing?.details_rub ?? 49;
-  return {
-    ...test,
-    pricing: { ...test.pricing, interpretation_rub: price, details_rub: details },
-    has_interpretation: price > 0,
-  };
+  return normalizeLoadedTest(test);
 }
 
 /**
@@ -53,7 +78,6 @@ function getTestBySlugLocal(slug: string): AnyTest | null {
  */
 export async function getAllTests(): Promise<AnyTest[]> {
   const env = getSupabaseEnv();
-  const isDev = process.env.NODE_ENV !== "production";
   const local = getAllTestsLocal();
 
   if (!env) return local;
@@ -74,45 +98,15 @@ export async function getAllTests(): Promise<AnyTest[]> {
         const { interpretation: _i, ...t } = raw;
         const test = t as AnyTest;
         const price = typeof r?.price_rub === "number" ? r.price_rub : test.pricing?.interpretation_rub ?? 0;
-        const details = test.pricing?.details_rub ?? 49;
-        return {
-          ...test,
-          pricing: { ...test.pricing, interpretation_rub: price, details_rub: details },
-          has_interpretation: price > 0,
-        } as AnyTest;
+        return normalizeLoadedTest(test, price) as AnyTest;
       })
       .filter((t): t is AnyTest => Boolean(t))
-      .filter((t) => t.slug !== "16pf" && t.slug !== "16pf-b")
-      .map((t) => (t.slug === "color-types" ? ({ ...t, title: "Цветотипы" } as AnyTest) : t)) as AnyTest[];
+      .filter((t) => t.slug !== "16pf" && t.slug !== "16pf-b") as AnyTest[];
 
-    // Production behavior: DB is source of truth.
-    if (!isDev) {
-      if (dbTests.length === 0) return [];
-      return dbTests.sort((a, b) => a.title.localeCompare(b.title, "ru"));
-    }
-
-    // Dev behavior (next dev): merge DB + local to avoid "missing tests" when DB isn't fully seeded.
-    // For complex 16PF forms we prefer LOCAL JSON in dev to avoid partial/old DB seeds breaking scoring.
-    const map = new Map<string, AnyTest>();
-    for (const t of local) {
-      if (t?.slug && t.slug !== "16pf" && t.slug !== "16pf-b") map.set(t.slug, t);
-    }
-    for (const t of dbTests) {
-      if (!t?.slug || t.slug === "16pf" || t.slug === "16pf-b") continue;
-      const s = String(t.slug);
-      // Do NOT override local 16PF forms in dev.
-      if ((s === "16pf-a" || s === "16pf-b") && map.has(s)) continue;
-      map.set(s, t);
-    }
-
-const merged = Array.from(map.values());
-    return merged.sort((a, b) => a.title.localeCompare(b.title, "ru"));
+    return mergeTests(local, dbTests);
   } catch (e) {
     console.warn("Supabase load failed:", e);
-    // Dev fallback: local tests keep working even if Supabase is configured but not available.
-    if (process.env.NODE_ENV !== "production") return local;
-    // Prod: do NOT expose local fallback.
-    return [];
+    return local;
   }
 }
 
@@ -123,11 +117,7 @@ export async function getTestBySlug(slug: string): Promise<AnyTest | null> {
   if (slug === "16pf" || slug === "16pf-b") return null;
 
   const env = getSupabaseEnv();
-  const isDev = process.env.NODE_ENV !== "production";
   const local = getTestBySlugLocal(slug);
-
-  // Dev preference: always use LOCAL JSON for 16PF forms to keep scoring stable while DB is being tuned/seeded.
-  if (isDev && slug === "16pf-a" && local) return local;
 
   if (!env) return local;
 
@@ -139,31 +129,18 @@ export async function getTestBySlug(slug: string): Promise<AnyTest | null> {
       .eq("slug", slug)
       .single();
 
-    if (error) {
-      // Dev fallback: missing in DB -> take local.
-      return isDev ? local : null;
-    }
+    if (error) return local;
 
     const raw = (data as any)?.json as any;
-    if (!raw) return isDev ? local : null;
+    if (!raw) return local;
 
     const { interpretation: _i, ...t } = raw;
     const test = t as AnyTest;
     const price =
       typeof (data as any)?.price_rub === "number" ? (data as any).price_rub : test.pricing?.interpretation_rub ?? 0;
-    const details = test.pricing?.details_rub ?? 49;
-
-    const out: AnyTest = {
-      ...test,
-      pricing: { ...test.pricing, interpretation_rub: price, details_rub: details },
-      has_interpretation: price > 0,
-    };
-
-    // Display-only normalization.
-    if (out.slug === "color-types") return { ...out, title: "Цветотипы" } as AnyTest;
-    return out;
+    return normalizeLoadedTest(test, price);
   } catch (e) {
     console.warn("Supabase load failed:", e);
-    return isDev ? local : null;
+    return local;
   }
 }

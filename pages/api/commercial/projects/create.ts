@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { getGoalDefinition, isAssessmentGoal, isEvaluationPackage, type AssessmentGoal, type EvaluationPackage } from "@/lib/commercialGoals";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 function normalizeGoal(value: any): AssessmentGoal | null {
   return isAssessmentGoal(value) ? value : null;
@@ -88,7 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return {
         project_id: (project as any).id,
         test_slug: slug,
-        test_title: match?.title || slug,
+        test_title: getTestDisplayTitle(slug, match?.title),
         sort_order: index,
       };
     });

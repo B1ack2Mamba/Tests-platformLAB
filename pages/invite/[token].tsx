@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { Layout } from "@/components/Layout";
 import { getGoalDefinition } from "@/lib/commercialGoals";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 type InvitePageProps = {
   notFound?: boolean;
@@ -40,7 +41,7 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
       <div className="mx-auto max-w-5xl grid gap-4">
         {doneSlug ? (
           <div className="card border-emerald-200 bg-emerald-50/70 text-sm text-emerald-900">
-            Тест <b>{doneSlug}</b> сохранён. Результаты увидит только специалист. Здесь можно продолжить остальные тесты.
+            Тест <b>{getTestDisplayTitle(doneSlug, doneSlug)}</b> сохранён. Результаты увидит только специалист. Здесь можно продолжить остальные тесты.
           </div>
         ) : null}
 
@@ -145,7 +146,12 @@ export async function getServerSideProps({ params, query }: { params: { token: s
         target_role: (data as any).target_role || null,
         status: (data as any).status || "draft",
         package_mode: (data as any).package_mode || "premium",
-        tests: ((data as any).commercial_project_tests || []).sort((a: any, b: any) => a.sort_order - b.sort_order),
+        tests: ((data as any).commercial_project_tests || [])
+          .map((test: any) => ({
+            ...test,
+            test_title: getTestDisplayTitle(test?.test_slug, test?.test_title),
+          }))
+          .sort((a: any, b: any) => a.sort_order - b.sort_order),
         attempts: (data as any).commercial_project_attempts || [],
       },
     },

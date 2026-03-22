@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -14,5 +15,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .order("created_at", { ascending: false });
 
   if (error) return res.status(400).json({ ok: false, error: error.message });
-  return res.status(200).json({ ok: true, attempts: data || [] });
+  return res.status(200).json({
+    ok: true,
+    attempts: (data || []).map((item: any) => ({
+      ...item,
+      test_title: getTestDisplayTitle(item?.test_slug, item?.test_title),
+    })),
+  });
 }

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const body = typeof req.body === "object" && req.body ? req.body : {};
   const token = String(body.token || "").trim();
   const testSlug = String(body.test_slug || "").trim();
-  const testTitle = String(body.test_title || testSlug).trim();
+  const testTitle = getTestDisplayTitle(testSlug, String(body.test_title || testSlug).trim());
   const result = body.result;
 
   if (!token || !testSlug || !result) {
