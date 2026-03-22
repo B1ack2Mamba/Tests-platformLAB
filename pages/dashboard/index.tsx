@@ -53,13 +53,13 @@ type DeskPosition = { x: number; y: number; z: number };
 type DeskPositions = Record<string, DeskPosition>;
 
 const DESK_WIDTH = 1400;
-const DESK_HEIGHT = 780;
-const DESK_FOLDER_WIDTH = 168;
-const DESK_FOLDER_HEIGHT = 196;
-const DESK_SHEET_WIDTH = 212;
-const DESK_SHEET_HEIGHT = 164;
+const DESK_HEIGHT = 700;
+const DESK_FOLDER_WIDTH = 180;
+const DESK_FOLDER_HEIGHT = 170;
+const DESK_SHEET_WIDTH = 236;
+const DESK_SHEET_HEIGHT = 198;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
-const TRAY_ZONE = { x: 1068, y: 286, width: 280, height: 250 };
+const TRAY_ZONE = { x: 1038, y: 372, width: 278, height: 220 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -611,7 +611,7 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-[#4a2f18]">Рабочий стол проектов</div>
-                <div className="mt-1 max-w-3xl text-sm leading-6 text-[#6f5033]">Реалистичный кабинет сверху: табличка с данными специалиста лежит на столе, кошелёк находится справа вверху, а проекты и папки можно свободно раскладывать по поверхности, класть друг на друга и убирать в папки мышкой.</div>
+                <div className="mt-1 max-w-3xl text-sm leading-6 text-[#6f5033]">Реалистичная сцена рабочего стола: папки живут в стойке справа, листы проектов лежат на столе под лёгким углом, а по клику разворачиваются в подробный лист.</div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -631,8 +631,8 @@ export default function DashboardPage() {
               <div className="mt-4 rounded-[24px] border border-emerald-100 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-[#4a2f18]">Новая папка на столе</div>
-                    <div className="mt-1 text-xs text-[#7b5a38]">Создай отдельную папку и складывай в неё листы проектов так же, как в реальном кабинете.</div>
+                    <div className="text-sm font-semibold text-[#4a2f18]">Новая папка для стойки</div>
+                    <div className="mt-1 text-xs text-[#7b5a38]">Создай папку и складывай её в правую стойку, а листы проектов раскладывай по столу.</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {FOLDER_ICONS.map((icon) => {
@@ -719,7 +719,7 @@ export default function DashboardPage() {
 
                 <button
                   type="button"
-                  className="dashboard-notebook-trigger absolute right-10 top-[11.4rem] z-[220]"
+                  className="dashboard-notebook-trigger absolute right-10 top-[12.7rem] z-[220]"
                   onClick={() => triggerMechanics(() => router.push("/assessments"), 180)}
                 >
                   <span className="dashboard-notebook-title">Каталог тестов</span>
@@ -727,9 +727,9 @@ export default function DashboardPage() {
                 </button>
 
                 <div className="dashboard-office-workzone absolute inset-x-6 bottom-6 top-[13.5rem] overflow-hidden rounded-[26px]" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ right: '1.55rem', top: '18.2rem', width: '17.4rem', height: '13.8rem' }} />
+                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ right: '2.15rem', top: '23.25rem', width: '17.35rem', height: '13.7rem' }} />
                   <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/12 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
-                    Папки можно складывать в лоток слева, а листы — свободно раскладывать под углом по столу.
+                    Папки складывай в стойку справа, а листы проектов раскладывай по столу и открывай по клику.
                   </div>
 
                   {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
@@ -789,153 +789,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </section>
-
-      {isAdmin ? (
-        <section className="card dashboard-panel dashboard-desk-surface dashboard-panel-vined relative mt-6 overflow-hidden">
-          <VineFrame growthLevel={greeneryLevel} density="light" pulseToken={mechanicPulse} />
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Админ-панель</div>
-              <div className="mt-1 text-sm text-slate-500">Промокоды и служебные инструменты вынесены в отдельную вкладку, чтобы кабинет остался рабочим, а не административным.</div>
-            </div>
-            <Link href="/admin" className="btn btn-secondary btn-sm">Открыть /admin</Link>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="card dashboard-panel dashboard-panel-vined relative mt-6 overflow-hidden">
-        <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-[#4a2f18]">Рабочий стол проектов</div>
-            <div className="mt-1 text-sm text-[#6f5033]">Вид сверху на дорогой дубовый стол: папки лежат как реальные офисные папки, а проекты — как отдельные листы, которые можно перетаскивать в папки.</div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => { setShowCreateFolder((v) => !v); setMechanicPulse((value) => value + 1); }}
-              className="btn btn-secondary btn-sm"
-            >
-              {showCreateFolder ? "Скрыть папку" : "Новая папка"}
-            </button>
-            <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">
-              Без папки: {folderBuckets.uncategorized.length}
-            </div>
-          </div>
-        </div>
-
-        {showCreateFolder ? (
-          <div className="mt-4 rounded-[24px] border border-emerald-100 bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-[#4a2f18]">Новая папка на рабочем столе</div>
-                <div className="mt-1 text-xs text-[#7b5a38]">Создай отдельную папку на столе и собирай в неё листы проектов как в реальном кабинете.</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {FOLDER_ICONS.map((icon) => {
-                  const selected = newFolderIcon === icon.key;
-                  return (
-                    <button
-                      key={icon.key}
-                      type="button"
-                      onClick={() => setNewFolderIcon(icon.key)}
-                      className={`flex h-11 w-11 items-center justify-center rounded-2xl border bg-gradient-to-br text-xl shadow-sm transition ${icon.tileClass} ${selected ? `ring-2 ${icon.ringClass} border-transparent` : "border-emerald-100 hover:border-emerald-200"}`}
-                      title={icon.label}
-                      aria-label={icon.label}
-                    >
-                      {icon.symbol}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <input
-                className="input flex-1"
-                placeholder="Например, Подбор / Команда / Архив"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    createFolder();
-                  }
-                }}
-              />
-              <button type="button" className="btn btn-primary" onClick={() => { setMechanicPulse((value) => value + 1); createFolder(); }} disabled={!newFolderName.trim() || busyFolderId === "new"}>
-                {busyFolderId === "new" ? "Создаём…" : "Создать"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-5">
-          <div
-            className="dashboard-wood-desk relative min-h-[780px] overflow-hidden rounded-[30px] border border-[#6b4727]/35"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDeskDrop}
-          >
-            <div className="dashboard-wood-desk-glow pointer-events-none absolute inset-x-10 top-5 h-16 rounded-full blur-3xl" />
-            <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/10 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
-              Листы можно раскладывать по всему столу, класть друг на друга и собирать в папки.
-            </div>
-
-            {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
-              const itemId = `folder:${folder.id}`;
-              const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
-              return (
-                <div
-                  key={folder.id}
-                  className="absolute"
-                  style={{ left: position.x, top: position.y, zIndex: position.z }}
-                >
-                  <FolderDesktopIcon
-                    folder={folder}
-                    projects={folderProjects}
-                    busy={busyFolderId === folder.id}
-                    onOpen={() => setActiveFolderId(folder.id)}
-                    onManage={() => setFolderActionTarget(folder)}
-                    onDropProject={(projectId) => moveProject(projectId, folder.id)}
-                    draggingProjectId={draggingProjectId}
-                    onDragStart={() => bringDeskItemToFront(itemId)}
-                    onDragEnd={() => undefined}
-                  />
-                </div>
-              );
-            })}
-
-            {folderBuckets.uncategorized.map((project, projectIndex) => {
-              const itemId = `project:${project.id}`;
-              const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
-              return (
-                <div
-                  key={project.id}
-                  className="absolute"
-                  style={{ left: position.x, top: position.y, zIndex: position.z }}
-                >
-                  <ProjectDesktopIcon
-                    project={project}
-                    busy={busyFolderId === `delete:${project.id}`}
-                    onOpen={() => setPreviewProject(project)}
-                    onDragStart={() => {
-                      setDraggingProjectId(project.id);
-                      bringDeskItemToFront(itemId);
-                    }}
-                    onDragEnd={() => setDraggingProjectId(null)}
-                    onDelete={() => deleteProject(project.id)}
-                  />
-                </div>
-              );
-            })}
-
-            {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
-              <div className="absolute inset-x-8 top-28 rounded-2xl border border-dashed border-white/35 bg-white/10 p-8 text-center text-sm text-[#fff7eb] backdrop-blur-[2px]">
-                Здесь пока пусто. Создай проект или папку, и рабочий стол оживёт.
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </section>
 
       {activeFolder ? (
         <FolderModal
@@ -1178,10 +1031,8 @@ type FolderDesktopIconProps = {
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
   const icon = getFolderIcon(folder.icon_key);
-  const tilt = ((folder.sort_order || 0) % 3 - 1) * 0.35;
-
   return (
-    <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
+    <div className="group relative flex flex-col items-center gap-2">
       <button
         type="button"
         draggable
@@ -1274,10 +1125,10 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 5) - 2) * 0.85;
+  const tilt = ((tiltSeed % 7) - 3) * 1.1;
 
   return (
-    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `rotate(${tilt}deg)` }}>
+    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `perspective(1600px) rotateX(58deg) rotateZ(${tilt}deg)` }}>
       {onDelete ? (
         <button
           type="button"
