@@ -59,7 +59,7 @@ const DESK_FOLDER_HEIGHT = 196;
 const DESK_SHEET_WIDTH = 212;
 const DESK_SHEET_HEIGHT = 164;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
-const TRAY_ZONE = { x: 24, y: 250, width: 250, height: 250 };
+const TRAY_ZONE = { x: 1068, y: 286, width: 280, height: 250 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -727,7 +727,7 @@ export default function DashboardPage() {
                 </button>
 
                 <div className="dashboard-office-workzone absolute inset-x-6 bottom-6 top-[13.5rem] overflow-hidden rounded-[26px]" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ left: '1.1rem', top: '14.8rem', width: '14.8rem', height: '14.4rem' }} />
+                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ right: '1.55rem', top: '18.2rem', width: '17.4rem', height: '13.8rem' }} />
                   <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/12 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
                     Папки можно складывать в лоток слева, а листы — свободно раскладывать под углом по столу.
                   </div>
@@ -1178,7 +1178,7 @@ type FolderDesktopIconProps = {
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
   const icon = getFolderIcon(folder.icon_key);
-  const tilt = ((folder.sort_order || 0) % 4 - 1.5) * 0.12;
+  const tilt = ((folder.sort_order || 0) % 3 - 1) * 0.35;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1208,7 +1208,6 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         <div className="dashboard-folder-mouth" />
         <div className="dashboard-folder-inner-shadow" />
         <div className="dashboard-folder-gloss" />
-        <div className="absolute left-4 top-3 text-sm leading-none text-[#8b6232] opacity-40">{icon.symbol}</div>
 
         <div className="pointer-events-none absolute left-3 right-4 top-2 z-20 flex flex-col gap-1.5">
           {preview.length ? preview.map((project, index) => {
@@ -1275,7 +1274,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 7) - 3) * 1.6;
+  const tilt = ((tiltSeed % 5) - 2) * 0.85;
 
   return (
     <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1311,7 +1310,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         <span className="dashboard-project-paper-clip" aria-hidden="true" />
         <span className="dashboard-project-paper-clip-inner" aria-hidden="true" />
 
-        <span className="dashboard-project-paper-header">Проект оценки</span>
+        <span className="dashboard-project-paper-header">Лист проекта</span>
         <span className="dashboard-project-paper-title">{titleLine}</span>
 
         <span className="dashboard-project-paper-grid">
