@@ -56,8 +56,8 @@ const DESK_WIDTH = 1400;
 const DESK_HEIGHT = 780;
 const DESK_FOLDER_WIDTH = 168;
 const DESK_FOLDER_HEIGHT = 152;
-const DESK_SHEET_WIDTH = 150;
-const DESK_SHEET_HEIGHT = 188;
+const DESK_SHEET_WIDTH = 188;
+const DESK_SHEET_HEIGHT = 246;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
@@ -214,6 +214,7 @@ export default function DashboardPage() {
   const [mechanicPulse, setMechanicPulse] = useState(0);
   const [deskPositions, setDeskPositions] = useState<DeskPositions>({});
   const [deskLayer, setDeskLayer] = useState(300);
+  const [previewProject, setPreviewProject] = useState<ProjectRow | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -313,6 +314,12 @@ export default function DashboardPage() {
     const stillExists = folderBuckets.byFolder.some((item) => item.folder.id === activeFolderId);
     if (!stillExists) setActiveFolderId(null);
   }, [activeFolderId, folderBuckets.byFolder]);
+
+  useEffect(() => {
+    if (!previewProject) return;
+    const stillExists = projects.some((item) => item.id === previewProject.id);
+    if (!stillExists) setPreviewProject(null);
+  }, [previewProject, projects]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id) return;
@@ -738,7 +745,7 @@ export default function DashboardPage() {
                         <ProjectDesktopIcon
                           project={project}
                           busy={busyFolderId === `delete:${project.id}`}
-                          onOpen={() => router.push(`/projects/${project.id}`)}
+                          onOpen={() => setPreviewProject(project)}
                           onDragStart={() => {
                             setDraggingProjectId(project.id);
                             bringDeskItemToFront(itemId);
@@ -886,7 +893,7 @@ export default function DashboardPage() {
                   <ProjectDesktopIcon
                     project={project}
                     busy={busyFolderId === `delete:${project.id}`}
-                    onOpen={() => router.push(`/projects/${project.id}`)}
+                    onOpen={() => setPreviewProject(project)}
                     onDragStart={() => {
                       setDraggingProjectId(project.id);
                       bringDeskItemToFront(itemId);
@@ -917,6 +924,14 @@ export default function DashboardPage() {
           onOpenProject={(id) => router.push(`/projects/${id}`)}
           onMoveToDesktop={(projectId) => moveProject(projectId, null)}
           onDeleteProject={(projectId) => deleteProject(projectId)}
+        />
+      ) : null}
+
+      {previewProject ? (
+        <ProjectSheetPreviewModal
+          project={previewProject}
+          onClose={() => setPreviewProject(null)}
+          onOpenFull={() => router.push(`/projects/${previewProject.id}`)}
         />
       ) : null}
 
@@ -1230,16 +1245,14 @@ type ProjectDesktopIconProps = {
 function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false }: ProjectDesktopIconProps) {
   const displayName = project.person?.full_name || project.title || "Проект";
   const titleLine = project.title || displayName;
-  const secondaryLine = project.person?.full_name && project.person.full_name !== titleLine
-    ? project.person.full_name
-    : project.target_role || project.person?.current_position || "Участник не указан";
+  const roleLine = project.target_role || project.person?.current_position || "Роль не указана";
   const goal = getGoalDefinition(project.goal);
   const total = project.tests?.length || 0;
   const completed = Math.min(project.attempts_count || 0, total || 0);
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 7) - 3) * 0.14;
+  const tilt = ((tiltSeed % 9) - 4) * 0.22;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1250,7 +1263,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
             e.stopPropagation();
             onDelete();
           }}
-          className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#efe6d7] bg-[#fffbf4]/96 text-xs text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
+          className="absolute right-1 top-1 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#d5d9df] bg-white/95 text-xs text-[#5b6674] shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
           title="Удалить проект"
           aria-label="Удалить проект"
         >
@@ -1268,29 +1281,133 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-project-sheet relative flex flex-col items-start justify-start overflow-hidden border px-[0.9rem] py-[0.95rem] text-left transition hover:-translate-y-0.5 hover:shadow-xl ${compact ? "dashboard-project-sheet-compact" : ""} ${isDone ? "border-[#d7bb8f]" : "border-[#dfd2bb]"} ${busy ? "opacity-60" : ""}`}
+        className={`dashboard-project-paper ${compact ? "dashboard-project-paper-compact" : ""} ${busy ? "opacity-60" : ""}`}
       >
-        <div className="dashboard-project-sheet-shadow" aria-hidden="true" />
-        <div className="dashboard-project-sheet-topline" aria-hidden="true" />
-        <div className="dashboard-project-sheet-rules" aria-hidden="true" />
-        <div className="text-[8.5px] font-semibold uppercase tracking-[0.18em] text-[#9a8464]">Лист проекта</div>
-        <div className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-[#2d2215]">{titleLine}</div>
-        <div className="mt-1 text-[11px] leading-4 text-[#5d4a34]">{displayName}</div>
-        <div className="mt-3 h-px w-full bg-[#ddd2c1]" />
-        <div className="mt-3 grid w-full gap-1.5 text-[11px] leading-4 text-[#5d4a34]">
-          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Цель</span><span className="text-right">{goal?.shortTitle || project.goal}</span></div>
-          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Роль</span><span className="text-right">{secondaryLine}</span></div>
-          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Статус</span><span className="text-right">{assessmentLine}</span></div>
-          <div className="flex items-start justify-between gap-3"><span className="dashboard-project-label">Тесты</span><span className="text-right">{total || 0}</span></div>
-        </div>
-        <div className="mt-auto flex w-full items-center justify-between pt-3 text-[10px] text-[#6f5a42]">
-          <span>Выполнено: {completed}</span>
+        <span className="dashboard-project-paper-shadow" aria-hidden="true" />
+        <span className="dashboard-project-paper-sheet" aria-hidden="true" />
+        <span className="dashboard-project-paper-clip" aria-hidden="true" />
+        <span className="dashboard-project-paper-clip-inner" aria-hidden="true" />
+
+        <span className="dashboard-project-paper-header">Лист проекта</span>
+        <span className="dashboard-project-paper-title">{titleLine}</span>
+
+        <span className="dashboard-project-paper-grid">
+          <span className="dashboard-project-paper-row">
+            <span className="dashboard-project-paper-label">Имя</span>
+            <span className="dashboard-project-paper-value">{displayName}</span>
+          </span>
+          <span className="dashboard-project-paper-row">
+            <span className="dashboard-project-paper-label">Цель</span>
+            <span className="dashboard-project-paper-value">{goal?.shortTitle || project.goal}</span>
+          </span>
+          <span className="dashboard-project-paper-row">
+            <span className="dashboard-project-paper-label">Роль</span>
+            <span className="dashboard-project-paper-value">{roleLine}</span>
+          </span>
+          <span className="dashboard-project-paper-row">
+            <span className="dashboard-project-paper-label">Оценка</span>
+            <span className="dashboard-project-paper-value">{assessmentLine}</span>
+          </span>
+        </span>
+
+        <span className="dashboard-project-paper-footer">
+          <span>{completed}/{total || 0} тестов</span>
           <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
-        </div>
-        <div className={`dashboard-project-stamp mt-2 ${isDone ? "dashboard-project-stamp-ready" : "dashboard-project-stamp-progress"}`}>
-          {isDone ? "Готово" : `${completed}/${total || 0}`}
-        </div>
+        </span>
       </button>
+    </div>
+  );
+}
+
+type ProjectSheetPreviewModalProps = {
+  project: ProjectRow;
+  onClose: () => void;
+  onOpenFull: () => void;
+};
+
+function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheetPreviewModalProps) {
+  const displayName = project.person?.full_name || project.title || "Проект";
+  const goal = getGoalDefinition(project.goal);
+  const total = project.tests?.length || 0;
+  const completed = Math.min(project.attempts_count || 0, total || 0);
+  const isDone = total > 0 && completed >= total;
+  const assessmentLine = isDone ? "Общая оценка сформирована" : completed > 0 ? "Общая оценка в процессе" : "Общая оценка ещё не собрана";
+  const roleLine = project.target_role || project.person?.current_position || "Не указана";
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      <div className="dashboard-project-preview-wrap relative w-full max-w-[920px]" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="absolute right-2 top-2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/92 text-lg text-slate-700 shadow-lg hover:text-slate-950"
+          onClick={onClose}
+          aria-label="Закрыть"
+        >
+          ✕
+        </button>
+
+        <div className="dashboard-project-preview-board">
+          <div className="dashboard-project-preview-clip" aria-hidden="true" />
+          <div className="dashboard-project-preview-clip-inner" aria-hidden="true" />
+
+          <div className="dashboard-project-preview-sheet">
+            <div className="dashboard-project-preview-topline">
+              <div>
+                <div className="dashboard-project-preview-kicker">Лист проекта оценки</div>
+                <div className="dashboard-project-preview-title">{project.title || displayName}</div>
+              </div>
+              <div className={`dashboard-project-preview-stamp ${isDone ? "dashboard-project-preview-stamp-ready" : "dashboard-project-preview-stamp-progress"}`}>
+                {assessmentLine}
+              </div>
+            </div>
+
+            <div className="dashboard-project-preview-columns">
+              <div className="dashboard-project-preview-section">
+                <div className="dashboard-project-preview-section-title">Карточка участника</div>
+                <div className="dashboard-project-preview-table">
+                  <div><span>Имя и фамилия</span><strong>{displayName}</strong></div>
+                  <div><span>Email</span><strong>{project.person?.email || "Не указан"}</strong></div>
+                  <div><span>Текущая должность</span><strong>{project.person?.current_position || "Не указана"}</strong></div>
+                  <div><span>Целевая роль</span><strong>{roleLine}</strong></div>
+                  <div><span>Цель оценки</span><strong>{goal?.title || goal?.shortTitle || project.goal}</strong></div>
+                  <div><span>Создан</span><strong>{new Date(project.created_at).toLocaleString("ru-RU")}</strong></div>
+                </div>
+              </div>
+
+              <div className="dashboard-project-preview-section">
+                <div className="dashboard-project-preview-section-title">Сводка по проекту</div>
+                <div className="dashboard-project-preview-table">
+                  <div><span>Статус</span><strong>{assessmentLine}</strong></div>
+                  <div><span>Тестов в наборе</span><strong>{total}</strong></div>
+                  <div><span>Завершено попыток</span><strong>{completed}</strong></div>
+                  <div><span>Пакет</span><strong>{project.package_mode || "standard"}</strong></div>
+                </div>
+
+                <div className="dashboard-project-preview-tests">
+                  <div className="dashboard-project-preview-section-title">Инструменты в проекте</div>
+                  {project.tests?.length ? (
+                    <ul>
+                      {project.tests
+                        .slice()
+                        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                        .map((test) => (
+                          <li key={`${project.id}-${test.test_slug}`}>{test.test_title || test.test_slug}</li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <div className="text-sm text-slate-500">Тесты пока не добавлены.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="dashboard-project-preview-actions">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Закрыть лист</button>
+              <button type="button" className="btn btn-primary" onClick={onOpenFull}>Открыть проект полностью</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

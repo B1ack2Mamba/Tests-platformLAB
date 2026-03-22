@@ -1801,3 +1801,344 @@ html.native-app .app-brand {
     background: rgba(251,247,239,0.92);
   }
 }
+
+@layer components {
+  .dashboard-project-paper {
+    position: relative;
+    display: flex;
+    width: 11.75rem;
+    min-height: 15.25rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    border: 1px solid rgba(200, 205, 212, 0.9);
+    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.995) 0%, rgba(249,249,248,0.995) 100%);
+    padding: 1.35rem 1rem 0.95rem;
+    text-align: left;
+    cursor: grab;
+    box-shadow:
+      0 22px 26px -24px rgba(22, 23, 26, 0.38),
+      0 10px 18px rgba(40, 43, 48, 0.1),
+      inset 0 1px 0 rgba(255,255,255,0.96);
+    transition: transform 180ms ease, box-shadow 180ms ease;
+  }
+
+  .dashboard-project-paper:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 28px 32px -26px rgba(22, 23, 26, 0.42),
+      0 14px 24px rgba(40, 43, 48, 0.12),
+      inset 0 1px 0 rgba(255,255,255,0.96);
+  }
+
+  .dashboard-project-paper:active {
+    cursor: grabbing;
+  }
+
+  .dashboard-project-paper-compact {
+    width: 9.2rem;
+    min-height: 11.8rem;
+    padding: 1.15rem 0.9rem 0.85rem;
+  }
+
+  .dashboard-project-paper-shadow {
+    pointer-events: none;
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 0.45rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    background: rgba(38, 41, 48, 0.12);
+    filter: blur(9px);
+  }
+
+  .dashboard-project-paper-sheet {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(248,248,247,0.55), rgba(255,255,255,0) 3.5rem),
+      repeating-linear-gradient(180deg, transparent 0, transparent 20px, rgba(198, 206, 214, 0.22) 20px, rgba(198, 206, 214, 0.22) 21px);
+    opacity: 0.9;
+  }
+
+  .dashboard-project-paper-clip {
+    pointer-events: none;
+    position: absolute;
+    top: -0.42rem;
+    left: 50%;
+    width: 3.5rem;
+    height: 1rem;
+    transform: translateX(-50%);
+    border: 2px solid rgba(132, 137, 145, 0.94);
+    border-bottom-width: 1px;
+    border-radius: 0.1rem 0.1rem 0.7rem 0.7rem;
+    background: linear-gradient(180deg, rgba(245,247,250,0.96), rgba(186,192,201,0.9));
+    box-shadow: 0 3px 5px rgba(70, 74, 82, 0.18);
+  }
+
+  .dashboard-project-paper-clip-inner {
+    pointer-events: none;
+    position: absolute;
+    top: -0.1rem;
+    left: 50%;
+    width: 1.55rem;
+    height: 0.55rem;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(132, 137, 145, 0.94), rgba(232,236,241,0.96));
+    box-shadow: 0 2px 3px rgba(63, 68, 75, 0.18);
+  }
+
+  .dashboard-project-paper-header {
+    position: relative;
+    z-index: 1;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: #7a818b;
+  }
+
+  .dashboard-project-paper-title {
+    position: relative;
+    z-index: 1;
+    margin-top: 0.9rem;
+    font-size: 1rem;
+    line-height: 1.35rem;
+    font-weight: 700;
+    color: #252b34;
+  }
+
+  .dashboard-project-paper-grid {
+    position: relative;
+    z-index: 1;
+    margin-top: 1rem;
+    display: grid;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .dashboard-project-paper-row {
+    display: grid;
+    gap: 0.16rem;
+    border-bottom: 1px solid rgba(213, 218, 224, 0.82);
+    padding-bottom: 0.34rem;
+  }
+
+  .dashboard-project-paper-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #8a919b;
+  }
+
+  .dashboard-project-paper-value {
+    font-size: 0.82rem;
+    line-height: 1.15rem;
+    color: #2e3742;
+  }
+
+  .dashboard-project-paper-footer {
+    position: relative;
+    z-index: 1;
+    margin-top: auto;
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 0.95rem;
+    font-size: 0.67rem;
+    color: #6f7680;
+  }
+
+  .dashboard-project-preview-wrap {
+    perspective: 1200px;
+  }
+
+  .dashboard-project-preview-board {
+    position: relative;
+    margin: 0 auto;
+    max-width: 52rem;
+    border-radius: 0.6rem;
+    background: linear-gradient(180deg, rgba(38, 42, 48, 0.98), rgba(23, 25, 29, 0.985));
+    padding: 2.25rem 1.75rem 1.75rem;
+    box-shadow:
+      0 28px 90px rgba(15, 23, 42, 0.28),
+      0 12px 32px rgba(15, 23, 42, 0.16);
+    transform: rotateX(2deg);
+  }
+
+  .dashboard-project-preview-clip {
+    position: absolute;
+    left: 50%;
+    top: -0.7rem;
+    width: 10rem;
+    height: 1.85rem;
+    transform: translateX(-50%);
+    border: 3px solid rgba(153, 158, 166, 0.96);
+    border-bottom-width: 2px;
+    border-radius: 0.18rem 0.18rem 0.95rem 0.95rem;
+    background: linear-gradient(180deg, rgba(250,251,253,0.98), rgba(176,182,191,0.92));
+    box-shadow: 0 8px 18px rgba(31, 41, 55, 0.22);
+  }
+
+  .dashboard-project-preview-clip-inner {
+    position: absolute;
+    left: 50%;
+    top: -0.08rem;
+    width: 4rem;
+    height: 0.8rem;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(108,112,120,0.96), rgba(243,245,248,0.98));
+    box-shadow: 0 6px 12px rgba(31, 41, 55, 0.2);
+  }
+
+  .dashboard-project-preview-sheet {
+    min-height: 40rem;
+    border-radius: 0.2rem;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(251,252,253,0.998) 100%),
+      repeating-linear-gradient(180deg, transparent 0, transparent 28px, rgba(214,220,227,0.2) 28px, rgba(214,220,227,0.2) 29px);
+    padding: 2.1rem 2.1rem 1.6rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.98),
+      0 20px 32px rgba(17, 24, 39, 0.12);
+  }
+
+  .dashboard-project-preview-topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(214,220,227,0.9);
+    padding-bottom: 1.15rem;
+  }
+
+  .dashboard-project-preview-kicker {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: #7b8592;
+  }
+
+  .dashboard-project-preview-title {
+    margin-top: 0.65rem;
+    font-size: 1.9rem;
+    line-height: 2.2rem;
+    font-weight: 700;
+    color: #1f2937;
+  }
+
+  .dashboard-project-preview-stamp {
+    max-width: 16rem;
+    border-radius: 999px;
+    border: 1px solid rgba(181, 189, 199, 0.88);
+    padding: 0.55rem 0.9rem;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .dashboard-project-preview-stamp-ready {
+    color: #24503e;
+    background: rgba(232, 244, 237, 0.98);
+    border-color: rgba(144, 181, 162, 0.9);
+  }
+
+  .dashboard-project-preview-stamp-progress {
+    color: #4a5565;
+    background: rgba(245, 247, 250, 0.98);
+  }
+
+  .dashboard-project-preview-columns {
+    margin-top: 1.35rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+    gap: 1.2rem;
+  }
+
+  .dashboard-project-preview-section {
+    border: 1px solid rgba(216, 222, 229, 0.95);
+    background: rgba(255,255,255,0.68);
+    padding: 1rem 1rem 1.1rem;
+  }
+
+  .dashboard-project-preview-section-title {
+    margin-bottom: 0.8rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: #6b7280;
+  }
+
+  .dashboard-project-preview-table {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .dashboard-project-preview-table > div {
+    display: grid;
+    gap: 0.18rem;
+    border-bottom: 1px solid rgba(226,230,236,0.92);
+    padding-bottom: 0.55rem;
+  }
+
+  .dashboard-project-preview-table span {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #8b95a1;
+  }
+
+  .dashboard-project-preview-table strong {
+    font-size: 0.97rem;
+    line-height: 1.4rem;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .dashboard-project-preview-tests ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.45rem;
+    color: #334155;
+  }
+
+  .dashboard-project-preview-tests li {
+    font-size: 0.94rem;
+    line-height: 1.35rem;
+  }
+
+  .dashboard-project-preview-actions {
+    margin-top: 1.35rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 900px) {
+    .dashboard-project-preview-board {
+      padding: 1.8rem 1rem 1rem;
+    }
+
+    .dashboard-project-preview-sheet {
+      min-height: auto;
+      padding: 1.4rem 1rem 1rem;
+    }
+
+    .dashboard-project-preview-topline,
+    .dashboard-project-preview-columns,
+    .dashboard-project-preview-actions {
+      display: grid;
+      gap: 0.9rem;
+    }
+  }
+}
