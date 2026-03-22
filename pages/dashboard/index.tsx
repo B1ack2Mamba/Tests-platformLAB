@@ -577,80 +577,188 @@ export default function DashboardPage() {
             Премиальный рабочий стол
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.6fr_0.7fr] items-stretch">
-            <div className="card dashboard-panel dashboard-window-card dashboard-window-card-main dashboard-panel-vined relative h-full overflow-hidden">
-              <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
-              <div className="dashboard-panel-glow absolute -right-16 top-0 h-40 w-40 rounded-full bg-emerald-300/25 blur-3xl" />
-              <div className="relative">
-                <div className="text-sm font-medium text-emerald-900/70">Рабочее пространство</div>
-                <div className="mt-2 text-2xl font-semibold text-slate-950 sm:text-[2rem]">{displayName}</div>
-                <div className="mt-2 text-sm text-slate-600">{workspaceName}</div>
-                <div className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-                  Кабинет теперь собран как дорогой офисный стол сверху: рабочие окна лежат на поверхности как бумаги и папки, а живая зелень появляется по мере реальных пополнений. {greeneryHint}
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <PremiumActionButton
-                    label="Создать проект оценки"
-                    variant="primary"
-                    pulseToken={mechanicPulse}
-                    onClick={() => triggerMechanics(() => router.push("/projects/new"))}
-                  />
-                  <PremiumActionButton
-                    label="Каталог тестов"
-                    variant="secondary"
-                    pulseToken={mechanicPulse}
-                    onClick={() => triggerMechanics(() => router.push("/assessments"))}
-                  />
-                </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div className="dashboard-stat-chip">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Проекты</div>
-                    <div className="mt-1 text-2xl font-semibold text-slate-950">{projects.length}</div>
-                  </div>
-                  <div className="dashboard-stat-chip">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Папки</div>
-                    <div className="mt-1 text-2xl font-semibold text-slate-950">{folders.length}</div>
-                  </div>
-                  <div className="dashboard-stat-chip">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Попытки</div>
-                    <div className="mt-1 text-2xl font-semibold text-slate-950">{totalAttempts}</div>
-                  </div>
+          <section className="card dashboard-panel dashboard-panel-vined relative mt-2 overflow-hidden">
+            <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-[#4a2f18]">Рабочий стол проектов</div>
+                <div className="mt-1 max-w-3xl text-sm leading-6 text-[#6f5033]">Реалистичный кабинет сверху: табличка с данными специалиста лежит на столе, кошелёк находится справа вверху, а проекты и папки можно свободно раскладывать по поверхности, класть друг на друга и убирать в папки мышкой.</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowCreateFolder((v) => !v); setMechanicPulse((value) => value + 1); }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {showCreateFolder ? "Скрыть папку" : "Новая папка"}
+                </button>
+                <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">
+                  Без папки: {folderBuckets.uncategorized.length}
                 </div>
               </div>
             </div>
 
-            <div className="card dashboard-panel dashboard-window-card dashboard-window-card-side dashboard-panel-vined dashboard-wallet h-full relative overflow-hidden border-emerald-100 bg-white/70">
-              <VineFrame growthLevel={greeneryLevel} density="light" pulseToken={mechanicPulse} />
-              <div className="pointer-events-none absolute -right-16 top-1 h-44 w-44 rounded-full bg-white/70 blur-2xl" />
-              <div className="pointer-events-none absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-[22px] border border-white/70 bg-white/80 text-xl text-emerald-900 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">₽</div>
-              <div className="relative flex items-start justify-between gap-3 pr-14">
-                <div>
-                  <div className="text-sm font-medium text-emerald-900/70">Кошелёк</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-950">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
-                  <div className="mt-2 max-w-[22rem] text-xs leading-5 text-slate-500">Баланс для открытия уровней результата, AI-интерпретаций и расширенных функций.</div>
-                  <div className="mt-3 rounded-2xl border border-emerald-100 bg-white/70 px-3 py-2 text-xs leading-5 text-emerald-900/80">
-                    Чем больше вложено рублей в кабинет, тем гуще зелень вокруг окон и рабочих панелей: {isUnlimited ? "без лимита" : `${investedRub} ₽`}. Сейчас это стадия «{greeneryLabel}».
+            {showCreateFolder ? (
+              <div className="mt-4 rounded-[24px] border border-emerald-100 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-[#4a2f18]">Новая папка на столе</div>
+                    <div className="mt-1 text-xs text-[#7b5a38]">Создай отдельную папку и складывай в неё листы проектов так же, как в реальном кабинете.</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {FOLDER_ICONS.map((icon) => {
+                      const selected = newFolderIcon === icon.key;
+                      return (
+                        <button
+                          key={icon.key}
+                          type="button"
+                          onClick={() => setNewFolderIcon(icon.key)}
+                          className={`flex h-11 w-11 items-center justify-center rounded-2xl border bg-gradient-to-br text-xl shadow-sm transition ${icon.tileClass} ${selected ? `ring-2 ${icon.ringClass} border-transparent` : "border-emerald-100 hover:border-emerald-200"}`}
+                          title={icon.label}
+                          aria-label={icon.label}
+                        >
+                          {icon.symbol}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    className="input flex-1"
+                    placeholder="Например, Подбор / Команда / Архив"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        createFolder();
+                      }
+                    }}
+                  />
+                  <button type="button" className="btn btn-primary" onClick={() => { setMechanicPulse((value) => value + 1); createFolder(); }} disabled={!newFolderName.trim() || busyFolderId === "new"}>
+                    {busyFolderId === "new" ? "Создаём…" : "Создать"}
+                  </button>
+                </div>
               </div>
-              <div className="relative mt-5 grid grid-cols-2 gap-3">
-                <PremiumActionButton
-                  label="Пополнить"
-                  variant="primary"
-                  compact
-                  pulseToken={mechanicPulse}
-                  onClick={() => triggerMechanics(() => router.push("/wallet"))}
-                />
-                <PremiumActionButton
-                  label="Открыть"
-                  variant="secondary"
-                  compact
-                  pulseToken={mechanicPulse}
-                  onClick={() => triggerMechanics(() => router.push("/wallet"))}
-                />
+            ) : null}
+
+            <div className="mt-5">
+              <div className="dashboard-office-scene relative min-h-[960px] overflow-hidden rounded-[34px] border border-[#4f3420]/20">
+                <div className="dashboard-office-scene-backdrop absolute inset-0" />
+                <div className="dashboard-office-scene-vignette absolute inset-0" />
+
+                <div className="dashboard-desk-nameplate absolute left-6 top-6 z-[220] max-w-[24rem] rounded-[22px] px-5 py-4 text-left">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#7a5b37]">Кабинет специалиста</div>
+                  <div className="mt-2 text-[1.45rem] font-semibold leading-tight text-[#2c1b10]">{displayName}</div>
+                  <div className="mt-1 text-sm text-[#5e4128]">{workspaceName}</div>
+                  <div className="mt-2 text-xs leading-5 text-[#71553a]">{data?.profile?.email || user.email || "email не указан"}</div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#64462c]">
+                    <span className="dashboard-desk-meta-pill">Проектов: {projects.length}</span>
+                    <span className="dashboard-desk-meta-pill">Папок: {folders.length}</span>
+                    <span className="dashboard-desk-meta-pill">Попыток: {totalAttempts}</span>
+                  </div>
+                </div>
+
+                <div className="dashboard-desk-wallet absolute right-6 top-6 z-[220] w-[18.5rem] rounded-[22px] px-5 py-4 text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#84633d]">Кошелёк</div>
+                      <div className="mt-2 text-[1.5rem] font-semibold text-[#2c1b10]">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
+                    </div>
+                    <div className="rounded-full border border-[#dcc39b] bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#6b4b2f] shadow-sm">{greeneryLabel}</div>
+                  </div>
+                  <div className="mt-2 text-xs leading-5 text-[#6a4b31]">Вложено: {isUnlimited ? "без лимита" : `${investedRub} ₽`}. Чем больше пополнений, тем богаче зелень и атмосфера кабинета.</div>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => triggerMechanics(() => router.push("/wallet"))}>Пополнить</button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => triggerMechanics(() => router.push("/wallet"))}>Открыть</button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="dashboard-pen-trigger absolute bottom-16 right-12 z-[220]"
+                  onClick={() => triggerMechanics(() => router.push("/projects/new"), 180)}
+                  aria-label="Создать проект оценки"
+                  title="Создать проект оценки"
+                >
+                  <span className="dashboard-pen-body" />
+                  <span className="dashboard-pen-cap" />
+                  <span className="dashboard-pen-tip" />
+                  <span className="dashboard-pen-label">Создать проект оценки</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dashboard-notebook-trigger absolute right-10 top-[11.4rem] z-[220]"
+                  onClick={() => triggerMechanics(() => router.push("/assessments"), 180)}
+                >
+                  <span className="dashboard-notebook-title">Каталог тестов</span>
+                  <span className="dashboard-notebook-subtitle">Открыть материалы</span>
+                </button>
+
+                <div className="dashboard-office-workzone absolute inset-x-6 bottom-6 top-[13.5rem] overflow-hidden rounded-[26px]" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+                  <div className="dashboard-wood-desk-notes pointer-events-none absolute left-6 top-5 rounded-2xl border border-white/40 bg-white/12 px-4 py-2 text-xs font-medium text-[#f7f0e2] [text-shadow:0_1px_3px_rgba(40,22,8,0.5)]">
+                    Перетаскивай листы и папки по всему столу, клади их друг на друга и собирай папки мышкой.
+                  </div>
+
+                  {folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => {
+                    const itemId = `folder:${folder.id}`;
+                    const position = deskPositions[itemId] || getDefaultFolderPosition(folder.sort_order || 0);
+                    return (
+                      <div
+                        key={folder.id}
+                        className="absolute"
+                        style={{ left: position.x, top: position.y, zIndex: position.z }}
+                      >
+                        <FolderDesktopIcon
+                          folder={folder}
+                          projects={folderProjects}
+                          busy={busyFolderId === folder.id}
+                          onOpen={() => setActiveFolderId(folder.id)}
+                          onManage={() => setFolderActionTarget(folder)}
+                          onDropProject={(projectId) => moveProject(projectId, folder.id)}
+                          draggingProjectId={draggingProjectId}
+                          onDragStart={() => bringDeskItemToFront(itemId)}
+                          onDragEnd={() => undefined}
+                        />
+                      </div>
+                    );
+                  })}
+
+                  {folderBuckets.uncategorized.map((project, projectIndex) => {
+                    const itemId = `project:${project.id}`;
+                    const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
+                    return (
+                      <div
+                        key={project.id}
+                        className="absolute"
+                        style={{ left: position.x, top: position.y, zIndex: position.z }}
+                      >
+                        <ProjectDesktopIcon
+                          project={project}
+                          busy={busyFolderId === `delete:${project.id}`}
+                          onOpen={() => router.push(`/projects/${project.id}`)}
+                          onDragStart={() => {
+                            setDraggingProjectId(project.id);
+                            bringDeskItemToFront(itemId);
+                          }}
+                          onDragEnd={() => setDraggingProjectId(null)}
+                          onDelete={() => deleteProject(project.id)}
+                        />
+                      </div>
+                    );
+                  })}
+
+                  {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
+                    <div className="absolute inset-x-8 top-28 rounded-2xl border border-dashed border-white/35 bg-white/10 p-8 text-center text-sm text-[#fff7eb] backdrop-blur-[2px]">
+                      Здесь пока пусто. Нажми на ручку справа внизу, чтобы создать первый проект, или создай папку над столом.
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
       {isAdmin ? (
         <section className="card dashboard-panel dashboard-desk-surface dashboard-panel-vined relative mt-6 overflow-hidden">
@@ -1075,7 +1183,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
                 zIndex: 30 - index,
               }}
             >
-              <span className="block truncate">{project.person?.full_name || project.title || "Проект"}</span>
+              <span className="block truncate">{project.title || project.person?.full_name || "Проект"}</span>
             </div>
           )) : (
             <div className="dashboard-folder-name-slip rounded-[10px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
@@ -1116,6 +1224,10 @@ type ProjectDesktopIconProps = {
 
 function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false }: ProjectDesktopIconProps) {
   const displayName = project.person?.full_name || project.title || "Проект";
+  const titleLine = project.title || displayName;
+  const secondaryLine = project.person?.full_name && project.person.full_name !== titleLine
+    ? project.person.full_name
+    : project.target_role || project.person?.current_position || "Участник не указан";
   const goal = getGoalDefinition(project.goal);
   const total = project.tests?.length || 0;
   const completed = Math.min(project.attempts_count || 0, total || 0);
@@ -1158,10 +1270,12 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         <div className="dashboard-project-sheet-impression" aria-hidden="true" />
         <div className="dashboard-project-sheet-lines" aria-hidden="true" />
         <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8b6b49]">Лист проекта</div>
-        <div className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-[#3f2a18]">{displayName}</div>
+        <div className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-[#3f2a18]">{titleLine}</div>
+        <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#7d6140]">{secondaryLine}</div>
         <div className="mt-3 text-[10px] uppercase tracking-[0.12em] text-[#9d7b56]">Общая оценка</div>
         <div className="mt-1 text-sm font-medium text-[#5a3d22]">{assessmentLine}</div>
-        <div className="mt-2 text-xs leading-5 text-[#7f5f3d]">{goal?.shortTitle || project.goal}</div>
+        <div className="mt-2 text-[11px] leading-5 text-[#7f5f3d]">{goal?.shortTitle || project.goal}</div>
+        <div className="mt-1 text-[11px] text-[#8b6a46]">Тестов: {total || 0} · Выполнено: {completed}</div>
         <div className={`mt-auto rounded-full px-2 py-1 text-[10px] font-semibold shadow-sm ${isDone ? "bg-emerald-100 text-emerald-900" : "bg-white/90 text-[#6e5234]"}`}>
           {isDone ? "Готово" : `${completed}/${total || 0}`}
         </div>

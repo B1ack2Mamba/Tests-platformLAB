@@ -1204,3 +1204,302 @@ html.native-app .app-brand {
     cursor: grabbing;
   }
 }
+
+@layer components {
+  .dashboard-office-scene {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0) 18%, rgba(19,12,8,0.04) 100%),
+      url('/dashboard-office-desk-realistic.png');
+    background-size: cover;
+    background-position: center 54%;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.32),
+      inset 0 -38px 68px rgba(23,14,9,0.2),
+      0 34px 70px -40px rgba(31,19,12,0.4);
+  }
+
+  .dashboard-office-scene-backdrop {
+    background:
+      linear-gradient(180deg, rgba(253,250,244,0.18), rgba(255,255,255,0.02) 28%, rgba(26,18,13,0.16) 100%),
+      radial-gradient(circle at 70% 22%, rgba(255,255,255,0.26), transparent 18%),
+      radial-gradient(circle at 12% 16%, rgba(255,255,255,0.18), transparent 14%);
+    pointer-events: none;
+  }
+
+  .dashboard-office-scene-vignette {
+    background:
+      linear-gradient(90deg, rgba(28,18,13,0.18), transparent 12%, transparent 88%, rgba(28,18,13,0.1)),
+      linear-gradient(180deg, rgba(24,14,10,0.08), transparent 16%, transparent 78%, rgba(24,14,10,0.18));
+    pointer-events: none;
+  }
+
+  .dashboard-office-workzone {
+    pointer-events: auto;
+  }
+
+  .dashboard-desk-nameplate {
+    background:
+      linear-gradient(180deg, rgba(254,249,239,0.96), rgba(239,226,202,0.93));
+    border: 1px solid rgba(169, 134, 94, 0.44);
+    box-shadow:
+      0 26px 36px -26px rgba(38,24,15,0.55),
+      0 10px 18px rgba(56, 35, 22, 0.12),
+      inset 0 1px 0 rgba(255,255,255,0.95),
+      inset 0 -1px 0 rgba(162,125,88,0.28);
+    backdrop-filter: blur(2px);
+  }
+
+  .dashboard-desk-nameplate::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 16px;
+    border: 1px solid rgba(172, 140, 102, 0.25);
+    pointer-events: none;
+  }
+
+  .dashboard-desk-meta-pill {
+    border-radius: 999px;
+    border: 1px solid rgba(176, 142, 104, 0.34);
+    background: rgba(255,255,255,0.62);
+    padding: 0.3rem 0.65rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+  }
+
+  .dashboard-desk-wallet {
+    background:
+      linear-gradient(180deg, rgba(250,244,233,0.95), rgba(231,215,190,0.92));
+    border: 1px solid rgba(169, 134, 94, 0.42);
+    box-shadow:
+      0 26px 36px -26px rgba(38,24,15,0.55),
+      0 10px 18px rgba(56, 35, 22, 0.12),
+      inset 0 1px 0 rgba(255,255,255,0.92),
+      inset 0 -1px 0 rgba(162,125,88,0.24);
+  }
+
+  .dashboard-notebook-trigger {
+    width: 14.5rem;
+    min-height: 4.6rem;
+    border-radius: 14px;
+    border: 1px solid rgba(45, 36, 30, 0.7);
+    background:
+      linear-gradient(180deg, rgba(39,39,38,0.98), rgba(24,24,24,0.98));
+    box-shadow:
+      0 18px 24px -20px rgba(18,14,11,0.72),
+      0 10px 14px rgba(18,14,11,0.18),
+      inset 0 1px 0 rgba(255,255,255,0.12),
+      inset 0 -1px 0 rgba(0,0,0,0.38);
+    transform: rotate(-7deg);
+    padding: 0.9rem 1rem 0.85rem;
+    text-align: left;
+    color: #f7f1e6;
+    transition: transform 160ms ease, box-shadow 160ms ease;
+  }
+
+  .dashboard-notebook-trigger:hover {
+    transform: rotate(-6deg) translateY(-1px);
+    box-shadow:
+      0 22px 30px -20px rgba(18,14,11,0.78),
+      0 14px 16px rgba(18,14,11,0.2),
+      inset 0 1px 0 rgba(255,255,255,0.12),
+      inset 0 -1px 0 rgba(0,0,0,0.38);
+  }
+
+  .dashboard-notebook-title {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .dashboard-notebook-subtitle {
+    display: block;
+    margin-top: 0.18rem;
+    font-size: 0.72rem;
+    color: rgba(247,241,230,0.72);
+  }
+
+  .dashboard-pen-trigger {
+    width: 16rem;
+    height: 2.9rem;
+    transform: rotate(-12deg);
+    background: transparent;
+    border: none;
+    padding: 0;
+    display: block;
+  }
+
+  .dashboard-pen-trigger:hover .dashboard-pen-body {
+    transform: translateY(-1px);
+    box-shadow:
+      0 20px 24px -20px rgba(12, 10, 8, 0.72),
+      0 8px 14px rgba(12, 10, 8, 0.28),
+      inset 0 1px 0 rgba(255,255,255,0.16);
+  }
+
+  .dashboard-pen-body,
+  .dashboard-pen-cap,
+  .dashboard-pen-tip,
+  .dashboard-pen-label {
+    position: absolute;
+    display: block;
+  }
+
+  .dashboard-pen-body {
+    left: 0;
+    right: 2rem;
+    top: 0.72rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background:
+      linear-gradient(180deg, rgba(38,38,39,0.98), rgba(12,12,12,0.98));
+    border: 1px solid rgba(16,16,16,0.72);
+    box-shadow:
+      0 16px 18px -18px rgba(12,10,8,0.7),
+      0 6px 10px rgba(12,10,8,0.24),
+      inset 0 1px 0 rgba(255,255,255,0.16);
+    transition: transform 160ms ease, box-shadow 160ms ease;
+  }
+
+  .dashboard-pen-cap {
+    right: 1.6rem;
+    top: 0.62rem;
+    width: 2rem;
+    height: 0.9rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(198,156,103,0.98), rgba(141,105,64,0.98));
+    box-shadow: inset 0 1px 0 rgba(255,238,202,0.6), 0 2px 4px rgba(41,26,14,0.24);
+  }
+
+  .dashboard-pen-tip {
+    right: 0.2rem;
+    top: 0.86rem;
+    width: 1.75rem;
+    height: 0.38rem;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+    background: linear-gradient(180deg, rgba(198,156,103,1), rgba(141,105,64,1));
+    filter: drop-shadow(0 2px 2px rgba(41,26,14,0.22));
+  }
+
+  .dashboard-pen-label {
+    left: 0.55rem;
+    bottom: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #f6efe3;
+    text-shadow: 0 1px 2px rgba(18,14,11,0.45);
+  }
+
+  .dashboard-wood-desk {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+  }
+
+  .dashboard-wood-desk::before,
+  .dashboard-wood-desk::after,
+  .dashboard-wood-desk-glow {
+    display: none;
+  }
+
+  .dashboard-folder-card {
+    width: 12rem;
+    height: 9.25rem;
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(225,197,150,0.98) 0%, rgba(207,174,121,0.99) 46%, rgba(191,153,98,0.99) 100%);
+    border-color: rgba(147, 111, 70, 0.32);
+    box-shadow:
+      0 26px 24px -22px rgba(22,14,10,0.5),
+      0 12px 18px rgba(46, 31, 20, 0.14),
+      inset 0 1px 0 rgba(255,247,231,0.92),
+      inset 0 -18px 18px rgba(126, 92, 53, 0.16);
+  }
+
+  .dashboard-folder-spine {
+    inset: 13px auto 18px 10px;
+    width: 10px;
+    border-radius: 9px;
+  }
+
+  .dashboard-folder-pocket {
+    height: 72%;
+    border-radius: 1rem 1rem 1.24rem 1.24rem;
+    background: linear-gradient(180deg, rgba(221,185,129,0.99) 0%, rgba(193,151,95,0.99) 100%);
+  }
+
+  .dashboard-folder-name-slip {
+    min-height: 1.75rem;
+    padding-top: 0.38rem;
+    padding-bottom: 0.34rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.995), rgba(245,238,226,0.985));
+  }
+
+  .dashboard-project-sheet {
+    width: 11.2rem;
+    height: 14.1rem;
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, rgba(255,255,252,0.998) 0%, rgba(248,242,233,0.995) 58%, rgba(237,228,213,0.992) 100%);
+    border-color: rgba(190,175,151,0.64);
+    box-shadow:
+      0 34px 26px -28px rgba(18,12,8,0.48),
+      0 14px 18px rgba(45, 31, 20, 0.12),
+      inset 0 1px 0 rgba(255,255,255,0.98),
+      inset 0 -1px 0 rgba(192,172,145,0.34);
+  }
+
+  .dashboard-project-sheet::before {
+    opacity: 0.62;
+  }
+
+  .dashboard-project-sheet-lines {
+    bottom: 3.4rem;
+    height: 2.6rem;
+  }
+
+  .dashboard-project-sheet-pin {
+    width: 1.45rem;
+    height: 0.36rem;
+  }
+
+  .dashboard-project-sheet-corner {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  @media (max-width: 900px) {
+    .dashboard-office-scene {
+      min-height: 840px;
+      background-position: center 52%;
+    }
+
+    .dashboard-desk-nameplate,
+    .dashboard-desk-wallet {
+      position: relative;
+      left: auto;
+      right: auto;
+      top: auto;
+      margin: 1rem;
+      width: auto;
+      max-width: none;
+    }
+
+    .dashboard-notebook-trigger {
+      right: 1rem;
+      top: 12.5rem;
+      width: 12rem;
+    }
+
+    .dashboard-pen-trigger {
+      right: 1rem;
+      bottom: 1rem;
+      width: 12rem;
+    }
+
+    .dashboard-office-workzone {
+      top: 18.5rem;
+    }
+  }
+}
