@@ -54,12 +54,13 @@ type DeskPositions = Record<string, DeskPosition>;
 
 const DESK_WIDTH = 1400;
 const DESK_HEIGHT = 760;
-const DESK_FOLDER_WIDTH = 176;
-const DESK_FOLDER_HEIGHT = 156;
-const DESK_SHEET_WIDTH = 228;
-const DESK_SHEET_HEIGHT = 172;
+const DESK_FOLDER_WIDTH = 188;
+const DESK_FOLDER_HEIGHT = 170;
+const DESK_SHEET_WIDTH = 210;
+const DESK_SHEET_HEIGHT = 196;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:";
-const TRAY_ZONE = { x: 1030, y: 402, width: 286, height: 196 };
+const BOARD_ZONE = { x: 120, y: 88, width: 1120, height: 330 };
+const TRAY_ZONE = { x: 1006, y: 500, width: 288, height: 184 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -83,6 +84,33 @@ function getInitials(value: string) {
     .slice(0, 2);
   if (!parts.length) return "PR";
   return parts.map((part) => part[0]?.toUpperCase() || "").join("");
+}
+
+function getEntityTilt(seedSource: string, spread = 4) {
+  const seed = Array.from(seedSource).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return ((seed % (spread * 2 + 1)) - spread) * 1.2;
+}
+
+function getStickyNoteTone(goal: AssessmentGoal) {
+  switch (goal) {
+    case "motivation":
+      return "sticky-note-gold";
+    case "general_assessment":
+      return "sticky-note-mint";
+    case "management_potential":
+    case "leadership":
+      return "sticky-note-blue";
+    case "team_interaction":
+    case "communication_influence":
+      return "sticky-note-peach";
+    case "self_organization":
+    case "learning_agility":
+      return "sticky-note-lilac";
+    case "emotional_regulation":
+      return "sticky-note-rose";
+    default:
+      return "sticky-note-cream";
+  }
 }
 
 function goalColor(goal: AssessmentGoal) {
@@ -162,19 +190,20 @@ function getDeskStorageKey(workspaceId: string) {
 
 function getDefaultFolderPosition(index: number): DeskPosition {
   const slot = index % 3;
+  const row = Math.floor(index / 3);
   return {
-    x: TRAY_ZONE.x + 18 + slot * 28,
-    y: TRAY_ZONE.y + 10 + slot * 10 + Math.floor(index / 3) * 10,
+    x: TRAY_ZONE.x + 12 + slot * 30,
+    y: TRAY_ZONE.y + 10 + row * 14 + slot * 5,
     z: 20 + index,
   };
 }
 
 function getDefaultProjectPosition(index: number): DeskPosition {
-  const row = Math.floor(index / 3);
-  const col = index % 3;
+  const row = Math.floor(index / 4);
+  const col = index % 4;
   return {
-    x: 120 + col * 255 + (row % 2) * 18,
-    y: 530 + row * 64 + col * 8,
+    x: BOARD_ZONE.x + 32 + col * 238 + (row % 2) * 12,
+    y: BOARD_ZONE.y + 18 + row * 132 + (col % 2) * 8,
     z: 140 + index,
   };
 }
@@ -704,7 +733,8 @@ export default function DashboardPage() {
                 <div className="dashboard-office-scene-vignette absolute inset-0" />
 
                 <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ right: '4.05rem', top: '31.4rem', width: '18.6rem', height: '12.2rem' }} />
+                  <div className="dashboard-board-zone pointer-events-none absolute z-[2] rounded-[1.2rem]" style={{ left: `${BOARD_ZONE.x}px`, top: `${BOARD_ZONE.y}px`, width: `${BOARD_ZONE.width}px`, height: `${BOARD_ZONE.height}px` }} />
+                  <div className="dashboard-tray-zone pointer-events-none absolute z-[3] rounded-[1.2rem]" style={{ left: `${TRAY_ZONE.x}px`, top: `${TRAY_ZONE.y}px`, width: `${TRAY_ZONE.width}px`, height: `${TRAY_ZONE.height}px` }} />
 
                   {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
                     const itemId = `folder:${folder.id}`;
@@ -1008,7 +1038,7 @@ type FolderDesktopIconProps = {
 
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
-  const icon = getFolderIcon(folder.icon_key);
+  const tilt = getEntityTilt(folder.id, 3) * 0.85;
   return (
     <div className="group relative flex flex-col items-center gap-2">
       <button
@@ -1022,7 +1052,8 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-folder-card relative flex items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#94724a]" : "border-[#aa8258]"} ${busy ? "opacity-70" : ""}`}
+        className={`dashboard-folder-card dashboard-folder-card-angled relative flex items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#94724a]" : "border-[#b88c5a]"} ${busy ? "opacity-70" : ""}`}
+        style={{ transform: `rotate(${tilt}deg)` }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1038,17 +1069,17 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         <div className="dashboard-folder-inner-shadow" />
         <div className="dashboard-folder-gloss" />
 
-        <div className="pointer-events-none absolute left-3 right-4 top-2 z-20 flex flex-col gap-1.5">
+        <div className="pointer-events-none absolute left-4 right-4 top-3 z-20 flex flex-col gap-1.5">
           {preview.length ? preview.map((project, index) => {
             const slipTitle = project.person?.full_name || project.title || "Проект";
             return (
               <div
                 key={project.id}
-                className="dashboard-folder-name-slip rounded-[7px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
+                className="dashboard-folder-name-slip rounded-[8px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
                 style={{
-                  marginLeft: `${index * 9}px`,
-                  marginRight: `${Math.max(0, 18 - index * 5)}px`,
-                  transform: `translateY(${index * 7}px) rotate(${index % 2 === 0 ? -0.75 : 0.55}deg)`,
+                  marginLeft: `${index * 10}px`,
+                  marginRight: `${Math.max(0, 20 - index * 5)}px`,
+                  transform: `translateY(${index * 8}px) rotate(${index % 2 === 0 ? -0.8 : 0.65}deg)`,
                   zIndex: 30 - index,
                 }}
               >
@@ -1056,7 +1087,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
               </div>
             );
           }) : (
-            <div className="dashboard-folder-name-slip rounded-[7px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
+            <div className="dashboard-folder-name-slip rounded-[8px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
               <span className="block truncate">Папка пуста</span>
             </div>
           )}
@@ -1102,11 +1133,11 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const completed = Math.min(project.attempts_count || 0, total || 0);
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
-  const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 7) - 3) * 1.1;
+  const tilt = getEntityTilt(project.id, 4);
+  const toneClass = getStickyNoteTone(project.goal);
 
   return (
-    <div className="group relative flex flex-col items-center gap-2 dashboard-project-paper-angled-wrap" style={{ transform: `perspective(1800px) rotateX(74deg) rotateZ(${tilt * 0.65}deg)` }}>
+    <div className="group relative flex flex-col items-center gap-2 dashboard-sticky-note-wrap" style={{ transform: `rotate(${tilt}deg)` }}>
       {onDelete ? (
         <button
           type="button"
@@ -1114,7 +1145,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
             e.stopPropagation();
             onDelete();
           }}
-          className="absolute right-1 top-1 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#d5d9df] bg-white/95 text-xs text-[#5b6674] shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
+          className="absolute right-1 top-1 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-black/10 bg-white/90 text-[10px] text-[#5b6674] shadow-sm opacity-0 transition hover:text-red-600 group-hover:opacity-100"
           title="Удалить проект"
           aria-label="Удалить проект"
         >
@@ -1132,42 +1163,18 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-project-paper ${compact ? "dashboard-project-paper-compact" : ""} ${busy ? "opacity-60" : ""}`}
+        className={`dashboard-sticky-note ${toneClass} ${compact ? "dashboard-sticky-note-compact" : ""} ${busy ? "opacity-60" : ""}`}
       >
-        <span className="dashboard-project-paper-shadow" aria-hidden="true" />
-        <span className="dashboard-project-paper-sheet" aria-hidden="true" />
-        <span className="dashboard-project-paper-clip" aria-hidden="true" />
-        <span className="dashboard-project-paper-clip-inner" aria-hidden="true" />
-
-        <span className="dashboard-project-paper-header">Лист проекта</span>
-        <span className="dashboard-project-paper-title">{titleLine}</span>
-
-        <span className="dashboard-project-paper-grid">
-          <span className="dashboard-project-paper-row">
-            <span className="dashboard-project-paper-label">Имя</span>
-            <span className="dashboard-project-paper-value">{displayName}</span>
-          </span>
-          <span className="dashboard-project-paper-row">
-            <span className="dashboard-project-paper-label">Цель</span>
-            <span className="dashboard-project-paper-value">{goal?.shortTitle || project.goal}</span>
-          </span>
-          <span className="dashboard-project-paper-row">
-            <span className="dashboard-project-paper-label">Роль</span>
-            <span className="dashboard-project-paper-value">{roleLine}</span>
-          </span>
-          <span className="dashboard-project-paper-row">
-            <span className="dashboard-project-paper-label">Оценка</span>
-            <span className="dashboard-project-paper-value">{assessmentLine}</span>
-          </span>
-        </span>
-
-        <span className="dashboard-project-paper-footer">
+        <span className="dashboard-sticky-pin" aria-hidden="true" />
+        <span className="dashboard-sticky-header">Проект</span>
+        <span className="dashboard-sticky-title">{titleLine}</span>
+        <span className="dashboard-sticky-line"><span>Имя</span><strong>{displayName}</strong></span>
+        <span className="dashboard-sticky-line"><span>Цель</span><strong>{goal?.shortTitle || project.goal}</strong></span>
+        <span className="dashboard-sticky-line"><span>Роль</span><strong>{roleLine}</strong></span>
+        <span className="dashboard-sticky-line"><span>Оценка</span><strong>{assessmentLine}</strong></span>
+        <span className="dashboard-sticky-footer">
           <span>{completed}/{total || 0} тестов</span>
           <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
-        </span>
-        <span className="dashboard-project-paper-footer dashboard-project-paper-footer-secondary">
-          <span>{assessmentLine}</span>
-          <span>{roleLine}</span>
         </span>
       </button>
     </div>
