@@ -311,7 +311,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                           key={test.slug}
                           title={test.title}
                           active={selectedTests.includes(test.slug)}
-                          note={`Вес для цели: ${getGoalWeight(goal, test.slug)}/10`}
+                          note={`Подходит для этой цели на ${getGoalWeight(goal, test.slug) * 10}%`}
                           onToggle={() => toggleTest(test.slug)}
                         />
                       ))}
@@ -334,7 +334,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                           key={test.slug}
                           title={test.title}
                           active={selectedTests.includes(test.slug)}
-                          note={`Дополняет цель с весом ${getGoalWeight(goal, test.slug)}/10`}
+                          note={`Дополняет эту цель на ${getGoalWeight(goal, test.slug) * 10}%`}
                           onToggle={() => toggleTest(test.slug)}
                         />
                       ))}
