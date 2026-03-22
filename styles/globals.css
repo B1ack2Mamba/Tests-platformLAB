@@ -325,6 +325,23 @@ html.native-app .app-brand {
     isolation: isolate;
   }
 
+  .dashboard-panel-vined > :not(.dashboard-vine-shell):not(.dashboard-panel-glow) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .dashboard-vine-shell {
+    overflow: hidden;
+    border-radius: inherit;
+    box-sizing: border-box;
+    padding: 10px;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
   .dashboard-action-badge-shell {
     position: relative;
     z-index: 1;
@@ -343,6 +360,10 @@ html.native-app .app-brand {
   .dashboard-tree-ground {
     fill: rgba(105, 161, 111, 0.16);
     filter: blur(2px);
+  }
+
+  .dashboard-tree-scene {
+    will-change: transform, opacity;
   }
 
   .dashboard-tree-sprout,
@@ -427,6 +448,7 @@ html.native-app .app-brand {
   .dashboard-tree-canopy-a { animation-delay: 880ms; }
   .dashboard-tree-canopy-b { animation-delay: 1060ms; }
   .dashboard-tree-canopy-c { animation-delay: 1240ms; }
+  .dashboard-tree-canopy-rich { animation-delay: 1360ms; }
 
   .dashboard-sprout-aura {
     animation: dashboardAuraFloat 2400ms ease-in-out infinite;
@@ -472,27 +494,29 @@ html.native-app .app-brand {
   }
 
   .dashboard-vine-stroke {
-    stroke: rgba(84, 146, 96, 0.48);
-    stroke-width: 2.6;
+    stroke: rgba(84, 146, 96, 0.28);
+    stroke-width: 2;
     stroke-dasharray: 220;
     stroke-dashoffset: 220;
     animation: dashboardVineGrow 1600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
   .dashboard-vine-stroke-soft {
-    stroke-width: 2.1;
-    opacity: 0.78;
+    stroke-width: 1.55;
+    opacity: 0.66;
     animation-delay: 220ms;
   }
 
   .dashboard-vine-leaf {
     opacity: 0;
     animation: dashboardLeafBloom 780ms 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    filter: drop-shadow(0 8px 12px rgba(98, 170, 106, 0.14));
+    filter: drop-shadow(0 8px 12px rgba(98, 170, 106, 0.1));
   }
 
   .dashboard-vine-leaf-delay { animation-delay: 580ms; }
   .dashboard-vine-leaf-delay-2 { animation-delay: 740ms; }
+
+  .dashboard-vine-shell svg { overflow: visible; }
 
 }
 

@@ -5,7 +5,7 @@ import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
-import { useWalletBalance } from "@/lib/useWalletBalance";
+import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail } from "@/lib/admin";
 
 type DashboardPayload = {
@@ -96,6 +96,47 @@ function goalColor(goal: AssessmentGoal) {
   }
 }
 
+type GreeneryLevel = 0 | 1 | 2 | 3 | 4;
+
+function getGreeneryLevel(amountRub: number, isUnlimited = false): GreeneryLevel {
+  if (isUnlimited) return 4;
+  if (amountRub >= 5000) return 4;
+  if (amountRub >= 2500) return 3;
+  if (amountRub >= 1000) return 2;
+  if (amountRub >= 300) return 1;
+  return 0;
+}
+
+function getGreeneryLabel(level: GreeneryLevel) {
+  switch (level) {
+    case 4:
+      return "Зрелый сад";
+    case 3:
+      return "Сильное дерево";
+    case 2:
+      return "Молодое дерево";
+    case 1:
+      return "Саженец";
+    default:
+      return "Росток";
+  }
+}
+
+function getGreeneryHint(level: GreeneryLevel) {
+  switch (level) {
+    case 4:
+      return "Кабинет уже выглядит как живая среда: дерево раскрыто, а рамки окон обросли мягкой зеленью.";
+    case 3:
+      return "Дерево окрепло, а вьюны уже заметно обрамляют панели и рабочие окна.";
+    case 2:
+      return "Зелень уже начала собирать пространство: дерево выросло, а по краям панелей пошли первые вьюны.";
+    case 1:
+      return "Появился уверенный саженец и первые живые линии вокруг окон.";
+    default:
+      return "Пока в кабинете только маленький росток. Чем больше пополнений, тем гуще станет вся зелень.";
+  }
+}
+
 export default function DashboardPage() {
   const { session, user, loading: sessionLoading } = useSession();
   const router = useRouter();
@@ -114,11 +155,30 @@ export default function DashboardPage() {
   const [folderRenameValue, setFolderRenameValue] = useState("");
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderRow | null>(null);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
-  const { balance_rub, loading: walletLoading, isUnlimited } = useWalletBalance();
+  const { wallet, ledger, loading: walletLoading, isUnlimited } = useWallet();
   const isAdmin = isAdminEmail(user?.email);
   const [mechanicPulse, setMechanicPulse] = useState(0);
 
-  const triggerMechanics = useCallback((after?: () => void, delay = 680) => {
+  const balance_rub = useMemo(() => {
+    if (isUnlimited) return 999999;
+    return Math.floor(Number(wallet?.balance_kopeks ?? 0) / 100);
+  }, [isUnlimited, wallet?.balance_kopeks]);
+
+  const investedRub = useMemo(() => {
+    if (isUnlimited) return 10000;
+    const creditedKopeks = ledger.reduce((sum, item) => {
+      const amount = Number(item?.amount_kopeks ?? 0);
+      return amount > 0 ? sum + amount : sum;
+    }, 0);
+    const fromLedger = Math.floor(creditedKopeks / 100);
+    return Math.max(fromLedger, balance_rub, 0);
+  }, [balance_rub, isUnlimited, ledger]);
+
+  const greeneryLevel = useMemo(() => getGreeneryLevel(investedRub, isUnlimited), [investedRub, isUnlimited]);
+  const greeneryLabel = useMemo(() => getGreeneryLabel(greeneryLevel), [greeneryLevel]);
+  const greeneryHint = useMemo(() => getGreeneryHint(greeneryLevel), [greeneryLevel]);
+
+  const triggerMechanics = useCallback((after?: () => void, delay = 220) => {
     setMechanicPulse((value) => value + 1);
     if (after) {
       window.setTimeout(() => {
@@ -374,7 +434,7 @@ export default function DashboardPage() {
   return (
     <Layout title="Кабинет специалиста">
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
-        <DashboardBackdrop pulseToken={mechanicPulse} />
+        <DashboardBackdrop pulseToken={mechanicPulse} greeneryLevel={greeneryLevel} />
 
         <div className="relative z-10">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
@@ -385,14 +445,14 @@ export default function DashboardPage() {
 
           <div className="grid gap-4 lg:grid-cols-[1.6fr_0.7fr] items-stretch">
             <div className="card dashboard-panel dashboard-panel-vined relative h-full overflow-hidden">
-              <VineFrame pulseToken={mechanicPulse} density="rich" />
+              <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
               <div className="dashboard-panel-glow absolute -right-16 top-0 h-40 w-40 rounded-full bg-emerald-300/25 blur-3xl" />
               <div className="relative">
                 <div className="text-sm font-medium text-emerald-900/70">Рабочее пространство</div>
                 <div className="mt-2 text-2xl font-semibold text-slate-950 sm:text-[2rem]">{displayName}</div>
                 <div className="mt-2 text-sm text-slate-600">{workspaceName}</div>
                 <div className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-                  Кабинет теперь дышит легче: мягкий зелёно-белый градиент, стеклянные панели, рост живого дерева по нажатию и тонкие вьюны вокруг окон, чтобы система ощущалась как дорогая, живая и собранная среда.
+                  Кабинет теперь растёт от реального вклада: чем больше пополнений, тем крупнее дерево и тем гуще зелень вокруг панелей. {greeneryHint}
                 </div>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <PremiumActionButton
@@ -426,7 +486,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="card dashboard-panel dashboard-panel-vined dashboard-wallet h-full relative overflow-hidden border-emerald-100 bg-white/70">
-              <VineFrame pulseToken={mechanicPulse} density="light" />
+              <VineFrame growthLevel={greeneryLevel} density="light" pulseToken={mechanicPulse} />
               <div className="pointer-events-none absolute -right-16 top-1 h-44 w-44 rounded-full bg-white/70 blur-2xl" />
               <div className="pointer-events-none absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-[22px] border border-white/70 bg-white/80 text-xl text-emerald-900 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">₽</div>
               <div className="relative flex items-start justify-between gap-3 pr-14">
@@ -434,6 +494,9 @@ export default function DashboardPage() {
                   <div className="text-sm font-medium text-emerald-900/70">Кошелёк</div>
                   <div className="mt-1 text-2xl font-semibold text-slate-950">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
                   <div className="mt-2 max-w-[22rem] text-xs leading-5 text-slate-500">Баланс для открытия уровней результата, AI-интерпретаций и расширенных функций.</div>
+                  <div className="mt-3 rounded-2xl border border-emerald-100 bg-white/70 px-3 py-2 text-xs leading-5 text-emerald-900/80">
+                    Чем больше вложено рублей в кабинет, тем гуще зелень и крупнее дерево: {isUnlimited ? "без лимита" : `${investedRub} ₽`}. Сейчас это стадия «{greeneryLabel}».
+                  </div>
                 </div>
               </div>
               <div className="relative mt-5 grid grid-cols-2 gap-3">
@@ -457,7 +520,7 @@ export default function DashboardPage() {
 
       {isAdmin ? (
         <section className="card dashboard-panel dashboard-panel-vined relative mt-6 overflow-hidden">
-          <VineFrame pulseToken={mechanicPulse} density="light" />
+          <VineFrame growthLevel={greeneryLevel} density="light" pulseToken={mechanicPulse} />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-900">Админ-панель</div>
@@ -469,7 +532,7 @@ export default function DashboardPage() {
       ) : null}
 
       <section className="card dashboard-panel dashboard-panel-vined relative mt-6 overflow-hidden">
-        <VineFrame pulseToken={mechanicPulse} density="rich" />
+        <VineFrame growthLevel={greeneryLevel} density="rich" pulseToken={mechanicPulse} />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">Рабочий стол проектов</div>
@@ -634,6 +697,7 @@ export default function DashboardPage() {
 
 type DashboardBackdropProps = {
   pulseToken: number;
+  greeneryLevel: GreeneryLevel;
 };
 
 type PremiumActionButtonProps = {
@@ -645,11 +709,12 @@ type PremiumActionButtonProps = {
 };
 
 type VineFrameProps = {
-  pulseToken: number;
+  growthLevel: GreeneryLevel;
   density?: "rich" | "light";
+  pulseToken?: number;
 };
 
-function DashboardBackdrop({ pulseToken }: DashboardBackdropProps) {
+function DashboardBackdrop({ pulseToken, greeneryLevel }: DashboardBackdropProps) {
   return (
     <>
       <div className="pointer-events-none absolute inset-0">
@@ -659,11 +724,13 @@ function DashboardBackdrop({ pulseToken }: DashboardBackdropProps) {
         <div className="absolute bottom-[-4rem] left-1/3 h-64 w-64 rounded-full bg-teal-200/20 blur-3xl" />
       </div>
 
-      <TreeGrowthScene pulseToken={pulseToken} />
+      <TreeGrowthScene greeneryLevel={greeneryLevel} pulseToken={pulseToken} />
 
-      <div className="pointer-events-none absolute right-[4%] top-[12%] z-[1] opacity-70 blur-[0.2px]">
-        <SproutAura key={`sprout-aura-${pulseToken}`} />
-      </div>
+      {greeneryLevel <= 1 ? (
+        <div className="pointer-events-none absolute right-[4%] top-[12%] z-[1] opacity-70 blur-[0.2px]">
+          <SproutAura key={`sprout-aura-${pulseToken}`} />
+        </div>
+      ) : null}
     </>
   );
 }
@@ -683,10 +750,21 @@ function PremiumActionButton({ label, onClick, pulseToken, variant = "primary", 
   );
 }
 
-function TreeGrowthScene({ pulseToken }: { pulseToken: number }) {
+function TreeGrowthScene({ greeneryLevel, pulseToken }: { greeneryLevel: GreeneryLevel; pulseToken: number }) {
+  const sceneClass =
+    greeneryLevel >= 4
+      ? "h-[27rem] w-[28rem] max-w-[46vw] opacity-[0.98]"
+      : greeneryLevel === 3
+      ? "h-[24rem] w-[25rem] max-w-[44vw] opacity-[0.96]"
+      : greeneryLevel === 2
+      ? "h-[20rem] w-[21rem] max-w-[38vw] opacity-[0.94]"
+      : greeneryLevel === 1
+      ? "h-[16rem] w-[17rem] max-w-[32vw] opacity-[0.9]"
+      : "h-[11rem] w-[12rem] max-w-[24vw] opacity-[0.84]";
+
   return (
-    <div className="pointer-events-none absolute bottom-[-0.5rem] left-[-1.2rem] z-[1] h-[23rem] w-[24rem] max-w-[44vw] opacity-[0.92]">
-      <svg key={`tree-growth-${pulseToken}`} viewBox="0 0 360 360" className="h-full w-full" fill="none" aria-hidden="true">
+    <div className={`dashboard-tree-scene pointer-events-none absolute bottom-[-0.8rem] left-[-1.4rem] z-[1] transition-all duration-700 ${sceneClass}`}>
+      <svg key={`tree-growth-level-${greeneryLevel}-${pulseToken}`} viewBox="0 0 360 360" className="h-full w-full" fill="none" aria-hidden="true">
         <ellipse cx="135" cy="318" rx="78" ry="22" className="dashboard-tree-ground" />
 
         <g className="dashboard-tree-sprout">
@@ -695,28 +773,44 @@ function TreeGrowthScene({ pulseToken }: { pulseToken: number }) {
           <path d="M143 286C152 276 164 272 178 278C169 287 158 290 143 286Z" className="dashboard-tree-sprout-leaf dashboard-tree-sprout-leaf-alt" />
         </g>
 
-        <path d="M143 286C150 252 160 220 177 191C194 162 211 139 223 110" className="dashboard-tree-trunk" />
-        <path d="M179 190C162 175 145 165 126 159" className="dashboard-tree-branch dashboard-tree-branch-a" />
-        <path d="M191 166C211 157 229 143 245 120" className="dashboard-tree-branch dashboard-tree-branch-b" />
-        <path d="M204 145C192 124 177 108 156 96" className="dashboard-tree-branch dashboard-tree-branch-c" />
-        <path d="M214 131C234 123 252 108 267 86" className="dashboard-tree-branch dashboard-tree-branch-d" />
-        <path d="M167 208C153 214 139 224 124 239" className="dashboard-tree-branch dashboard-tree-branch-e" />
+        {greeneryLevel >= 1 ? <path d="M143 286C150 252 160 220 177 191C194 162 211 139 223 110" className="dashboard-tree-trunk" /> : null}
+        {greeneryLevel >= 1 ? <path d="M167 208C153 214 139 224 124 239" className="dashboard-tree-branch dashboard-tree-branch-e" /> : null}
+        {greeneryLevel >= 2 ? <path d="M179 190C162 175 145 165 126 159" className="dashboard-tree-branch dashboard-tree-branch-a" /> : null}
+        {greeneryLevel >= 2 ? <path d="M204 145C192 124 177 108 156 96" className="dashboard-tree-branch dashboard-tree-branch-c" /> : null}
+        {greeneryLevel >= 3 ? <path d="M191 166C211 157 229 143 245 120" className="dashboard-tree-branch dashboard-tree-branch-b" /> : null}
+        {greeneryLevel >= 3 ? <path d="M214 131C234 123 252 108 267 86" className="dashboard-tree-branch dashboard-tree-branch-d" /> : null}
 
-        <g className="dashboard-tree-canopy dashboard-tree-canopy-a">
-          <circle cx="118" cy="152" r="28" />
-          <circle cx="150" cy="132" r="30" />
-          <circle cx="176" cy="156" r="24" />
-        </g>
-        <g className="dashboard-tree-canopy dashboard-tree-canopy-b">
-          <circle cx="206" cy="122" r="29" />
-          <circle cx="242" cy="102" r="32" />
-          <circle cx="266" cy="132" r="22" />
-        </g>
-        <g className="dashboard-tree-canopy dashboard-tree-canopy-c">
-          <circle cx="154" cy="96" r="22" />
-          <circle cx="186" cy="80" r="19" />
-          <circle cx="214" cy="98" r="17" />
-        </g>
+        {greeneryLevel >= 1 ? (
+          <g className="dashboard-tree-canopy dashboard-tree-canopy-c">
+            <circle cx="154" cy="96" r="22" />
+            <circle cx="186" cy="80" r="19" />
+            <circle cx="214" cy="98" r="17" />
+          </g>
+        ) : null}
+        {greeneryLevel >= 2 ? (
+          <g className="dashboard-tree-canopy dashboard-tree-canopy-a">
+            <circle cx="118" cy="152" r="28" />
+            <circle cx="150" cy="132" r="30" />
+            <circle cx="176" cy="156" r="24" />
+          </g>
+        ) : null}
+        {greeneryLevel >= 3 ? (
+          <g className="dashboard-tree-canopy dashboard-tree-canopy-b">
+            <circle cx="206" cy="122" r="29" />
+            <circle cx="242" cy="102" r="32" />
+            <circle cx="266" cy="132" r="22" />
+          </g>
+        ) : null}
+
+        {greeneryLevel >= 4 ? (
+          <g className="dashboard-tree-canopy dashboard-tree-canopy-rich">
+            <circle cx="101" cy="188" r="18" />
+            <circle cx="126" cy="188" r="15" />
+            <circle cx="286" cy="152" r="18" />
+            <circle cx="246" cy="72" r="14" />
+            <circle cx="217" cy="58" r="12" />
+          </g>
+        ) : null}
       </svg>
     </div>
   );
@@ -745,28 +839,72 @@ function SproutBadge({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function VineFrame({ pulseToken, density = "rich" }: VineFrameProps) {
+function VineFrame({ growthLevel, density = "rich", pulseToken = 0 }: VineFrameProps) {
+  if (growthLevel === 0) return null;
+
   return (
-    <div key={`vine-frame-${density}-${pulseToken}`} className={`pointer-events-none absolute inset-0 z-[1] ${density === "rich" ? "opacity-95" : "opacity-80"}`}>
-      <CornerVine className="left-0 top-0" />
-      <CornerVine className="right-0 top-0 -scale-x-100" />
-      <CornerVine className="bottom-0 left-0 -scale-y-100" />
-      <CornerVine className="bottom-0 right-0 scale-y-[-1] scale-x-[-1]" />
+    <div key={`vines-${density}-${growthLevel}-${pulseToken}`} className={`dashboard-vine-shell pointer-events-none absolute inset-[8px] z-0 ${density === "rich" ? "opacity-95" : "opacity-80"}`}>
+      <CornerVine className="-left-3 -top-3" growthLevel={growthLevel} />
+      <CornerVine className="-right-3 -top-3 -scale-x-100" growthLevel={growthLevel} />
+      <CornerVine className="-bottom-3 -left-3 -scale-y-100" growthLevel={growthLevel} />
+      <CornerVine className="-bottom-3 -right-3 scale-y-[-1] scale-x-[-1]" growthLevel={growthLevel} />
+      {growthLevel >= 2 ? <EdgeVine side="top" growthLevel={growthLevel} /> : null}
+      {growthLevel >= 3 && density === "rich" ? <EdgeVine side="right" growthLevel={growthLevel} /> : null}
+      {growthLevel >= 4 && density === "rich" ? <EdgeVine side="bottom" growthLevel={growthLevel} /> : null}
     </div>
   );
 }
 
-function CornerVine({ className = "" }: { className?: string }) {
+function CornerVine({ className = "", growthLevel }: { className?: string; growthLevel: GreeneryLevel }) {
   return (
-    <div className={`absolute h-28 w-32 sm:h-32 sm:w-36 ${className}`}>
+    <div className={`absolute h-20 w-24 sm:h-24 sm:w-28 ${className}`}>
       <svg viewBox="0 0 160 150" className="h-full w-full" fill="none" aria-hidden="true">
         <path d="M14 138C20 111 30 93 46 78C64 61 79 52 102 44C116 39 131 27 143 12" className="dashboard-vine-stroke dashboard-vine-stroke-main" />
-        <path d="M36 134C46 110 57 95 72 84" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
-        <path d="M64 77C56 66 48 62 37 61" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
-        <path d="M100 44C95 30 90 23 79 16" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+        {growthLevel >= 2 ? <path d="M36 134C46 110 57 95 72 84" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
+        {growthLevel >= 3 ? <path d="M64 77C56 66 48 62 37 61" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
+        {growthLevel >= 4 ? <path d="M100 44C95 30 90 23 79 16" className="dashboard-vine-stroke dashboard-vine-stroke-soft" /> : null}
         <ellipse cx="55" cy="66" rx="8" ry="4.4" className="dashboard-vine-leaf" transform="rotate(-32 55 66)" />
-        <ellipse cx="82" cy="51" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(18 82 51)" />
-        <ellipse cx="108" cy="33" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(-25 108 33)" />
+        {growthLevel >= 2 ? <ellipse cx="82" cy="51" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(18 82 51)" /> : null}
+        {growthLevel >= 3 ? <ellipse cx="108" cy="33" rx="8" ry="4.4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(-25 108 33)" /> : null}
+        {growthLevel >= 4 ? <ellipse cx="37" cy="97" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(28 37 97)" /> : null}
+      </svg>
+    </div>
+  );
+}
+
+function EdgeVine({ side, growthLevel }: { side: "top" | "right" | "bottom"; growthLevel: GreeneryLevel }) {
+  if (side === "top") {
+    return (
+      <div className="absolute left-16 right-16 top-0 h-7 opacity-80">
+        <svg viewBox="0 0 360 48" className="h-full w-full" fill="none" aria-hidden="true">
+          <path d="M10 34C62 10 102 10 152 26C204 42 260 40 350 16" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+          <ellipse cx="92" cy="17" rx="7" ry="4" className="dashboard-vine-leaf" transform="rotate(-12 92 17)" />
+          <ellipse cx="170" cy="28" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(16 170 28)" />
+          {growthLevel >= 3 ? <ellipse cx="252" cy="26" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(-18 252 26)" /> : null}
+        </svg>
+      </div>
+    );
+  }
+
+  if (side === "right") {
+    return (
+      <div className="absolute right-0 top-16 bottom-16 w-5 opacity-75">
+        <svg viewBox="0 0 40 220" className="h-full w-full" fill="none" aria-hidden="true">
+          <path d="M14 8C28 38 28 70 18 104C10 138 12 172 28 212" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+          <ellipse cx="26" cy="52" rx="7" ry="4" className="dashboard-vine-leaf" transform="rotate(72 26 52)" />
+          <ellipse cx="12" cy="120" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(-68 12 120)" />
+          {growthLevel >= 4 ? <ellipse cx="24" cy="180" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay-2" transform="rotate(58 24 180)" /> : null}
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute bottom-0 left-20 right-20 h-6 opacity-70">
+      <svg viewBox="0 0 360 40" className="h-full w-full" fill="none" aria-hidden="true">
+        <path d="M12 8C72 30 134 34 190 22C246 10 296 10 348 30" className="dashboard-vine-stroke dashboard-vine-stroke-soft" />
+        <ellipse cx="110" cy="24" rx="7" ry="4" className="dashboard-vine-leaf" transform="rotate(-8 110 24)" />
+        <ellipse cx="230" cy="16" rx="7" ry="4" className="dashboard-vine-leaf dashboard-vine-leaf-delay" transform="rotate(14 230 16)" />
       </svg>
     </div>
   );
