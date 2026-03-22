@@ -1140,7 +1140,7 @@ type FolderDesktopIconProps = {
 function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
   const icon = getFolderIcon(folder.icon_key);
-  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.7;
+  const tilt = ((folder.sort_order || 0) % 5 - 2) * 0.35;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1155,7 +1155,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-folder-card relative flex h-[8.9rem] w-[10.85rem] items-end justify-start overflow-visible rounded-[22px] border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#9b7b44]" : "border-[#a97b3d]"} ${busy ? "opacity-70" : ""}`}
+        className={`dashboard-folder-card relative flex items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#8d6b3f]" : "border-[#9a7443]"} ${busy ? "opacity-70" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1234,7 +1234,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
   const tiltSeed = Array.from(project.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const tilt = ((tiltSeed % 7) - 3) * 0.7;
+  const tilt = ((tiltSeed % 7) - 3) * 0.28;
 
   return (
     <div className="group relative flex flex-col items-center gap-2" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -1263,20 +1263,27 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
         }}
         onDragEnd={onDragEnd}
         onClick={onOpen}
-        className={`dashboard-project-sheet relative flex ${compact ? "h-[8.5rem] w-[8rem]" : "h-[11rem] w-[9rem]"} flex-col items-start justify-start overflow-hidden rounded-[18px] border px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-xl ${isDone ? "border-[#d7bb8f]" : "border-[#dfd2bb]"} ${busy ? "opacity-60" : ""}`}
+        className={`dashboard-project-sheet relative flex flex-col items-start justify-start overflow-hidden border px-[0.8rem] py-[0.9rem] text-left transition hover:-translate-y-0.5 hover:shadow-xl ${compact ? "dashboard-project-sheet-compact" : ""} ${isDone ? "border-[#d7bb8f]" : "border-[#dfd2bb]"} ${busy ? "opacity-60" : ""}`}
       >
+        <div className="dashboard-project-sheet-shadow" aria-hidden="true" />
         <div className="dashboard-project-sheet-corner" />
         <div className="dashboard-project-sheet-pin" aria-hidden="true" />
         <div className="dashboard-project-sheet-impression" aria-hidden="true" />
         <div className="dashboard-project-sheet-lines" aria-hidden="true" />
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8b6b49]">Лист проекта</div>
-        <div className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-[#3f2a18]">{titleLine}</div>
-        <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#7d6140]">{secondaryLine}</div>
-        <div className="mt-3 text-[10px] uppercase tracking-[0.12em] text-[#9d7b56]">Общая оценка</div>
-        <div className="mt-1 text-sm font-medium text-[#5a3d22]">{assessmentLine}</div>
-        <div className="mt-2 text-[11px] leading-5 text-[#7f5f3d]">{goal?.shortTitle || project.goal}</div>
-        <div className="mt-1 text-[11px] text-[#8b6a46]">Тестов: {total || 0} · Выполнено: {completed}</div>
-        <div className={`mt-auto rounded-full px-2 py-1 text-[10px] font-semibold shadow-sm ${isDone ? "bg-emerald-100 text-emerald-900" : "bg-white/90 text-[#6e5234]"}`}>
+        <div className="dashboard-project-sheet-rule" aria-hidden="true" />
+        <div className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#857156]">Проект оценки</div>
+        <div className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-[#2c2114]">{titleLine}</div>
+        <div className="mt-2 grid w-full gap-1.5 text-[11px] leading-4 text-[#5d4a34]">
+          <div><span className="dashboard-project-label">Участник</span> {displayName}</div>
+          <div><span className="dashboard-project-label">Роль</span> {secondaryLine}</div>
+          <div><span className="dashboard-project-label">Цель</span> {goal?.shortTitle || project.goal}</div>
+          <div><span className="dashboard-project-label">Статус</span> {assessmentLine}</div>
+        </div>
+        <div className="mt-auto flex w-full items-end justify-between gap-2 text-[10px] text-[#6f5a42]">
+          <span>Тестов: {total || 0}</span>
+          <span>Выполнено: {completed}</span>
+        </div>
+        <div className={`mt-2 rounded-sm border px-2 py-1 text-[10px] font-semibold ${isDone ? "border-[#b7ceb0] bg-[#eef7ea] text-[#355a31]" : "border-[#ddd2c0] bg-[#fbf8f2] text-[#6e5234]"}`}>
           {isDone ? "Готово" : `${completed}/${total || 0}`}
         </div>
       </button>
