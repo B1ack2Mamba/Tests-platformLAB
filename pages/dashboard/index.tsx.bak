@@ -133,6 +133,7 @@ const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
 const SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
 const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
 const TRAY_GUIDE_ID = "guide:tray";
+const TRASH_GUIDE_ID = "guide:trash";
 const FOLDER_TEMPLATE_ID = "template:folder";
 const PROJECT_TEMPLATE_ID = "template:project";
 
@@ -378,18 +379,35 @@ function getDefaultTrayGuidePosition(): DeskPosition {
   };
 }
 
+function getDefaultTrashGuidePosition(): DeskPosition {
+  return {
+    x: TRASH_ZONE.x,
+    y: TRASH_ZONE.y,
+    z: 18,
+    width: TRASH_ZONE.width,
+    height: TRASH_ZONE.height,
+    rotation: 0,
+    tiltX: 0,
+    tiltY: 0,
+  };
+}
+
 function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved: DeskPositions): DeskPositions {
   const next: DeskPositions = {};
 
   next[TRAY_GUIDE_ID] = saved[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
+  next[TRASH_GUIDE_ID] = saved[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
 
   const folderTemplate = saved[FOLDER_TEMPLATE_ID] || {};
   const projectTemplate = saved[PROJECT_TEMPLATE_ID] || {};
+  const trayRect = getGuideClipRect(next[TRAY_GUIDE_ID]);
 
   folders.forEach((folder, index) => {
     const key = `folder:${folder.id}`;
     next[key] = saved[key] || {
-      ...getDefaultFolderPosition(index),
+      x: trayRect.x + 8 + index * 12,
+      y: trayRect.y + 6 + index * 7,
+      z: 20 + index,
       width: folderTemplate.width,
       height: folderTemplate.height,
       rotation: folderTemplate.rotation,
@@ -805,6 +823,9 @@ export default function DashboardPage() {
     if (selectedDeskItemId === TRAY_GUIDE_ID) {
       return { kind: "guide" as const, id: selectedDeskItemId, title: "Виртуальная стойка", position: deskPositions[selectedDeskItemId] || getDefaultTrayGuidePosition() };
     }
+    if (selectedDeskItemId === TRASH_GUIDE_ID) {
+      return { kind: "guide" as const, id: selectedDeskItemId, title: "Виртуальная зона корзины", position: deskPositions[selectedDeskItemId] || getDefaultTrashGuidePosition() };
+    }
     if (selectedDeskItemId.startsWith("folder:")) {
       const id = selectedDeskItemId.replace("folder:", "");
       const folder = folders.find((item) => item.id === id);
@@ -877,6 +898,8 @@ export default function DashboardPage() {
     const centerY = y + 48;
     return centerX >= rect.x && centerX <= rect.x + rect.width && centerY >= rect.y && centerY <= rect.y + rect.height;
   }, [deskPositions]);
+
+  const trashGuideRect = useMemo(() => getGuideClipRect(deskPositions[TRASH_GUIDE_ID]), [deskPositions]);
 
   const placeDeskItem = useCallback((itemId: string, kind: "folder" | "project", x: number, y: number) => {
     const current = deskPositions[itemId] || {};
@@ -1310,9 +1333,11 @@ export default function DashboardPage() {
               </label>
               {selectedDeskItem.kind === "guide" ? (
                 <>
-                  <label className="text-xs text-[#7b5b3b] md:col-span-7">Текст на стойке
-                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={trayGuideText} onChange={(e) => setTrayGuideText(e.target.value)} />
-                  </label>
+                  {selectedDeskItem.id === TRAY_GUIDE_ID ? (
+                    <label className="text-xs text-[#7b5b3b] md:col-span-7">Текст на стойке
+                      <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={trayGuideText} onChange={(e) => setTrayGuideText(e.target.value)} />
+                    </label>
+                  ) : null}
                   <label className="text-xs text-[#7b5b3b]">TL X
                     <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTlx || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipTlx: Number(e.target.value || 0) })} />
                   </label>
@@ -1387,48 +1412,75 @@ export default function DashboardPage() {
                 );
               })}
             </div>
-            <button
-              type="button"
-              className={`dashboard-trash-zone absolute z-[14] ${trashHover ? 'dashboard-trash-zone-active' : ''}`}
-              style={{ left: `${TRASH_ZONE.x}px`, top: `${TRASH_ZONE.y}px`, width: `${TRASH_ZONE.width}px`, height: `${TRASH_ZONE.height}px` }}
-              onClick={(e) => { e.stopPropagation(); setTrashOpen(true); }}
-              onDragEnter={(e) => {
-                e.preventDefault();
-                const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
-                const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
-                if (draggedProjectId) beginTrashHover('project', draggedProjectId);
-                else if (draggedFolderId) beginTrashHover('folder', draggedFolderId);
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
-                const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
-                if (draggedProjectId) beginTrashHover('project', draggedProjectId);
-                else if (draggedFolderId) beginTrashHover('folder', draggedFolderId);
-              }}
-              onDragLeave={() => clearTrashHover()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
-                const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
-                if (draggedProjectId) {
-                  const project = (workspace?.projects || []).find((item) => item.id === draggedProjectId);
-                  moveToTrash('project', draggedProjectId, project?.title || project?.person?.full_name || 'Проект');
-                  setDraggingProjectId(null);
-                } else if (draggedFolderId) {
-                  const folder = (workspace?.folders || []).find((item) => item.id === draggedFolderId);
-                  moveToTrash('folder', draggedFolderId, folder?.name || 'Папка');
-                  setDraggingFolderId(null);
-                }
-                clearTrashHover();
-              }}
-              aria-label="Корзина"
-              title="Корзина"
-            >
-              <span className="dashboard-trash-zone-icon" aria-hidden="true">🗑</span>
-              <span className="dashboard-trash-zone-label">Корзина</span>
-            </button>
-
+            {(() => {
+              const trashPosition = deskPositions[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
+              const width = trashPosition.width || TRASH_ZONE.width;
+              const height = trashPosition.height || TRASH_ZONE.height;
+              const isSelected = selectedDeskItemId === TRASH_GUIDE_ID;
+              return (
+                <div
+                  className={`dashboard-trash-zone absolute z-[14] ${trashHover ? 'dashboard-trash-zone-active' : ''} ${sceneEditMode ? 'dashboard-trash-zone-editing' : ''} ${isSelected ? 'dashboard-desk-entity-selected' : ''}`}
+                  style={{ left: `${trashPosition.x}px`, top: `${trashPosition.y}px`, width: `${width}px`, height: `${height}px`, transform: getGuideTransform(trashPosition), transformOrigin: 'top left' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (sceneEditMode) {
+                      setSelectedDeskItemId(TRASH_GUIDE_ID);
+                      setSelectedWidgetId(null);
+                    } else {
+                      setTrashOpen(true);
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    if (!sceneEditMode) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedDeskItemId(TRASH_GUIDE_ID);
+                    setSelectedWidgetId(null);
+                    startDeskItemInteraction(e, TRASH_GUIDE_ID, 'guide', 'drag', trashPosition);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                    const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                    if (draggedProjectId) beginTrashHover('project', draggedProjectId);
+                    else if (draggedFolderId) beginTrashHover('folder', draggedFolderId);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                    const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                    if (draggedProjectId) beginTrashHover('project', draggedProjectId);
+                    else if (draggedFolderId) beginTrashHover('folder', draggedFolderId);
+                  }}
+                  onDragLeave={() => clearTrashHover()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                    const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                    if (draggedProjectId) {
+                      const project = (workspace?.projects || []).find((item) => item.id === draggedProjectId);
+                      moveToTrash('project', draggedProjectId, project?.title || project?.person?.full_name || 'Проект');
+                      setDraggingProjectId(null);
+                    } else if (draggedFolderId) {
+                      const folder = (workspace?.folders || []).find((item) => item.id === draggedFolderId);
+                      moveToTrash('folder', draggedFolderId, folder?.name || 'Папка');
+                      setDraggingFolderId(null);
+                    }
+                    clearTrashHover();
+                  }}
+                  aria-label="Корзина"
+                  title="Корзина"
+                >
+                  {sceneEditMode ? <span className="dashboard-trash-zone-label">Корзина</span> : null}
+                  {sceneEditMode && isSelected ? (
+                    <>
+                      <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, TRASH_GUIDE_ID, 'guide', 'rotate', trashPosition)} aria-label="Повернуть зону корзины">↻</button>
+                      <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, TRASH_GUIDE_ID, 'guide', 'resize', trashPosition)} aria-label="Изменить размер зоны корзины">↘</button>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })()}
             {(() => {
               const guidePosition = deskPositions[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
               const guideWidth = guidePosition.width || 228;
@@ -1453,9 +1505,22 @@ export default function DashboardPage() {
                   }}
                 >
                   <div className={`dashboard-tray-guide-box ${sceneEditMode ? "dashboard-tray-guide-box-editing" : ""}`}>
-                    <div className="dashboard-tray-guide-inner" style={{ clipPath: getGuideClipPath(guidePosition) }}>
+                    <button
+                      type="button"
+                      className="dashboard-tray-guide-inner"
+                      style={{ clipPath: getGuideClipPath(guidePosition), pointerEvents: sceneEditMode ? 'none' : 'auto' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!sceneEditMode) {
+                          const name = window.prompt('Название новой папки', 'Новая папка');
+                          if (name && name.trim()) {
+                            void createFolderNamed(name.trim(), 'folder');
+                          }
+                        }
+                      }}
+                    >
                       <div className="dashboard-tray-guide-label">{trayGuideText}</div>
-                    </div>
+                    </button>
                   </div>
                   {sceneEditMode ? (
                     <button

@@ -471,6 +471,7 @@ export default function DashboardPage() {
   const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
   const widgetInteractionRef = useRef<WidgetInteractionState | null>(null);
   const deskInteractionRef = useRef<DeskItemInteractionState | null>(null);
+  const pendingCreatedFolderRef = useRef<{ id: string } | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -679,8 +680,7 @@ export default function DashboardPage() {
         return;
       }
       if (action === "createFolder") {
-        const name = window.prompt('Название новой папки', 'Новая папка');
-        if (name && name.trim()) void createFolderNamed(name.trim(), 'folder');
+        promptAndCreateFolder();
         return;
       }
     },
@@ -878,6 +878,22 @@ export default function DashboardPage() {
     window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id), JSON.stringify(deskPositions));
   }, [deskPositions, workspace?.workspace?.workspace_id]);
 
+  useEffect(() => {
+    const pending = pendingCreatedFolderRef.current;
+    if (!pending) return;
+    const folderExists = folders.some((item) => item.id === pending.id);
+    if (!folderExists) return;
+    const nextPosition = getNextFolderSpawnPosition(pending.id);
+    setDeskPositions((prev) => ({
+      ...prev,
+      [`folder:${pending.id}`]: {
+        ...(prev[`folder:${pending.id}`] || {}),
+        ...nextPosition,
+      },
+    }));
+    pendingCreatedFolderRef.current = null;
+  }, [folders, getNextFolderSpawnPosition]);
+
   const bringDeskItemToFront = useCallback((itemId: string) => {
     setDeskLayer((current) => {
       const next = current + 1;
@@ -900,6 +916,28 @@ export default function DashboardPage() {
   }, [deskPositions]);
 
   const trashGuideRect = useMemo(() => getGuideClipRect(deskPositions[TRASH_GUIDE_ID]), [deskPositions]);
+
+  const getNextFolderSpawnPosition = useCallback((folderId: string) => {
+    const guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
+    const template = deskPositions[FOLDER_TEMPLATE_ID] || {};
+    const folderCountInTray = folders.filter((folder) => {
+      const position = deskPositions[`folder:${folder.id}`];
+      if (!position) return true;
+      const centerX = (position.x || 0) + ((position.width || DESK_FOLDER_WIDTH) / 2);
+      const centerY = (position.y || 0) + ((position.height || DESK_FOLDER_HEIGHT) / 2);
+      return centerX >= guideRect.x && centerX <= guideRect.x + guideRect.width && centerY >= guideRect.y && centerY <= guideRect.y + guideRect.height;
+    }).length;
+    return {
+      x: guideRect.x + 8 + folderCountInTray * 12,
+      y: guideRect.y + 6 + folderCountInTray * 7,
+      z: deskLayer + folderCountInTray + 1,
+      width: template.width,
+      height: template.height,
+      rotation: template.rotation,
+      tiltX: template.tiltX,
+      tiltY: template.tiltY,
+    } as DeskPosition;
+  }, [deskLayer, deskPositions, folders]);
 
   const placeDeskItem = useCallback((itemId: string, kind: "folder" | "project", x: number, y: number) => {
     const current = deskPositions[itemId] || {};
@@ -993,21 +1031,11 @@ export default function DashboardPage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось создать папку");
       const newFolderId = String(json?.folder?.id || "");
       if (newFolderId) {
-        const template = deskPositions[FOLDER_TEMPLATE_ID] || {};
-        const guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
-        const existingCount = folders.length;
+        pendingCreatedFolderRef.current = { id: newFolderId };
+        const nextPosition = getNextFolderSpawnPosition(newFolderId);
         setDeskPositions((prev) => ({
           ...prev,
-          [`folder:${newFolderId}`]: {
-            x: guideRect.x + 8 + existingCount * 12,
-            y: guideRect.y + 6 + existingCount * 7,
-            z: deskLayer + existingCount + 1,
-            width: template.width,
-            height: template.height,
-            rotation: template.rotation,
-            tiltX: template.tiltX,
-            tiltY: template.tiltY,
-          },
+          [`folder:${newFolderId}`]: nextPosition,
         }));
       }
       setNewFolderName("");
@@ -1018,6 +1046,11 @@ export default function DashboardPage() {
     } finally {
       setBusyFolderId(null);
     }
+  }
+
+  function promptAndCreateFolder() {
+    const name = typeof window !== 'undefined' ? window.prompt('Название новой папки', 'Новая папка') : null;
+    if (name && name.trim()) void createFolderNamed(name.trim(), 'folder');
   }
 
   async function createFolder() {
@@ -1263,7 +1296,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim()) void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>Новая папка</button>
             {canEditScene ? (
               <>
                 <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setSceneEditMode((prev) => !prev)}>
@@ -1512,10 +1545,7 @@ export default function DashboardPage() {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!sceneEditMode) {
-                          const name = window.prompt('Название новой папки', 'Новая папка');
-                          if (name && name.trim()) {
-                            void createFolderNamed(name.trim(), 'folder');
-                          }
+                          promptAndCreateFolder();
                         }
                       }}
                     >
