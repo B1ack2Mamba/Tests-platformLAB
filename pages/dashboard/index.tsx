@@ -619,6 +619,27 @@ export default function DashboardPage() {
     [balanceText, data?.profile?.email, displayName, greeneryLabel, investedText, user?.email, workspaceName]
   );
 
+  const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
+  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
+  const projects = useMemo(() => (workspace?.projects || []).filter((item) => !trashedProjectIds.has(item.id)), [trashedProjectIds, workspace?.projects]);
+  const folders = useMemo(() => (workspace?.folders || []).filter((item) => !trashedFolderIds.has(item.id)), [trashedFolderIds, workspace?.folders]);
+  const folderBuckets = useMemo(() => {
+    const buckets = new Map<string, ProjectRow[]>();
+    for (const folder of folders) buckets.set(folder.id, []);
+    const uncategorized: ProjectRow[] = [];
+    for (const project of projects) {
+      if (project.folder_id && buckets.has(project.folder_id)) {
+        buckets.get(project.folder_id)!.push(project);
+      } else {
+        uncategorized.push(project);
+      }
+    }
+    return {
+      uncategorized: sortProjects(uncategorized),
+      byFolder: folders.map((folder) => ({ folder, projects: sortProjects(buckets.get(folder.id) || []) })),
+    };
+  }, [folders, projects]);
+
   useEffect(() => {
     if (!session?.access_token) {
       setGlobalSceneTemplate(null);
@@ -935,27 +956,6 @@ export default function DashboardPage() {
       setSavingGlobalSceneTemplate(false);
     }
   }, [canEditScene, deskPositions, sceneWidgets, session?.access_token, trayGuideText, workspace?.workspace?.workspace_id]);
-
-  const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
-  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
-  const projects = useMemo(() => (workspace?.projects || []).filter((item) => !trashedProjectIds.has(item.id)), [trashedProjectIds, workspace?.projects]);
-  const folders = useMemo(() => (workspace?.folders || []).filter((item) => !trashedFolderIds.has(item.id)), [trashedFolderIds, workspace?.folders]);
-  const folderBuckets = useMemo(() => {
-    const buckets = new Map<string, ProjectRow[]>();
-    for (const folder of folders) buckets.set(folder.id, []);
-    const uncategorized: ProjectRow[] = [];
-    for (const project of projects) {
-      if (project.folder_id && buckets.has(project.folder_id)) {
-        buckets.get(project.folder_id)!.push(project);
-      } else {
-        uncategorized.push(project);
-      }
-    }
-    return {
-      uncategorized: sortProjects(uncategorized),
-      byFolder: folders.map((folder) => ({ folder, projects: sortProjects(buckets.get(folder.id) || []) })),
-    };
-  }, [folders, projects]);
 
   const activeFolder = useMemo(
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,
@@ -1689,20 +1689,20 @@ export default function DashboardPage() {
                     transformStyle: 'preserve-3d',
                     pointerEvents: sceneEditMode ? 'auto' : 'none'
                   }}
-                  onMouseDown={(e) => {
-                    if (!sceneEditMode) return;
+                  onMouseDown={sceneEditMode ? ((e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.closest('.dashboard-desk-entity-handle')) return;
                     e.preventDefault();
                     e.stopPropagation();
                     setSelectedDeskItemId(TRAY_GUIDE_ID);
                     setSelectedWidgetId(null);
                     startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
-                  }}
-                  onClick={(e) => {
-                    if (!sceneEditMode) return;
+                  }) : undefined}
+                  onClick={sceneEditMode ? ((e) => {
                     e.stopPropagation();
                     setSelectedDeskItemId(TRAY_GUIDE_ID);
                     setSelectedWidgetId(null);
-                  }}
+                  }) : undefined}
                 >
                   <div className={`dashboard-tray-guide-box ${sceneEditMode ? "dashboard-tray-guide-box-editing" : ""}`}>
                     <button
@@ -1719,29 +1719,6 @@ export default function DashboardPage() {
                       <div className="dashboard-tray-guide-label">{trayGuideText}</div>
                     </button>
                   </div>
-                  {sceneEditMode ? (
-                    <button
-                      type="button"
-                      className="dashboard-tray-guide-selector"
-                      style={{ pointerEvents: 'auto' }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setSelectedDeskItemId(TRAY_GUIDE_ID);
-                        setSelectedWidgetId(null);
-                        startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedDeskItemId(TRAY_GUIDE_ID);
-                        setSelectedWidgetId(null);
-                      }}
-                      aria-label="Выбрать виртуальную стойку"
-                      title="Выбрать виртуальную стойку"
-                    >
-                      ⤢
-                    </button>
-                  ) : null}
                   {sceneEditMode && isSelected ? (
                     <>
                       <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "rotate", guidePosition)} aria-label="Повернуть зону стойки">↻</button>
