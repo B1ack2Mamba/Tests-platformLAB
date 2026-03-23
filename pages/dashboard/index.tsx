@@ -49,6 +49,16 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
+type SceneTemplatePayload = {
+  ok: true;
+  template: {
+    updated_at: string;
+    scene_widgets: SceneWidget[];
+    desk_template: DeskPositions;
+    tray_guide_text: string;
+  } | null;
+};
+
 type DeskPosition = {
   x: number;
   y: number;
@@ -126,6 +136,7 @@ const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
+const SCENE_TEMPLATE_APPLIED_PREFIX = "commercialSceneTemplateApplied:v1837:";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
 const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
@@ -311,6 +322,10 @@ function getTrashStorageKey(workspaceId: string) {
   return `${TRASH_STORAGE_PREFIX}${workspaceId}`;
 }
 
+function getSceneTemplateAppliedKey(workspaceId: string) {
+  return `${SCENE_TEMPLATE_APPLIED_PREFIX}${workspaceId}`;
+}
+
 function buildDefaultSceneWidgets(params: {
   displayName: string;
   workspaceName: string;
@@ -439,6 +454,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [workspace, setWorkspace] = useState<WorkspacePayload | null>(null);
+  const [globalSceneTemplate, setGlobalSceneTemplate] = useState<SceneTemplatePayload["template"] | null>(null);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateMessage, setTemplateMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
@@ -566,12 +584,13 @@ export default function DashboardPage() {
         saved = [];
       }
     }
-    const normalizedWidgets = (saved.length ? saved : defaultSceneWidgets).map((item) => {
+    const sourceWidgets = globalSceneTemplate?.scene_widgets?.length ? globalSceneTemplate.scene_widgets : (saved.length ? saved : defaultSceneWidgets);
+    const normalizedWidgets = sourceWidgets.map((item) => {
       if (item.id === "create-project") return { ...item, tone: "buttonSecondary" as SceneWidgetTone };
       return item;
     });
     setSceneWidgets(normalizedWidgets);
-  }, [defaultSceneWidgets, workspace?.workspace?.workspace_id]);
+  }, [defaultSceneWidgets, globalSceneTemplate?.scene_widgets, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined" || !sceneWidgets.length) return;
@@ -581,6 +600,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    if (globalSceneTemplate?.tray_guide_text?.trim()) {
+      setTrayGuideText(globalSceneTemplate.tray_guide_text.trim());
+      return;
+    }
     try {
       const raw = window.localStorage.getItem(getTrayGuideTextStorageKey(workspace.workspace.workspace_id));
       if (raw && raw.trim()) setTrayGuideText(raw);
@@ -588,7 +611,7 @@ export default function DashboardPage() {
     } catch {
       setTrayGuideText("Создать новую папку проектов");
     }
-  }, [workspace?.workspace?.workspace_id]);
+  }, [globalSceneTemplate?.tray_guide_text, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -866,12 +889,23 @@ export default function DashboardPage() {
         })()
       : ({} as DeskPositions);
 
+    const templateDesk = globalSceneTemplate?.desk_template || {};
+    let workingSaved = saved;
+    if (typeof window !== "undefined" && globalSceneTemplate?.updated_at) {
+      const appliedKey = getSceneTemplateAppliedKey(workspace.workspace.workspace_id);
+      const appliedVersion = window.localStorage.getItem(appliedKey);
+      if (appliedVersion !== globalSceneTemplate.updated_at) {
+        workingSaved = {} as DeskPositions;
+        window.localStorage.setItem(appliedKey, globalSceneTemplate.updated_at);
+      }
+    }
+
     setDeskPositions((current) => {
-      const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...saved, ...current });
+      const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...workingSaved, ...current, ...templateDesk });
       setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
       return merged;
     });
-  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized]);
+  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, globalSceneTemplate?.updated_at, globalSceneTemplate?.desk_template]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -1279,6 +1313,41 @@ export default function DashboardPage() {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return !isInsideGuideRect(pos.x, pos.y);
   });
+  const saveSceneAsGlobalTemplate = useCallback(async () => {
+    if (!session || !canEditScene) return;
+    setTemplateSaving(true);
+    setTemplateMessage("");
+    try {
+      const deskTemplate: DeskPositions = {};
+      [TRAY_GUIDE_ID, TRASH_GUIDE_ID, FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID].forEach((key) => {
+        if (deskPositions[key]) deskTemplate[key] = deskPositions[key];
+      });
+      const resp = await fetch('/api/commercial/scene-template/save', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          scene_widgets: sceneWidgets,
+          desk_template: deskTemplate,
+          tray_guide_text: trayGuideText,
+        }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || 'Не удалось сохранить шаблон');
+      setTemplateMessage('Шаблон сохранён для всех пользователей');
+      setGlobalSceneTemplate(json.template || null);
+      if (workspace?.workspace?.workspace_id && typeof window !== 'undefined' && json?.template?.updated_at) {
+        window.localStorage.setItem(getSceneTemplateAppliedKey(workspace.workspace.workspace_id), json.template.updated_at);
+      }
+    } catch (e: any) {
+      setTemplateMessage(e?.message || 'Не удалось сохранить шаблон');
+    } finally {
+      setTemplateSaving(false);
+    }
+  }, [canEditScene, deskPositions, sceneWidgets, session, trayGuideText, workspace?.workspace?.workspace_id]);
+
 
   return (
     <Layout title="Кабинет специалиста">
@@ -1304,12 +1373,18 @@ export default function DashboardPage() {
                   {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
                 </button>
                 {sceneEditMode ? (
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
+                  <>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => void saveSceneAsGlobalTemplate()} disabled={templateSaving}>
+                      {templateSaving ? 'Сохраняю…' : 'Сделать шаблоном для всех'}
+                    </button>
+                  </>
                 ) : null}
               </>
             ) : null}
           </div>
         </div>
+        {templateMessage ? <div className="mb-3 rounded-[16px] border border-[#d8c6ab] bg-white/90 px-4 py-2 text-sm text-[#6a4b31]">{templateMessage}</div> : null}
 
         {canEditScene && sceneEditMode && selectedWidget ? (
           <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">

@@ -149,7 +149,10 @@ export default function AuthStartPage() {
       if (password !== password2) throw new Error("Пароли не совпадают.");
       if (!fullName.trim()) throw new Error("Укажи имя и фамилию.");
 
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_SUPABASE_URL);
+      const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+      const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_BASE_URL || "";
+      const envLooksLocal = /localhost|127\.0\.0\.1/i.test(envSiteUrl);
+      const siteUrl = (!envLooksLocal && envSiteUrl) || browserOrigin || envSiteUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
