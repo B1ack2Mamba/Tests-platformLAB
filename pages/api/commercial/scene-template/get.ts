@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 
 type SceneTemplateRow = {
-  version: number;
+  version?: number | null;
   scene_widgets: any[] | null;
   tray_guide_text: string | null;
   tray_guide_position: Record<string, any> | null;
@@ -19,11 +19,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!authed) return;
 
   try {
-    const { data, error } = await authed.supabaseAdmin
+    let data: any = null;
+    let error: any = null;
+
+    ({ data, error } = await authed.supabaseAdmin
       .from("commercial_scene_templates")
       .select("version, scene_widgets, tray_guide_text, tray_guide_position, trash_guide_position, folder_template, project_template, updated_at")
       .eq("template_key", "global_default")
-      .maybeSingle();
+      .maybeSingle());
+
+    const missingVersionColumn = (error as any)?.code === "42703" || String((error as any)?.message || "").includes("commercial_scene_templates.version");
+
+    if (missingVersionColumn) {
+      ({ data, error } = await authed.supabaseAdmin
+        .from("commercial_scene_templates")
+        .select("scene_widgets, tray_guide_text, tray_guide_position, trash_guide_position, folder_template, project_template, updated_at")
+        .eq("template_key", "global_default")
+        .maybeSingle());
+
+      if (!error && data) {
+        data = { version: 1, ...data };
+      }
+    }
 
     if (error) {
       if ((error as any)?.code === "42P01") {

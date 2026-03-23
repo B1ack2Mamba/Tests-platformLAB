@@ -24,11 +24,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const body = (req.body || {}) as IncomingTemplate;
 
   try {
-    const { data: existing, error: existingError } = await authed.supabaseAdmin
+    let existing: any = null;
+    let existingError: any = null;
+
+    ({ data: existing, error: existingError } = await authed.supabaseAdmin
       .from("commercial_scene_templates")
       .select("version")
       .eq("template_key", "global_default")
-      .maybeSingle();
+      .maybeSingle());
+
+    const missingVersionColumn = (existingError as any)?.code === "42703" || String((existingError as any)?.message || "").includes("commercial_scene_templates.version");
+
+    if (missingVersionColumn) {
+      existing = null;
+      existingError = null;
+    }
 
     if (existingError && (existingError as any)?.code !== "PGRST116" && (existingError as any)?.code !== "42P01") {
       throw existingError;
@@ -36,9 +46,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const nextVersion = Number((existing as any)?.version || 0) + 1;
 
-    const payload = {
+    const basePayload = {
       template_key: "global_default",
-      version: nextVersion,
       scene_widgets: Array.isArray(body.sceneWidgets) ? body.sceneWidgets : [],
       tray_guide_text: (body.trayGuideText || "Создать новую папку проектов").trim(),
       tray_guide_position: body.trayGuidePosition || null,
@@ -49,11 +58,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await authed.supabaseAdmin
+    const payloadWithVersion = {
+      ...basePayload,
+      version: nextVersion,
+    };
+
+    let data: any = null;
+    let error: any = null;
+
+    ({ data, error } = await authed.supabaseAdmin
       .from("commercial_scene_templates")
-      .upsert(payload, { onConflict: "template_key" })
+      .upsert(payloadWithVersion, { onConflict: "template_key" })
       .select("version, scene_widgets, tray_guide_text, tray_guide_position, trash_guide_position, folder_template, project_template, updated_at")
-      .single();
+      .single());
+
+    if ((error as any)?.code === "42703" || String((error as any)?.message || "").includes("commercial_scene_templates.version")) {
+      ({ data, error } = await authed.supabaseAdmin
+        .from("commercial_scene_templates")
+        .upsert(basePayload, { onConflict: "template_key" })
+        .select("scene_widgets, tray_guide_text, tray_guide_position, trash_guide_position, folder_template, project_template, updated_at")
+        .single());
+
+      if (!error && data) {
+        data = { version: 1, ...data };
+      }
+    }
 
     if (error) {
       if ((error as any)?.code === "42P01") {
@@ -65,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       ok: true,
       template: {
-        version: Number((data as any)?.version || nextVersion),
+        version: Number((data as any)?.version || nextVersion || 1),
         sceneWidgets: Array.isArray((data as any)?.scene_widgets) ? (data as any).scene_widgets : [],
         trayGuideText: (data as any)?.tray_guide_text || "Создать новую папку проектов",
         trayGuidePosition: (data as any)?.tray_guide_position || null,
