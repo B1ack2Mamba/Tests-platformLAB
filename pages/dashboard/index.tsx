@@ -400,11 +400,14 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
 
   const folderTemplate = saved[FOLDER_TEMPLATE_ID] || {};
   const projectTemplate = saved[PROJECT_TEMPLATE_ID] || {};
+  const trayRect = getGuideClipRect(next[TRAY_GUIDE_ID]);
 
   folders.forEach((folder, index) => {
     const key = `folder:${folder.id}`;
     next[key] = saved[key] || {
-      ...getDefaultFolderPosition(index),
+      x: trayRect.x + 8 + index * 12,
+      y: trayRect.y + 6 + index * 7,
+      z: 20 + index,
       width: folderTemplate.width,
       height: folderTemplate.height,
       rotation: folderTemplate.rotation,
@@ -1510,7 +1513,9 @@ export default function DashboardPage() {
                         e.stopPropagation();
                         if (!sceneEditMode) {
                           const name = window.prompt('Название новой папки', 'Новая папка');
-                          if (name && name.trim()) void createFolderNamed(name.trim(), 'folder');
+                          if (name && name.trim()) {
+                            void createFolderNamed(name.trim(), 'folder');
+                          }
                         }
                       }}
                     >
