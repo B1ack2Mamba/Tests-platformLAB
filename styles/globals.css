@@ -2809,6 +2809,41 @@ html.native-app .app-brand {
   box-shadow: 0 0 0 2px rgba(239,68,68,0.22) inset;
 }
 
+
+.dashboard-tray-guide-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  border: 1px dashed rgba(164, 132, 94, 0.42);
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(210, 183, 149, 0.14));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+  backdrop-filter: blur(1.5px);
+}
+
+.dashboard-tray-guide-label {
+  max-width: 82%;
+  text-align: center;
+  font-size: 0.78rem;
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(105, 74, 38, 0.82);
+}
+
+.dashboard-folder-card,
+.dashboard-desk-sheet,
+.dashboard-tray-guide-box {
+  cursor: grab;
+}
+
+.dashboard-folder-card:active,
+.dashboard-desk-sheet:active,
+.dashboard-tray-guide-box:active {
+  cursor: grabbing;
+}
 .dashboard-tray-divider-cover {
   border-radius: 0.8rem 0.8rem 1rem 1rem;
   background: linear-gradient(180deg, rgba(232,212,180,0.08), rgba(208,184,148,0.18) 55%, rgba(175,147,109,0.26) 100%);

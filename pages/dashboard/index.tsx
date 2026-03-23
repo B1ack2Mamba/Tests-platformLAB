@@ -49,10 +49,10 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
-type DeskPosition = { x: number; y: number; z: number; width?: number; height?: number; rotation?: number };
+type DeskPosition = { x: number; y: number; z: number; width?: number; height?: number; rotation?: number; tiltX?: number; tiltY?: number };
 type DeskPositions = Record<string, DeskPosition>;
-type DeskItemKind = "folder" | "project";
-type DeskItemInteractionMode = "resize" | "rotate";
+type DeskItemKind = "folder" | "project" | "guide";
+type DeskItemInteractionMode = "drag" | "resize" | "rotate";
 type DeskItemInteractionState = {
   id: string;
   kind: DeskItemKind;
@@ -102,6 +102,7 @@ const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
 const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
 const SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
 const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
+const TRAY_GUIDE_ID = "guide:tray";
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -280,8 +281,23 @@ function getDefaultProjectPosition(index: number): DeskPosition {
   };
 }
 
+function getDefaultTrayGuidePosition(): DeskPosition {
+  return {
+    x: 1208,
+    y: 604,
+    z: 18,
+    width: 228,
+    height: 104,
+    rotation: 0,
+    tiltX: 0,
+    tiltY: 0,
+  };
+}
+
 function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved: DeskPositions): DeskPositions {
   const next: DeskPositions = {};
+
+  next[TRAY_GUIDE_ID] = saved[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
 
   folders.forEach((folder, index) => {
     const key = `folder:${folder.id}`;
@@ -464,7 +480,7 @@ export default function DashboardPage() {
         return;
       }
     },
-    [router]
+    [router, session, newFolderIcon, loadDashboard]
   );
 
   const startWidgetInteraction = useCallback(
@@ -528,14 +544,22 @@ export default function DashboardPage() {
       const dx = e.clientX - current.startX;
       const dy = e.clientY - current.startY;
       const isFolder = current.kind === "folder";
-      const defaultWidth = isFolder ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH;
-      const defaultHeight = isFolder ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT;
+      const isGuide = current.kind === "guide";
+      const defaultWidth = isGuide ? (current.position.width ?? 228) : isFolder ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH;
+      const defaultHeight = isGuide ? (current.position.height ?? 104) : isFolder ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT;
       const baseWidth = current.position.width ?? defaultWidth;
       const baseHeight = current.position.height ?? defaultHeight;
+      if (current.mode === "drag") {
+        updateDeskItem(current.id, {
+          x: clampDesk((current.position.x ?? 0) + dx, 0, DESK_WIDTH - baseWidth),
+          y: clampDesk((current.position.y ?? 0) + dy, 0, DESK_HEIGHT - baseHeight),
+        });
+        return;
+      }
       if (current.mode === "resize") {
         updateDeskItem(current.id, {
-          width: clampDesk(baseWidth + dx, isFolder ? 120 : 140, isFolder ? 240 : 280),
-          height: clampDesk(baseHeight + dy, isFolder ? 100 : 110, isFolder ? 220 : 260),
+          width: clampDesk(baseWidth + dx, isGuide ? 120 : isFolder ? 120 : 140, isGuide ? 420 : isFolder ? 280 : 320),
+          height: clampDesk(baseHeight + dy, isGuide ? 48 : isFolder ? 100 : 110, isGuide ? 220 : isFolder ? 260 : 320),
         });
         return;
       }
@@ -586,6 +610,9 @@ export default function DashboardPage() {
   );
   const selectedDeskItem = useMemo(() => {
     if (!selectedDeskItemId) return null;
+    if (selectedDeskItemId === TRAY_GUIDE_ID) {
+      return { kind: "guide" as const, id: selectedDeskItemId, title: "Виртуальная стойка", position: deskPositions[selectedDeskItemId] || getDefaultTrayGuidePosition() };
+    }
     if (selectedDeskItemId.startsWith("folder:")) {
       const id = selectedDeskItemId.replace("folder:", "");
       const folder = folders.find((item) => item.id === id);
@@ -1024,7 +1051,7 @@ export default function DashboardPage() {
         {canEditScene && sceneEditMode && selectedDeskItem ? (
           <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">
             <div className="mb-3 text-sm font-semibold text-[#55361f]">Объект на столе · {selectedDeskItem.title}</div>
-            <div className="grid gap-3 md:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-7">
               <label className="text-xs text-[#7b5b3b]">X
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.x || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { x: Number(e.target.value || 0) })} />
               </label>
@@ -1032,13 +1059,19 @@ export default function DashboardPage() {
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.y || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { y: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Ширина
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "guide" ? 228 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Высота
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "guide" ? 104 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
               </label>
-              <label className="text-xs text-[#7b5b3b]">Поворот
+              <label className="text-xs text-[#7b5b3b]">Поворот Z
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.rotation || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { rotation: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Поворот X
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.tiltX || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { tiltX: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Поворот Y
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.tiltY || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { tiltY: Number(e.target.value || 0) })} />
               </label>
             </div>
           </div>
@@ -1106,6 +1139,46 @@ export default function DashboardPage() {
               }}
             />
 
+            {(() => {
+              const guidePosition = deskPositions[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
+              const guideWidth = guidePosition.width || 228;
+              const guideHeight = guidePosition.height || 104;
+              const guideRotation = guidePosition.rotation || 0;
+              const guideTiltX = guidePosition.tiltX || 0;
+              const guideTiltY = guidePosition.tiltY || 0;
+              const isSelected = selectedDeskItemId === TRAY_GUIDE_ID;
+              return (
+                <div
+                  className={`absolute ${isSelected ? "dashboard-desk-entity-selected" : ""}`}
+                  style={{ left: guidePosition.x, top: guidePosition.y, zIndex: guidePosition.z || 18, width: `${guideWidth}px`, height: `${guideHeight}px`, transform: `perspective(1400px) rotateX(${guideTiltX}deg) rotateY(${guideTiltY}deg) rotate(${guideRotation}deg)`, transformStyle: 'preserve-3d' }}
+                  onMouseDown={(e) => {
+                    if (!sceneEditMode) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedDeskItemId(TRAY_GUIDE_ID);
+                    setSelectedWidgetId(null);
+                    startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setSelectedDeskItemId(TRAY_GUIDE_ID); setSelectedWidgetId(null); }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    const name = window.prompt('Название новой папки', 'Новая папка');
+                    if (name && name.trim()) void createFolderNamed(name.trim(), 'folder');
+                  }}
+                >
+                  <div className="dashboard-tray-guide-box">
+                    <div className="dashboard-tray-guide-label">Создать новую папку проектов</div>
+                  </div>
+                  {sceneEditMode && isSelected ? (
+                    <>
+                      <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "rotate", guidePosition)} aria-label="Повернуть зону стойки">↻</button>
+                      <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "resize", guidePosition)} aria-label="Изменить размер зоны стойки">↘</button>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })()}
+
             <div className="absolute z-[12] overflow-hidden" style={{ left: `${TRAY_CLIP.x}px`, top: `${TRAY_CLIP.y}px`, width: `${TRAY_CLIP.width}px`, height: `${TRAY_CLIP.height}px` }}>
               {trayFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
                 const itemId = `folder:${folder.id}`;
@@ -1115,7 +1188,7 @@ export default function DashboardPage() {
                 const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
                 const isSelected = selectedDeskItemId === itemId;
                 return (
-                  <div key={folder.id} className="absolute" style={{ left: position.x - TRAY_CLIP.x, top: position.y - TRAY_CLIP.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `rotate(${rotation}deg)` }}>
+                  <div key={folder.id} className="absolute" style={{ left: position.x - TRAY_CLIP.x, top: position.y - TRAY_CLIP.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `perspective(1400px) rotateX(${position.tiltX || 0}deg) rotateY(${position.tiltY || 0}deg) rotate(${rotation}deg)`, transformStyle: 'preserve-3d' }}>
                     <FolderDesktopIcon
                       folder={folder}
                       projects={folderProjects}
@@ -1129,6 +1202,7 @@ export default function DashboardPage() {
                       onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
                       onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "resize", position)}
                       onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "rotate", position)}
+                      onDragMoveStart={(e) => startDeskItemInteraction(e, itemId, "folder", "drag", position)}
                       onDragStart={() => {
                         setDraggingFolderId(folder.id);
                         bringDeskItemToFront(itemId);
@@ -1150,7 +1224,7 @@ export default function DashboardPage() {
               const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
               const isSelected = selectedDeskItemId === itemId;
               return (
-                <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `rotate(${rotation}deg)` }}>
+                <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `perspective(1400px) rotateX(${position.tiltX || 0}deg) rotateY(${position.tiltY || 0}deg) rotate(${rotation}deg)`, transformStyle: 'preserve-3d' }}>
                   <FolderDesktopIcon
                     folder={folder}
                     projects={folderProjects}
@@ -1164,6 +1238,7 @@ export default function DashboardPage() {
                     onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
                     onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "resize", position)}
                     onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "rotate", position)}
+                    onDragMoveStart={(e) => startDeskItemInteraction(e, itemId, "folder", "drag", position)}
                     onDragStart={() => {
                       setDraggingFolderId(folder.id);
                       bringDeskItemToFront(itemId);
@@ -1182,7 +1257,7 @@ export default function DashboardPage() {
               const rotation = (position.rotation || 0) + getEntityTilt(project.id, 1) * 0.18;
               const isSelected = selectedDeskItemId === itemId;
               return (
-                <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `rotate(${rotation}deg)` }}>
+                <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `perspective(1400px) rotateX(${position.tiltX || 0}deg) rotateY(${position.tiltY || 0}deg) rotate(${rotation}deg)`, transformStyle: 'preserve-3d' }}>
                   <ProjectDesktopIcon
                     project={project}
                     busy={busyFolderId === `delete:${project.id}`}
@@ -1191,6 +1266,7 @@ export default function DashboardPage() {
                     onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
                     onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "project", "resize", position)}
                     onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "project", "rotate", position)}
+                    onDragMoveStart={(e) => startDeskItemInteraction(e, itemId, "project", "drag", position)}
                     onOpen={() => setPreviewProject(project)}
                     onDragStart={() => {
                       setDraggingProjectId(project.id);
@@ -1466,15 +1542,16 @@ type FolderDesktopIconProps = {
   onSelect?: () => void;
   onResizeHandleMouseDown?: (e: any) => void;
   onRotateHandleMouseDown?: (e: any) => void;
+  onDragMoveStart?: (e: any) => void;
 };
 
-function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown }: FolderDesktopIconProps) {
+function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
   return (
     <div className={`group relative flex h-full w-full flex-col items-center gap-2 ${selected ? "dashboard-desk-entity-selected" : ""}`}>
       <button
         type="button"
-        draggable
+        draggable={!sceneEditMode && !busy}
         disabled={busy}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/folder-id", folder.id);
@@ -1482,6 +1559,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
           onDragStart();
         }}
         onDragEnd={onDragEnd}
+        onMouseDown={(e) => { if (sceneEditMode) onDragMoveStart?.(e); }}
         onClick={() => {
           onSelect?.();
           if (!sceneEditMode) onOpen();
@@ -1566,9 +1644,10 @@ type ProjectDesktopIconProps = {
   onSelect?: () => void;
   onResizeHandleMouseDown?: (e: any) => void;
   onRotateHandleMouseDown?: (e: any) => void;
+  onDragMoveStart?: (e: any) => void;
 };
 
-function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown }: ProjectDesktopIconProps) {
+function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: ProjectDesktopIconProps) {
   const displayName = project.person?.full_name || project.title || "Проект";
   const titleLine = project.title || displayName;
   const roleLine = project.target_role || project.person?.current_position || "Роль не указана";
@@ -1596,7 +1675,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
       ) : null}
       <button
         type="button"
-        draggable
+        draggable={!sceneEditMode && !busy}
         disabled={busy}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/project-id", project.id);
@@ -1604,6 +1683,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
           onDragStart();
         }}
         onDragEnd={onDragEnd}
+        onMouseDown={(e) => { if (sceneEditMode) onDragMoveStart?.(e); }}
         onClick={() => {
           onSelect?.();
           if (!sceneEditMode) onOpen();
