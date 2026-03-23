@@ -2799,21 +2799,46 @@ html.native-app .app-brand {
 }
 
 .dashboard-trash-zone {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
   border-radius: 1rem;
-  background: transparent;
-  transition: box-shadow 0.16s ease, background 0.16s ease;
+  background: rgba(255,255,255,0.06);
+  border: 1px dashed rgba(118, 102, 83, 0.15);
+  transition: box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  color: rgba(86, 61, 38, 0.88);
+}
+
+.dashboard-trash-zone:hover {
+  background: rgba(255,255,255,0.16);
+  border-color: rgba(118, 102, 83, 0.28);
 }
 
 .dashboard-trash-zone-active {
   background: radial-gradient(circle at center, rgba(239,68,68,0.18), rgba(239,68,68,0.02) 62%);
+  border-color: rgba(239,68,68,0.32);
   box-shadow: 0 0 0 2px rgba(239,68,68,0.22) inset;
 }
 
+.dashboard-trash-zone-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.dashboard-trash-zone-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
 .dashboard-tray-guide-box {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   width: 100%;
   height: 100%;
   border-radius: 20px;
@@ -2823,11 +2848,24 @@ html.native-app .app-brand {
   backdrop-filter: none;
 }
 
-.dashboard-tray-guide-box-editing {
-  border-color: rgba(164, 132, 94, 0.42);
-  background: rgba(255,255,255,0.08);
+.dashboard-tray-guide-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
 }
 
+.dashboard-tray-guide-box-editing {
+  border-color: rgba(84, 152, 255, 0.45);
+  background: rgba(255,255,255,0.03);
+}
+
+.dashboard-tray-guide-box-editing .dashboard-tray-guide-inner {
+  background: rgba(255,255,255,0.06);
+  box-shadow: inset 0 0 0 1px rgba(164, 132, 94, 0.14);
+}
 
 .dashboard-tray-guide-selector {
   position: absolute;
@@ -3102,8 +3140,8 @@ html.native-app .app-brand {
 }
 
 .dashboard-scene-widget-buttonPrimary {
-  background: linear-gradient(180deg, rgba(168, 241, 197, 0.96), rgba(115, 228, 164, 0.92));
-  border: 1px solid rgba(67, 170, 111, 0.42);
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(154, 126, 90, 0.28);
 }
 
 .dashboard-scene-widget-buttonSecondary {

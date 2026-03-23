@@ -284,6 +284,13 @@ function getGuideClipPath(position?: DeskPosition) {
   const bry = Math.min(height, Math.max(0, Number(position?.clipBry ?? height)));
   const blx = Math.min(width, Math.max(0, Number(position?.clipBlx || 0)));
   const bly = Math.min(height, Math.max(0, Number(position?.clipBly ?? height)));
+  const area = Math.abs(
+    tlx * trY + trx * bry + brx * bly + blx * tly -
+    tly * trx - trY * brx - bry * blx - bly * tlx
+  ) / 2;
+  if (!Number.isFinite(area) || area < width * height * 0.08) {
+    return `polygon(0px 0px, ${width}px 0px, ${width}px ${height}px, 0px ${height}px)`;
+  }
   return `polygon(${tlx}px ${tly}px, ${trx}px ${trY}px, ${brx}px ${bry}px, ${blx}px ${bly}px)`;
 }
 
@@ -320,7 +327,7 @@ function buildDefaultSceneWidgets(params: {
     { id: "profile-name", kind: "text", text: displayName, tone: "marker", x: 262, y: 426, width: 340, height: 58, rotation: -1, fontSize: 36, z: 24 },
     { id: "profile-role", kind: "text", text: "admin", tone: "note", x: 264, y: 494, width: 180, height: 30, rotation: -1.1, fontSize: 16, z: 25 },
     { id: "profile-email", kind: "text", text: email, tone: "note", x: 264, y: 530, width: 300, height: 34, rotation: -1.1, fontSize: 16, z: 26 },
-    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 1010, y: 170, width: 170, height: 46, rotation: -2.4, fontSize: 16, z: 30 },
+    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonSecondary", x: 1010, y: 170, width: 170, height: 46, rotation: -2.4, fontSize: 16, z: 30 },
     { id: "create-folder", kind: "button", text: "Новая папка", action: "createFolder", tone: "buttonSecondary", x: 1010, y: 226, width: 160, height: 44, rotation: -2.1, fontSize: 15, z: 31 },
     { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonSecondary", x: 1010, y: 280, width: 168, height: 44, rotation: -2.2, fontSize: 15, z: 32 },
   ];
@@ -540,7 +547,11 @@ export default function DashboardPage() {
         saved = [];
       }
     }
-    setSceneWidgets(saved.length ? saved : defaultSceneWidgets);
+    const normalizedWidgets = (saved.length ? saved : defaultSceneWidgets).map((item) => {
+      if (item.id === "create-project") return { ...item, tone: "buttonSecondary" as SceneWidgetTone };
+      return item;
+    });
+    setSceneWidgets(normalizedWidgets);
   }, [defaultSceneWidgets, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
@@ -1376,12 +1387,18 @@ export default function DashboardPage() {
                 );
               })}
             </div>
-
             <button
               type="button"
-              className={`dashboard-trash-zone absolute z-[6] ${trashHover ? 'dashboard-trash-zone-active' : ''}`}
+              className={`dashboard-trash-zone absolute z-[14] ${trashHover ? 'dashboard-trash-zone-active' : ''}`}
               style={{ left: `${TRASH_ZONE.x}px`, top: `${TRASH_ZONE.y}px`, width: `${TRASH_ZONE.width}px`, height: `${TRASH_ZONE.height}px` }}
               onClick={(e) => { e.stopPropagation(); setTrashOpen(true); }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                if (draggedProjectId) beginTrashHover('project', draggedProjectId);
+                else if (draggedFolderId) beginTrashHover('folder', draggedFolderId);
+              }}
               onDragOver={(e) => {
                 e.preventDefault();
                 const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
@@ -1392,12 +1409,24 @@ export default function DashboardPage() {
               onDragLeave={() => clearTrashHover()}
               onDrop={(e) => {
                 e.preventDefault();
+                const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                const draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                if (draggedProjectId) {
+                  const project = (workspace?.projects || []).find((item) => item.id === draggedProjectId);
+                  moveToTrash('project', draggedProjectId, project?.title || project?.person?.full_name || 'Проект');
+                  setDraggingProjectId(null);
+                } else if (draggedFolderId) {
+                  const folder = (workspace?.folders || []).find((item) => item.id === draggedFolderId);
+                  moveToTrash('folder', draggedFolderId, folder?.name || 'Папка');
+                  setDraggingFolderId(null);
+                }
                 clearTrashHover();
               }}
               aria-label="Корзина"
               title="Корзина"
             >
-              <span className="sr-only">Корзина</span>
+              <span className="dashboard-trash-zone-icon" aria-hidden="true">🗑</span>
+              <span className="dashboard-trash-zone-label">Корзина</span>
             </button>
 
             {(() => {
@@ -1420,12 +1449,13 @@ export default function DashboardPage() {
                     transform: `perspective(1400px) rotateX(${guideTiltX}deg) rotateY(${guideTiltY}deg) rotate(${guideRotation}deg)`,
                     transformOrigin: 'top left',
                     transformStyle: 'preserve-3d',
-                    clipPath: getGuideClipPath(guidePosition),
                     pointerEvents: 'none'
                   }}
                 >
-                  <div className={`dashboard-tray-guide-box ${sceneEditMode && isSelected ? "dashboard-tray-guide-box-editing" : ""}`}>
-                    <div className="dashboard-tray-guide-label">{trayGuideText}</div>
+                  <div className={`dashboard-tray-guide-box ${sceneEditMode ? "dashboard-tray-guide-box-editing" : ""}`}>
+                    <div className="dashboard-tray-guide-inner" style={{ clipPath: getGuideClipPath(guidePosition) }}>
+                      <div className="dashboard-tray-guide-label">{trayGuideText}</div>
+                    </div>
                   </div>
                   {sceneEditMode ? (
                     <button
