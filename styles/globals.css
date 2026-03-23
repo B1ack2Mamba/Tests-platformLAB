@@ -2828,6 +2828,29 @@ html.native-app .app-brand {
   background: rgba(255,255,255,0.08);
 }
 
+
+.dashboard-tray-guide-selector {
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(164, 132, 94, 0.56);
+  background: rgba(255,255,255,0.92);
+  color: rgba(105, 74, 38, 0.88);
+  box-shadow: 0 8px 18px -14px rgba(53,34,17,0.38);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.dashboard-tray-guide-selector:hover {
+  background: rgba(255,255,255,0.98);
+}
+
 .dashboard-tray-guide-label {
   max-width: 82%;
   text-align: center;
