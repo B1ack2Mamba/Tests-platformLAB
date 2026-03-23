@@ -3174,3 +3174,60 @@ html.native-app .app-brand {
   right: -10px;
   bottom: -12px;
 }
+
+.dashboard-folder-name-slip {
+  background: rgba(255, 250, 241, 0.96);
+  border-color: rgba(214, 194, 157, 0.9);
+  color: #715130;
+}
+
+.dashboard-desk-sheet-plain {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%);
+}
+
+.dashboard-desk-sheet-stamp {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  opacity: 0.78;
+  transform: rotate(-8deg);
+}
+
+.dashboard-desk-sheet-stamp-done {
+  color: rgba(33, 110, 67, 0.92);
+}
+
+.dashboard-desk-sheet-stamp-pending {
+  color: rgba(149, 73, 73, 0.82);
+}
+
+.dashboard-trash-item-crumpled {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-trash-item-crumpled::before,
+.dashboard-trash-item-crumpled::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.dashboard-trash-item-crumpled::before {
+  background: linear-gradient(135deg, rgba(0,0,0,0.025), transparent 18%, rgba(0,0,0,0.03) 36%, transparent 58%, rgba(0,0,0,0.025));
+  mix-blend-mode: multiply;
+}
+
+.dashboard-trash-item-crumpled::after {
+  box-shadow: inset 0 0 0 1px rgba(84, 58, 34, 0.04), inset 22px -16px 28px rgba(84,58,34,0.04);
+}

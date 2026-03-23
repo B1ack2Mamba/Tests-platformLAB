@@ -49,7 +49,24 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
-type DeskPosition = { x: number; y: number; z: number; width?: number; height?: number; rotation?: number; tiltX?: number; tiltY?: number };
+type DeskPosition = {
+  x: number;
+  y: number;
+  z: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  tiltX?: number;
+  tiltY?: number;
+  clipTlx?: number;
+  clipTly?: number;
+  clipTrx?: number;
+  clipTry?: number;
+  clipBrx?: number;
+  clipBry?: number;
+  clipBlx?: number;
+  clipBly?: number;
+};
 type DeskPositions = Record<string, DeskPosition>;
 type DeskItemKind = "folder" | "project" | "guide";
 type DeskItemInteractionMode = "drag" | "resize" | "rotate";
@@ -65,6 +82,16 @@ type DeskItemInteractionState = {
 type SceneWidgetKind = "text" | "button";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
 type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary";
+type TrashItemKind = "folder" | "project";
+
+type TrashEntry = {
+  kind: TrashItemKind;
+  id: string;
+  title: string;
+  deletedAt: number;
+  expiresAt: number;
+};
+
 type SceneWidget = {
   id: string;
   kind: SceneWidgetKind;
@@ -98,6 +125,8 @@ const DESK_SHEET_HEIGHT = 132;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
+const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
+const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
 const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
 const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
@@ -244,6 +273,20 @@ function getGuideTransform(position?: DeskPosition) {
   return `perspective(1400px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotate(${rotation}deg)`;
 }
 
+function getGuideClipPath(position?: DeskPosition) {
+  const width = Math.max(24, Number(position?.width || getDefaultTrayGuidePosition().width || 228));
+  const height = Math.max(24, Number(position?.height || getDefaultTrayGuidePosition().height || 104));
+  const tlx = Math.min(width, Math.max(0, Number(position?.clipTlx || 0)));
+  const tly = Math.min(height, Math.max(0, Number(position?.clipTly || 0)));
+  const trx = Math.min(width, Math.max(0, Number(position?.clipTrx ?? width)));
+  const trY = Math.min(height, Math.max(0, Number(position?.clipTry || 0)));
+  const brx = Math.min(width, Math.max(0, Number(position?.clipBrx ?? width)));
+  const bry = Math.min(height, Math.max(0, Number(position?.clipBry ?? height)));
+  const blx = Math.min(width, Math.max(0, Number(position?.clipBlx || 0)));
+  const bly = Math.min(height, Math.max(0, Number(position?.clipBly ?? height)));
+  return `polygon(${tlx}px ${tly}px, ${trx}px ${trY}px, ${brx}px ${bry}px, ${blx}px ${bly}px)`;
+}
+
 function getDeskStorageKey(workspaceId: string) {
   return `${DESK_STORAGE_PREFIX}${workspaceId}`;
 }
@@ -254,6 +297,10 @@ function getSceneWidgetsStorageKey(workspaceId: string) {
 
 function getTrayGuideTextStorageKey(workspaceId: string) {
   return `${TRAY_GUIDE_TEXT_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function getTrashStorageKey(workspaceId: string) {
+  return `${TRASH_STORAGE_PREFIX}${workspaceId}`;
 }
 
 function buildDefaultSceneWidgets(params: {
@@ -313,6 +360,14 @@ function getDefaultTrayGuidePosition(): DeskPosition {
     rotation: 0,
     tiltX: 0,
     tiltY: 0,
+    clipTlx: 0,
+    clipTly: 10,
+    clipTrx: 214,
+    clipTry: 0,
+    clipBrx: 228,
+    clipBry: 92,
+    clipBlx: 16,
+    clipBly: 104,
   };
 }
 
@@ -381,6 +436,8 @@ export default function DashboardPage() {
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [trashHover, setTrashHover] = useState<{ kind: "project" | "folder"; id: string } | null>(null);
   const trashHoverTimer = useRef<number | null>(null);
+  const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
+  const [trashOpen, setTrashOpen] = useState(false);
   const canEditScene = user?.email === "storyguild9@gmail.com" || isAdmin;
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
@@ -508,6 +565,23 @@ export default function DashboardPage() {
     window.localStorage.setItem(getTrayGuideTextStorageKey(workspace.workspace.workspace_id), trayGuideText);
   }, [trayGuideText, workspace?.workspace?.workspace_id]);
 
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getTrashStorageKey(workspace.workspace.workspace_id));
+      const parsed = raw ? (JSON.parse(raw) as TrashEntry[]) : [];
+      const now = Date.now();
+      setTrashEntries(parsed.filter((item) => item.expiresAt > now));
+    } catch {
+      setTrashEntries([]);
+    }
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    window.localStorage.setItem(getTrashStorageKey(workspace.workspace.workspace_id), JSON.stringify(trashEntries));
+  }, [trashEntries, workspace?.workspace?.workspace_id]);
+
   const selectedWidget = useMemo(() => sceneWidgets.find((item) => item.id === selectedWidgetId) || null, [sceneWidgets, selectedWidgetId]);
 
   const updateSceneWidget = useCallback((id: string, patch: Partial<SceneWidget>) => {
@@ -549,6 +623,21 @@ export default function DashboardPage() {
       return next;
     });
   }, [deskLayer]);
+
+  const moveToTrash = useCallback((kind: TrashItemKind, id: string, title: string) => {
+    const now = Date.now();
+    setTrashEntries((prev) => {
+      const next = prev.filter((item) => !(item.kind === kind && item.id === id));
+      next.unshift({ kind, id, title, deletedAt: now, expiresAt: now + TRASH_RETENTION_MS });
+      return next;
+    });
+    setActiveFolderId((current) => (kind === "folder" && current === id ? null : current));
+    setPreviewProject((current) => (kind === "project" && current?.id === id ? null : current));
+  }, []);
+
+  const restoreTrashEntry = useCallback((entry: TrashEntry) => {
+    setTrashEntries((prev) => prev.filter((item) => !(item.kind === entry.kind && item.id === entry.id)));
+  }, []);
 
   const handleSceneWidgetAction = useCallback(
     (action: SceneWidgetAction | undefined) => {
@@ -636,9 +725,13 @@ export default function DashboardPage() {
       const baseWidth = current.position.width ?? defaultWidth;
       const baseHeight = current.position.height ?? defaultHeight;
       if (current.mode === "drag") {
+        const minX = current.kind === "project" ? -baseWidth * 0.5 : 0;
+        const minY = current.kind === "project" ? -baseHeight * 0.5 : 0;
+        const maxX = current.kind === "project" ? DESK_WIDTH - baseWidth * 0.5 : DESK_WIDTH - baseWidth;
+        const maxY = current.kind === "project" ? DESK_HEIGHT - baseHeight * 0.5 : DESK_HEIGHT - baseHeight;
         updateDeskItem(current.id, {
-          x: clampDesk((current.position.x ?? 0) + dx, 0, DESK_WIDTH - baseWidth),
-          y: clampDesk((current.position.y ?? 0) + dy, 0, DESK_HEIGHT - baseHeight),
+          x: clampDesk((current.position.x ?? 0) + dx, minX, maxX),
+          y: clampDesk((current.position.y ?? 0) + dy, minY, maxY),
         });
         return;
       }
@@ -667,8 +760,10 @@ export default function DashboardPage() {
     setSelectedWidgetId(null);
   }, [defaultSceneWidgets]);
 
-  const projects = useMemo(() => workspace?.projects || [], [workspace?.projects]);
-  const folders = useMemo(() => workspace?.folders || [], [workspace?.folders]);
+  const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
+  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
+  const projects = useMemo(() => (workspace?.projects || []).filter((item) => !trashedProjectIds.has(item.id)), [trashedProjectIds, workspace?.projects]);
+  const folders = useMemo(() => (workspace?.folders || []).filter((item) => !trashedFolderIds.has(item.id)), [trashedFolderIds, workspace?.folders]);
   const folderBuckets = useMemo(() => {
     const buckets = new Map<string, ProjectRow[]>();
     for (const folder of folders) buckets.set(folder.id, []);
@@ -767,25 +862,29 @@ export default function DashboardPage() {
 
   const isInsideGuideRect = useCallback((x: number, y: number) => {
     const rect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
-    return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+    const centerX = x + 48;
+    const centerY = y + 48;
+    return centerX >= rect.x && centerX <= rect.x + rect.width && centerY >= rect.y && centerY <= rect.y + rect.height;
   }, [deskPositions]);
 
   const placeDeskItem = useCallback((itemId: string, kind: "folder" | "project", x: number, y: number) => {
     const current = deskPositions[itemId] || {};
     const itemWidth = current.width || (kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH);
     const itemHeight = current.height || (kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT);
-    const maxX = DESK_WIDTH - itemWidth - 24;
-    const maxY = DESK_HEIGHT - itemHeight - 24;
-    const nextX = clampDesk(x, 24, maxX);
-    const nextY = clampDesk(y, 24, maxY);
+    const minX = kind === "project" ? -itemWidth * 0.5 : 24;
+    const minY = kind === "project" ? -itemHeight * 0.5 : 24;
+    const maxX = kind === "project" ? DESK_WIDTH - itemWidth * 0.5 : DESK_WIDTH - itemWidth - 24;
+    const maxY = kind === "project" ? DESK_HEIGHT - itemHeight * 0.5 : DESK_HEIGHT - itemHeight - 24;
+    const nextX = clampDesk(x, minX, maxX);
+    const nextY = clampDesk(y, minY, maxY);
 
     if (kind === "folder") {
       const folderId = itemId.replace("folder:", "");
       const folderIndex = Math.max(0, folders.findIndex((item) => item.id === folderId));
       const guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
       const snapped = isInsideGuideRect(nextX, nextY)
-        ? { x: guideRect.x + 8 + folderIndex * 16, y: guideRect.y + 10 + folderIndex * 8, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation }
-        : { x: nextX, y: nextY, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation };
+        ? { x: guideRect.x + 8 + folderIndex * 12, y: guideRect.y + 6 + folderIndex * 7, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation, tiltX: current.tiltX, tiltY: current.tiltY }
+        : { x: nextX, y: nextY, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation, tiltX: current.tiltX, tiltY: current.tiltY };
       setDeskPositions((prev) => ({
         ...prev,
         [itemId]: {
@@ -866,8 +965,8 @@ export default function DashboardPage() {
         setDeskPositions((prev) => ({
           ...prev,
           [`folder:${newFolderId}`]: {
-            x: guideRect.x + 8 + existingCount * 16,
-            y: guideRect.y + 10 + existingCount * 8,
+            x: guideRect.x + 8 + existingCount * 12,
+            y: guideRect.y + 6 + existingCount * 7,
             z: deskLayer + existingCount + 1,
             width: template.width,
             height: template.height,
@@ -1068,21 +1167,33 @@ export default function DashboardPage() {
     if (trashHoverTimer.current) window.clearTimeout(trashHoverTimer.current);
     trashHoverTimer.current = window.setTimeout(() => {
       if (kind === "project") {
-        void deleteProject(id, true);
+        const project = (workspace?.projects || []).find((item) => item.id === id);
+        moveToTrash("project", id, project?.title || project?.person?.full_name || "Проект");
       } else {
-        void deleteFolderDirect(id);
+        const folder = (workspace?.folders || []).find((item) => item.id === id);
+        moveToTrash("folder", id, folder?.name || "Папка");
       }
       setDraggingProjectId(null);
       setDraggingFolderId(null);
       setTrashHover(null);
       trashHoverTimer.current = null;
     }, 650);
-  }, [deleteFolderDirect, deleteProject]);
+  }, [moveToTrash, workspace?.folders, workspace?.projects]);
 
   useEffect(() => () => {
     if (trashHoverTimer.current) window.clearTimeout(trashHoverTimer.current);
   }, []);
 
+  useEffect(() => {
+    const now = Date.now();
+    const expired = trashEntries.filter((item) => item.expiresAt <= now);
+    if (!expired.length) return;
+    setTrashEntries((prev) => prev.filter((item) => item.expiresAt > now));
+    expired.forEach((entry) => {
+      if (entry.kind === "project") void deleteProject(entry.id, true);
+      else void deleteFolderDirect(entry.id);
+    });
+  }, [trashEntries]);
 
   if (!session || !user) {
     return (
@@ -1187,9 +1298,35 @@ export default function DashboardPage() {
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.tiltY || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { tiltY: Number(e.target.value || 0) })} />
               </label>
               {selectedDeskItem.kind === "guide" ? (
-                <label className="text-xs text-[#7b5b3b] md:col-span-7">Текст на стойке
-                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={trayGuideText} onChange={(e) => setTrayGuideText(e.target.value)} />
-                </label>
+                <>
+                  <label className="text-xs text-[#7b5b3b] md:col-span-7">Текст на стойке
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={trayGuideText} onChange={(e) => setTrayGuideText(e.target.value)} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">TL X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTlx || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipTlx: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">TL Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTly || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipTly: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">TR X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTrx || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipTrx: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">TR Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTry || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipTry: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BR X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBrx || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipBrx: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BR Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBry || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipBry: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BL X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBlx || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipBlx: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BL Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBly || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { clipBly: Number(e.target.value || 0) })} />
+                  </label>
+                </>
               ) : null}
             </div>
           </div>
@@ -1240,9 +1377,11 @@ export default function DashboardPage() {
               })}
             </div>
 
-            <div
+            <button
+              type="button"
               className={`dashboard-trash-zone absolute z-[6] ${trashHover ? 'dashboard-trash-zone-active' : ''}`}
               style={{ left: `${TRASH_ZONE.x}px`, top: `${TRASH_ZONE.y}px`, width: `${TRASH_ZONE.width}px`, height: `${TRASH_ZONE.height}px` }}
+              onClick={(e) => { e.stopPropagation(); setTrashOpen(true); }}
               onDragOver={(e) => {
                 e.preventDefault();
                 const draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
@@ -1255,7 +1394,11 @@ export default function DashboardPage() {
                 e.preventDefault();
                 clearTrashHover();
               }}
-            />
+              aria-label="Корзина"
+              title="Корзина"
+            >
+              <span className="sr-only">Корзина</span>
+            </button>
 
             {(() => {
               const guidePosition = deskPositions[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
@@ -1264,10 +1407,22 @@ export default function DashboardPage() {
               const guideRotation = guidePosition.rotation || 0;
               const guideTiltX = guidePosition.tiltX || 0;
               const guideTiltY = guidePosition.tiltY || 0;
-              const isSelected = selectedDeskItemId === TRAY_GUIDE_ID;              return (
+              const isSelected = selectedDeskItemId === TRAY_GUIDE_ID;
+              return (
                 <div
                   className={`absolute ${isSelected ? "dashboard-desk-entity-selected" : ""}`}
-                  style={{ left: guidePosition.x, top: guidePosition.y, zIndex: isSelected ? 19 : 11, width: `${guideWidth}px`, height: `${guideHeight}px`, transform: getGuideTransform(guidePosition), transformStyle: 'preserve-3d', pointerEvents: 'none' }}
+                  style={{
+                    left: guidePosition.x,
+                    top: guidePosition.y,
+                    zIndex: isSelected ? 19 : 11,
+                    width: `${guideWidth}px`,
+                    height: `${guideHeight}px`,
+                    transform: `perspective(1400px) rotateX(${guideTiltX}deg) rotateY(${guideTiltY}deg) rotate(${guideRotation}deg)`,
+                    transformOrigin: 'top left',
+                    transformStyle: 'preserve-3d',
+                    clipPath: getGuideClipPath(guidePosition),
+                    pointerEvents: 'none'
+                  }}
                 >
                   <div className={`dashboard-tray-guide-box ${sceneEditMode && isSelected ? "dashboard-tray-guide-box-editing" : ""}`}>
                     <div className="dashboard-tray-guide-label">{trayGuideText}</div>
@@ -1308,7 +1463,7 @@ export default function DashboardPage() {
             {(() => {
               const guideClip = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
               return (
-                <div className="absolute z-[12] overflow-hidden" style={{ left: `${guideClip.x}px`, top: `${guideClip.y}px`, width: `${guideClip.width}px`, height: `${guideClip.height}px`, transform: getGuideTransform(deskPositions[TRAY_GUIDE_ID]), transformOrigin: 'top left' }}>
+                <div className="absolute z-[12] overflow-hidden" style={{ left: `${guideClip.x}px`, top: `${guideClip.y}px`, width: `${guideClip.width}px`, height: `${guideClip.height}px`, transform: getGuideTransform(deskPositions[TRAY_GUIDE_ID]), transformOrigin: 'top left', clipPath: getGuideClipPath(deskPositions[TRAY_GUIDE_ID]), pointerEvents: 'none' }}>
               {trayFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
                 const itemId = `folder:${folder.id}`;
                 const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
@@ -1317,7 +1472,7 @@ export default function DashboardPage() {
                 const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
                 const isSelected = selectedDeskItemId === itemId;
                 return (
-                  <div key={folder.id} className="absolute" style={{ left: position.x - guideClip.x, top: position.y - guideClip.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `perspective(1400px) rotateX(${position.tiltX || 0}deg) rotateY(${position.tiltY || 0}deg) rotate(${rotation}deg)`, transformStyle: 'preserve-3d' }}>
+                  <div key={folder.id} className="absolute" style={{ left: position.x - guideClip.x, top: position.y - guideClip.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `perspective(1400px) rotateX(${position.tiltX || 0}deg) rotateY(${position.tiltY || 0}deg) rotate(${rotation}deg)`, transformStyle: 'preserve-3d', pointerEvents: 'auto' }}>
                     <FolderDesktopIcon
                       folder={folder}
                       projects={folderProjects}
@@ -1442,6 +1597,21 @@ export default function DashboardPage() {
           onOpenProject={(id) => router.push(`/projects/${id}`)}
           onMoveToDesktop={(projectId) => moveProject(projectId, null)}
           onDeleteProject={(projectId) => deleteProject(projectId)}
+        />
+      ) : null}
+
+      {trashOpen ? (
+        <TrashRestoreModal
+          entries={trashEntries}
+          folders={workspace?.folders || []}
+          projects={workspace?.projects || []}
+          onClose={() => setTrashOpen(false)}
+          onRestore={restoreTrashEntry}
+          onDeleteNow={(entry) => {
+            if (entry.kind === "project") void deleteProject(entry.id, true);
+            else void deleteFolderDirect(entry.id);
+            setTrashEntries((prev) => prev.filter((item) => !(item.kind === entry.kind && item.id === entry.id)));
+          }}
         />
       ) : null}
 
@@ -1710,7 +1880,12 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
         <div className="dashboard-folder-inner-shadow" />
         <div className="dashboard-folder-gloss" />
 
-        <div className="pointer-events-none absolute left-4 right-4 top-3 z-20 flex flex-col gap-1.5">
+        <div className="absolute left-4 right-12 top-10 z-20">
+          <div className="truncate text-[16px] font-semibold leading-tight text-[#5c3e1f]">{folder.name}</div>
+          <div className="mt-1 text-[11px] text-[#7a5830]">Открыть папку</div>
+        </div>
+
+        <div className="pointer-events-none absolute left-4 right-4 top-[68px] z-20 flex flex-col gap-1.5">
           {preview.length ? preview.map((project, index) => {
             const slipTitle = project.person?.full_name || project.title || "Проект";
             return (
@@ -1734,13 +1909,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
           )}
         </div>
 
-        <div className="relative z-10 flex w-full items-end justify-between px-4 pb-3">
-          <div>
-            <div className="text-[15px] font-semibold leading-tight text-[#5c3e1f]">{folder.name}</div>
-            <div className="mt-1 text-[11px] text-[#7a5830]">Открыть папку</div>
-          </div>
-          <div className="rounded-full border border-[#d5be99] bg-[#fff9f0]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
-        </div>
+        <div className="absolute bottom-3 right-4 z-20 rounded-full border border-[#d5be99] bg-[#fff9f0]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
       </button>
       <button
         type="button"
@@ -1819,7 +1988,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
           onSelect?.();
           if (!sceneEditMode) onOpen();
         }}
-        className={`dashboard-desk-sheet ${isDone ? "dashboard-desk-sheet-ready" : "dashboard-desk-sheet-pending"} ${compact ? "dashboard-desk-sheet-compact" : ""} ${busy ? "opacity-60" : ""}`}
+        className={`dashboard-desk-sheet dashboard-desk-sheet-plain ${compact ? "dashboard-desk-sheet-compact" : ""} ${busy ? "opacity-60" : ""}`}
       >
         <span className="dashboard-desk-sheet-clip" aria-hidden="true" />
         <span className="dashboard-desk-sheet-kicker">Лист проекта</span>
@@ -1832,6 +2001,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
           <span>{completed}/{total || 0} тестов</span>
           <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
         </span>
+        <span className={`dashboard-desk-sheet-stamp ${isDone ? "dashboard-desk-sheet-stamp-done" : "dashboard-desk-sheet-stamp-pending"}`}>{isDone ? "ЗАВЕРШЕНО" : "НЕ ЗАВЕРШЕНО"}</span>
       </button>
       {sceneEditMode && selected ? (
         <>
@@ -2149,6 +2319,52 @@ function FolderIconPicker({ folder, busy, onClose, onSelect }: FolderIconPickerP
               </button>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type TrashRestoreModalProps = {
+  entries: TrashEntry[];
+  folders: FolderRow[];
+  projects: ProjectRow[];
+  onClose: () => void;
+  onRestore: (entry: TrashEntry) => void;
+  onDeleteNow: (entry: TrashEntry) => void;
+};
+
+function TrashRestoreModal({ entries, onClose, onRestore, onDeleteNow }: TrashRestoreModalProps) {
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      <div className="w-full max-w-[760px] rounded-[28px] border border-[#dac4a7] bg-[#fffaf2] p-5 shadow-[0_30px_70px_-44px_rgba(53,34,17,0.38)]" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-lg font-semibold text-[#5a3b20]">Корзина</div>
+            <div className="text-sm text-[#84664a]">Папки и проекты можно восстановить в течение 3 суток.</div>
+          </div>
+          <button type="button" className="rounded-full border border-[#d9c6ab] bg-white px-4 py-2 text-sm text-[#5a3b20]" onClick={onClose}>Закрыть</button>
+        </div>
+        <div className="space-y-3">
+          {entries.length ? entries.map((entry) => {
+            const remaining = Math.max(0, entry.expiresAt - Date.now());
+            const hours = Math.ceil(remaining / (60 * 60 * 1000));
+            return (
+              <div key={`${entry.kind}:${entry.id}`} className="rounded-[20px] border border-[#e3d0b2] bg-white/92 p-4 shadow-[0_12px_26px_-22px_rgba(53,34,17,0.28)] dashboard-trash-item-crumpled">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-[#a2835d]">{entry.kind === 'folder' ? 'Папка' : 'Проект'}</div>
+                    <div className="mt-1 text-base font-semibold text-[#51361e]">{entry.title}</div>
+                    <div className="mt-1 text-sm text-[#7b5f44]">Удалится через ~{hours} ч.</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" className="rounded-full border border-[#cfe1d0] bg-[#eaf7ea] px-4 py-2 text-sm font-medium text-[#335a36]" onClick={() => onRestore(entry)}>Восстановить</button>
+                    <button type="button" className="rounded-full border border-[#e6c5c5] bg-[#fff2f2] px-4 py-2 text-sm font-medium text-[#8a3f3f]" onClick={() => onDeleteNow(entry)}>Удалить сейчас</button>
+                  </div>
+                </div>
+              </div>
+            );
+          }) : <div className="rounded-[20px] border border-dashed border-[#dbc9ac] bg-white/80 p-8 text-center text-sm text-[#84664a]">Корзина пуста.</div>}
         </div>
       </div>
     </div>
