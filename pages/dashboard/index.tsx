@@ -49,8 +49,18 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
-type DeskPosition = { x: number; y: number; z: number };
+type DeskPosition = { x: number; y: number; z: number; width?: number; height?: number; rotation?: number };
 type DeskPositions = Record<string, DeskPosition>;
+type DeskItemKind = "folder" | "project";
+type DeskItemInteractionMode = "resize" | "rotate";
+type DeskItemInteractionState = {
+  id: string;
+  kind: DeskItemKind;
+  mode: DeskItemInteractionMode;
+  startX: number;
+  startY: number;
+  position: DeskPosition;
+};
 
 type SceneWidgetKind = "text" | "button";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
@@ -317,7 +327,9 @@ export default function DashboardPage() {
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
   const widgetInteractionRef = useRef<WidgetInteractionState | null>(null);
+  const deskInteractionRef = useRef<DeskItemInteractionState | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -426,6 +438,16 @@ export default function DashboardPage() {
     setSceneWidgets((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }, []);
 
+  const updateDeskItem = useCallback((id: string, patch: Partial<DeskPosition>) => {
+    setDeskPositions((prev) => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || { x: 48, y: 48, z: deskLayer + 1 }),
+        ...patch,
+      },
+    }));
+  }, [deskLayer]);
+
   const handleSceneWidgetAction = useCallback(
     (action: SceneWidgetAction | undefined) => {
       if (action === "createProject") {
@@ -439,6 +461,7 @@ export default function DashboardPage() {
       if (action === "createFolder") {
         const name = window.prompt('Название новой папки', 'Новая папка');
         if (name && name.trim()) void createFolderNamed(name.trim(), 'folder');
+        return;
       }
     },
     [router]
@@ -489,6 +512,46 @@ export default function DashboardPage() {
     };
   }, [sceneEditMode, updateSceneWidget]);
 
+  const startDeskItemInteraction = useCallback((e: any, itemId: string, kind: DeskItemKind, mode: DeskItemInteractionMode, position: DeskPosition) => {
+    if (!sceneEditMode || !canEditScene) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedDeskItemId(itemId);
+    deskInteractionRef.current = { id: itemId, kind, mode, startX: e.clientX, startY: e.clientY, position: { ...position } };
+  }, [canEditScene, sceneEditMode]);
+
+  useEffect(() => {
+    if (!sceneEditMode) return;
+    const handleMove = (e: MouseEvent) => {
+      const current = deskInteractionRef.current;
+      if (!current) return;
+      const dx = e.clientX - current.startX;
+      const dy = e.clientY - current.startY;
+      const isFolder = current.kind === "folder";
+      const defaultWidth = isFolder ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH;
+      const defaultHeight = isFolder ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT;
+      const baseWidth = current.position.width ?? defaultWidth;
+      const baseHeight = current.position.height ?? defaultHeight;
+      if (current.mode === "resize") {
+        updateDeskItem(current.id, {
+          width: clampDesk(baseWidth + dx, isFolder ? 120 : 140, isFolder ? 240 : 280),
+          height: clampDesk(baseHeight + dy, isFolder ? 100 : 110, isFolder ? 220 : 260),
+        });
+        return;
+      }
+      updateDeskItem(current.id, { rotation: (current.position.rotation ?? 0) + dx * 0.18 });
+    };
+    const handleUp = () => {
+      deskInteractionRef.current = null;
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [sceneEditMode, updateDeskItem]);
+
   const resetSceneWidgets = useCallback(() => {
     setSceneWidgets(defaultSceneWidgets);
     setSelectedWidgetId(null);
@@ -521,6 +584,22 @@ export default function DashboardPage() {
     () => projects.reduce((sum, item) => sum + (item.attempts_count || 0), 0),
     [projects]
   );
+  const selectedDeskItem = useMemo(() => {
+    if (!selectedDeskItemId) return null;
+    if (selectedDeskItemId.startsWith("folder:")) {
+      const id = selectedDeskItemId.replace("folder:", "");
+      const folder = folders.find((item) => item.id === id);
+      if (!folder) return null;
+      return { kind: "folder" as const, id: selectedDeskItemId, title: folder.name, position: deskPositions[selectedDeskItemId] || { x: 0, y: 0, z: 0 } };
+    }
+    if (selectedDeskItemId.startsWith("project:")) {
+      const id = selectedDeskItemId.replace("project:", "");
+      const project = projects.find((item) => item.id === id);
+      if (!project) return null;
+      return { kind: "project" as const, id: selectedDeskItemId, title: project.title || project.person?.full_name || "Проект", position: deskPositions[selectedDeskItemId] || { x: 0, y: 0, z: 0 } };
+    }
+    return null;
+  }, [deskPositions, folders, projects, selectedDeskItemId]);
 
   useEffect(() => {
     if (!activeFolderId) return;
@@ -574,15 +653,18 @@ export default function DashboardPage() {
   }, []);
 
   const placeDeskItem = useCallback((itemId: string, kind: "folder" | "project", x: number, y: number) => {
-    const maxX = kind === "folder" ? DESK_WIDTH - DESK_FOLDER_WIDTH - 24 : DESK_WIDTH - DESK_SHEET_WIDTH - 24;
-    const maxY = kind === "folder" ? DESK_HEIGHT - DESK_FOLDER_HEIGHT - 24 : DESK_HEIGHT - DESK_SHEET_HEIGHT - 24;
+    const current = deskPositions[itemId] || {};
+    const itemWidth = current.width || (kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH);
+    const itemHeight = current.height || (kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT);
+    const maxX = DESK_WIDTH - itemWidth - 24;
+    const maxY = DESK_HEIGHT - itemHeight - 24;
     const nextX = clampDesk(x, 24, maxX);
     const nextY = clampDesk(y, 24, maxY);
 
     if (kind === "folder") {
       const folderId = itemId.replace("folder:", "");
       const folderIndex = Math.max(0, folders.findIndex((item) => item.id === folderId));
-      const snapped = isInsideTrayZone(nextX, nextY) ? getDefaultFolderPosition(folderIndex) : { x: nextX, y: nextY, z: 20 + folderIndex };
+      const snapped = isInsideTrayZone(nextX, nextY) ? { ...getDefaultFolderPosition(folderIndex), width: current.width, height: current.height, rotation: current.rotation } : { x: nextX, y: nextY, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation };
       setDeskPositions((prev) => ({
         ...prev,
         [itemId]: {
@@ -590,6 +672,9 @@ export default function DashboardPage() {
           x: snapped.x,
           y: snapped.y,
           z: prev[itemId]?.z || deskLayer + 1,
+          width: snapped.width,
+          height: snapped.height,
+          rotation: snapped.rotation,
         },
       }));
       return;
@@ -602,9 +687,12 @@ export default function DashboardPage() {
         x: nextX,
         y: nextY,
         z: prev[itemId]?.z || deskLayer + 1,
+        width: current.width,
+        height: current.height,
+        rotation: current.rotation,
       },
     }));
-  }, [deskLayer, folders]);
+  }, [deskLayer, deskPositions, folders]);
 
   const handleDeskDrop = useCallback((e: any) => {
     e.preventDefault();
@@ -890,6 +978,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim()) void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
             {canEditScene ? (
               <>
                 <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setSceneEditMode((prev) => !prev)}>
@@ -932,11 +1021,34 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
+        {canEditScene && sceneEditMode && selectedDeskItem ? (
+          <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">
+            <div className="mb-3 text-sm font-semibold text-[#55361f]">Объект на столе · {selectedDeskItem.title}</div>
+            <div className="grid gap-3 md:grid-cols-5">
+              <label className="text-xs text-[#7b5b3b]">X
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.x || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { x: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Y
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.y || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { y: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Ширина
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Высота
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
+              </label>
+              <label className="text-xs text-[#7b5b3b]">Поворот
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.rotation || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { rotation: Number(e.target.value || 0) })} />
+              </label>
+            </div>
+          </div>
+        ) : null}
+
         <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
           <div className="dashboard-office-scene-backdrop absolute inset-0" />
           <div className="dashboard-office-scene-vignette absolute inset-0" />
 
-          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onClick={() => setSelectedWidgetId(null)} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
             <div className="absolute inset-0 z-[8]">
               {sceneWidgets.map((widget) => {
                 const isSelected = widget.id === selectedWidgetId;
@@ -957,7 +1069,12 @@ export default function DashboardPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedWidgetId(widget.id);
+                      setSelectedDeskItemId(null);
                       if (!sceneEditMode && widget.kind === "button") handleSceneWidgetAction(widget.action);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      if (widget.kind === "button") handleSceneWidgetAction(widget.action);
                     }}
                   >
                     <span className="dashboard-scene-widget-label">{widget.text}</span>
@@ -993,8 +1110,12 @@ export default function DashboardPage() {
               {trayFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
                 const itemId = `folder:${folder.id}`;
                 const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
+                const width = position.width || DESK_FOLDER_WIDTH;
+                const height = position.height || DESK_FOLDER_HEIGHT;
+                const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
+                const isSelected = selectedDeskItemId === itemId;
                 return (
-                  <div key={folder.id} className="absolute" style={{ left: position.x - TRAY_CLIP.x, top: position.y - TRAY_CLIP.y, zIndex: position.z }}>
+                  <div key={folder.id} className="absolute" style={{ left: position.x - TRAY_CLIP.x, top: position.y - TRAY_CLIP.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `rotate(${rotation}deg)` }}>
                     <FolderDesktopIcon
                       folder={folder}
                       projects={folderProjects}
@@ -1003,6 +1124,11 @@ export default function DashboardPage() {
                       onManage={() => setFolderActionTarget(folder)}
                       onDropProject={(projectId) => moveProject(projectId, folder.id)}
                       draggingProjectId={draggingProjectId}
+                      sceneEditMode={sceneEditMode}
+                      selected={isSelected}
+                      onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
+                      onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "resize", position)}
+                      onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "rotate", position)}
                       onDragStart={() => {
                         setDraggingFolderId(folder.id);
                         bringDeskItemToFront(itemId);
@@ -1019,8 +1145,12 @@ export default function DashboardPage() {
             {looseFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
               const itemId = `folder:${folder.id}`;
               const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
+              const width = position.width || DESK_FOLDER_WIDTH;
+              const height = position.height || DESK_FOLDER_HEIGHT;
+              const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
+              const isSelected = selectedDeskItemId === itemId;
               return (
-                <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
+                <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `rotate(${rotation}deg)` }}>
                   <FolderDesktopIcon
                     folder={folder}
                     projects={folderProjects}
@@ -1029,6 +1159,11 @@ export default function DashboardPage() {
                     onManage={() => setFolderActionTarget(folder)}
                     onDropProject={(projectId) => moveProject(projectId, folder.id)}
                     draggingProjectId={draggingProjectId}
+                    sceneEditMode={sceneEditMode}
+                    selected={isSelected}
+                    onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
+                    onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "resize", position)}
+                    onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "rotate", position)}
                     onDragStart={() => {
                       setDraggingFolderId(folder.id);
                       bringDeskItemToFront(itemId);
@@ -1042,11 +1177,20 @@ export default function DashboardPage() {
             {folderBuckets.uncategorized.map((project, projectIndex) => {
               const itemId = `project:${project.id}`;
               const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
+              const width = position.width || DESK_SHEET_WIDTH;
+              const height = position.height || DESK_SHEET_HEIGHT;
+              const rotation = (position.rotation || 0) + getEntityTilt(project.id, 1) * 0.18;
+              const isSelected = selectedDeskItemId === itemId;
               return (
-                <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z }}>
+                <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px`, transform: `rotate(${rotation}deg)` }}>
                   <ProjectDesktopIcon
                     project={project}
                     busy={busyFolderId === `delete:${project.id}`}
+                    sceneEditMode={sceneEditMode}
+                    selected={isSelected}
+                    onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
+                    onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "project", "resize", position)}
+                    onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "project", "rotate", position)}
                     onOpen={() => setPreviewProject(project)}
                     onDragStart={() => {
                       setDraggingProjectId(project.id);
@@ -1317,13 +1461,17 @@ type FolderDesktopIconProps = {
   draggingProjectId: string | null;
   onDragStart: () => void;
   onDragEnd: () => void;
+  sceneEditMode?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+  onResizeHandleMouseDown?: (e: any) => void;
+  onRotateHandleMouseDown?: (e: any) => void;
 };
 
-function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd }: FolderDesktopIconProps) {
+function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
-  const tilt = getEntityTilt(folder.id, 2) * 0.42;
   return (
-    <div className="group relative flex flex-col items-center gap-2">
+    <div className={`group relative flex h-full w-full flex-col items-center gap-2 ${selected ? "dashboard-desk-entity-selected" : ""}`}>
       <button
         type="button"
         draggable
@@ -1334,9 +1482,11 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
           onDragStart();
         }}
         onDragEnd={onDragEnd}
-        onClick={onOpen}
-        className={`dashboard-folder-card dashboard-folder-card-angled relative flex items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#94724a]" : "border-[#b88c5a]"} ${busy ? "opacity-70" : ""}`}
-        style={{ transform: `rotate(${tilt}deg)`, ["--folder-rotate" as any]: `${tilt}deg` }}
+        onClick={() => {
+          onSelect?.();
+          if (!sceneEditMode) onOpen();
+        }}
+        className={`dashboard-folder-card dashboard-folder-card-angled relative flex h-full w-full items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#94724a]" : "border-[#b88c5a]"} ${busy ? "opacity-70" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1393,6 +1543,12 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
       >
         ⋯
       </button>
+      {sceneEditMode && selected ? (
+        <>
+          <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={onRotateHandleMouseDown} aria-label="Повернуть папку">↻</button>
+          <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={onResizeHandleMouseDown} aria-label="Изменить размер папки">↘</button>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -1405,9 +1561,14 @@ type ProjectDesktopIconProps = {
   onDelete?: () => void;
   busy?: boolean;
   compact?: boolean;
+  sceneEditMode?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+  onResizeHandleMouseDown?: (e: any) => void;
+  onRotateHandleMouseDown?: (e: any) => void;
 };
 
-function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false }: ProjectDesktopIconProps) {
+function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown }: ProjectDesktopIconProps) {
   const displayName = project.person?.full_name || project.title || "Проект";
   const titleLine = project.title || displayName;
   const roleLine = project.target_role || project.person?.current_position || "Роль не указана";
@@ -1416,10 +1577,9 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const completed = Math.min(project.attempts_count || 0, total || 0);
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
-  const tilt = getEntityTilt(project.id, 1) * 0.18;
 
   return (
-    <div className="group relative dashboard-desk-sheet-wrap" style={{ transform: `rotate(${tilt}deg)` }}>
+    <div className={`group relative h-full w-full dashboard-desk-sheet-wrap ${selected ? "dashboard-desk-entity-selected" : ""}`}>
       {onDelete ? (
         <button
           type="button"
@@ -1444,7 +1604,10 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
           onDragStart();
         }}
         onDragEnd={onDragEnd}
-        onClick={onOpen}
+        onClick={() => {
+          onSelect?.();
+          if (!sceneEditMode) onOpen();
+        }}
         className={`dashboard-desk-sheet ${isDone ? "dashboard-desk-sheet-ready" : "dashboard-desk-sheet-pending"} ${compact ? "dashboard-desk-sheet-compact" : ""} ${busy ? "opacity-60" : ""}`}
       >
         <span className="dashboard-desk-sheet-clip" aria-hidden="true" />
@@ -1459,6 +1622,12 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
           <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
         </span>
       </button>
+      {sceneEditMode && selected ? (
+        <>
+          <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={onRotateHandleMouseDown} aria-label="Повернуть лист">↻</button>
+          <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={onResizeHandleMouseDown} aria-label="Изменить размер листа">↘</button>
+        </>
+      ) : null}
     </div>
   );
 }
