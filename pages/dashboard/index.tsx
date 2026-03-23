@@ -878,6 +878,28 @@ export default function DashboardPage() {
     window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id), JSON.stringify(deskPositions));
   }, [deskPositions, workspace?.workspace?.workspace_id]);
 
+  function getNextFolderSpawnPosition(folderId: string): DeskPosition {
+    const guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
+    const template = deskPositions[FOLDER_TEMPLATE_ID] || {};
+    const folderCountInTray = folders.filter((folder) => {
+      const position = deskPositions[`folder:${folder.id}`];
+      if (!position) return true;
+      const centerX = (position.x || 0) + ((position.width || DESK_FOLDER_WIDTH) / 2);
+      const centerY = (position.y || 0) + ((position.height || DESK_FOLDER_HEIGHT) / 2);
+      return centerX >= guideRect.x && centerX <= guideRect.x + guideRect.width && centerY >= guideRect.y && centerY <= guideRect.y + guideRect.height;
+    }).length;
+    return {
+      x: guideRect.x + 8 + folderCountInTray * 12,
+      y: guideRect.y + 6 + folderCountInTray * 7,
+      z: deskLayer + folderCountInTray + 1,
+      width: template.width,
+      height: template.height,
+      rotation: template.rotation,
+      tiltX: template.tiltX,
+      tiltY: template.tiltY,
+    } as DeskPosition;
+  }
+
   useEffect(() => {
     const pending = pendingCreatedFolderRef.current;
     if (!pending) return;
@@ -892,7 +914,7 @@ export default function DashboardPage() {
       },
     }));
     pendingCreatedFolderRef.current = null;
-  }, [folders, getNextFolderSpawnPosition]);
+  }, [deskLayer, deskPositions, folders]);
 
   const bringDeskItemToFront = useCallback((itemId: string) => {
     setDeskLayer((current) => {
@@ -917,27 +939,6 @@ export default function DashboardPage() {
 
   const trashGuideRect = useMemo(() => getGuideClipRect(deskPositions[TRASH_GUIDE_ID]), [deskPositions]);
 
-  const getNextFolderSpawnPosition = useCallback((folderId: string) => {
-    const guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
-    const template = deskPositions[FOLDER_TEMPLATE_ID] || {};
-    const folderCountInTray = folders.filter((folder) => {
-      const position = deskPositions[`folder:${folder.id}`];
-      if (!position) return true;
-      const centerX = (position.x || 0) + ((position.width || DESK_FOLDER_WIDTH) / 2);
-      const centerY = (position.y || 0) + ((position.height || DESK_FOLDER_HEIGHT) / 2);
-      return centerX >= guideRect.x && centerX <= guideRect.x + guideRect.width && centerY >= guideRect.y && centerY <= guideRect.y + guideRect.height;
-    }).length;
-    return {
-      x: guideRect.x + 8 + folderCountInTray * 12,
-      y: guideRect.y + 6 + folderCountInTray * 7,
-      z: deskLayer + folderCountInTray + 1,
-      width: template.width,
-      height: template.height,
-      rotation: template.rotation,
-      tiltX: template.tiltX,
-      tiltY: template.tiltY,
-    } as DeskPosition;
-  }, [deskLayer, deskPositions, folders]);
 
   const placeDeskItem = useCallback((itemId: string, kind: "folder" | "project", x: number, y: number) => {
     const current = deskPositions[itemId] || {};

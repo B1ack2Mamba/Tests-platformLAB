@@ -74,12 +74,17 @@ var DESK_SHEET_HEIGHT = 132;
 var DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 var SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
 var TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
+var TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
+var TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 var BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
 var TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
 var TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
 var SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
 var TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
 var TRAY_GUIDE_ID = "guide:tray";
+var TRASH_GUIDE_ID = "guide:trash";
+var FOLDER_TEMPLATE_ID = "template:folder";
+var PROJECT_TEMPLATE_ID = "template:project";
 var GOAL_ORDER = Object.fromEntries(commercialGoals_1.COMMERCIAL_GOALS.map(function (item, index) { return [item.key, index + 1]; }));
 function sortProjects(list) {
     return __spreadArray([], list, true).sort(function (a, b) {
@@ -208,6 +213,31 @@ function getGuideClipRect(position) {
     var height = Math.round((_f = (_e = position === null || position === void 0 ? void 0 : position.height) !== null && _e !== void 0 ? _e : getDefaultTrayGuidePosition().height) !== null && _f !== void 0 ? _f : 104);
     return { x: x, y: y, width: width, height: height };
 }
+function getGuideTransform(position) {
+    var rotation = (position === null || position === void 0 ? void 0 : position.rotation) || 0;
+    var tiltX = (position === null || position === void 0 ? void 0 : position.tiltX) || 0;
+    var tiltY = (position === null || position === void 0 ? void 0 : position.tiltY) || 0;
+    return "perspective(1400px) rotateX(".concat(tiltX, "deg) rotateY(").concat(tiltY, "deg) rotate(").concat(rotation, "deg)");
+}
+function getGuideClipPath(position) {
+    var _a, _b, _c, _d;
+    var width = Math.max(24, Number((position === null || position === void 0 ? void 0 : position.width) || getDefaultTrayGuidePosition().width || 228));
+    var height = Math.max(24, Number((position === null || position === void 0 ? void 0 : position.height) || getDefaultTrayGuidePosition().height || 104));
+    var tlx = Math.min(width, Math.max(0, Number((position === null || position === void 0 ? void 0 : position.clipTlx) || 0)));
+    var tly = Math.min(height, Math.max(0, Number((position === null || position === void 0 ? void 0 : position.clipTly) || 0)));
+    var trx = Math.min(width, Math.max(0, Number((_a = position === null || position === void 0 ? void 0 : position.clipTrx) !== null && _a !== void 0 ? _a : width)));
+    var trY = Math.min(height, Math.max(0, Number((position === null || position === void 0 ? void 0 : position.clipTry) || 0)));
+    var brx = Math.min(width, Math.max(0, Number((_b = position === null || position === void 0 ? void 0 : position.clipBrx) !== null && _b !== void 0 ? _b : width)));
+    var bry = Math.min(height, Math.max(0, Number((_c = position === null || position === void 0 ? void 0 : position.clipBry) !== null && _c !== void 0 ? _c : height)));
+    var blx = Math.min(width, Math.max(0, Number((position === null || position === void 0 ? void 0 : position.clipBlx) || 0)));
+    var bly = Math.min(height, Math.max(0, Number((_d = position === null || position === void 0 ? void 0 : position.clipBly) !== null && _d !== void 0 ? _d : height)));
+    var area = Math.abs(tlx * trY + trx * bry + brx * bly + blx * tly -
+        tly * trx - trY * brx - bry * blx - bly * tlx) / 2;
+    if (!Number.isFinite(area) || area < width * height * 0.08) {
+        return "polygon(0px 0px, ".concat(width, "px 0px, ").concat(width, "px ").concat(height, "px, 0px ").concat(height, "px)");
+    }
+    return "polygon(".concat(tlx, "px ").concat(tly, "px, ").concat(trx, "px ").concat(trY, "px, ").concat(brx, "px ").concat(bry, "px, ").concat(blx, "px ").concat(bly, "px)");
+}
 function getDeskStorageKey(workspaceId) {
     return "".concat(DESK_STORAGE_PREFIX).concat(workspaceId);
 }
@@ -216,6 +246,9 @@ function getSceneWidgetsStorageKey(workspaceId) {
 }
 function getTrayGuideTextStorageKey(workspaceId) {
     return "".concat(TRAY_GUIDE_TEXT_STORAGE_PREFIX).concat(workspaceId);
+}
+function getTrashStorageKey(workspaceId) {
+    return "".concat(TRASH_STORAGE_PREFIX).concat(workspaceId);
 }
 function buildDefaultSceneWidgets(params) {
     var displayName = params.displayName, workspaceName = params.workspaceName, email = params.email, balanceText = params.balanceText, investedText = params.investedText, greeneryLabel = params.greeneryLabel;
@@ -227,7 +260,7 @@ function buildDefaultSceneWidgets(params) {
         { id: "profile-name", kind: "text", text: displayName, tone: "marker", x: 262, y: 426, width: 340, height: 58, rotation: -1, fontSize: 36, z: 24 },
         { id: "profile-role", kind: "text", text: "admin", tone: "note", x: 264, y: 494, width: 180, height: 30, rotation: -1.1, fontSize: 16, z: 25 },
         { id: "profile-email", kind: "text", text: email, tone: "note", x: 264, y: 530, width: 300, height: 34, rotation: -1.1, fontSize: 16, z: 26 },
-        { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 1010, y: 170, width: 170, height: 46, rotation: -2.4, fontSize: 16, z: 30 },
+        { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonSecondary", x: 1010, y: 170, width: 170, height: 46, rotation: -2.4, fontSize: 16, z: 30 },
         { id: "create-folder", kind: "button", text: "Новая папка", action: "createFolder", tone: "buttonSecondary", x: 1010, y: 226, width: 160, height: 44, rotation: -2.1, fontSize: 15, z: 31 },
         { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonSecondary", x: 1010, y: 280, width: 168, height: 44, rotation: -2.2, fontSize: 15, z: 32 },
     ];
@@ -264,58 +297,98 @@ function getDefaultTrayGuidePosition() {
         rotation: 0,
         tiltX: 0,
         tiltY: 0,
+        clipTlx: 0,
+        clipTly: 10,
+        clipTrx: 214,
+        clipTry: 0,
+        clipBrx: 228,
+        clipBry: 92,
+        clipBlx: 16,
+        clipBly: 104,
+    };
+}
+function getDefaultTrashGuidePosition() {
+    return {
+        x: TRASH_ZONE.x,
+        y: TRASH_ZONE.y,
+        z: 18,
+        width: TRASH_ZONE.width,
+        height: TRASH_ZONE.height,
+        rotation: 0,
+        tiltX: 0,
+        tiltY: 0,
     };
 }
 function mergeDeskPositions(folders, projects, saved) {
     var next = {};
     next[TRAY_GUIDE_ID] = saved[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
+    next[TRASH_GUIDE_ID] = saved[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
+    var folderTemplate = saved[FOLDER_TEMPLATE_ID] || {};
+    var projectTemplate = saved[PROJECT_TEMPLATE_ID] || {};
+    var trayRect = getGuideClipRect(next[TRAY_GUIDE_ID]);
     folders.forEach(function (folder, index) {
         var key = "folder:".concat(folder.id);
-        next[key] = saved[key] || getDefaultFolderPosition(index);
+        next[key] = saved[key] || {
+            x: trayRect.x + 8 + index * 12,
+            y: trayRect.y + 6 + index * 7,
+            z: 20 + index,
+            width: folderTemplate.width,
+            height: folderTemplate.height,
+            rotation: folderTemplate.rotation,
+            tiltX: folderTemplate.tiltX,
+            tiltY: folderTemplate.tiltY,
+        };
     });
     projects.forEach(function (project, index) {
         var key = "project:".concat(project.id);
-        next[key] = saved[key] || getDefaultProjectPosition(index);
+        next[key] = saved[key] || __assign(__assign({}, getDefaultProjectPosition(index)), { width: projectTemplate.width, height: projectTemplate.height, rotation: projectTemplate.rotation, tiltX: projectTemplate.tiltX, tiltY: projectTemplate.tiltY });
     });
+    if (saved[FOLDER_TEMPLATE_ID])
+        next[FOLDER_TEMPLATE_ID] = saved[FOLDER_TEMPLATE_ID];
+    if (saved[PROJECT_TEMPLATE_ID])
+        next[PROJECT_TEMPLATE_ID] = saved[PROJECT_TEMPLATE_ID];
     return next;
 }
 function DashboardPage() {
     var _this = this;
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
-    var _p = (0, useSession_1.useSession)(), session = _p.session, user = _p.user, sessionLoading = _p.loading;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+    var _r = (0, useSession_1.useSession)(), session = _r.session, user = _r.user, sessionLoading = _r.loading;
     var router = (0, router_1.useRouter)();
-    var _q = (0, react_1.useState)(null), data = _q[0], setData = _q[1];
-    var _r = (0, react_1.useState)(null), workspace = _r[0], setWorkspace = _r[1];
-    var _s = (0, react_1.useState)(false), loading = _s[0], setLoading = _s[1];
-    var _t = (0, react_1.useState)(""), error = _t[0], setError = _t[1];
-    var _u = (0, react_1.useState)(""), newFolderName = _u[0], setNewFolderName = _u[1];
-    var _v = (0, react_1.useState)("folder"), newFolderIcon = _v[0], setNewFolderIcon = _v[1];
-    var _w = (0, react_1.useState)(null), draggingProjectId = _w[0], setDraggingProjectId = _w[1];
-    var _x = (0, react_1.useState)(null), busyFolderId = _x[0], setBusyFolderId = _x[1];
-    var _y = (0, react_1.useState)(null), activeFolderId = _y[0], setActiveFolderId = _y[1];
-    var _z = (0, react_1.useState)(null), iconPickerFolder = _z[0], setIconPickerFolder = _z[1];
-    var _0 = (0, react_1.useState)(null), folderActionTarget = _0[0], setFolderActionTarget = _0[1];
-    var _1 = (0, react_1.useState)(null), folderRenameTarget = _1[0], setFolderRenameTarget = _1[1];
-    var _2 = (0, react_1.useState)(""), folderRenameValue = _2[0], setFolderRenameValue = _2[1];
-    var _3 = (0, react_1.useState)(null), folderDeleteTarget = _3[0], setFolderDeleteTarget = _3[1];
-    var _4 = (0, react_1.useState)(false), showCreateFolder = _4[0], setShowCreateFolder = _4[1];
-    var _5 = (0, useWallet_1.useWallet)(), wallet = _5.wallet, ledger = _5.ledger, walletLoading = _5.loading, isUnlimited = _5.isUnlimited;
+    var _s = (0, react_1.useState)(null), data = _s[0], setData = _s[1];
+    var _t = (0, react_1.useState)(null), workspace = _t[0], setWorkspace = _t[1];
+    var _u = (0, react_1.useState)(false), loading = _u[0], setLoading = _u[1];
+    var _v = (0, react_1.useState)(""), error = _v[0], setError = _v[1];
+    var _w = (0, react_1.useState)(""), newFolderName = _w[0], setNewFolderName = _w[1];
+    var _x = (0, react_1.useState)("folder"), newFolderIcon = _x[0], setNewFolderIcon = _x[1];
+    var _y = (0, react_1.useState)(null), draggingProjectId = _y[0], setDraggingProjectId = _y[1];
+    var _z = (0, react_1.useState)(null), busyFolderId = _z[0], setBusyFolderId = _z[1];
+    var _0 = (0, react_1.useState)(null), activeFolderId = _0[0], setActiveFolderId = _0[1];
+    var _1 = (0, react_1.useState)(null), iconPickerFolder = _1[0], setIconPickerFolder = _1[1];
+    var _2 = (0, react_1.useState)(null), folderActionTarget = _2[0], setFolderActionTarget = _2[1];
+    var _3 = (0, react_1.useState)(null), folderRenameTarget = _3[0], setFolderRenameTarget = _3[1];
+    var _4 = (0, react_1.useState)(""), folderRenameValue = _4[0], setFolderRenameValue = _4[1];
+    var _5 = (0, react_1.useState)(null), folderDeleteTarget = _5[0], setFolderDeleteTarget = _5[1];
+    var _6 = (0, react_1.useState)(false), showCreateFolder = _6[0], setShowCreateFolder = _6[1];
+    var _7 = (0, useWallet_1.useWallet)(), wallet = _7.wallet, ledger = _7.ledger, walletLoading = _7.loading, isUnlimited = _7.isUnlimited;
     var isAdmin = (0, admin_1.isAdminEmail)(user === null || user === void 0 ? void 0 : user.email);
-    var _6 = (0, react_1.useState)(0), mechanicPulse = _6[0], setMechanicPulse = _6[1];
-    var _7 = (0, react_1.useState)({}), deskPositions = _7[0], setDeskPositions = _7[1];
-    var _8 = (0, react_1.useState)(300), deskLayer = _8[0], setDeskLayer = _8[1];
-    var _9 = (0, react_1.useState)(null), previewProject = _9[0], setPreviewProject = _9[1];
-    var _10 = (0, react_1.useState)(null), draggingFolderId = _10[0], setDraggingFolderId = _10[1];
-    var _11 = (0, react_1.useState)(null), trashHover = _11[0], setTrashHover = _11[1];
+    var _8 = (0, react_1.useState)(0), mechanicPulse = _8[0], setMechanicPulse = _8[1];
+    var _9 = (0, react_1.useState)({}), deskPositions = _9[0], setDeskPositions = _9[1];
+    var _10 = (0, react_1.useState)(300), deskLayer = _10[0], setDeskLayer = _10[1];
+    var _11 = (0, react_1.useState)(null), previewProject = _11[0], setPreviewProject = _11[1];
+    var _12 = (0, react_1.useState)(null), draggingFolderId = _12[0], setDraggingFolderId = _12[1];
+    var _13 = (0, react_1.useState)(null), trashHover = _13[0], setTrashHover = _13[1];
     var trashHoverTimer = (0, react_1.useRef)(null);
+    var _14 = (0, react_1.useState)([]), trashEntries = _14[0], setTrashEntries = _14[1];
+    var _15 = (0, react_1.useState)(false), trashOpen = _15[0], setTrashOpen = _15[1];
     var canEditScene = (user === null || user === void 0 ? void 0 : user.email) === "storyguild9@gmail.com" || isAdmin;
-    var _12 = (0, react_1.useState)(false), sceneEditMode = _12[0], setSceneEditMode = _12[1];
-    var _13 = (0, react_1.useState)([]), sceneWidgets = _13[0], setSceneWidgets = _13[1];
-    var _14 = (0, react_1.useState)("Создать новую папку проектов"), trayGuideText = _14[0], setTrayGuideText = _14[1];
-    var _15 = (0, react_1.useState)(null), selectedWidgetId = _15[0], setSelectedWidgetId = _15[1];
-    var _16 = (0, react_1.useState)(null), selectedDeskItemId = _16[0], setSelectedDeskItemId = _16[1];
+    var _16 = (0, react_1.useState)(false), sceneEditMode = _16[0], setSceneEditMode = _16[1];
+    var _17 = (0, react_1.useState)([]), sceneWidgets = _17[0], setSceneWidgets = _17[1];
+    var _18 = (0, react_1.useState)("Создать новую папку проектов"), trayGuideText = _18[0], setTrayGuideText = _18[1];
+    var _19 = (0, react_1.useState)(null), selectedWidgetId = _19[0], setSelectedWidgetId = _19[1];
+    var _20 = (0, react_1.useState)(null), selectedDeskItemId = _20[0], setSelectedDeskItemId = _20[1];
     var widgetInteractionRef = (0, react_1.useRef)(null);
     var deskInteractionRef = (0, react_1.useRef)(null);
+    var pendingCreatedFolderRef = (0, react_1.useRef)(null);
     var balance_rub = (0, react_1.useMemo)(function () {
         var _a;
         if (isUnlimited)
@@ -431,7 +504,12 @@ function DashboardPage() {
                 saved = [];
             }
         }
-        setSceneWidgets(saved.length ? saved : defaultSceneWidgets);
+        var normalizedWidgets = (saved.length ? saved : defaultSceneWidgets).map(function (item) {
+            if (item.id === "create-project")
+                return __assign(__assign({}, item), { tone: "buttonSecondary" });
+            return item;
+        });
+        setSceneWidgets(normalizedWidgets);
     }, [defaultSceneWidgets, (_g = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _g === void 0 ? void 0 : _g.workspace_id]);
     (0, react_1.useEffect)(function () {
         var _a;
@@ -460,6 +538,26 @@ function DashboardPage() {
             return;
         window.localStorage.setItem(getTrayGuideTextStorageKey(workspace.workspace.workspace_id), trayGuideText);
     }, [trayGuideText, (_k = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _k === void 0 ? void 0 : _k.workspace_id]);
+    (0, react_1.useEffect)(function () {
+        var _a;
+        if (!((_a = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _a === void 0 ? void 0 : _a.workspace_id) || typeof window === "undefined")
+            return;
+        try {
+            var raw = window.localStorage.getItem(getTrashStorageKey(workspace.workspace.workspace_id));
+            var parsed = raw ? JSON.parse(raw) : [];
+            var now_1 = Date.now();
+            setTrashEntries(parsed.filter(function (item) { return item.expiresAt > now_1; }));
+        }
+        catch (_b) {
+            setTrashEntries([]);
+        }
+    }, [(_l = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _l === void 0 ? void 0 : _l.workspace_id]);
+    (0, react_1.useEffect)(function () {
+        var _a;
+        if (!((_a = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _a === void 0 ? void 0 : _a.workspace_id) || typeof window === "undefined")
+            return;
+        window.localStorage.setItem(getTrashStorageKey(workspace.workspace.workspace_id), JSON.stringify(trashEntries));
+    }, [trashEntries, (_m = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _m === void 0 ? void 0 : _m.workspace_id]);
     var selectedWidget = (0, react_1.useMemo)(function () { return sceneWidgets.find(function (item) { return item.id === selectedWidgetId; }) || null; }, [sceneWidgets, selectedWidgetId]);
     var updateSceneWidget = (0, react_1.useCallback)(function (id, patch) {
         setSceneWidgets(function (prev) { return prev.map(function (item) { return (item.id === id ? __assign(__assign({}, item), patch) : item); }); });
@@ -467,9 +565,29 @@ function DashboardPage() {
     var updateDeskItem = (0, react_1.useCallback)(function (id, patch) {
         setDeskPositions(function (prev) {
             var _a;
-            return (__assign(__assign({}, prev), (_a = {}, _a[id] = __assign(__assign({}, (prev[id] || { x: 48, y: 48, z: deskLayer + 1 })), patch), _a)));
+            var next = __assign(__assign({}, prev), (_a = {}, _a[id] = __assign(__assign({}, (prev[id] || { x: 48, y: 48, z: deskLayer + 1 })), patch), _a));
+            if (id.startsWith("folder:")) {
+                next[FOLDER_TEMPLATE_ID] = __assign(__assign(__assign(__assign(__assign(__assign({}, (prev[FOLDER_TEMPLATE_ID] || {})), (patch.width !== undefined ? { width: patch.width } : {})), (patch.height !== undefined ? { height: patch.height } : {})), (patch.rotation !== undefined ? { rotation: patch.rotation } : {})), (patch.tiltX !== undefined ? { tiltX: patch.tiltX } : {})), (patch.tiltY !== undefined ? { tiltY: patch.tiltY } : {}));
+            }
+            if (id.startsWith("project:")) {
+                next[PROJECT_TEMPLATE_ID] = __assign(__assign(__assign(__assign(__assign(__assign({}, (prev[PROJECT_TEMPLATE_ID] || {})), (patch.width !== undefined ? { width: patch.width } : {})), (patch.height !== undefined ? { height: patch.height } : {})), (patch.rotation !== undefined ? { rotation: patch.rotation } : {})), (patch.tiltX !== undefined ? { tiltX: patch.tiltX } : {})), (patch.tiltY !== undefined ? { tiltY: patch.tiltY } : {}));
+            }
+            return next;
         });
     }, [deskLayer]);
+    var moveToTrash = (0, react_1.useCallback)(function (kind, id, title) {
+        var now = Date.now();
+        setTrashEntries(function (prev) {
+            var next = prev.filter(function (item) { return !(item.kind === kind && item.id === id); });
+            next.unshift({ kind: kind, id: id, title: title, deletedAt: now, expiresAt: now + TRASH_RETENTION_MS });
+            return next;
+        });
+        setActiveFolderId(function (current) { return (kind === "folder" && current === id ? null : current); });
+        setPreviewProject(function (current) { return (kind === "project" && (current === null || current === void 0 ? void 0 : current.id) === id ? null : current); });
+    }, []);
+    var restoreTrashEntry = (0, react_1.useCallback)(function (entry) {
+        setTrashEntries(function (prev) { return prev.filter(function (item) { return !(item.kind === entry.kind && item.id === entry.id); }); });
+    }, []);
     var handleSceneWidgetAction = (0, react_1.useCallback)(function (action) {
         if (action === "createProject") {
             router.push('/projects/new');
@@ -480,9 +598,7 @@ function DashboardPage() {
             return;
         }
         if (action === "createFolder") {
-            var name_1 = window.prompt('Название новой папки', 'Новая папка');
-            if (name_1 && name_1.trim())
-                void createFolderNamed(name_1.trim(), 'folder');
+            promptAndCreateFolder();
             return;
         }
     }, [router, session, newFolderIcon, loadDashboard]);
@@ -554,9 +670,13 @@ function DashboardPage() {
             var baseWidth = (_c = current.position.width) !== null && _c !== void 0 ? _c : defaultWidth;
             var baseHeight = (_d = current.position.height) !== null && _d !== void 0 ? _d : defaultHeight;
             if (current.mode === "drag") {
+                var minX = current.kind === "project" ? -baseWidth * 0.5 : 0;
+                var minY = current.kind === "project" ? -baseHeight * 0.5 : 0;
+                var maxX = current.kind === "project" ? DESK_WIDTH - baseWidth * 0.5 : DESK_WIDTH - baseWidth;
+                var maxY = current.kind === "project" ? DESK_HEIGHT - baseHeight * 0.5 : DESK_HEIGHT - baseHeight;
                 updateDeskItem(current.id, {
-                    x: clampDesk(((_e = current.position.x) !== null && _e !== void 0 ? _e : 0) + dx, 0, DESK_WIDTH - baseWidth),
-                    y: clampDesk(((_f = current.position.y) !== null && _f !== void 0 ? _f : 0) + dy, 0, DESK_HEIGHT - baseHeight),
+                    x: clampDesk(((_e = current.position.x) !== null && _e !== void 0 ? _e : 0) + dx, minX, maxX),
+                    y: clampDesk(((_f = current.position.y) !== null && _f !== void 0 ? _f : 0) + dy, minY, maxY),
                 });
                 return;
             }
@@ -583,8 +703,10 @@ function DashboardPage() {
         setSceneWidgets(defaultSceneWidgets);
         setSelectedWidgetId(null);
     }, [defaultSceneWidgets]);
-    var projects = (0, react_1.useMemo)(function () { return (workspace === null || workspace === void 0 ? void 0 : workspace.projects) || []; }, [workspace === null || workspace === void 0 ? void 0 : workspace.projects]);
-    var folders = (0, react_1.useMemo)(function () { return (workspace === null || workspace === void 0 ? void 0 : workspace.folders) || []; }, [workspace === null || workspace === void 0 ? void 0 : workspace.folders]);
+    var trashedProjectIds = (0, react_1.useMemo)(function () { return new Set(trashEntries.filter(function (item) { return item.kind === "project"; }).map(function (item) { return item.id; })); }, [trashEntries]);
+    var trashedFolderIds = (0, react_1.useMemo)(function () { return new Set(trashEntries.filter(function (item) { return item.kind === "folder"; }).map(function (item) { return item.id; })); }, [trashEntries]);
+    var projects = (0, react_1.useMemo)(function () { return ((workspace === null || workspace === void 0 ? void 0 : workspace.projects) || []).filter(function (item) { return !trashedProjectIds.has(item.id); }); }, [trashedProjectIds, workspace === null || workspace === void 0 ? void 0 : workspace.projects]);
+    var folders = (0, react_1.useMemo)(function () { return ((workspace === null || workspace === void 0 ? void 0 : workspace.folders) || []).filter(function (item) { return !trashedFolderIds.has(item.id); }); }, [trashedFolderIds, workspace === null || workspace === void 0 ? void 0 : workspace.folders]);
     var folderBuckets = (0, react_1.useMemo)(function () {
         var buckets = new Map();
         for (var _i = 0, folders_1 = folders; _i < folders_1.length; _i++) {
@@ -614,6 +736,9 @@ function DashboardPage() {
             return null;
         if (selectedDeskItemId === TRAY_GUIDE_ID) {
             return { kind: "guide", id: selectedDeskItemId, title: "Виртуальная стойка", position: deskPositions[selectedDeskItemId] || getDefaultTrayGuidePosition() };
+        }
+        if (selectedDeskItemId === TRASH_GUIDE_ID) {
+            return { kind: "guide", id: selectedDeskItemId, title: "Виртуальная зона корзины", position: deskPositions[selectedDeskItemId] || getDefaultTrashGuidePosition() };
         }
         if (selectedDeskItemId.startsWith("folder:")) {
             var id_1 = selectedDeskItemId.replace("folder:", "");
@@ -665,13 +790,49 @@ function DashboardPage() {
             setDeskLayer(Object.values(merged).reduce(function (max, item) { return Math.max(max, item.z || 0); }, 300));
             return merged;
         });
-    }, [(_l = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _l === void 0 ? void 0 : _l.workspace_id, folders, folderBuckets.uncategorized]);
+    }, [(_o = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _o === void 0 ? void 0 : _o.workspace_id, folders, folderBuckets.uncategorized]);
     (0, react_1.useEffect)(function () {
         var _a;
         if (!((_a = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _a === void 0 ? void 0 : _a.workspace_id) || typeof window === "undefined")
             return;
         window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id), JSON.stringify(deskPositions));
-    }, [deskPositions, (_m = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _m === void 0 ? void 0 : _m.workspace_id]);
+    }, [deskPositions, (_p = workspace === null || workspace === void 0 ? void 0 : workspace.workspace) === null || _p === void 0 ? void 0 : _p.workspace_id]);
+    function getNextFolderSpawnPosition(folderId) {
+        var guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
+        var template = deskPositions[FOLDER_TEMPLATE_ID] || {};
+        var folderCountInTray = folders.filter(function (folder) {
+            var position = deskPositions["folder:".concat(folder.id)];
+            if (!position)
+                return true;
+            var centerX = (position.x || 0) + ((position.width || DESK_FOLDER_WIDTH) / 2);
+            var centerY = (position.y || 0) + ((position.height || DESK_FOLDER_HEIGHT) / 2);
+            return centerX >= guideRect.x && centerX <= guideRect.x + guideRect.width && centerY >= guideRect.y && centerY <= guideRect.y + guideRect.height;
+        }).length;
+        return {
+            x: guideRect.x + 8 + folderCountInTray * 12,
+            y: guideRect.y + 6 + folderCountInTray * 7,
+            z: deskLayer + folderCountInTray + 1,
+            width: template.width,
+            height: template.height,
+            rotation: template.rotation,
+            tiltX: template.tiltX,
+            tiltY: template.tiltY,
+        };
+    }
+    (0, react_1.useEffect)(function () {
+        var pending = pendingCreatedFolderRef.current;
+        if (!pending)
+            return;
+        var folderExists = folders.some(function (item) { return item.id === pending.id; });
+        if (!folderExists)
+            return;
+        var nextPosition = getNextFolderSpawnPosition(pending.id);
+        setDeskPositions(function (prev) {
+            var _a;
+            return (__assign(__assign({}, prev), (_a = {}, _a["folder:".concat(pending.id)] = __assign(__assign({}, (prev["folder:".concat(pending.id)] || {})), nextPosition), _a)));
+        });
+        pendingCreatedFolderRef.current = null;
+    }, [deskLayer, deskPositions, folders]);
     var bringDeskItemToFront = (0, react_1.useCallback)(function (itemId) {
         setDeskLayer(function (current) {
             var next = current + 1;
@@ -684,23 +845,28 @@ function DashboardPage() {
     }, []);
     var isInsideGuideRect = (0, react_1.useCallback)(function (x, y) {
         var rect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
-        return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+        var centerX = x + 48;
+        var centerY = y + 48;
+        return centerX >= rect.x && centerX <= rect.x + rect.width && centerY >= rect.y && centerY <= rect.y + rect.height;
     }, [deskPositions]);
+    var trashGuideRect = (0, react_1.useMemo)(function () { return getGuideClipRect(deskPositions[TRASH_GUIDE_ID]); }, [deskPositions]);
     var placeDeskItem = (0, react_1.useCallback)(function (itemId, kind, x, y) {
         var current = deskPositions[itemId] || {};
         var itemWidth = current.width || (kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH);
         var itemHeight = current.height || (kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT);
-        var maxX = DESK_WIDTH - itemWidth - 24;
-        var maxY = DESK_HEIGHT - itemHeight - 24;
-        var nextX = clampDesk(x, 24, maxX);
-        var nextY = clampDesk(y, 24, maxY);
+        var minX = kind === "project" ? -itemWidth * 0.5 : 24;
+        var minY = kind === "project" ? -itemHeight * 0.5 : 24;
+        var maxX = kind === "project" ? DESK_WIDTH - itemWidth * 0.5 : DESK_WIDTH - itemWidth - 24;
+        var maxY = kind === "project" ? DESK_HEIGHT - itemHeight * 0.5 : DESK_HEIGHT - itemHeight - 24;
+        var nextX = clampDesk(x, minX, maxX);
+        var nextY = clampDesk(y, minY, maxY);
         if (kind === "folder") {
             var folderId_1 = itemId.replace("folder:", "");
             var folderIndex = Math.max(0, folders.findIndex(function (item) { return item.id === folderId_1; }));
             var guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
             var snapped_1 = isInsideGuideRect(nextX, nextY)
-                ? { x: guideRect.x + 8 + folderIndex * 16, y: guideRect.y + 10 + folderIndex * 8, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation }
-                : { x: nextX, y: nextY, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation };
+                ? { x: guideRect.x + 8 + folderIndex * 12, y: guideRect.y + 6 + folderIndex * 7, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation, tiltX: current.tiltX, tiltY: current.tiltY }
+                : { x: nextX, y: nextY, z: 20 + folderIndex, width: current.width, height: current.height, rotation: current.rotation, tiltX: current.tiltX, tiltY: current.tiltY };
             setDeskPositions(function (prev) {
                 var _a;
                 var _b;
@@ -741,18 +907,19 @@ function DashboardPage() {
     }, [bringDeskItemToFront, clearTrashHover, draggingProjectId, folderBuckets.uncategorized, moveProject, placeDeskItem]);
     function createFolderNamed(nameValue_1) {
         return __awaiter(this, arguments, void 0, function (nameValue, iconKey) {
-            var name, resp, json, e_2;
+            var name, resp, json, newFolderId_1, nextPosition_1, e_2;
+            var _a;
             if (iconKey === void 0) { iconKey = newFolderIcon; }
-            return __generator(this, function (_a) {
-                switch (_a.label) {
+            return __generator(this, function (_b) {
+                switch (_b.label) {
                     case 0:
                         name = nameValue.trim();
                         if (!name || !session)
                             return [2 /*return*/];
                         setBusyFolderId("new");
-                        _a.label = 1;
+                        _b.label = 1;
                     case 1:
-                        _a.trys.push([1, 5, 6, 7]);
+                        _b.trys.push([1, 5, 6, 7]);
                         return [4 /*yield*/, fetch("/api/commercial/folders/create", {
                                 method: "POST",
                                 headers: {
@@ -762,20 +929,29 @@ function DashboardPage() {
                                 body: JSON.stringify({ name: name, icon_key: iconKey }),
                             })];
                     case 2:
-                        resp = _a.sent();
+                        resp = _b.sent();
                         return [4 /*yield*/, resp.json().catch(function () { return ({}); })];
                     case 3:
-                        json = _a.sent();
+                        json = _b.sent();
                         if (!resp.ok || !(json === null || json === void 0 ? void 0 : json.ok))
                             throw new Error((json === null || json === void 0 ? void 0 : json.error) || "Не удалось создать папку");
+                        newFolderId_1 = String(((_a = json === null || json === void 0 ? void 0 : json.folder) === null || _a === void 0 ? void 0 : _a.id) || "");
+                        if (newFolderId_1) {
+                            pendingCreatedFolderRef.current = { id: newFolderId_1 };
+                            nextPosition_1 = getNextFolderSpawnPosition(newFolderId_1);
+                            setDeskPositions(function (prev) {
+                                var _a;
+                                return (__assign(__assign({}, prev), (_a = {}, _a["folder:".concat(newFolderId_1)] = nextPosition_1, _a)));
+                            });
+                        }
                         setNewFolderName("");
                         setNewFolderIcon("folder");
                         return [4 /*yield*/, loadDashboard()];
                     case 4:
-                        _a.sent();
+                        _b.sent();
                         return [3 /*break*/, 7];
                     case 5:
-                        e_2 = _a.sent();
+                        e_2 = _b.sent();
                         setError((e_2 === null || e_2 === void 0 ? void 0 : e_2.message) || "Ошибка");
                         return [3 /*break*/, 7];
                     case 6:
@@ -785,6 +961,11 @@ function DashboardPage() {
                 }
             });
         });
+    }
+    function promptAndCreateFolder() {
+        var name = typeof window !== 'undefined' ? window.prompt('Название новой папки', 'Новая папка') : null;
+        if (name && name.trim())
+            void createFolderNamed(name.trim(), 'folder');
     }
     function createFolder() {
         return __awaiter(this, void 0, void 0, function () {
@@ -1096,22 +1277,38 @@ function DashboardPage() {
         if (trashHoverTimer.current)
             window.clearTimeout(trashHoverTimer.current);
         trashHoverTimer.current = window.setTimeout(function () {
+            var _a;
             if (kind === "project") {
-                void deleteProject(id, true);
+                var project = ((workspace === null || workspace === void 0 ? void 0 : workspace.projects) || []).find(function (item) { return item.id === id; });
+                moveToTrash("project", id, (project === null || project === void 0 ? void 0 : project.title) || ((_a = project === null || project === void 0 ? void 0 : project.person) === null || _a === void 0 ? void 0 : _a.full_name) || "Проект");
             }
             else {
-                void deleteFolderDirect(id);
+                var folder = ((workspace === null || workspace === void 0 ? void 0 : workspace.folders) || []).find(function (item) { return item.id === id; });
+                moveToTrash("folder", id, (folder === null || folder === void 0 ? void 0 : folder.name) || "Папка");
             }
             setDraggingProjectId(null);
             setDraggingFolderId(null);
             setTrashHover(null);
             trashHoverTimer.current = null;
         }, 650);
-    }, [deleteFolderDirect, deleteProject]);
+    }, [moveToTrash, workspace === null || workspace === void 0 ? void 0 : workspace.folders, workspace === null || workspace === void 0 ? void 0 : workspace.projects]);
     (0, react_1.useEffect)(function () { return function () {
         if (trashHoverTimer.current)
             window.clearTimeout(trashHoverTimer.current);
     }; }, []);
+    (0, react_1.useEffect)(function () {
+        var now = Date.now();
+        var expired = trashEntries.filter(function (item) { return item.expiresAt <= now; });
+        if (!expired.length)
+            return;
+        setTrashEntries(function (prev) { return prev.filter(function (item) { return item.expiresAt > now; }); });
+        expired.forEach(function (entry) {
+            if (entry.kind === "project")
+                void deleteProject(entry.id, true);
+            else
+                void deleteFolderDirect(entry.id);
+        });
+    }, [trashEntries]);
     if (!session || !user) {
         return (<Layout_1.Layout title="Кабинет">
         <div className="card text-sm text-slate-700">Переадресация на вход…</div>
@@ -1137,14 +1334,13 @@ function DashboardPage() {
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-xl font-semibold text-[#2c1b10]">{displayName}</span>
               <span className="text-sm text-[#6a4b31]">{workspaceName}</span>
-              <span className="text-sm text-[#8b6a48]">{((_o = data === null || data === void 0 ? void 0 : data.profile) === null || _o === void 0 ? void 0 : _o.email) || user.email || "email не указан"}</span>
+              <span className="text-sm text-[#8b6a48]">{((_q = data === null || data === void 0 ? void 0 : data.profile) === null || _q === void 0 ? void 0 : _q.email) || user.email || "email не указан"}</span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
             <button type="button" className="btn btn-secondary btn-sm" onClick={function () { return router.push('/assessments'); }}>Каталог тестов</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={function () { var name = window.prompt('Название новой папки', 'Новая папка'); if (name && name.trim())
-        void createFolderNamed(name.trim(), 'folder'); }}>Новая папка</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>Новая папка</button>
             {canEditScene ? (<>
                 <button type="button" className={"btn btn-sm ".concat(sceneEditMode ? "btn-primary" : "btn-secondary")} onClick={function () { return setSceneEditMode(function (prev) { return !prev; }); }}>
                   {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
@@ -1205,9 +1401,35 @@ function DashboardPage() {
               <label className="text-xs text-[#7b5b3b]">Поворот Y
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.tiltY || 0).toFixed(1))} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { tiltY: Number(e.target.value || 0) }); }}/>
               </label>
-              {selectedDeskItem.kind === "guide" ? (<label className="text-xs text-[#7b5b3b] md:col-span-7">Текст на стойке
-                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={trayGuideText} onChange={function (e) { return setTrayGuideText(e.target.value); }}/>
-                </label>) : null}
+              {selectedDeskItem.kind === "guide" ? (<>
+                  {selectedDeskItem.id === TRAY_GUIDE_ID ? (<label className="text-xs text-[#7b5b3b] md:col-span-7">Текст на стойке
+                      <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={trayGuideText} onChange={function (e) { return setTrayGuideText(e.target.value); }}/>
+                    </label>) : null}
+                  <label className="text-xs text-[#7b5b3b]">TL X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTlx || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipTlx: Number(e.target.value || 0) }); }}/>
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">TL Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTly || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipTly: Number(e.target.value || 0) }); }}/>
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">TR X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTrx || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipTrx: Number(e.target.value || 0) }); }}/>
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">TR Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipTry || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipTry: Number(e.target.value || 0) }); }}/>
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BR X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBrx || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipBrx: Number(e.target.value || 0) }); }}/>
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BR Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBry || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipBry: Number(e.target.value || 0) }); }}/>
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BL X
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBlx || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipBlx: Number(e.target.value || 0) }); }}/>
+                  </label>
+                  <label className="text-xs text-[#7b5b3b]">BL Y
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.clipBly || 0)} onChange={function (e) { return updateDeskItem(selectedDeskItem.id, { clipBly: Number(e.target.value || 0) }); }}/>
+                  </label>
+                </>) : null}
             </div>
           </div>) : null}
 
@@ -1246,20 +1468,68 @@ function DashboardPage() {
                   </div>);
         })}
             </div>
-
-            <div className={"dashboard-trash-zone absolute z-[6] ".concat(trashHover ? 'dashboard-trash-zone-active' : '')} style={{ left: "".concat(TRASH_ZONE.x, "px"), top: "".concat(TRASH_ZONE.y, "px"), width: "".concat(TRASH_ZONE.width, "px"), height: "".concat(TRASH_ZONE.height, "px") }} onDragOver={function (e) {
-            e.preventDefault();
-            var draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
-            var draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
-            if (draggedProjectId)
-                beginTrashHover('project', draggedProjectId);
-            else if (draggedFolderId)
-                beginTrashHover('folder', draggedFolderId);
-        }} onDragLeave={function () { return clearTrashHover(); }} onDrop={function (e) {
-            e.preventDefault();
-            clearTrashHover();
-        }}/>
-
+            {(function () {
+            var trashPosition = deskPositions[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
+            var width = trashPosition.width || TRASH_ZONE.width;
+            var height = trashPosition.height || TRASH_ZONE.height;
+            var isSelected = selectedDeskItemId === TRASH_GUIDE_ID;
+            return (<div className={"dashboard-trash-zone absolute z-[14] ".concat(trashHover ? 'dashboard-trash-zone-active' : '', " ").concat(sceneEditMode ? 'dashboard-trash-zone-editing' : '', " ").concat(isSelected ? 'dashboard-desk-entity-selected' : '')} style={{ left: "".concat(trashPosition.x, "px"), top: "".concat(trashPosition.y, "px"), width: "".concat(width, "px"), height: "".concat(height, "px"), transform: getGuideTransform(trashPosition), transformOrigin: 'top left' }} onClick={function (e) {
+                    e.stopPropagation();
+                    if (sceneEditMode) {
+                        setSelectedDeskItemId(TRASH_GUIDE_ID);
+                        setSelectedWidgetId(null);
+                    }
+                    else {
+                        setTrashOpen(true);
+                    }
+                }} onMouseDown={function (e) {
+                    if (!sceneEditMode)
+                        return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedDeskItemId(TRASH_GUIDE_ID);
+                    setSelectedWidgetId(null);
+                    startDeskItemInteraction(e, TRASH_GUIDE_ID, 'guide', 'drag', trashPosition);
+                }} onDragEnter={function (e) {
+                    e.preventDefault();
+                    var draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                    var draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                    if (draggedProjectId)
+                        beginTrashHover('project', draggedProjectId);
+                    else if (draggedFolderId)
+                        beginTrashHover('folder', draggedFolderId);
+                }} onDragOver={function (e) {
+                    e.preventDefault();
+                    var draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                    var draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                    if (draggedProjectId)
+                        beginTrashHover('project', draggedProjectId);
+                    else if (draggedFolderId)
+                        beginTrashHover('folder', draggedFolderId);
+                }} onDragLeave={function () { return clearTrashHover(); }} onDrop={function (e) {
+                    var _a;
+                    e.preventDefault();
+                    var draggedProjectId = e.dataTransfer.getData('text/project-id') || draggingProjectId;
+                    var draggedFolderId = e.dataTransfer.getData('text/folder-id') || draggingFolderId;
+                    if (draggedProjectId) {
+                        var project = ((workspace === null || workspace === void 0 ? void 0 : workspace.projects) || []).find(function (item) { return item.id === draggedProjectId; });
+                        moveToTrash('project', draggedProjectId, (project === null || project === void 0 ? void 0 : project.title) || ((_a = project === null || project === void 0 ? void 0 : project.person) === null || _a === void 0 ? void 0 : _a.full_name) || 'Проект');
+                        setDraggingProjectId(null);
+                    }
+                    else if (draggedFolderId) {
+                        var folder = ((workspace === null || workspace === void 0 ? void 0 : workspace.folders) || []).find(function (item) { return item.id === draggedFolderId; });
+                        moveToTrash('folder', draggedFolderId, (folder === null || folder === void 0 ? void 0 : folder.name) || 'Папка');
+                        setDraggingFolderId(null);
+                    }
+                    clearTrashHover();
+                }} aria-label="Корзина" title="Корзина">
+                  {sceneEditMode ? <span className="dashboard-trash-zone-label">Корзина</span> : null}
+                  {sceneEditMode && isSelected ? (<>
+                      <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={function (e) { return startDeskItemInteraction(e, TRASH_GUIDE_ID, 'guide', 'rotate', trashPosition); }} aria-label="Повернуть зону корзины">↻</button>
+                      <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={function (e) { return startDeskItemInteraction(e, TRASH_GUIDE_ID, 'guide', 'resize', trashPosition); }} aria-label="Изменить размер зоны корзины">↘</button>
+                    </>) : null}
+                </div>);
+        })()}
             {(function () {
             var guidePosition = deskPositions[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
             var guideWidth = guidePosition.width || 228;
@@ -1268,33 +1538,50 @@ function DashboardPage() {
             var guideTiltX = guidePosition.tiltX || 0;
             var guideTiltY = guidePosition.tiltY || 0;
             var isSelected = selectedDeskItemId === TRAY_GUIDE_ID;
-            return (<div className={"absolute ".concat(isSelected ? "dashboard-desk-entity-selected" : "")} style={{ left: guidePosition.x, top: guidePosition.y, zIndex: guidePosition.z || 18, width: "".concat(guideWidth, "px"), height: "".concat(guideHeight, "px"), transform: "perspective(1400px) rotateX(".concat(guideTiltX, "deg) rotateY(").concat(guideTiltY, "deg) rotate(").concat(guideRotation, "deg)"), transformStyle: 'preserve-3d' }} onMouseDown={function (e) {
-                    if (!sceneEditMode)
-                        return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedDeskItemId(TRAY_GUIDE_ID);
-                    setSelectedWidgetId(null);
-                    startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
-                }} onClick={function (e) { e.stopPropagation(); setSelectedDeskItemId(TRAY_GUIDE_ID); setSelectedWidgetId(null); }} onDoubleClick={function (e) {
-                    e.stopPropagation();
-                    var name = window.prompt('Название новой папки', 'Новая папка');
-                    if (name && name.trim())
-                        void createFolderNamed(name.trim(), 'folder');
+            return (<div className={"absolute ".concat(isSelected ? "dashboard-desk-entity-selected" : "")} style={{
+                    left: guidePosition.x,
+                    top: guidePosition.y,
+                    zIndex: isSelected ? 19 : 11,
+                    width: "".concat(guideWidth, "px"),
+                    height: "".concat(guideHeight, "px"),
+                    transform: "perspective(1400px) rotateX(".concat(guideTiltX, "deg) rotateY(").concat(guideTiltY, "deg) rotate(").concat(guideRotation, "deg)"),
+                    transformOrigin: 'top left',
+                    transformStyle: 'preserve-3d',
+                    pointerEvents: 'none'
                 }}>
                   <div className={"dashboard-tray-guide-box ".concat(sceneEditMode ? "dashboard-tray-guide-box-editing" : "")}>
-                    <div className="dashboard-tray-guide-label">{trayGuideText}</div>
+                    <button type="button" className="dashboard-tray-guide-inner" style={{ clipPath: getGuideClipPath(guidePosition), pointerEvents: sceneEditMode ? 'none' : 'auto' }} onClick={function (e) {
+                    e.stopPropagation();
+                    if (!sceneEditMode) {
+                        promptAndCreateFolder();
+                    }
+                }}>
+                      <div className="dashboard-tray-guide-label">{trayGuideText}</div>
+                    </button>
                   </div>
+                  {sceneEditMode ? (<button type="button" className="dashboard-tray-guide-selector" style={{ pointerEvents: 'auto' }} onMouseDown={function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedDeskItemId(TRAY_GUIDE_ID);
+                        setSelectedWidgetId(null);
+                        startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
+                    }} onClick={function (e) {
+                        e.stopPropagation();
+                        setSelectedDeskItemId(TRAY_GUIDE_ID);
+                        setSelectedWidgetId(null);
+                    }} aria-label="Выбрать виртуальную стойку" title="Выбрать виртуальную стойку">
+                      ⤢
+                    </button>) : null}
                   {sceneEditMode && isSelected ? (<>
-                      <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={function (e) { return startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "rotate", guidePosition); }} aria-label="Повернуть зону стойки">↻</button>
-                      <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={function (e) { return startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "resize", guidePosition); }} aria-label="Изменить размер зоны стойки">↘</button>
+                      <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={function (e) { return startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "rotate", guidePosition); }} aria-label="Повернуть зону стойки">↻</button>
+                      <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={function (e) { return startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "resize", guidePosition); }} aria-label="Изменить размер зоны стойки">↘</button>
                     </>) : null}
                 </div>);
         })()}
 
             {(function () {
             var guideClip = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
-            return (<div className="absolute z-[12] overflow-hidden" style={{ left: "".concat(guideClip.x, "px"), top: "".concat(guideClip.y, "px"), width: "".concat(guideClip.width, "px"), height: "".concat(guideClip.height, "px") }}>
+            return (<div className="absolute z-[12] overflow-hidden" style={{ left: "".concat(guideClip.x, "px"), top: "".concat(guideClip.y, "px"), width: "".concat(guideClip.width, "px"), height: "".concat(guideClip.height, "px"), transform: getGuideTransform(deskPositions[TRAY_GUIDE_ID]), transformOrigin: 'top left', clipPath: getGuideClipPath(deskPositions[TRAY_GUIDE_ID]), pointerEvents: 'none' }}>
               {trayFolders.map(function (_a, folderIndex) {
                     var folder = _a.folder, folderProjects = _a.projects;
                     var itemId = "folder:".concat(folder.id);
@@ -1303,7 +1590,7 @@ function DashboardPage() {
                     var height = position.height || DESK_FOLDER_HEIGHT;
                     var rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
                     var isSelected = selectedDeskItemId === itemId;
-                    return (<div key={folder.id} className="absolute" style={{ left: position.x - guideClip.x, top: position.y - guideClip.y, zIndex: position.z, width: "".concat(width, "px"), height: "".concat(height, "px"), transform: "perspective(1400px) rotateX(".concat(position.tiltX || 0, "deg) rotateY(").concat(position.tiltY || 0, "deg) rotate(").concat(rotation, "deg)"), transformStyle: 'preserve-3d' }}>
+                    return (<div key={folder.id} className="absolute" style={{ left: position.x - guideClip.x, top: position.y - guideClip.y, zIndex: position.z, width: "".concat(width, "px"), height: "".concat(height, "px"), transform: "perspective(1400px) rotateX(".concat(position.tiltX || 0, "deg) rotateY(").concat(position.tiltY || 0, "deg) rotate(").concat(rotation, "deg)"), transformStyle: 'preserve-3d', pointerEvents: 'auto' }}>
                     <FolderDesktopIcon folder={folder} projects={folderProjects} busy={busyFolderId === folder.id} onOpen={function () { return setActiveFolderId(folder.id); }} onManage={function () { return setFolderActionTarget(folder); }} onDropProject={function (projectId) { return moveProject(projectId, folder.id); }} draggingProjectId={draggingProjectId} sceneEditMode={sceneEditMode} selected={isSelected} onSelect={function () { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }} onResizeHandleMouseDown={function (e) { return startDeskItemInteraction(e, itemId, "folder", "resize", position); }} onRotateHandleMouseDown={function (e) { return startDeskItemInteraction(e, itemId, "folder", "rotate", position); }} onDragMoveStart={function (e) { return startDeskItemInteraction(e, itemId, "folder", "drag", position); }} onDragStart={function () {
                             setDraggingFolderId(folder.id);
                             bringDeskItemToFront(itemId);
@@ -1361,6 +1648,14 @@ function DashboardPage() {
       </div>
 
       {activeFolder ? (<FolderModal folder={activeFolder.folder} projects={activeFolder.projects} busy={busyFolderId === activeFolder.folder.id} onClose={function () { return setActiveFolderId(null); }} onManage={function () { return setFolderActionTarget(activeFolder.folder); }} onOpenProject={function (id) { return router.push("/projects/".concat(id)); }} onMoveToDesktop={function (projectId) { return moveProject(projectId, null); }} onDeleteProject={function (projectId) { return deleteProject(projectId); }}/>) : null}
+
+      {trashOpen ? (<TrashRestoreModal entries={trashEntries} folders={(workspace === null || workspace === void 0 ? void 0 : workspace.folders) || []} projects={(workspace === null || workspace === void 0 ? void 0 : workspace.projects) || []} onClose={function () { return setTrashOpen(false); }} onRestore={restoreTrashEntry} onDeleteNow={function (entry) {
+                if (entry.kind === "project")
+                    void deleteProject(entry.id, true);
+                else
+                    void deleteFolderDirect(entry.id);
+                setTrashEntries(function (prev) { return prev.filter(function (item) { return !(item.kind === entry.kind && item.id === entry.id); }); });
+            }}/>) : null}
 
       {previewProject ? (<ProjectSheetPreviewModal project={previewProject} onClose={function () { return setPreviewProject(null); }} onOpenFull={function () { return router.push("/projects/".concat(previewProject.id)); }}/>) : null}
 
@@ -1512,7 +1807,12 @@ function FolderDesktopIcon(_a) {
         <div className="dashboard-folder-inner-shadow"/>
         <div className="dashboard-folder-gloss"/>
 
-        <div className="pointer-events-none absolute left-4 right-4 top-3 z-20 flex flex-col gap-1.5">
+        <div className="absolute left-4 right-12 top-10 z-20">
+          <div className="truncate text-[16px] font-semibold leading-tight text-[#5c3e1f]">{folder.name}</div>
+          <div className="mt-1 text-[11px] text-[#7a5830]">Открыть папку</div>
+        </div>
+
+        <div className="pointer-events-none absolute left-4 right-4 top-[68px] z-20 flex flex-col gap-1.5">
           {preview.length ? preview.map(function (project, index) {
             var _a;
             var slipTitle = ((_a = project.person) === null || _a === void 0 ? void 0 : _a.full_name) || project.title || "Проект";
@@ -1529,13 +1829,7 @@ function FolderDesktopIcon(_a) {
             </div>)}
         </div>
 
-        <div className="relative z-10 flex w-full items-end justify-between px-4 pb-3">
-          <div>
-            <div className="text-[15px] font-semibold leading-tight text-[#5c3e1f]">{folder.name}</div>
-            <div className="mt-1 text-[11px] text-[#7a5830]">Открыть папку</div>
-          </div>
-          <div className="rounded-full border border-[#d5be99] bg-[#fff9f0]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
-        </div>
+        <div className="absolute bottom-3 right-4 z-20 rounded-full border border-[#d5be99] bg-[#fff9f0]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
       </button>
       <button type="button" onClick={onManage} className="absolute right-0 top-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#f2e7d3] bg-[#fffaf2]/96 text-sm text-[#6e4d2f] shadow-sm opacity-0 transition hover:text-slate-900 group-hover:opacity-100" title="Управление папкой" aria-label="Управление папкой">
         ⋯
@@ -1573,7 +1867,7 @@ function ProjectDesktopIcon(_a) {
             onSelect === null || onSelect === void 0 ? void 0 : onSelect();
             if (!sceneEditMode)
                 onOpen();
-        }} className={"dashboard-desk-sheet ".concat(isDone ? "dashboard-desk-sheet-ready" : "dashboard-desk-sheet-pending", " ").concat(compact ? "dashboard-desk-sheet-compact" : "", " ").concat(busy ? "opacity-60" : "")}>
+        }} className={"dashboard-desk-sheet dashboard-desk-sheet-plain ".concat(compact ? "dashboard-desk-sheet-compact" : "", " ").concat(busy ? "opacity-60" : "")}>
         <span className="dashboard-desk-sheet-clip" aria-hidden="true"/>
         <span className="dashboard-desk-sheet-kicker">Лист проекта</span>
         <span className="dashboard-desk-sheet-title">{titleLine}</span>
@@ -1585,6 +1879,7 @@ function ProjectDesktopIcon(_a) {
           <span>{completed}/{total || 0} тестов</span>
           <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
         </span>
+        <span className={"dashboard-desk-sheet-stamp ".concat(isDone ? "dashboard-desk-sheet-stamp-done" : "dashboard-desk-sheet-stamp-pending")}>{isDone ? "ЗАВЕРШЕНО" : "НЕ ЗАВЕРШЕНО"}</span>
       </button>
       {sceneEditMode && selected ? (<>
           <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={onRotateHandleMouseDown} aria-label="Повернуть лист">↻</button>
@@ -1795,6 +2090,39 @@ function FolderIconPicker(_a) {
                 <div className="mt-3 text-sm font-medium text-slate-900">{icon.label}</div>
               </button>);
         })}
+        </div>
+      </div>
+    </div>);
+}
+function TrashRestoreModal(_a) {
+    var entries = _a.entries, onClose = _a.onClose, onRestore = _a.onRestore, onDeleteNow = _a.onDeleteNow;
+    return (<div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      <div className="w-full max-w-[760px] rounded-[28px] border border-[#dac4a7] bg-[#fffaf2] p-5 shadow-[0_30px_70px_-44px_rgba(53,34,17,0.38)]" onClick={function (e) { return e.stopPropagation(); }}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-lg font-semibold text-[#5a3b20]">Корзина</div>
+            <div className="text-sm text-[#84664a]">Папки и проекты можно восстановить в течение 3 суток.</div>
+          </div>
+          <button type="button" className="rounded-full border border-[#d9c6ab] bg-white px-4 py-2 text-sm text-[#5a3b20]" onClick={onClose}>Закрыть</button>
+        </div>
+        <div className="space-y-3">
+          {entries.length ? entries.map(function (entry) {
+            var remaining = Math.max(0, entry.expiresAt - Date.now());
+            var hours = Math.ceil(remaining / (60 * 60 * 1000));
+            return (<div key={"".concat(entry.kind, ":").concat(entry.id)} className="rounded-[20px] border border-[#e3d0b2] bg-white/92 p-4 shadow-[0_12px_26px_-22px_rgba(53,34,17,0.28)] dashboard-trash-item-crumpled">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-[#a2835d]">{entry.kind === 'folder' ? 'Папка' : 'Проект'}</div>
+                    <div className="mt-1 text-base font-semibold text-[#51361e]">{entry.title}</div>
+                    <div className="mt-1 text-sm text-[#7b5f44]">Удалится через ~{hours} ч.</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" className="rounded-full border border-[#cfe1d0] bg-[#eaf7ea] px-4 py-2 text-sm font-medium text-[#335a36]" onClick={function () { return onRestore(entry); }}>Восстановить</button>
+                    <button type="button" className="rounded-full border border-[#e6c5c5] bg-[#fff2f2] px-4 py-2 text-sm font-medium text-[#8a3f3f]" onClick={function () { return onDeleteNow(entry); }}>Удалить сейчас</button>
+                  </div>
+                </div>
+              </div>);
+        }) : <div className="rounded-[20px] border border-dashed border-[#dbc9ac] bg-white/80 p-8 text-center text-sm text-[#84664a]">Корзина пуста.</div>}
         </div>
       </div>
     </div>);
