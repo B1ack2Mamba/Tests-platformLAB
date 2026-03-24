@@ -479,6 +479,8 @@ export default function DashboardPage() {
   const widgetInteractionRef = useRef<WidgetInteractionState | null>(null);
   const deskInteractionRef = useRef<DeskItemInteractionState | null>(null);
   const pendingCreatedFolderRef = useRef<{ id: string } | null>(null);
+  const templateFeedbackTimerRef = useRef<number | null>(null);
+  const [templateFeedback, setTemplateFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -662,44 +664,69 @@ export default function DashboardPage() {
     }));
   }, [deskLayer]);
 
-  const saveDeskItemAsTemplate = useCallback((itemId: string, kind: "folder" | "project") => {
-    setDeskPositions((prev) => {
-      const source = prev[itemId];
-      if (!source) return prev;
-      const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
-      return {
-        ...prev,
-        [templateId]: {
-          ...(prev[templateId] || {}),
-          ...(source.width !== undefined ? { width: source.width } : {}),
-          ...(source.height !== undefined ? { height: source.height } : {}),
-          ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
-          ...(source.tiltX !== undefined ? { tiltX: source.tiltX } : {}),
-          ...(source.tiltY !== undefined ? { tiltY: source.tiltY } : {}),
-          ...(source.clipTlx !== undefined ? { clipTlx: source.clipTlx } : {}),
-          ...(source.clipTly !== undefined ? { clipTly: source.clipTly } : {}),
-          ...(source.clipTrx !== undefined ? { clipTrx: source.clipTrx } : {}),
-          ...(source.clipTry !== undefined ? { clipTry: source.clipTry } : {}),
-          ...(source.clipBrx !== undefined ? { clipBrx: source.clipBrx } : {}),
-          ...(source.clipBry !== undefined ? { clipBry: source.clipBry } : {}),
-          ...(source.clipBlx !== undefined ? { clipBlx: source.clipBlx } : {}),
-          ...(source.clipBly !== undefined ? { clipBly: source.clipBly } : {}),
-        },
-      };
-    });
+  const showTemplateFeedback = useCallback((kind: "success" | "error", text: string) => {
+    setTemplateFeedback({ kind, text });
+    if (typeof window !== "undefined") {
+      if (templateFeedbackTimerRef.current) window.clearTimeout(templateFeedbackTimerRef.current);
+      templateFeedbackTimerRef.current = window.setTimeout(() => setTemplateFeedback(null), 2200);
+    }
   }, []);
 
+  useEffect(() => () => {
+    if (typeof window !== "undefined" && templateFeedbackTimerRef.current) {
+      window.clearTimeout(templateFeedbackTimerRef.current);
+    }
+  }, []);
+
+  const saveDeskItemAsTemplate = useCallback((itemId: string, kind: "folder" | "project") => {
+    const source = deskPositions[itemId];
+    if (!source) {
+      showTemplateFeedback("error", "Не удалось найти объект для сохранения шаблона");
+      return;
+    }
+
+    const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
+    setDeskPositions((prev) => ({
+      ...prev,
+      [templateId]: {
+        ...(prev[templateId] || {}),
+        ...(source.width !== undefined ? { width: source.width } : {}),
+        ...(source.height !== undefined ? { height: source.height } : {}),
+        ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
+        ...(source.tiltX !== undefined ? { tiltX: source.tiltX } : {}),
+        ...(source.tiltY !== undefined ? { tiltY: source.tiltY } : {}),
+        ...(source.clipTlx !== undefined ? { clipTlx: source.clipTlx } : {}),
+        ...(source.clipTly !== undefined ? { clipTly: source.clipTly } : {}),
+        ...(source.clipTrx !== undefined ? { clipTrx: source.clipTrx } : {}),
+        ...(source.clipTry !== undefined ? { clipTry: source.clipTry } : {}),
+        ...(source.clipBrx !== undefined ? { clipBrx: source.clipBrx } : {}),
+        ...(source.clipBry !== undefined ? { clipBry: source.clipBry } : {}),
+        ...(source.clipBlx !== undefined ? { clipBlx: source.clipBlx } : {}),
+        ...(source.clipBly !== undefined ? { clipBly: source.clipBly } : {}),
+      },
+    }));
+
+    showTemplateFeedback("success", `Шаблон ${kind === "folder" ? "папок" : "листов"} сохранён`);
+  }, [deskPositions, showTemplateFeedback]);
+
   const applyDeskTemplateToExistingItems = useCallback((kind: "folder" | "project") => {
+    const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
+    const template = deskPositions[templateId];
+    if (!template) {
+      showTemplateFeedback("error", `Сначала сохраните шаблон для ${kind === "folder" ? "папок" : "листов"}`);
+      return;
+    }
+
+    const prefix = kind === "folder" ? "folder:" : "project:";
+    const targetIds = Object.keys(deskPositions).filter((key) => key.startsWith(prefix));
+    if (!targetIds.length) {
+      showTemplateFeedback("error", `Нет объектов для применения шаблона`);
+      return;
+    }
+
     setDeskPositions((prev) => {
-      const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
-      const template = prev[templateId];
-      if (!template) return prev;
-
       const next: DeskPositions = { ...prev };
-      const prefix = kind === "folder" ? "folder:" : "project:";
-
-      Object.keys(prev).forEach((key) => {
-        if (!key.startsWith(prefix)) return;
+      targetIds.forEach((key) => {
         next[key] = {
           ...prev[key],
           ...(template.width !== undefined ? { width: template.width } : {}),
@@ -720,7 +747,9 @@ export default function DashboardPage() {
 
       return next;
     });
-  }, []);
+
+    showTemplateFeedback("success", `Шаблон применён: ${targetIds.length} ${kind === "folder" ? "объектов-папок" : "объектов-листов"}`);
+  }, [deskPositions, showTemplateFeedback]);
 
   const moveToTrash = useCallback((kind: TrashItemKind, id: string, title: string) => {
     const now = Date.now();
@@ -1476,7 +1505,16 @@ export default function DashboardPage() {
               ) : null}
             </div>
             {selectedDeskItem.kind !== "guide" ? (
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-[#ead9c2] pt-3">
+              <div className="mt-3 border-t border-[#ead9c2] pt-3">
+                {templateFeedback ? (
+                  <div
+                    aria-live="polite"
+                    className={`mb-3 rounded-2xl border px-3 py-2 text-sm font-medium ${templateFeedback.kind === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}
+                  >
+                    {templateFeedback.kind === "success" ? "✓ " : "⚠ "}{templateFeedback.text}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -1491,6 +1529,8 @@ export default function DashboardPage() {
                 >
                   Применить шаблон ко всем {selectedDeskItem.kind === "folder" ? "папкам" : "листам"}
                 </button>
+                </div>
+                <div className="mt-2 text-xs text-[#8a6a47]">После нажатия появится подтверждение о сохранении или применении шаблона.</div>
               </div>
             ) : null}
           </div>
