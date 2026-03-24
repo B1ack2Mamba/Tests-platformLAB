@@ -1589,14 +1589,22 @@ export default function DashboardPage() {
                     transform: `perspective(1400px) rotateX(${guideTiltX}deg) rotateY(${guideTiltY}deg) rotate(${guideRotation}deg)`,
                     transformOrigin: 'top left',
                     transformStyle: 'preserve-3d',
-                    pointerEvents: 'none'
+                    pointerEvents: sceneEditMode ? 'auto' : 'none'
                   }}
                 >
                   <div className={`dashboard-tray-guide-box ${sceneEditMode ? "dashboard-tray-guide-box-editing" : ""}`}>
                     <button
                       type="button"
                       className="dashboard-tray-guide-inner"
-                      style={{ clipPath: getGuideClipPath(guidePosition), pointerEvents: sceneEditMode ? 'none' : 'auto' }}
+                      style={{ clipPath: getGuideClipPath(guidePosition), pointerEvents: 'auto', cursor: sceneEditMode ? 'grab' : 'pointer' }}
+                      onMouseDown={(e) => {
+                        if (!sceneEditMode) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedDeskItemId(TRAY_GUIDE_ID);
+                        setSelectedWidgetId(null);
+                        startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!sceneEditMode) {
