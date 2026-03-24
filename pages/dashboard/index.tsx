@@ -717,6 +717,9 @@ export default function DashboardPage() {
 
     const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
     const templatePatch: DeskPosition = {
+      x: deskPositions[templateId]?.x ?? source.x ?? 0,
+      y: deskPositions[templateId]?.y ?? source.y ?? 0,
+      z: deskPositions[templateId]?.z ?? source.z ?? 0,
       ...(source.width !== undefined ? { width: source.width } : {}),
       ...(source.height !== undefined ? { height: source.height } : {}),
       ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
