@@ -404,6 +404,14 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
       rotation: folderTemplate.rotation,
       tiltX: folderTemplate.tiltX,
       tiltY: folderTemplate.tiltY,
+      clipTlx: folderTemplate.clipTlx,
+      clipTly: folderTemplate.clipTly,
+      clipTrx: folderTemplate.clipTrx,
+      clipTry: folderTemplate.clipTry,
+      clipBrx: folderTemplate.clipBrx,
+      clipBry: folderTemplate.clipBry,
+      clipBlx: folderTemplate.clipBlx,
+      clipBly: folderTemplate.clipBly,
     };
   });
 
@@ -416,6 +424,14 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
       rotation: projectTemplate.rotation,
       tiltX: projectTemplate.tiltX,
       tiltY: projectTemplate.tiltY,
+      clipTlx: projectTemplate.clipTlx,
+      clipTly: projectTemplate.clipTly,
+      clipTrx: projectTemplate.clipTrx,
+      clipTry: projectTemplate.clipTry,
+      clipBrx: projectTemplate.clipBrx,
+      clipBry: projectTemplate.clipBry,
+      clipBlx: projectTemplate.clipBlx,
+      clipBly: projectTemplate.clipBly,
     };
   });
 
@@ -660,6 +676,14 @@ export default function DashboardPage() {
           ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
           ...(source.tiltX !== undefined ? { tiltX: source.tiltX } : {}),
           ...(source.tiltY !== undefined ? { tiltY: source.tiltY } : {}),
+          ...(source.clipTlx !== undefined ? { clipTlx: source.clipTlx } : {}),
+          ...(source.clipTly !== undefined ? { clipTly: source.clipTly } : {}),
+          ...(source.clipTrx !== undefined ? { clipTrx: source.clipTrx } : {}),
+          ...(source.clipTry !== undefined ? { clipTry: source.clipTry } : {}),
+          ...(source.clipBrx !== undefined ? { clipBrx: source.clipBrx } : {}),
+          ...(source.clipBry !== undefined ? { clipBry: source.clipBry } : {}),
+          ...(source.clipBlx !== undefined ? { clipBlx: source.clipBlx } : {}),
+          ...(source.clipBly !== undefined ? { clipBly: source.clipBly } : {}),
         },
       };
     });
@@ -683,6 +707,14 @@ export default function DashboardPage() {
           ...(template.rotation !== undefined ? { rotation: template.rotation } : {}),
           ...(template.tiltX !== undefined ? { tiltX: template.tiltX } : {}),
           ...(template.tiltY !== undefined ? { tiltY: template.tiltY } : {}),
+          ...(template.clipTlx !== undefined ? { clipTlx: template.clipTlx } : {}),
+          ...(template.clipTly !== undefined ? { clipTly: template.clipTly } : {}),
+          ...(template.clipTrx !== undefined ? { clipTrx: template.clipTrx } : {}),
+          ...(template.clipTry !== undefined ? { clipTry: template.clipTry } : {}),
+          ...(template.clipBrx !== undefined ? { clipBrx: template.clipBrx } : {}),
+          ...(template.clipBry !== undefined ? { clipBry: template.clipBry } : {}),
+          ...(template.clipBlx !== undefined ? { clipBlx: template.clipBlx } : {}),
+          ...(template.clipBly !== undefined ? { clipBly: template.clipBly } : {}),
         };
       });
 
@@ -933,6 +965,14 @@ export default function DashboardPage() {
       rotation: template.rotation,
       tiltX: template.tiltX,
       tiltY: template.tiltY,
+      clipTlx: template.clipTlx,
+      clipTly: template.clipTly,
+      clipTrx: template.clipTrx,
+      clipTry: template.clipTry,
+      clipBrx: template.clipBrx,
+      clipBry: template.clipBry,
+      clipBlx: template.clipBlx,
+      clipBly: template.clipBly,
     } as DeskPosition;
   }
 
