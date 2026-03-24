@@ -1,0 +1,216 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import { requireTrainingRoomAccess } from "@/lib/trainingRoomServerSession";
+import { loadTestJsonBySlugAdmin } from "@/lib/loadTestAdmin";
+import { scoreForcedPair, scorePairSplit, scoreColorTypes, scoreUSK, score16PF, scoreSituationalGuidance, scoreBelbin, scoreEmin, scoreTimeManagement, scoreLearningTypology } from "@/lib/score";
+import { ensureRoomTests } from "@/lib/trainingRoomTests";
+import type { Tag, TimeManagementTag, LearningTypologyChoice } from "@/lib/testTypes";
+import { retryTransientApi, setNoStore } from "@/lib/apiHardening";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  setNoStore(res);
+  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
+
+  const { room_id, test_slug, answers } = (req.body || {}) as any;
+  const roomId = String(room_id || "").trim();
+  const slug = String(test_slug || "").trim();
+
+  if (!roomId) return res.status(400).json({ ok: false, error: "room_id is required" });
+  if (!slug) return res.status(400).json({ ok: false, error: "test_slug is required" });
+
+  const access = await requireTrainingRoomAccess(req, res, roomId);
+  if (!access) return;
+  const { user, supabaseAdmin, member } = access;
+
+
+  let roomTrainingMode = false;
+  try {
+    const { data: roomSettings, error: roomSettingsError } = await (supabaseAdmin as any)
+      .from("training_rooms")
+      .select("participants_can_see_digits")
+      .eq("id", roomId)
+      .maybeSingle();
+    if (!roomSettingsError) roomTrainingMode = Boolean(roomSettings?.participants_can_see_digits);
+  } catch {
+    // ignore missing migration / transient lookup
+  }
+
+  // room-specific enabled tests
+  try {
+    const roomTests = await ensureRoomTests(supabaseAdmin as any, roomId);
+    const rt = roomTests.find((r: any) => String(r.test_slug) === slug);
+    if (rt && rt.is_enabled === false) {
+      return res.status(403).json({ ok: false, error: "Этот тест выключен для комнаты" });
+    }
+  } catch (e) {
+    // If config table doesn't exist yet, we don't block (for backward compatibility).
+  }
+
+
+  // В обычном режиме фиксируем только первую завершённую попытку.
+  // В тренинг-режиме разрешаем перепрохождение и обновляем результат на последний.
+  try {
+    const { data: existingProgress } = await supabaseAdmin
+      .from("training_progress")
+      .select("attempt_id,completed_at")
+      .eq("room_id", roomId)
+      .eq("user_id", user.id)
+      .eq("test_slug", slug)
+      .maybeSingle();
+
+    if (!roomTrainingMode && existingProgress?.attempt_id && existingProgress?.completed_at) {
+      return res.status(200).json({ ok: true, attempt_id: existingProgress.attempt_id, duplicate: true, training_mode: roomTrainingMode });
+    }
+  } catch {
+    // if progress lookup fails transiently, continue with normal submit path
+  }
+
+  const test = await loadTestJsonBySlugAdmin(supabaseAdmin as any, slug);
+  if (!test) return res.status(404).json({ ok: false, error: "Тест не найден" });
+
+  let result: any = null;
+  let answersJson: any = answers;
+
+  try {
+    if (test.type === "forced_pair" || test.type === "forced_pair_v1") {
+      const tags = Array.isArray(answers) ? (answers as string[]) : [];
+      const chosen = tags.filter(Boolean) as Tag[];
+      result = scoreForcedPair(test as any, chosen);
+      answersJson = { chosen };
+    } else if (test.type === "pair_sum5_v1" || test.type === "pair_split_v1") {
+      const leftPoints = Array.isArray(answers) ? (answers as number[]) : [];
+      result = scorePairSplit(test as any, leftPoints);
+      answersJson = { leftPoints };
+    } else if (test.type === "color_types_v1") {
+      const a = (answers || {}) as any;
+      const colorAnswers = {
+        q1: a.q1,
+        q2: a.q2,
+        q3: Array.isArray(a.q3) ? a.q3 : [],
+        q4: Array.isArray(a.q4) ? a.q4 : [],
+        q5: Array.isArray(a.q5) ? a.q5 : [],
+        q6: Array.isArray(a.q6) ? a.q6 : [],
+      };
+      result = scoreColorTypes(test as any, colorAnswers as any);
+      answersJson = { color: colorAnswers };
+    } else if (test.type === "usk_v1") {
+      const vals = Array.isArray(answers) ? (answers as any[]) : [];
+      const numeric = vals.map((v) => Number(v));
+      result = scoreUSK(test as any, numeric);
+      answersJson = { usk: numeric };
+    } else if (test.type === "16pf_v1") {
+      // Answers may arrive as:
+      //  - Array<"A"|"B"|"C"|""> (legacy)
+      //  - { pf16: Array<"A"|"B"|"C"|"">, gender: "male"|"female", age: number }
+      const sub = (answers && typeof answers === "object" && !Array.isArray(answers)) ? (answers as any) : { pf16: answers };
+      const pf16 = Array.isArray(sub.pf16) ? sub.pf16 : (Array.isArray(answers) ? answers : []);
+      const safe = (pf16 as any[]).map((x) => (x === "A" || x === "B" || x === "C" ? x : ""));
+
+      const gender = (sub.gender === "male" || sub.gender === "female") ? sub.gender : undefined;
+      const ageNum = typeof sub.age === "number" ? sub.age : (typeof sub.age === "string" ? Number(sub.age) : NaN);
+      const age = Number.isFinite(ageNum) ? ageNum : undefined;
+
+      // For the 16PF forms we require demographics to produce correct sten norms
+      const needsDemographics = test.slug === "16pf-a" || test.slug === "16pf-b";
+      if (needsDemographics && ((gender !== "male" && gender !== "female") || typeof age !== "number" || !Number.isFinite(age) || age < 16 || age > 70)) {
+        return res.status(400).json({ ok: false, error: "Укажите пол и возраст (16–70) для корректного нормирования результатов." });
+      }
+
+      result = score16PF(test as any, { pf16: safe, gender, age } as any);
+      answersJson = { pf16: safe, gender, age };
+    } else if (test.type === "belbin_v1") {
+      // Belbin allocations: array[7] of {A..H:number} where each section sums to 10
+      const arr = Array.isArray(answers) ? (answers as any[]) : (Array.isArray(answers?.sections) ? answers.sections : []);
+      const safe = (arr as any[]).map((row) => {
+        const o: any = {};
+        for (const L of ["A","B","C","D","E","F","G","H"]) {
+          const v = Number((row || {})[L] ?? 0);
+          o[L] = Number.isFinite(v) ? Math.max(0, Math.min(10, Math.floor(v))) : 0;
+        }
+        return o;
+      });
+      result = scoreBelbin(test as any, safe as any);
+      answersJson = { sections: safe };
+
+    } else if (test.type === "emin_v1") {
+      // ЭМИН (Люсин): answers are 0..3 per item (4-point Likert).
+      const arr = Array.isArray(answers) ? (answers as any[]) : (Array.isArray(answers?.emin) ? answers.emin : []);
+      const safe = (arr as any[]).map((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return 0;
+        return Math.max(0, Math.min(3, Math.round(n)));
+      });
+      result = scoreEmin(test as any, safe as any);
+      answersJson = { emin: safe };
+
+    } else if (test.type === "time_management_v1") {
+      const arr = Array.isArray(answers) ? (answers as any[]) : (Array.isArray(answers?.chosen) ? answers.chosen : []);
+      const safe = (arr as any[]).map((v) => {
+        const t = String(v || "").toUpperCase();
+        return t === "L" || t === "P" || t === "C" ? (t as TimeManagementTag) : "";
+      });
+      const chosen = safe.filter(Boolean) as TimeManagementTag[];
+      result = scoreTimeManagement(test as any, chosen as any);
+      answersJson = { chosen: safe };
+
+    } else if (test.type === "learning_typology_v1") {
+      const arr = Array.isArray(answers) ? (answers as any[]) : (Array.isArray(answers?.chosen) ? answers.chosen : []);
+      const safe = (arr as any[]).map((v) => {
+        const t = String(v || "").toUpperCase();
+        return t === "A" || t === "B" || t === "C" || t === "D" ? (t as LearningTypologyChoice) : "";
+      });
+      result = scoreLearningTypology(test as any, safe as any);
+      answersJson = { chosen: safe };
+
+    } else if (test.type === "situational_guidance_v1") {
+      const arr = Array.isArray(answers) ? (answers as any[]) : [];
+      const safe = arr.map((x) => (x === "A" || x === "B" || x === "C" || x === "D" ? x : ""));
+      result = scoreSituationalGuidance(test as any, safe as any);
+      answersJson = { chosen: safe };
+    } else {
+      return res.status(400).json({ ok: false, error: "Unknown test type" });
+    }
+  } catch (e: any) {
+    return res.status(400).json({ ok: false, error: e?.message || "Bad answers" });
+  }
+
+  // Store attempt (specialist-only table)
+  const { data: attempt, error: insErr } = await retryTransientApi<any>(
+    () => supabaseAdmin
+      .from("training_attempts")
+      .insert({
+        room_id: roomId,
+        user_id: user.id,
+        test_slug: slug,
+        answers: answersJson,
+        result,
+      })
+      .select("id,created_at")
+      .single(),
+    { attempts: 3, delayMs: 150 }
+  );
+
+  if (insErr) return res.status(500).json({ ok: false, error: insErr.message });
+
+  // Update progress
+  const now = new Date().toISOString();
+  const { error: progErr } = await retryTransientApi<any>(
+    () => supabaseAdmin
+      .from("training_progress")
+      .upsert(
+        {
+          room_id: roomId,
+          user_id: user.id,
+          test_slug: slug,
+          started_at: now,
+          completed_at: now,
+          attempt_id: attempt.id,
+        },
+        { onConflict: "room_id,user_id,test_slug" }
+      ),
+    { attempts: 3, delayMs: 120 }
+  );
+
+  if (progErr) return res.status(500).json({ ok: false, error: progErr.message });
+
+  return res.status(200).json({ ok: true, attempt_id: attempt.id, training_mode: roomTrainingMode });
+}
