@@ -797,7 +797,13 @@ export default function DashboardPage() {
           "content-type": "application/json",
           authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ standard: standardPayload }),
+        body: JSON.stringify({
+          standard: standardPayload,
+          positions: standardPayload.positions,
+          widgets: standardPayload.widgets,
+          trayGuideText: standardPayload.trayGuideText,
+          templates: pickGlobalDeskTemplates(nextDeskPositions),
+        }),
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) {

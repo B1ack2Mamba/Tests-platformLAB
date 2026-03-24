@@ -3,6 +3,21 @@ import { requireUser } from "@/lib/serverAuth";
 import { isAdminEmail } from "@/lib/admin";
 import { pickSceneStandard, pickTemplatePositions } from "@/lib/globalDeskTemplate";
 
+function parseMaybeJson(value: any): any {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function isEmptyStandard(value: { positions?: Record<string, any>; widgets?: any[]; trayGuideText?: string | undefined }) {
+  return !Object.keys(value?.positions || {}).length && !(value?.widgets || []).length && !value?.trayGuideText;
+}
+
 const SETTING_KEY = "desk_templates";
 const TABLE_NAME = "commercial_global_settings";
 
@@ -35,9 +50,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ ok: false, error: "Только администратор может сохранить общий стандарт" });
     }
 
-    const standard = pickSceneStandard(req.body?.standard || req.body || {});
-    if (!Object.keys(standard.positions).length && !standard.widgets.length && !standard.trayGuideText) {
-      return res.status(400).json({ ok: false, error: "Нет данных для сохранения общего стандарта" });
+    const requestBody = parseMaybeJson(req.body) || {};
+    const parsedStandardSource = parseMaybeJson((requestBody as any)?.standard ?? requestBody);
+    let standard = pickSceneStandard(parsedStandardSource || {});
+
+    if (isEmptyStandard(standard)) {
+      const fallbackSource = {
+        positions:
+          parseMaybeJson((requestBody as any)?.positions) ||
+          parseMaybeJson((requestBody as any)?.templates) ||
+          parseMaybeJson((requestBody as any)?.standard?.positions) ||
+          parseMaybeJson((requestBody as any)?.standard?.templates) ||
+          {},
+        widgets:
+          parseMaybeJson((requestBody as any)?.widgets) ||
+          parseMaybeJson((requestBody as any)?.standard?.widgets) ||
+          [],
+        trayGuideText:
+          typeof (requestBody as any)?.trayGuideText === "string"
+            ? (requestBody as any).trayGuideText
+            : typeof (requestBody as any)?.standard?.trayGuideText === "string"
+              ? (requestBody as any).standard.trayGuideText
+              : "",
+      };
+      standard = pickSceneStandard(fallbackSource);
+    }
+
+    if (isEmptyStandard(standard)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Нет данных для сохранения общего стандарта",
+        debug: {
+          requestBodyType: typeof req.body,
+          topLevelKeys: Object.keys(requestBody || {}),
+          standardKeys: typeof (requestBody as any)?.standard === "object" && (requestBody as any)?.standard
+            ? Object.keys((requestBody as any).standard)
+            : [],
+        },
+      });
     }
 
     const { error } = await supabaseAdmin.from(TABLE_NAME).upsert(
