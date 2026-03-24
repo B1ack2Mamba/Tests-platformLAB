@@ -107,17 +107,6 @@ type SceneWidget = {
   z: number;
 };
 
-type GlobalSceneTemplate = {
-  version: number;
-  sceneWidgets: SceneWidget[];
-  trayGuideText: string;
-  trayGuidePosition: DeskPosition | null;
-  trashGuidePosition: DeskPosition | null;
-  folderTemplate: DeskPosition | null;
-  projectTemplate: DeskPosition | null;
-  updatedAt?: string | null;
-};
-
 type WidgetInteractionMode = "drag" | "resize" | "rotate";
 type WidgetInteractionState = {
   id: string;
@@ -137,7 +126,6 @@ const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
-const GLOBAL_SCENE_TEMPLATE_APPLIED_PREFIX = "commercialGlobalSceneTemplateApplied:v1:";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
 const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
@@ -323,56 +311,6 @@ function getTrashStorageKey(workspaceId: string) {
   return `${TRASH_STORAGE_PREFIX}${workspaceId}`;
 }
 
-function getGlobalSceneTemplateAppliedKey(workspaceId: string) {
-  return `${GLOBAL_SCENE_TEMPLATE_APPLIED_PREFIX}${workspaceId}`;
-}
-
-function applyTemplateToWidgets(base: SceneWidget[], templateWidgets?: SceneWidget[] | null): SceneWidget[] {
-  if (!templateWidgets?.length) return base;
-  const templateMap = new Map(templateWidgets.map((item) => [item.id, item]));
-  return base.map((widget) => {
-    const saved = templateMap.get(widget.id);
-    if (!saved) return widget;
-    return {
-      ...widget,
-      x: saved.x ?? widget.x,
-      y: saved.y ?? widget.y,
-      width: saved.width ?? widget.width,
-      height: saved.height ?? widget.height,
-      rotation: saved.rotation ?? widget.rotation,
-      fontSize: saved.fontSize ?? widget.fontSize,
-      z: saved.z ?? widget.z,
-      tone: saved.tone ?? widget.tone,
-      text: widget.kind === "button" ? (saved.text || widget.text) : widget.text,
-    };
-  });
-}
-
-function buildGlobalTemplateSeed(template: GlobalSceneTemplate | null | undefined, fallbackTrayText: string) {
-  return {
-    widgets: template?.sceneWidgets || [],
-    trayGuideText: template?.trayGuideText?.trim() || fallbackTrayText,
-    positions: {
-      ...(template?.trayGuidePosition ? { [TRAY_GUIDE_ID]: template.trayGuidePosition } : {}),
-      ...(template?.trashGuidePosition ? { [TRASH_GUIDE_ID]: template.trashGuidePosition } : {}),
-      ...(template?.folderTemplate ? { [FOLDER_TEMPLATE_ID]: template.folderTemplate } : {}),
-      ...(template?.projectTemplate ? { [PROJECT_TEMPLATE_ID]: template.projectTemplate } : {}),
-    } as DeskPositions,
-  };
-}
-
-function buildSceneTemplatePayload(sceneWidgets: SceneWidget[], trayGuideText: string, deskPositions: DeskPositions): Omit<GlobalSceneTemplate, "version"> {
-  return {
-    sceneWidgets,
-    trayGuideText,
-    trayGuidePosition: deskPositions[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition(),
-    trashGuidePosition: deskPositions[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition(),
-    folderTemplate: deskPositions[FOLDER_TEMPLATE_ID] || null,
-    projectTemplate: deskPositions[PROJECT_TEMPLATE_ID] || null,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 function buildDefaultSceneWidgets(params: {
   displayName: string;
   workspaceName: string;
@@ -529,9 +467,6 @@ export default function DashboardPage() {
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
   const [trayGuideText, setTrayGuideText] = useState("Создать новую папку проектов");
-  const [globalSceneTemplate, setGlobalSceneTemplate] = useState<GlobalSceneTemplate | null>(null);
-  const [globalSceneTemplateLoaded, setGlobalSceneTemplateLoaded] = useState(false);
-  const [savingGlobalSceneTemplate, setSavingGlobalSceneTemplate] = useState(false);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
   const widgetInteractionRef = useRef<WidgetInteractionState | null>(null);
@@ -619,84 +554,8 @@ export default function DashboardPage() {
     [balanceText, data?.profile?.email, displayName, greeneryLabel, investedText, user?.email, workspaceName]
   );
 
-  const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
-  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
-  const projects = useMemo(() => (workspace?.projects || []).filter((item) => !trashedProjectIds.has(item.id)), [trashedProjectIds, workspace?.projects]);
-  const folders = useMemo(() => (workspace?.folders || []).filter((item) => !trashedFolderIds.has(item.id)), [trashedFolderIds, workspace?.folders]);
-  const folderBuckets = useMemo(() => {
-    const buckets = new Map<string, ProjectRow[]>();
-    for (const folder of folders) buckets.set(folder.id, []);
-    const uncategorized: ProjectRow[] = [];
-    for (const project of projects) {
-      if (project.folder_id && buckets.has(project.folder_id)) {
-        buckets.get(project.folder_id)!.push(project);
-      } else {
-        uncategorized.push(project);
-      }
-    }
-    return {
-      uncategorized: sortProjects(uncategorized),
-      byFolder: folders.map((folder) => ({ folder, projects: sortProjects(buckets.get(folder.id) || []) })),
-    };
-  }, [folders, projects]);
-
   useEffect(() => {
-    if (!session?.access_token) {
-      setGlobalSceneTemplate(null);
-      setGlobalSceneTemplateLoaded(false);
-      return;
-    }
-    let cancelled = false;
-    setGlobalSceneTemplateLoaded(false);
-    fetch('/api/commercial/scene-template/get', {
-      headers: { authorization: `Bearer ${session.access_token}` },
-    })
-      .then((resp) => resp.json().catch(() => ({})))
-      .then((json) => {
-        if (cancelled) return;
-        if (json?.ok && json?.template) {
-          setGlobalSceneTemplate(json.template as GlobalSceneTemplate);
-        } else {
-          setGlobalSceneTemplate(null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setGlobalSceneTemplate(null);
-      })
-      .finally(() => {
-        if (!cancelled) setGlobalSceneTemplateLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined" || !globalSceneTemplateLoaded) return;
-    const workspaceId = workspace.workspace.workspace_id;
-    const appliedKey = getGlobalSceneTemplateAppliedKey(workspaceId);
-    const appliedVersion = Number(window.localStorage.getItem(appliedKey) || 0);
-    if (!globalSceneTemplate || globalSceneTemplate.version <= appliedVersion) return;
-
-    const seed = buildGlobalTemplateSeed(globalSceneTemplate, "Создать новую папку проектов");
-    const nextWidgets = applyTemplateToWidgets(defaultSceneWidgets, seed.widgets).map((item) => {
-      if (item.id === "create-project") return { ...item, tone: "buttonSecondary" as SceneWidgetTone };
-      return item;
-    });
-
-    window.localStorage.setItem(getSceneWidgetsStorageKey(workspaceId), JSON.stringify(nextWidgets));
-    window.localStorage.setItem(getTrayGuideTextStorageKey(workspaceId), seed.trayGuideText);
-    window.localStorage.setItem(getDeskStorageKey(workspaceId), JSON.stringify(seed.positions));
-    window.localStorage.setItem(appliedKey, String(globalSceneTemplate.version));
-
-    setSceneWidgets(nextWidgets);
-    setTrayGuideText(seed.trayGuideText);
-    setDeskPositions(mergeDeskPositions(folders, folderBuckets.uncategorized, seed.positions));
-    setDeskLayer(Object.values(seed.positions).reduce((max, item) => Math.max(max, item?.z || 0), 300));
-  }, [defaultSceneWidgets, folderBuckets.uncategorized, folders, globalSceneTemplate, globalSceneTemplateLoaded, workspace?.workspace?.workspace_id]);
-
-  useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || !globalSceneTemplateLoaded) return;
+    if (!workspace?.workspace?.workspace_id) return;
     const key = getSceneWidgetsStorageKey(workspace.workspace.workspace_id);
     let saved: SceneWidget[] = [];
     if (typeof window !== "undefined") {
@@ -712,7 +571,7 @@ export default function DashboardPage() {
       return item;
     });
     setSceneWidgets(normalizedWidgets);
-  }, [defaultSceneWidgets, globalSceneTemplateLoaded, workspace?.workspace?.workspace_id]);
+  }, [defaultSceneWidgets, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined" || !sceneWidgets.length) return;
@@ -721,7 +580,7 @@ export default function DashboardPage() {
 
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined" || !globalSceneTemplateLoaded) return;
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(getTrayGuideTextStorageKey(workspace.workspace.workspace_id));
       if (raw && raw.trim()) setTrayGuideText(raw);
@@ -729,7 +588,7 @@ export default function DashboardPage() {
     } catch {
       setTrayGuideText("Создать новую папку проектов");
     }
-  }, [globalSceneTemplateLoaded, workspace?.workspace?.workspace_id]);
+  }, [workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -930,32 +789,26 @@ export default function DashboardPage() {
     setSelectedWidgetId(null);
   }, [defaultSceneWidgets]);
 
-  const saveSceneTemplateForAll = useCallback(async () => {
-    if (!canEditScene || !session?.access_token) return;
-    setSavingGlobalSceneTemplate(true);
-    setError("");
-    try {
-      const resp = await fetch('/api/commercial/scene-template/save-global', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(buildSceneTemplatePayload(sceneWidgets, trayGuideText, deskPositions)),
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || 'Не удалось сохранить шаблон');
-      setGlobalSceneTemplate(json.template as GlobalSceneTemplate);
-      setGlobalSceneTemplateLoaded(true);
-      if (workspace?.workspace?.workspace_id && typeof window !== 'undefined' && json?.template?.version) {
-        window.localStorage.setItem(getGlobalSceneTemplateAppliedKey(workspace.workspace.workspace_id), String(json.template.version));
+  const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
+  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
+  const projects = useMemo(() => (workspace?.projects || []).filter((item) => !trashedProjectIds.has(item.id)), [trashedProjectIds, workspace?.projects]);
+  const folders = useMemo(() => (workspace?.folders || []).filter((item) => !trashedFolderIds.has(item.id)), [trashedFolderIds, workspace?.folders]);
+  const folderBuckets = useMemo(() => {
+    const buckets = new Map<string, ProjectRow[]>();
+    for (const folder of folders) buckets.set(folder.id, []);
+    const uncategorized: ProjectRow[] = [];
+    for (const project of projects) {
+      if (project.folder_id && buckets.has(project.folder_id)) {
+        buckets.get(project.folder_id)!.push(project);
+      } else {
+        uncategorized.push(project);
       }
-    } catch (e: any) {
-      setError(e?.message || 'Не удалось сохранить шаблон');
-    } finally {
-      setSavingGlobalSceneTemplate(false);
     }
-  }, [canEditScene, deskPositions, sceneWidgets, session?.access_token, trayGuideText, workspace?.workspace?.workspace_id]);
+    return {
+      uncategorized: sortProjects(uncategorized),
+      byFolder: folders.map((folder) => ({ folder, projects: sortProjects(buckets.get(folder.id) || []) })),
+    };
+  }, [folders, projects]);
 
   const activeFolder = useMemo(
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,
@@ -1001,7 +854,7 @@ export default function DashboardPage() {
   }, [previewProject, projects]);
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || !globalSceneTemplateLoaded) return;
+    if (!workspace?.workspace?.workspace_id) return;
     const saved = typeof window !== "undefined"
       ? (() => {
           try {
@@ -1018,7 +871,7 @@ export default function DashboardPage() {
       setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
       return merged;
     });
-  }, [globalSceneTemplateLoaded, workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized]);
+  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -1451,12 +1304,7 @@ export default function DashboardPage() {
                   {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
                 </button>
                 {sceneEditMode ? (
-                  <>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={saveSceneTemplateForAll} disabled={savingGlobalSceneTemplate}>
-                      {savingGlobalSceneTemplate ? "Сохраняю шаблон…" : "Сделать шаблоном для всех"}
-                    </button>
-                  </>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
                 ) : null}
               </>
             ) : null}
@@ -1687,22 +1535,8 @@ export default function DashboardPage() {
                     transform: `perspective(1400px) rotateX(${guideTiltX}deg) rotateY(${guideTiltY}deg) rotate(${guideRotation}deg)`,
                     transformOrigin: 'top left',
                     transformStyle: 'preserve-3d',
-                    pointerEvents: sceneEditMode ? 'auto' : 'none'
+                    pointerEvents: 'none'
                   }}
-                  onMouseDown={sceneEditMode ? ((e) => {
-                    const target = e.target as HTMLElement;
-                    if (target.closest('.dashboard-desk-entity-handle')) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedDeskItemId(TRAY_GUIDE_ID);
-                    setSelectedWidgetId(null);
-                    startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
-                  }) : undefined}
-                  onClick={sceneEditMode ? ((e) => {
-                    e.stopPropagation();
-                    setSelectedDeskItemId(TRAY_GUIDE_ID);
-                    setSelectedWidgetId(null);
-                  }) : undefined}
                 >
                   <div className={`dashboard-tray-guide-box ${sceneEditMode ? "dashboard-tray-guide-box-editing" : ""}`}>
                     <button
@@ -1719,6 +1553,29 @@ export default function DashboardPage() {
                       <div className="dashboard-tray-guide-label">{trayGuideText}</div>
                     </button>
                   </div>
+                  {sceneEditMode ? (
+                    <button
+                      type="button"
+                      className="dashboard-tray-guide-selector"
+                      style={{ pointerEvents: 'auto' }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedDeskItemId(TRAY_GUIDE_ID);
+                        setSelectedWidgetId(null);
+                        startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "drag", guidePosition);
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDeskItemId(TRAY_GUIDE_ID);
+                        setSelectedWidgetId(null);
+                      }}
+                      aria-label="Выбрать виртуальную стойку"
+                      title="Выбрать виртуальную стойку"
+                    >
+                      ⤢
+                    </button>
+                  ) : null}
                   {sceneEditMode && isSelected ? (
                     <>
                       <button type="button" style={{ pointerEvents: 'auto' }} className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, TRAY_GUIDE_ID, "guide", "rotate", guidePosition)} aria-label="Повернуть зону стойки">↻</button>

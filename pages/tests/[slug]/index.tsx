@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
+import { TestTakeAction } from "@/components/TestTakeAction";
 import type { AnyTest } from "@/lib/testTypes";
 import { getTestBySlug } from "@/lib/loadTests";
 import { useSession } from "@/lib/useSession";
@@ -102,12 +103,7 @@ export default function TestDetail({ test }: { test: AnyTest | null }) {
 
         <div className="mt-4 flex flex-wrap gap-2">
           {test ? (
-            <Link
-              href={`/tests/${test.slug}/take`}
-              className="btn btn-primary"
-            >
-              Начать тест
-            </Link>
+<TestTakeAction slug={test.slug} />
           ) : null}
           <Link href="/assessments" className="btn btn-secondary">
             К каталогу

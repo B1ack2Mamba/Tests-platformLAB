@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
+import { TestTakeGate } from "@/components/TestTakeGate";
 import { getTestBySlug } from "@/lib/loadTests";
 import type {
   AnyTest,
@@ -1986,10 +1987,9 @@ function LearningTypologyForm({ test }: { test: LearningTypologyTestV1 }) {
 }
 
 export default function TakeTest({ test }: { test: AnyTest }) {
-  // В редких случаях хочется очистить черновик вручную (например, при смене теста)
   const router = useRouter();
 
-  return (
+  const content = (
     <>
       {test.type === "forced_pair_v1" || test.type === "forced_pair" ? (
         <ForcedPairForm test={test as ForcedPairTestV1} />
@@ -2032,6 +2032,8 @@ export default function TakeTest({ test }: { test: AnyTest }) {
       )}
     </>
   );
+
+  return <TestTakeGate slug={test.slug} title={test.title}>{content}</TestTakeGate>;
 }
 
 export async function getServerSideProps({ params }: { params: { slug: string } }) {
