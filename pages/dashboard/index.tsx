@@ -319,18 +319,9 @@ function buildDefaultSceneWidgets(params: {
   investedText: string;
   greeneryLabel: string;
 }): SceneWidget[] {
-  const { displayName, workspaceName, email, balanceText, investedText, greeneryLabel } = params;
   return [
-    { id: "wallet-title", kind: "text", text: "Кошелёк", tone: "marker", x: 262, y: 150, width: 280, height: 56, rotation: -1.6, fontSize: 30, z: 20 },
-    { id: "wallet-value", kind: "text", text: balanceText, tone: "note", x: 264, y: 212, width: 200, height: 40, rotation: -1.2, fontSize: 28, z: 21 },
-    { id: "wallet-note", kind: "text", text: `Вложено: ${investedText} · ${greeneryLabel}`, tone: "note", x: 264, y: 265, width: 450, height: 48, rotation: -1, fontSize: 16, z: 22 },
-    { id: "profile-title", kind: "text", text: workspaceName, tone: "marker", x: 262, y: 364, width: 360, height: 52, rotation: -1.6, fontSize: 28, z: 23 },
-    { id: "profile-name", kind: "text", text: displayName, tone: "marker", x: 262, y: 426, width: 340, height: 58, rotation: -1, fontSize: 36, z: 24 },
-    { id: "profile-role", kind: "text", text: "admin", tone: "note", x: 264, y: 494, width: 180, height: 30, rotation: -1.1, fontSize: 16, z: 25 },
-    { id: "profile-email", kind: "text", text: email, tone: "note", x: 264, y: 530, width: 300, height: 34, rotation: -1.1, fontSize: 16, z: 26 },
-    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonSecondary", x: 1010, y: 170, width: 170, height: 46, rotation: -2.4, fontSize: 16, z: 30 },
-    { id: "create-folder", kind: "button", text: "Новая папка", action: "createFolder", tone: "buttonSecondary", x: 1010, y: 226, width: 160, height: 44, rotation: -2.1, fontSize: 15, z: 31 },
-    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonSecondary", x: 1010, y: 280, width: 168, height: 44, rotation: -2.2, fontSize: 15, z: 32 },
+    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 430, y: 452, width: 280, height: 84, rotation: -1.3, fontSize: 22, z: 30 },
+    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 792, y: 452, width: 280, height: 84, rotation: -1.1, fontSize: 22, z: 31 },
   ];
 }
 
@@ -566,11 +557,38 @@ export default function DashboardPage() {
         saved = [];
       }
     }
-    const normalizedWidgets = (saved.length ? saved : defaultSceneWidgets).map((item) => {
-      if (item.id === "create-project") return { ...item, tone: "buttonSecondary" as SceneWidgetTone };
-      return item;
-    });
-    setSceneWidgets(normalizedWidgets);
+
+    const legacyWidgetIds = new Set([
+      "wallet-title",
+      "wallet-value",
+      "wallet-note",
+      "profile-title",
+      "profile-name",
+      "profile-role",
+      "profile-email",
+      "create-folder",
+    ]);
+    const hasLegacyBoardLayout = saved.some((item) => legacyWidgetIds.has(item.id));
+    const allowedIds = new Set(defaultSceneWidgets.map((item) => item.id));
+    const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
+    const sourceWidgets = hasLegacyBoardLayout ? defaultSceneWidgets : (saved.length ? saved : defaultSceneWidgets);
+
+    const normalizedWidgets = sourceWidgets
+      .filter((item) => allowedIds.has(item.id))
+      .map((item) => {
+        const defaults = defaultsById.get(item.id);
+        if (!defaults) return item;
+        return {
+          ...item,
+          text: defaults.text,
+          action: defaults.action,
+          kind: defaults.kind,
+          tone: defaults.tone,
+        };
+      })
+      .sort((a, b) => a.z - b.z);
+
+    setSceneWidgets(normalizedWidgets.length ? normalizedWidgets : defaultSceneWidgets);
   }, [defaultSceneWidgets, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
