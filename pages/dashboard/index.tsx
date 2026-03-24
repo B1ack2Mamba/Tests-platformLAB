@@ -637,40 +637,58 @@ export default function DashboardPage() {
   }, []);
 
   const updateDeskItem = useCallback((id: string, patch: Partial<DeskPosition>) => {
+    setDeskPositions((prev) => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || { x: 48, y: 48, z: deskLayer + 1 }),
+        ...patch,
+      },
+    }));
+  }, [deskLayer]);
+
+  const saveDeskItemAsTemplate = useCallback((itemId: string, kind: "folder" | "project") => {
     setDeskPositions((prev) => {
-      const next: DeskPositions = {
+      const source = prev[itemId];
+      if (!source) return prev;
+      const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
+      return {
         ...prev,
-        [id]: {
-          ...(prev[id] || { x: 48, y: 48, z: deskLayer + 1 }),
-          ...patch,
+        [templateId]: {
+          ...(prev[templateId] || {}),
+          ...(source.width !== undefined ? { width: source.width } : {}),
+          ...(source.height !== undefined ? { height: source.height } : {}),
+          ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
+          ...(source.tiltX !== undefined ? { tiltX: source.tiltX } : {}),
+          ...(source.tiltY !== undefined ? { tiltY: source.tiltY } : {}),
         },
       };
+    });
+  }, []);
 
-      if (id.startsWith("folder:")) {
-        next[FOLDER_TEMPLATE_ID] = {
-          ...(prev[FOLDER_TEMPLATE_ID] || {}),
-          ...(patch.width !== undefined ? { width: patch.width } : {}),
-          ...(patch.height !== undefined ? { height: patch.height } : {}),
-          ...(patch.rotation !== undefined ? { rotation: patch.rotation } : {}),
-          ...(patch.tiltX !== undefined ? { tiltX: patch.tiltX } : {}),
-          ...(patch.tiltY !== undefined ? { tiltY: patch.tiltY } : {}),
-        };
-      }
+  const applyDeskTemplateToExistingItems = useCallback((kind: "folder" | "project") => {
+    setDeskPositions((prev) => {
+      const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
+      const template = prev[templateId];
+      if (!template) return prev;
 
-      if (id.startsWith("project:")) {
-        next[PROJECT_TEMPLATE_ID] = {
-          ...(prev[PROJECT_TEMPLATE_ID] || {}),
-          ...(patch.width !== undefined ? { width: patch.width } : {}),
-          ...(patch.height !== undefined ? { height: patch.height } : {}),
-          ...(patch.rotation !== undefined ? { rotation: patch.rotation } : {}),
-          ...(patch.tiltX !== undefined ? { tiltX: patch.tiltX } : {}),
-          ...(patch.tiltY !== undefined ? { tiltY: patch.tiltY } : {}),
+      const next: DeskPositions = { ...prev };
+      const prefix = kind === "folder" ? "folder:" : "project:";
+
+      Object.keys(prev).forEach((key) => {
+        if (!key.startsWith(prefix)) return;
+        next[key] = {
+          ...prev[key],
+          ...(template.width !== undefined ? { width: template.width } : {}),
+          ...(template.height !== undefined ? { height: template.height } : {}),
+          ...(template.rotation !== undefined ? { rotation: template.rotation } : {}),
+          ...(template.tiltX !== undefined ? { tiltX: template.tiltX } : {}),
+          ...(template.tiltY !== undefined ? { tiltY: template.tiltY } : {}),
         };
-      }
+      });
 
       return next;
     });
-  }, [deskLayer]);
+  }, []);
 
   const moveToTrash = useCallback((kind: TrashItemKind, id: string, title: string) => {
     const now = Date.now();
@@ -1417,6 +1435,24 @@ export default function DashboardPage() {
                 </>
               ) : null}
             </div>
+            {selectedDeskItem.kind !== "guide" ? (
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-[#ead9c2] pt-3">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => saveDeskItemAsTemplate(selectedDeskItem.id, selectedDeskItem.kind)}
+                >
+                  Сохранить шаблон для всех {selectedDeskItem.kind === "folder" ? "папок" : "листов"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => applyDeskTemplateToExistingItems(selectedDeskItem.kind)}
+                >
+                  Применить шаблон ко всем {selectedDeskItem.kind === "folder" ? "папкам" : "листам"}
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
