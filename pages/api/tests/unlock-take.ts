@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
-import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { getTestTakePriceRub } from "@/lib/testTakeAccess";
 import { isTestUnlimitedEmail } from "@/lib/testWallet";
 
@@ -29,6 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const priceRub = getTestTakePriceRub();
   const priceKopeks = Math.round(priceRub * 100);
+  // Test catalog runs are always billed here unless the account is explicitly whitelisted.
 
   if (isTestUnlimitedEmail(auth.user.email)) {
     return res.status(200).json({ ok: true, unlocked: true, price_rub: 0, charged_kopeks: 0, balance_kopeks: 999_999_900_00, unlimited: true });
@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   let balanceKopeks = 0;
   let chargedKopeks = 0;
 
-  if (PAYMENTS_ENABLED && priceKopeks > 0) {
+  if (priceKopeks > 0) {
     const ref = body.op_id ? `test_take:${testSlug}:${body.op_id}` : `test_take:${testSlug}:${Date.now()}`;
     const { data: debitData, error: debitErr } = await auth.supabaseAdmin.rpc("debit_wallet", {
       p_user_id: auth.user.id,
@@ -59,8 +59,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       return res.status(400).json({ ok: false, error: debitErr.message || "Не удалось списать средства" });
     }
 
-    balanceKopeks = Number(debitData?.balance_kopeks ?? 0);
-    chargedKopeks = Number(debitData?.charged_kopeks ?? priceKopeks);
+    balanceKopeks = Number((debitData as any)?.balance_kopeks ?? 0);
+    chargedKopeks = Number((debitData as any)?.charged_kopeks ?? priceKopeks);
   } else {
     const { data: wallet } = await auth.supabaseAdmin
       .from("wallets")

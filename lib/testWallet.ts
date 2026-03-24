@@ -1,10 +1,12 @@
-const DEFAULT_TEST_UNLIMITED_EMAILS = ["storyguild9@gmail.com"];
+const DEFAULT_TEST_UNLIMITED_EMAILS: string[] = [];
 
 function normalizeEmail(value: string | null | undefined) {
   return String(value || "").trim().toLowerCase();
 }
 
 export function getTestUnlimitedEmails() {
+  // No hardcoded unlimited accounts in code.
+  // Use TEST_UNLIMITED_EMAILS or NEXT_PUBLIC_TEST_UNLIMITED_EMAILS explicitly when needed.
   const raw = process.env.NEXT_PUBLIC_TEST_UNLIMITED_EMAILS || process.env.TEST_UNLIMITED_EMAILS || "";
   const fromEnv = raw
     .split(",")

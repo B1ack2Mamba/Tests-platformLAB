@@ -18,7 +18,7 @@ export default function AssessmentsPage({ tests }: { tests: AnyTest[] }) {
             <div className="mt-1 text-xs text-slate-500">slug: {test.slug}</div>
             {test.description ? <div className="mt-3 text-sm leading-6 text-slate-700">{test.description}</div> : null}
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link href={`/tests/${test.slug}`} className="btn btn-primary">Открыть</Link>
+              <Link href={`/tests/${test.slug}`} className="btn btn-primary">Результаты</Link>
               <TestTakeAction slug={test.slug} compact />
             </div>
           </div>
