@@ -26,6 +26,8 @@ function reasonLabel(reason: string): string {
       return "Тестовый безлимит";
     case "promo_code":
       return "Промокод";
+    case "test_take_unlock":
+      return "Прохождение теста";
     default:
       return reason;
   }

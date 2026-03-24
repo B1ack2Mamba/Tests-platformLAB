@@ -8,7 +8,6 @@ type Body = { test_slug?: string; op_id?: string };
 
 type OkResp = {
   ok: true;
-  already?: boolean;
   unlocked: true;
   price_rub: number;
   charged_kopeks: number;
@@ -44,30 +43,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   if (testErr || !testRow) return res.status(404).json({ ok: false, error: testErr?.message || "Тест не найден" });
   if (!(testRow as any).is_published) return res.status(403).json({ ok: false, error: "Тест не опубликован" });
 
-  const { data: existing } = await auth.supabaseAdmin
-    .from("test_take_unlocks")
-    .select("paid_kopeks")
-    .eq("user_id", auth.user.id)
-    .eq("test_slug", testSlug)
-    .maybeSingle();
-
-  if (existing) {
-    const { data: wallet } = await auth.supabaseAdmin
-      .from("wallets")
-      .select("balance_kopeks")
-      .eq("user_id", auth.user.id)
-      .maybeSingle();
-
-    return res.status(200).json({
-      ok: true,
-      already: true,
-      unlocked: true,
-      price_rub: priceRub,
-      charged_kopeks: 0,
-      balance_kopeks: Number(wallet?.balance_kopeks ?? 0),
-    });
-  }
-
   let balanceKopeks = 0;
   let chargedKopeks = 0;
 
@@ -95,13 +70,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     balanceKopeks = Number(wallet?.balance_kopeks ?? 0);
   }
 
-  const { error: insErr } = await auth.supabaseAdmin.from("test_take_unlocks").insert({
+  const { error: insErr } = await auth.supabaseAdmin.from("test_take_unlocks").upsert({
     user_id: auth.user.id,
     test_slug: testSlug,
     paid_kopeks: chargedKopeks,
-  });
+    unlocked_at: new Date().toISOString(),
+  }, { onConflict: "user_id,test_slug" });
 
-  if (insErr) return res.status(400).json({ ok: false, error: insErr.message || "Не удалось открыть тест" });
+  if (insErr) return res.status(400).json({ ok: false, error: insErr.message || "Не удалось отметить оплату теста" });
 
   return res.status(200).json({
     ok: true,

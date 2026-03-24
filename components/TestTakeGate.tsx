@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import { getTestTakePriceRub } from "@/lib/testTakeAccess";
+import { hasActiveTestTakeSession, markTestTakeSession } from "@/lib/testTakeSession";
 
 type Props = {
   slug: string;
@@ -34,6 +35,11 @@ export function TestTakeGate({ slug, title, children }: Props) {
         setChecking(false);
         return;
       }
+      if (hasActiveTestTakeSession(slug)) {
+        setAllowed(true);
+        setChecking(false);
+        return;
+      }
       if (!session?.access_token || !user) {
         setChecking(false);
         setAllowed(false);
@@ -47,7 +53,7 @@ export function TestTakeGate({ slug, title, children }: Props) {
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось проверить доступ");
         if (!cancelled) {
-          setAllowed(Boolean(json.unlocked));
+          setAllowed(Boolean(json.unlimited));
           setPriceRub(Number(json.price_rub ?? getTestTakePriceRub()));
         }
       } catch (e: any) {
@@ -81,6 +87,7 @@ export function TestTakeGate({ slug, title, children }: Props) {
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось открыть тест");
+      markTestTakeSession(slug);
       setAllowed(true);
       setPriceRub(Number(json.price_rub ?? getTestTakePriceRub()));
       refresh();
@@ -98,7 +105,7 @@ export function TestTakeGate({ slug, title, children }: Props) {
       <div className="card max-w-2xl">
         <div className="text-lg font-semibold text-slate-950">Прохождение теста открывается отдельно</div>
         <div className="mt-3 text-sm leading-6 text-slate-700">
-          Для каталога это отдельный платный доступ. После оплаты тест откроется для прохождения в твоём кабинете.
+          Для каталога это отдельное платное прохождение. После оплаты откроется текущая попытка, а новый запуск снова потребует 99 ₽.
         </div>
         {checking ? <div className="mt-4 text-sm text-slate-500">Проверяем доступ…</div> : null}
         {!user || !session ? (
@@ -111,7 +118,7 @@ export function TestTakeGate({ slug, title, children }: Props) {
         ) : !checking ? (
           <div className="mt-5 flex flex-wrap gap-2">
             <button type="button" onClick={unlock} disabled={busy} className="btn btn-primary">
-              {busy ? "Открываем…" : `Открыть прохождение за ${priceRub} ₽`}
+              {busy ? "Открываем…" : `Оплатить и пройти за ${priceRub} ₽`}
             </button>
             <Link href="/wallet" className="btn btn-secondary">Пополнить кошелёк</Link>
             <Link href={`/tests/${slug}`} className="btn btn-secondary">Назад к описанию</Link>

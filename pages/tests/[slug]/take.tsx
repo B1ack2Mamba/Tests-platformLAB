@@ -27,6 +27,7 @@ import { useSession } from "@/lib/useSession";
 import { PAYMENTS_UI_ENABLED } from "@/lib/payments";
 import { saveAttempt, updateAttempt } from "@/lib/localHistory";
 import { saveCommercialAttempt } from "@/lib/commercialSync";
+import { clearTestTakeSession } from "@/lib/testTakeSession";
 
 function storageKey(slug: string) {
   return `attempt:${slug}:draft`;
@@ -196,6 +197,7 @@ function storeAttemptIdForViewer(slug: string, attemptId: string) {
 function clearDraftAfterSubmit(slug: string) {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(storageKey(slug));
+  clearTestTakeSession(slug);
   if (isInviteMode()) {
     window.sessionStorage.removeItem(resultKey(slug));
     window.sessionStorage.removeItem(authorKey(slug));

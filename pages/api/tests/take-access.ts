@@ -29,23 +29,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(200).json({ ok: true, unlocked: true, price_rub: 0, balance_kopeks: 999_999_900_00, unlimited: true });
   }
 
-  const [{ data: unlocked }, { data: wallet }] = await Promise.all([
-    auth.supabaseAdmin
-      .from("test_take_unlocks")
-      .select("unlocked_at")
-      .eq("user_id", auth.user.id)
-      .eq("test_slug", slug)
-      .maybeSingle(),
-    auth.supabaseAdmin
-      .from("wallets")
-      .select("balance_kopeks")
-      .eq("user_id", auth.user.id)
-      .maybeSingle(),
-  ]);
+  const { data: wallet } = await auth.supabaseAdmin
+    .from("wallets")
+    .select("balance_kopeks")
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
 
   return res.status(200).json({
     ok: true,
-    unlocked: Boolean(unlocked),
+    unlocked: false,
     price_rub: priceRub,
     balance_kopeks: Number(wallet?.balance_kopeks ?? 0),
     unlimited: false,

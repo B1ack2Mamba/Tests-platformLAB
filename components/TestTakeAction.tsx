@@ -4,9 +4,9 @@ import { useRouter } from "next/router";
 import { useSession } from "@/lib/useSession";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import { getTestTakePriceRub } from "@/lib/testTakeAccess";
+import { hasActiveTestTakeSession, markTestTakeSession } from "@/lib/testTakeSession";
 
 type AccessState = {
-  unlocked: boolean;
   price_rub: number;
   balance_kopeks: number;
   unlimited: boolean;
@@ -19,7 +19,12 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [access, setAccess] = useState<AccessState | null>(null);
+  const [hasSession, setHasSession] = useState(false);
   const fallbackPrice = useMemo(() => getTestTakePriceRub(), []);
+
+  useEffect(() => {
+    setHasSession(hasActiveTestTakeSession(slug));
+  }, [slug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +41,6 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
         if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось проверить доступ");
         if (!cancelled) {
           setAccess({
-            unlocked: Boolean(json.unlocked),
             price_rub: Number(json.price_rub ?? fallbackPrice),
             balance_kopeks: Number(json.balance_kopeks ?? 0),
             unlimited: Boolean(json.unlimited),
@@ -71,8 +75,9 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось открыть тест");
+      markTestTakeSession(slug);
+      setHasSession(true);
       setAccess({
-        unlocked: true,
         price_rub: Number(json.price_rub ?? fallbackPrice),
         balance_kopeks: Number(json.balance_kopeks ?? 0),
         unlimited: Boolean(json.unlimited),
@@ -99,9 +104,9 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
         <Link href={`/auth?next=${encodeURIComponent(`/tests/${slug}/take`)}`} className={buttonClass}>
           Войти и пройти за {fallbackPrice} ₽
         </Link>
-      ) : access?.unlocked ? (
+      ) : hasSession || access?.unlimited ? (
         <Link href={`/tests/${slug}/take`} className={buttonClass}>
-          Пройти тест
+          Продолжить тест
         </Link>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -113,7 +118,7 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
           </Link>
         </div>
       )}
-      {access && !access.unlimited && !access.unlocked ? (
+      {access && !access.unlimited ? (
         <div className="text-xs text-slate-500">Баланс: {Math.floor(access.balance_kopeks / 100)} ₽</div>
       ) : null}
       {error ? <div className="text-xs text-red-600">{error}</div> : null}

@@ -6,8 +6,14 @@
 //
 // Defaults: everything OFF.
 
-export const PAYMENTS_UI_ENABLED = process.env.NEXT_PUBLIC_PAYMENTS_ENABLED === "1";
+function flag(value: string | undefined) {
+  return value === "1" || String(value || "").toLowerCase() === "true";
+}
 
-// Server-side flags (API routes). Next will inline process.env at build time.
-export const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === "1";
-export const TRAINING_SELF_REVEAL_ENABLED = process.env.TRAINING_SELF_REVEAL_ENABLED === "1";
+export const PAYMENTS_UI_ENABLED = flag(process.env.NEXT_PUBLIC_PAYMENTS_ENABLED);
+
+// Server-side flags (API routes).
+// Fallback to NEXT_PUBLIC_* as a safety net so the UI and the actual debit logic
+// do not drift apart when only one env var was configured.
+export const PAYMENTS_ENABLED = flag(process.env.PAYMENTS_ENABLED) || flag(process.env.NEXT_PUBLIC_PAYMENTS_ENABLED);
+export const TRAINING_SELF_REVEAL_ENABLED = flag(process.env.TRAINING_SELF_REVEAL_ENABLED);
