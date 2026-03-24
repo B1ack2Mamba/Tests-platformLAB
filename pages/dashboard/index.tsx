@@ -7,6 +7,7 @@ import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail } from "@/lib/admin";
+import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
 
 type DashboardPayload = {
   profile: {
@@ -123,6 +124,7 @@ const DESK_FOLDER_HEIGHT = 142;
 const DESK_SHEET_WIDTH = 184;
 const DESK_SHEET_HEIGHT = 132;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
+const GLOBAL_DESK_TEMPLATE_STORAGE_KEY = "commercialGlobalDeskTemplate:v1839";
 const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
@@ -134,8 +136,6 @@ const SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
 const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
 const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
-const FOLDER_TEMPLATE_ID = "template:folder";
-const PROJECT_TEMPLATE_ID = "template:project";
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -297,6 +297,24 @@ function getGuideClipPath(position?: DeskPosition) {
 
 function getDeskStorageKey(workspaceId: string) {
   return `${DESK_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function readGlobalDeskTemplates(): DeskPositions {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(GLOBAL_DESK_TEMPLATE_STORAGE_KEY);
+    if (!raw) return {};
+    return pickGlobalDeskTemplates(JSON.parse(raw) as DeskPositions) as DeskPositions;
+  } catch {
+    return {};
+  }
+}
+
+function writeGlobalDeskTemplates(source: DeskPositions) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(GLOBAL_DESK_TEMPLATE_STORAGE_KEY, JSON.stringify(pickGlobalDeskTemplates(source) as DeskPositions));
+  } catch {}
 }
 
 function getSceneWidgetsStorageKey(workspaceId: string) {
@@ -481,6 +499,7 @@ export default function DashboardPage() {
   const pendingCreatedFolderRef = useRef<{ id: string } | null>(null);
   const templateFeedbackTimerRef = useRef<number | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [sharedDeskTemplates, setSharedDeskTemplates] = useState<DeskPositions>({});
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -517,19 +536,30 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [profileResp, workspaceResp] = await Promise.all([
+      const [profileResp, workspaceResp, sharedTemplatesResp] = await Promise.all([
         fetch("/api/commercial/profile/me", {
           headers: { authorization: `Bearer ${session.access_token}` },
         }),
         fetch("/api/commercial/projects/list", {
           headers: { authorization: `Bearer ${session.access_token}` },
         }),
+        fetch("/api/commercial/scene-template", {
+          headers: { authorization: `Bearer ${session.access_token}` },
+        }),
       ]);
 
       const profileJson = await profileResp.json().catch(() => ({}));
       const workspaceJson = await workspaceResp.json().catch(() => ({}));
+      const sharedTemplatesJson = await sharedTemplatesResp.json().catch(() => ({}));
       if (!profileResp.ok || !profileJson?.ok) throw new Error(profileJson?.error || "Не удалось загрузить кабинет");
       if (!workspaceResp.ok || !workspaceJson?.ok) throw new Error(workspaceJson?.error || "Не удалось загрузить проекты");
+      if (sharedTemplatesResp.ok && sharedTemplatesJson?.ok) {
+        const nextSharedTemplates = pickGlobalDeskTemplates(sharedTemplatesJson?.templates || {}) as DeskPositions;
+        setSharedDeskTemplates(nextSharedTemplates);
+        writeGlobalDeskTemplates(nextSharedTemplates);
+      } else {
+        setSharedDeskTemplates({});
+      }
 
       setData(profileJson as DashboardPayload & { ok: true });
       setWorkspace(workspaceJson as WorkspacePayload);
@@ -678,36 +708,67 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const saveDeskItemAsTemplate = useCallback((itemId: string, kind: "folder" | "project") => {
+  const saveDeskItemAsTemplate = useCallback(async (itemId: string, kind: "folder" | "project") => {
     const source = deskPositions[itemId];
     if (!source) {
-      showTemplateFeedback("error", "Не удалось найти объект для сохранения шаблона");
+      showTemplateFeedback("error", "Не удалось найти объект для сохранения стандарта");
       return;
     }
 
     const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
-    setDeskPositions((prev) => ({
-      ...prev,
-      [templateId]: {
-        ...(prev[templateId] || {}),
-        ...(source.width !== undefined ? { width: source.width } : {}),
-        ...(source.height !== undefined ? { height: source.height } : {}),
-        ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
-        ...(source.tiltX !== undefined ? { tiltX: source.tiltX } : {}),
-        ...(source.tiltY !== undefined ? { tiltY: source.tiltY } : {}),
-        ...(source.clipTlx !== undefined ? { clipTlx: source.clipTlx } : {}),
-        ...(source.clipTly !== undefined ? { clipTly: source.clipTly } : {}),
-        ...(source.clipTrx !== undefined ? { clipTrx: source.clipTrx } : {}),
-        ...(source.clipTry !== undefined ? { clipTry: source.clipTry } : {}),
-        ...(source.clipBrx !== undefined ? { clipBrx: source.clipBrx } : {}),
-        ...(source.clipBry !== undefined ? { clipBry: source.clipBry } : {}),
-        ...(source.clipBlx !== undefined ? { clipBlx: source.clipBlx } : {}),
-        ...(source.clipBly !== undefined ? { clipBly: source.clipBly } : {}),
-      },
-    }));
+    const templatePatch: DeskPosition = {
+      ...(source.width !== undefined ? { width: source.width } : {}),
+      ...(source.height !== undefined ? { height: source.height } : {}),
+      ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
+      ...(source.tiltX !== undefined ? { tiltX: source.tiltX } : {}),
+      ...(source.tiltY !== undefined ? { tiltY: source.tiltY } : {}),
+      ...(source.clipTlx !== undefined ? { clipTlx: source.clipTlx } : {}),
+      ...(source.clipTly !== undefined ? { clipTly: source.clipTly } : {}),
+      ...(source.clipTrx !== undefined ? { clipTrx: source.clipTrx } : {}),
+      ...(source.clipTry !== undefined ? { clipTry: source.clipTry } : {}),
+      ...(source.clipBrx !== undefined ? { clipBrx: source.clipBrx } : {}),
+      ...(source.clipBry !== undefined ? { clipBry: source.clipBry } : {}),
+      ...(source.clipBlx !== undefined ? { clipBlx: source.clipBlx } : {}),
+      ...(source.clipBly !== undefined ? { clipBly: source.clipBly } : {}),
+    };
 
-    showTemplateFeedback("success", `Шаблон ${kind === "folder" ? "папок" : "листов"} сохранён`);
-  }, [deskPositions, showTemplateFeedback]);
+    const nextDeskPositions: DeskPositions = {
+      ...deskPositions,
+      [templateId]: {
+        ...(deskPositions[templateId] || {}),
+        ...templatePatch,
+      },
+    };
+
+    setDeskPositions(nextDeskPositions);
+    writeGlobalDeskTemplates(nextDeskPositions);
+
+    if (!session?.access_token || !isAdmin) {
+      showTemplateFeedback("success", `Шаблон ${kind === "folder" ? "папок" : "листов"} сохранён локально`);
+      return;
+    }
+
+    try {
+      const resp = await fetch("/api/commercial/scene-template", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ templates: pickGlobalDeskTemplates(nextDeskPositions) }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.error || "Не удалось сохранить общий стандарт");
+      }
+      const shared = pickGlobalDeskTemplates(json?.templates || nextDeskPositions) as DeskPositions;
+      setSharedDeskTemplates(shared);
+      writeGlobalDeskTemplates(shared);
+      showTemplateFeedback("success", `Стандарт ${kind === "folder" ? "папок" : "листов"} сохранён для всех пользователей`);
+    } catch (e: any) {
+      showTemplateFeedback("error", e?.message || "Не удалось сохранить общий стандарт");
+    }
+  }, [deskPositions, isAdmin, session?.access_token, showTemplateFeedback]);
 
   const applyDeskTemplateToExistingItems = useCallback((kind: "folder" | "project") => {
     const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
@@ -962,13 +1023,14 @@ export default function DashboardPage() {
           }
         })()
       : ({} as DeskPositions);
+    const globalTemplates = readGlobalDeskTemplates();
 
     setDeskPositions((current) => {
-      const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...saved, ...current });
+      const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...globalTemplates, ...saved, ...current, ...sharedDeskTemplates });
       setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
       return merged;
     });
-  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized]);
+  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, sharedDeskTemplates]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -1520,17 +1582,17 @@ export default function DashboardPage() {
                   className="btn btn-secondary btn-sm"
                   onClick={() => saveDeskItemAsTemplate(selectedDeskItem.id, selectedDeskItem.kind)}
                 >
-                  Сохранить шаблон для всех {selectedDeskItem.kind === "folder" ? "папок" : "листов"}
+                  {isAdmin ? "Сохранить стандарт для всех " : "Сохранить шаблон для всех "}{selectedDeskItem.kind === "folder" ? "папок" : "листов"}
                 </button>
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
                   onClick={() => applyDeskTemplateToExistingItems(selectedDeskItem.kind)}
                 >
-                  Применить шаблон ко всем {selectedDeskItem.kind === "folder" ? "папкам" : "листам"}
+                  Применить стандарт ко всем {selectedDeskItem.kind === "folder" ? "папкам" : "листам"}
                 </button>
                 </div>
-                <div className="mt-2 text-xs text-[#8a6a47]">После нажатия появится подтверждение о сохранении или применении шаблона.</div>
+                <div className="mt-2 text-xs text-[#8a6a47]">Стандарт хранится на сервере и подхватывается у новых пользователей и на других устройствах.</div>
               </div>
             ) : null}
           </div>
