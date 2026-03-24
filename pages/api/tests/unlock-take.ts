@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
+import { chargeWallet } from "@/lib/serverWallet";
 import { getTestTakePriceRub } from "@/lib/testTakeAccess";
 import { isTestUnlimitedEmail } from "@/lib/testWallet";
 
@@ -48,19 +49,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   if (priceKopeks > 0) {
     const ref = body.op_id ? `test_take:${testSlug}:${body.op_id}` : `test_take:${testSlug}:${Date.now()}`;
-    const { data: debitData, error: debitErr } = await auth.supabaseAdmin.rpc("debit_wallet", {
-      p_user_id: auth.user.id,
-      p_amount_kopeks: priceKopeks,
-      p_reason: "test_take_unlock",
-      p_ref: ref,
-    });
-
-    if (debitErr) {
-      return res.status(400).json({ ok: false, error: debitErr.message || "Не удалось списать средства" });
+    try {
+      const debitData = await chargeWallet(auth.supabaseAdmin, {
+        userId: auth.user.id,
+        amountKopeks: priceKopeks,
+        reason: "test_take_unlock",
+        ref,
+      });
+      balanceKopeks = Number(debitData.balance_kopeks ?? 0);
+      chargedKopeks = Number(debitData.charged_kopeks ?? priceKopeks);
+    } catch (debitErr: any) {
+      return res.status(400).json({ ok: false, error: debitErr?.message || "Не удалось списать средства" });
     }
-
-    balanceKopeks = Number((debitData as any)?.balance_kopeks ?? 0);
-    chargedKopeks = Number((debitData as any)?.charged_kopeks ?? priceKopeks);
   } else {
     const { data: wallet } = await auth.supabaseAdmin
       .from("wallets")

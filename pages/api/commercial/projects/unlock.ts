@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
+import { chargeWallet } from "@/lib/serverWallet";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import {
   getEvaluationPackagePriceRub,
@@ -70,16 +71,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (chargeKopeks > 0 && !isUnlimited) {
       const ref = `commercial-evaluation:${projectId}:${targetMode}`;
-      const { data: debitData, error: debitError } = await authed.supabaseAdmin.rpc("debit_wallet", {
-        p_user_id: authed.user.id,
-        p_amount_kopeks: chargeKopeks,
-        p_reason: "commercial_project_evaluation_unlock",
-        p_ref: ref,
-      });
-      if (debitError) {
-        return res.status(400).json({ ok: false, error: debitError.message || "Не удалось списать оплату" });
+      try {
+        const debitData = await chargeWallet(authed.supabaseAdmin, {
+          userId: authed.user.id,
+          amountKopeks: chargeKopeks,
+          reason: "commercial_project_evaluation_unlock",
+          ref,
+        });
+        balanceKopeks = Number(debitData.balance_kopeks ?? 0);
+      } catch (debitError: any) {
+        return res.status(400).json({ ok: false, error: debitError?.message || "Не удалось списать оплату" });
       }
-      balanceKopeks = Number((debitData as any)?.balance_kopeks ?? 0);
     }
 
     const { error: updateError } = await authed.supabaseAdmin

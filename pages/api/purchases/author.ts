@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
+import { chargeWallet } from "@/lib/serverWallet";
 import { PAYMENTS_ENABLED } from "@/lib/payments";
 
 type Body = {
@@ -43,19 +44,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   let chargedKopeks = 0;
 
   if (PAYMENTS_ENABLED && priceKopeks > 0) {
-    const { data: debitData, error: debitErr } = await auth.supabaseAdmin.rpc("debit_wallet", {
-      p_user_id: auth.user.id,
-      p_amount_kopeks: priceKopeks,
-      p_reason: "author_interpretation",
-      p_ref: ref,
-    });
-
-    if (debitErr) {
-      return res.status(400).json({ ok: false, error: debitErr.message || "Failed to charge wallet" });
+    try {
+      const debitData = await chargeWallet(auth.supabaseAdmin, {
+        userId: auth.user.id,
+        amountKopeks: priceKopeks,
+        reason: "author_interpretation",
+        ref,
+      });
+      balanceKopeks = Number(debitData.balance_kopeks ?? 0);
+      chargedKopeks = Number(debitData.charged_kopeks ?? priceKopeks);
+    } catch (debitErr: any) {
+      return res.status(400).json({ ok: false, error: debitErr?.message || "Failed to charge wallet" });
     }
-
-    balanceKopeks = Number(debitData?.balance_kopeks ?? 0);
-    chargedKopeks = Number(debitData?.charged_kopeks ?? priceKopeks);
   } else {
     // Payments disabled or free test: just read current wallet balance (if any)
     const { data: w } = await auth.supabaseAdmin

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
+import { chargeWallet } from "@/lib/serverWallet";
 import { TRAINING_SELF_REVEAL_ENABLED } from "@/lib/payments";
 
 const DEFAULT_PRICE_RUB = 0;
@@ -45,14 +46,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const ref = `training_self_unlock:${attempt.test_slug}:${attemptId}:${Date.now()}`;
 
-  const { data: debitData, error: debitErr } = await supabaseAdmin.rpc("debit_wallet", {
-    p_user_id: user.id,
-    p_amount_kopeks: priceKopeks,
-    p_reason: "training_self_unlock",
-    p_ref: ref,
-  });
-
-  if (debitErr) return res.status(400).json({ ok: false, error: debitErr.message || "Failed to charge wallet" });
+  let debitData;
+  try {
+    debitData = await chargeWallet(supabaseAdmin, {
+      userId: user.id,
+      amountKopeks: priceKopeks,
+      reason: "training_self_unlock",
+      ref,
+    });
+  } catch (debitErr: any) {
+    return res.status(400).json({ ok: false, error: debitErr?.message || "Failed to charge wallet" });
+  }
 
   await supabaseAdmin.from("training_self_unlocks").insert({
     attempt_id: attemptId,
