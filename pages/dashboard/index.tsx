@@ -988,6 +988,27 @@ export default function DashboardPage() {
     };
   }, [sceneEditMode, updateDeskItem]);
 
+  const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
+  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
+  const projects = useMemo(() => (workspace?.projects || []).filter((item) => !trashedProjectIds.has(item.id)), [trashedProjectIds, workspace?.projects]);
+  const folders = useMemo(() => (workspace?.folders || []).filter((item) => !trashedFolderIds.has(item.id)), [trashedFolderIds, workspace?.folders]);
+  const folderBuckets = useMemo(() => {
+    const buckets = new Map<string, ProjectRow[]>();
+    for (const folder of folders) buckets.set(folder.id, []);
+    const uncategorized: ProjectRow[] = [];
+    for (const project of projects) {
+      if (project.folder_id && buckets.has(project.folder_id)) {
+        buckets.get(project.folder_id)!.push(project);
+      } else {
+        uncategorized.push(project);
+      }
+    }
+    return {
+      uncategorized: sortProjects(uncategorized),
+      byFolder: folders.map((folder) => ({ folder, projects: sortProjects(buckets.get(folder.id) || []) })),
+    };
+  }, [folders, projects]);
+
   const resetSceneWidgets = useCallback(() => {
     const workspaceId = workspace?.workspace?.workspace_id;
     if (workspaceId && typeof window !== "undefined") {
@@ -1020,27 +1041,6 @@ export default function DashboardPage() {
     setSelectedWidgetId(null);
     setSelectedDeskItemId(null);
   }, [defaultSceneWidgets, folderBuckets.uncategorized, folders, sharedDeskPositions, sharedSceneWidgets, sharedTrayGuideText, workspace?.workspace?.workspace_id]);
-
-  const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
-  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
-  const projects = useMemo(() => (workspace?.projects || []).filter((item) => !trashedProjectIds.has(item.id)), [trashedProjectIds, workspace?.projects]);
-  const folders = useMemo(() => (workspace?.folders || []).filter((item) => !trashedFolderIds.has(item.id)), [trashedFolderIds, workspace?.folders]);
-  const folderBuckets = useMemo(() => {
-    const buckets = new Map<string, ProjectRow[]>();
-    for (const folder of folders) buckets.set(folder.id, []);
-    const uncategorized: ProjectRow[] = [];
-    for (const project of projects) {
-      if (project.folder_id && buckets.has(project.folder_id)) {
-        buckets.get(project.folder_id)!.push(project);
-      } else {
-        uncategorized.push(project);
-      }
-    }
-    return {
-      uncategorized: sortProjects(uncategorized),
-      byFolder: folders.map((folder) => ({ folder, projects: sortProjects(buckets.get(folder.id) || []) })),
-    };
-  }, [folders, projects]);
 
   const activeFolder = useMemo(
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,
