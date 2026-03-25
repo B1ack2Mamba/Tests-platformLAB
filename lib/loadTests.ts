@@ -1,10 +1,42 @@
 import fs from "fs";
 import path from "path";
+import { createClient } from "@supabase/supabase-js";
 import type { AnyTest } from "@/lib/testTypes";
 import { createSupabaseClient, getSupabaseEnv } from "@/lib/supabaseClient";
 import { getTestDisplayTitle } from "@/lib/testTitles";
 
 const TESTS_DIR = path.join(process.cwd(), "data", "tests");
+
+
+function createSupabaseReadClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (typeof window === "undefined" && url && serviceKey) {
+    return createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  }
+
+  return createSupabaseClient();
+}
+
+function normalizeDbRow(row: any): AnyTest | null {
+  const raw = row?.json as any;
+  const rowSlug = String(row?.slug || raw?.slug || "").trim();
+  if (!rowSlug) return null;
+
+  const source = raw && typeof raw === "object" ? raw : {};
+  const { interpretation: _i, ...t } = source;
+  const test = {
+    ...t,
+    slug: rowSlug,
+    title: String(row?.title || t?.title || rowSlug),
+    type: String(row?.type || t?.type || ""),
+  } as AnyTest;
+
+  const price = typeof row?.price_rub === "number" ? row.price_rub : test.pricing?.interpretation_rub ?? 0;
+  return normalizeLoadedTest(test, price);
+}
+
 
 function normalizeLoadedTest(test: AnyTest, priceOverride?: number): AnyTest {
   const price = typeof priceOverride === "number" ? priceOverride : test.pricing?.interpretation_rub ?? 0;
@@ -83,23 +115,16 @@ export async function getAllTests(): Promise<AnyTest[]> {
   if (!env) return local;
 
   try {
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseReadClient();
     const { data, error } = await supabase
       .from("tests")
-      .select("json, price_rub")
+      .select("slug, title, type, json, price_rub, is_published")
       .eq("is_published", true);
 
     if (error) throw error;
 
     const dbTests = (data ?? [])
-      .map((r: any) => {
-        const raw = r?.json as any;
-        if (!raw) return null;
-        const { interpretation: _i, ...t } = raw;
-        const test = t as AnyTest;
-        const price = typeof r?.price_rub === "number" ? r.price_rub : test.pricing?.interpretation_rub ?? 0;
-        return normalizeLoadedTest(test, price) as AnyTest;
-      })
+      .map((r: any) => normalizeDbRow(r))
       .filter((t): t is AnyTest => Boolean(t))
       .filter((t) => t.slug !== "16pf" && t.slug !== "16pf-b") as AnyTest[];
 
@@ -122,23 +147,17 @@ export async function getTestBySlug(slug: string): Promise<AnyTest | null> {
   if (!env) return local;
 
   try {
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseReadClient();
     const { data, error } = await supabase
       .from("tests")
-      .select("json, price_rub")
+      .select("slug, title, type, json, price_rub, is_published")
       .eq("slug", slug)
       .single();
 
     if (error) return local;
 
-    const raw = (data as any)?.json as any;
-    if (!raw) return local;
-
-    const { interpretation: _i, ...t } = raw;
-    const test = t as AnyTest;
-    const price =
-      typeof (data as any)?.price_rub === "number" ? (data as any).price_rub : test.pricing?.interpretation_rub ?? 0;
-    return normalizeLoadedTest(test, price);
+    const test = normalizeDbRow(data as any);
+    return test || local;
   } catch (e) {
     console.warn("Supabase load failed:", e);
     return local;
