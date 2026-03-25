@@ -61,7 +61,7 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
     "motivation-cards": 6,
     "time-management": 6,
     "learning-typology": 5,
-    "color-types": 5,
+    "color-types": 6,
     "situational-guidance": 5,
     "negotiation-style": 6,
     "16pf-b": 2,
@@ -72,7 +72,7 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
     emin: 7,
     "16pf-a": 6,
     "time-management": 5,
-    "color-types": 5,
+    "color-types": 6,
     "learning-typology": 4,
     belbin: 3,
     "situational-guidance": 3,
@@ -85,9 +85,9 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
     belbin: 7,
     usk: 7,
     "negotiation-style": 8,
-    "time-management": 5,
-    "motivation-cards": 4,
-    "color-types": 3,
+    "time-management": 6,
+    "motivation-cards": 6,
+    "color-types": 6,
     "learning-typology": 3,
     "16pf-b": 2,
   },
@@ -99,7 +99,7 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
     "color-types": 6,
     "situational-guidance": 5,
     "negotiation-style": 8,
-    "motivation-cards": 4,
+    "motivation-cards": 6,
     "learning-typology": 3,
     "time-management": 3,
     "16pf-b": 2,
@@ -111,8 +111,8 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
     emin: 7,
     "negotiation-style": 8,
     usk: 6,
-    "color-types": 5,
-    "motivation-cards": 4,
+    "color-types": 6,
+    "motivation-cards": 6,
     "time-management": 4,
     "learning-typology": 3,
     "16pf-b": 2,
@@ -126,7 +126,7 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
     "learning-typology": 4,
     "situational-guidance": 4,
     belbin: 3,
-    "color-types": 3,
+    "color-types": 6,
     "16pf-b": 2,
   },
   learning_agility: {
@@ -136,7 +136,7 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
     "motivation-cards": 6,
     usk: 5,
     emin: 5,
-    "color-types": 4,
+    "color-types": 6,
     belbin: 3,
     "situational-guidance": 3,
     "16pf-b": 2,
@@ -169,6 +169,27 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
   },
 };
 
+const GOAL_RECOMMENDED_OVERRIDES: Partial<Record<AssessmentGoal, string[]>> = {
+  role_fit: ["16pf-a", "belbin", "usk", "emin", "situational-guidance"],
+  general_assessment: ["16pf-a", "usk", "motivation-cards", "color-types", "negotiation-style"],
+  motivation: ["motivation-cards", "usk", "color-types"],
+  management_potential: [
+    "situational-guidance",
+    "16pf-a",
+    "usk",
+    "time-management",
+    "motivation-cards",
+    "color-types",
+    "negotiation-style",
+  ],
+  team_interaction: ["belbin", "emin", "usk", "color-types", "motivation-cards"],
+  leadership: ["situational-guidance", "16pf-a", "usk", "color-types", "motivation-cards", "negotiation-style"],
+  self_organization: ["time-management", "usk", "16pf-a", "color-types"],
+  learning_agility: ["learning-typology", "motivation-cards", "color-types"],
+  emotional_regulation: ["emin", "usk", "16pf-a", "motivation-cards"],
+  communication_influence: ["emin", "16pf-a", "color-types", "negotiation-style"],
+};
+
 function scoreGoalTest(goal: AssessmentGoal, slug: string) {
   return GOAL_TEST_WEIGHTS[goal]?.[slug] ?? 0;
 }
@@ -195,6 +216,11 @@ export function isAssessmentGoal(value: unknown): value is AssessmentGoal {
 }
 
 export function getGoalRecommendedTests(goal: AssessmentGoal, availableSlugs?: string[]) {
+  const availableSet = availableSlugs?.length ? new Set(availableSlugs) : null;
+  const override = GOAL_RECOMMENDED_OVERRIDES[goal];
+  if (override?.length) {
+    return override.filter((slug) => scoreGoalTest(goal, slug) > 0 && (!availableSet || availableSet.has(slug)));
+  }
   const basis = availableSlugs?.length ? availableSlugs : defaultScoredSlugs(goal);
   return sortSlugsByGoal(goal, basis).filter((slug) => scoreGoalTest(goal, slug) >= 6).slice(0, 5);
 }
