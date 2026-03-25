@@ -42,16 +42,16 @@ const TEST_PRIORITY_FALLBACK = [
 const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
   role_fit: {
     "16pf-a": 10,
-    belbin: 9,
-    usk: 8,
-    emin: 7,
-    "situational-guidance": 7,
-    "negotiation-style": 6,
-    "motivation-cards": 5,
-    "time-management": 4,
-    "color-types": 4,
+    belbin: 5,
+    usk: 10,
+    emin: 6,
+    "situational-guidance": 10,
+    "negotiation-style": 10,
+    "motivation-cards": 10,
+    "time-management": 8,
+    "color-types": 10,
     "learning-typology": 3,
-    "16pf-b": 2,
+    "16pf-b": 10,
   },
   general_assessment: {
     "16pf-a": 10,
@@ -170,7 +170,7 @@ const GOAL_TEST_WEIGHTS: Record<AssessmentGoal, GoalTestWeights> = {
 };
 
 const GOAL_RECOMMENDED_OVERRIDES: Partial<Record<AssessmentGoal, string[]>> = {
-  role_fit: ["16pf-a", "belbin", "usk", "emin", "situational-guidance"],
+  role_fit: ["16pf-a", "belbin", "usk", "emin", "situational-guidance", "negotiation-style", "motivation-cards", "time-management", "color-types", "16pf-b"],
   general_assessment: ["16pf-a", "usk", "motivation-cards", "color-types", "negotiation-style"],
   motivation: ["motivation-cards", "usk", "color-types"],
   management_potential: [
