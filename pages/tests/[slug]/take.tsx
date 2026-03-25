@@ -604,24 +604,38 @@ function ForcedPairForm({ test }: { test: ForcedPairTestV1 }) {
                   type="button"
                   onClick={() => pick(idx, o1.tag)}
                   className={[
-                    "rounded-xl border border-indigo-100/90 bg-white/85 p-3 text-left text-sm transition shadow-sm backdrop-blur-sm",
-                    chosen === o1.tag ? "border-indigo-300/80 bg-indigo-100/70" : "hover:bg-white/95",
+                    "rounded-2xl border p-4 text-left text-sm transition shadow-sm backdrop-blur-sm",
+                    chosen === o1.tag
+                      ? "border-indigo-500 bg-indigo-200/90 ring-2 ring-indigo-300/70 shadow-md shadow-indigo-200/70"
+                      : "border-indigo-100/90 bg-white/90 hover:border-indigo-200 hover:bg-white",
                   ].join(" ")}
                 >
-                  <div className="text-xs text-slate-500">({o1.tag})</div>
-                  <div className="mt-1">{o1.text}</div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`rounded-lg border px-2 py-1 text-[11px] font-semibold ${chosen === o1.tag ? "border-indigo-500 bg-indigo-600 text-white" : "border-slate-200 bg-white text-slate-500"}`}>
+                      {o1.tag}
+                    </div>
+                    {chosen === o1.tag ? <div className="text-xs font-semibold text-indigo-700">Выбрано</div> : null}
+                  </div>
+                  <div className={`mt-3 leading-relaxed ${chosen === o1.tag ? "text-indigo-950" : "text-slate-900"}`}>{o1.text}</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => pick(idx, o2.tag)}
                   className={[
-                    "rounded-xl border border-indigo-100/90 bg-white/85 p-3 text-left text-sm transition shadow-sm backdrop-blur-sm",
-                    chosen === o2.tag ? "border-indigo-300/80 bg-indigo-100/70" : "hover:bg-white/95",
+                    "rounded-2xl border p-4 text-left text-sm transition shadow-sm backdrop-blur-sm",
+                    chosen === o2.tag
+                      ? "border-indigo-500 bg-indigo-200/90 ring-2 ring-indigo-300/70 shadow-md shadow-indigo-200/70"
+                      : "border-indigo-100/90 bg-white/90 hover:border-indigo-200 hover:bg-white",
                   ].join(" ")}
                 >
-                  <div className="text-xs text-slate-500">({o2.tag})</div>
-                  <div className="mt-1">{o2.text}</div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`rounded-lg border px-2 py-1 text-[11px] font-semibold ${chosen === o2.tag ? "border-indigo-500 bg-indigo-600 text-white" : "border-slate-200 bg-white text-slate-500"}`}>
+                      {o2.tag}
+                    </div>
+                    {chosen === o2.tag ? <div className="text-xs font-semibold text-indigo-700">Выбрано</div> : null}
+                  </div>
+                  <div className={`mt-3 leading-relaxed ${chosen === o2.tag ? "text-indigo-950" : "text-slate-900"}`}>{o2.text}</div>
                 </button>
               </div>
             </div>
