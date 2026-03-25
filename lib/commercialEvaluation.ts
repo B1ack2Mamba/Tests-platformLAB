@@ -35,15 +35,44 @@ function rowsFromResult(result: any) {
   return Array.isArray(result?.ranked) ? result.ranked : [];
 }
 
+function pluralizePoints(value: number) {
+  const abs = Math.abs(Math.trunc(Number(value) || 0));
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return "балл";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "балла";
+  return "баллов";
+}
+
+function genericLevelLabel(row: any) {
+  const source = String(row?.level || "").toLowerCase();
+  if (source.includes("высок") || source.includes("сильн") || source.includes("доминир")) return "высокий показатель";
+  if (source.includes("сред") || source.includes("норм") || source.includes("умерен")) return "средний показатель";
+  if (source.includes("низк") || source.includes("слаб")) return "низкий показатель";
+
+  const percent = Number(row?.percent);
+  if (Number.isFinite(percent)) {
+    if (percent >= 67) return "высокий показатель";
+    if (percent >= 34) return "средний показатель";
+    return "низкий показатель";
+  }
+
+  return "средний показатель";
+}
+
 function formatTopRows(result: any) {
   const rows = rowsFromResult(result).slice(0, 6);
   if (!rows.length) return "Цифры сохранены. Для этого теста пока нет унифицированного короткого блока показателей.";
   return rows
     .map((row: any) => {
       const label = row.style || row.tag || "Показатель";
-      const value = row.percent != null ? `${row.percent}%` : row.count != null ? String(row.count) : "—";
-      const level = row.level ? ` (${row.level})` : "";
-      return `• ${label}: ${value}${level}`;
+      const count = Number(row?.count);
+      const percent = Number(row?.percent);
+      const countText = Number.isFinite(count) ? `${count} ${pluralizePoints(count)}` : "—";
+      const extras: string[] = [];
+      if (Number.isFinite(percent)) extras.push(`${percent}%`);
+      extras.push(genericLevelLabel(row));
+      return `• ${label}: ${countText} (${extras.join(", ")})`;
     })
     .join("\n");
 }
