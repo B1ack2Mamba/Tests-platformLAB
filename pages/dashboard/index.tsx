@@ -128,6 +128,7 @@ const DESK_SHEET_HEIGHT = 132;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const GLOBAL_DESK_TEMPLATE_STORAGE_KEY = "commercialGlobalDeskTemplate:v1839";
 const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1840:";
+const DESKTOP_VARIANT_STORAGE_PREFIX = "commercialDesktopVariant:v1841:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
