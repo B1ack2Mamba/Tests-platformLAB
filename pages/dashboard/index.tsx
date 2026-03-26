@@ -362,8 +362,8 @@ function buildClassicSceneWidgets(params: {
   greeneryLabel: string;
 }): SceneWidget[] {
   return [
-    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonSketch", x: 418, y: 468, width: 320, height: 94, rotation: -0.6, fontSize: 27, z: 31 },
-    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonSketch", x: 786, y: 468, width: 352, height: 94, rotation: 0.4, fontSize: 27, z: 31 },
+    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonSketch", x: 1194, y: 90, width: 122, height: 116, rotation: 0, fontSize: 13, z: 31 },
+    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonSketch", x: 1194, y: 216, width: 122, height: 116, rotation: 0, fontSize: 13, z: 31 },
   ];
 }
 
@@ -388,6 +388,33 @@ function getDefaultProjectPosition(index: number): DeskPosition {
     x: SHEET_ZONE.x + offset.x + row * 18,
     y: SHEET_ZONE.y + offset.y + row * 12,
     z: 180 + index,
+  };
+}
+
+function getClassicFolderRenderPosition(index: number): DeskPosition {
+  const row = index % 5;
+  const col = Math.floor(index / 5);
+  return {
+    x: 48 + col * 136,
+    y: 86 + row * 118,
+    z: 80 + index,
+    width: 104,
+    height: 104,
+    rotation: 0,
+  };
+}
+
+function getClassicProjectRenderPosition(index: number, folderCount = 0): DeskPosition {
+  const desktopIndex = index + folderCount;
+  const row = desktopIndex % 5;
+  const col = Math.floor(desktopIndex / 5);
+  return {
+    x: 48 + col * 136,
+    y: 86 + row * 118,
+    z: 180 + desktopIndex,
+    width: 104,
+    height: 110,
+    rotation: 0,
   };
 }
 
@@ -1579,14 +1606,18 @@ export default function DashboardPage() {
     );
   }
 
-  const trayFolders = folderBuckets.byFolder.filter(({ folder }, index) => {
-    const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
-    return isInsideGuideRect(pos.x, pos.y);
-  });
-  const looseFolders = folderBuckets.byFolder.filter(({ folder }, index) => {
-    const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
-    return !isInsideGuideRect(pos.x, pos.y);
-  });
+  const trayFolders = desktopVariant === "classic"
+    ? []
+    : folderBuckets.byFolder.filter(({ folder }, index) => {
+        const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
+        return isInsideGuideRect(pos.x, pos.y);
+      });
+  const looseFolders = desktopVariant === "classic"
+    ? folderBuckets.byFolder
+    : folderBuckets.byFolder.filter(({ folder }, index) => {
+        const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
+        return !isInsideGuideRect(pos.x, pos.y);
+      });
 
   return (
     <Layout title="Кабинет специалиста">
@@ -1609,7 +1640,7 @@ export default function DashboardPage() {
               className="btn btn-secondary btn-sm"
               onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
             >
-              {desktopVariant === "scheme" ? "Классический стол" : "Схема на доске"}
+              {desktopVariant === "scheme" ? "Рабочий стол Windows" : "Схема на доске"}
             </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>Новая папка</button>
@@ -1754,7 +1785,7 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
+        <div className={`dashboard-office-scene dashboard-office-scene-${desktopVariant} relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]`}>
           <div className="dashboard-office-scene-backdrop absolute inset-0" />
           <div className="dashboard-office-scene-vignette absolute inset-0" />
 
@@ -1765,7 +1796,7 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={widget.id}
-                    className={`dashboard-scene-widget dashboard-scene-widget-${widget.kind} dashboard-scene-widget-${widget.tone || "note"} ${sceneEditMode ? "dashboard-scene-widget-editing" : ""} ${isSelected ? "dashboard-scene-widget-selected" : ""}`}
+                    className={`dashboard-scene-widget dashboard-scene-widget-${widget.kind} dashboard-scene-widget-${widget.tone || "note"} ${desktopVariant === "classic" ? "dashboard-scene-widget-windows" : ""} ${sceneEditMode ? "dashboard-scene-widget-editing" : ""} ${isSelected ? "dashboard-scene-widget-selected" : ""}`}
                     style={{
                       left: `${widget.x}px`,
                       top: `${widget.y}px`,
@@ -1873,7 +1904,7 @@ export default function DashboardPage() {
                 </div>
               );
             })()}
-            {(() => {
+            {desktopVariant !== "classic" ? (() => {
               const guidePosition = deskPositions[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
               const guideWidth = guidePosition.width || 228;
               const guideHeight = guidePosition.height || 104;
@@ -1950,15 +1981,15 @@ export default function DashboardPage() {
                   ) : null}
                 </div>
               );
-            })()}
+            })() : null}
 
-            {(() => {
+            {desktopVariant !== "classic" ? (() => {
               const guideClip = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
               return (
                 <div className="absolute z-[12] overflow-hidden" style={{ left: `${guideClip.x}px`, top: `${guideClip.y}px`, width: `${guideClip.width}px`, height: `${guideClip.height}px`, transform: getGuideTransform(deskPositions[TRAY_GUIDE_ID]), transformOrigin: 'top left', clipPath: getGuideClipPath(deskPositions[TRAY_GUIDE_ID]), pointerEvents: 'none' }}>
               {trayFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
                 const itemId = `folder:${folder.id}`;
-                const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
+                const position = deskPositions[itemId] || (desktopVariant === "classic" ? getClassicFolderRenderPosition(folderIndex) : getDefaultFolderPosition(folderIndex));
                 const width = position.width || DESK_FOLDER_WIDTH;
                 const height = position.height || DESK_FOLDER_HEIGHT;
                 const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
@@ -1984,17 +2015,18 @@ export default function DashboardPage() {
                         bringDeskItemToFront(itemId);
                       }}
                       onDragEnd={() => setDraggingFolderId(null)}
+                    desktopVariant={desktopVariant}
                     />
                   </div>
                 );
               })}
             </div>
               );
-            })()}
+            })() : null}
 
             {looseFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
               const itemId = `folder:${folder.id}`;
-              const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
+              const position = deskPositions[itemId] || (desktopVariant === "classic" ? getClassicFolderRenderPosition(folderIndex) : getDefaultFolderPosition(folderIndex));
               const width = position.width || DESK_FOLDER_WIDTH;
               const height = position.height || DESK_FOLDER_HEIGHT;
               const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
@@ -2020,6 +2052,7 @@ export default function DashboardPage() {
                       bringDeskItemToFront(itemId);
                     }}
                     onDragEnd={() => setDraggingFolderId(null)}
+                    desktopVariant={desktopVariant}
                   />
                 </div>
               );
@@ -2027,7 +2060,7 @@ export default function DashboardPage() {
 
             {folderBuckets.uncategorized.map((project, projectIndex) => {
               const itemId = `project:${project.id}`;
-              const position = deskPositions[itemId] || getDefaultProjectPosition(projectIndex);
+              const position = deskPositions[itemId] || (desktopVariant === "classic" ? getClassicProjectRenderPosition(projectIndex, folderBuckets.byFolder.length) : getDefaultProjectPosition(projectIndex));
               const width = position.width || DESK_SHEET_WIDTH;
               const height = position.height || DESK_SHEET_HEIGHT;
               const rotation = (position.rotation || 0) + getEntityTilt(project.id, 1) * 0.18;
@@ -2053,12 +2086,13 @@ export default function DashboardPage() {
                       clearTrashHover();
                     }}
                     onDelete={() => deleteProject(project.id)}
+                    desktopVariant={desktopVariant}
                   />
                 </div>
               );
             })}
 
-            <button
+            {desktopVariant !== "classic" ? <button
               type="button"
               className="dashboard-pen-trigger absolute bottom-12 right-10 z-[220]"
               onClick={() => router.push('/projects/new')}
@@ -2068,7 +2102,7 @@ export default function DashboardPage() {
               <span className="dashboard-pen-body" />
               <span className="dashboard-pen-cap" />
               <span className="dashboard-pen-tip" />
-            </button>
+            </button> : null}
 
             {!folderBuckets.byFolder.length && !folderBuckets.uncategorized.length ? (
               <div className="absolute inset-x-8 bottom-12 rounded-2xl border border-dashed border-black/10 bg-white/88 p-8 text-center text-sm text-[#4b3727] shadow-[0_14px_30px_-24px_rgba(31,18,10,0.22)]">
@@ -2319,6 +2353,7 @@ function EdgeVine({ side, growthLevel }: { side: "top" | "right" | "bottom"; gro
 }
 
 type FolderDesktopIconProps = {
+  desktopVariant?: DesktopVariant;
   folder: FolderRow;
   projects: ProjectRow[];
   busy?: boolean;
@@ -2336,8 +2371,9 @@ type FolderDesktopIconProps = {
   onDragMoveStart?: (e: any) => void;
 };
 
-function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: FolderDesktopIconProps) {
+function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart, desktopVariant = "scheme" }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
+  const desktopMode = desktopVariant === "classic";
   return (
     <div className={`group relative flex h-full w-full flex-col items-center gap-2 ${selected ? "dashboard-desk-entity-selected" : ""}`}>
       <button
@@ -2356,7 +2392,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
           onSelect?.();
           if (!sceneEditMode) onOpen();
         }}
-        className={`dashboard-folder-card dashboard-folder-card-angled relative flex h-full w-full items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#94724a]" : "border-[#b88c5a]"} ${busy ? "opacity-70" : ""}`}
+        className={`${desktopMode ? "dashboard-desktop-folder" : `dashboard-folder-card dashboard-folder-card-angled relative flex h-full w-full items-end justify-start overflow-visible border transition hover:-translate-y-0.5 ${draggingProjectId ? "border-[#94724a]" : "border-[#b88c5a]"}`} ${busy ? "opacity-70" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -2364,44 +2400,57 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
           if (draggedId) onDropProject(draggedId);
         }}
       >
-        <div className="dashboard-folder-shadow-strip" />
-        <div className="dashboard-folder-spine" />
-        <div className="dashboard-folder-tab" />
-        <div className="dashboard-folder-pocket" />
-        <div className="dashboard-folder-mouth" />
-        <div className="dashboard-folder-inner-shadow" />
-        <div className="dashboard-folder-gloss" />
+        {desktopMode ? (
+          <>
+            <span className="dashboard-desktop-folder-glyph" aria-hidden="true">
+              <span className="dashboard-desktop-folder-glyph-tab" />
+              <span className="dashboard-desktop-folder-glyph-body" />
+            </span>
+            <span className="dashboard-desktop-icon-label">{folder.name}</span>
+            <span className="dashboard-desktop-icon-meta">{projects.length} {projects.length === 1 ? "элемент" : "элементов"}</span>
+          </>
+        ) : (
+          <>
+            <div className="dashboard-folder-shadow-strip" />
+            <div className="dashboard-folder-spine" />
+            <div className="dashboard-folder-tab" />
+            <div className="dashboard-folder-pocket" />
+            <div className="dashboard-folder-mouth" />
+            <div className="dashboard-folder-inner-shadow" />
+            <div className="dashboard-folder-gloss" />
 
-        <div className="absolute left-4 right-12 top-10 z-20">
-          <div className="truncate text-[16px] font-semibold leading-tight text-[#5c3e1f]">{folder.name}</div>
-          <div className="mt-1 text-[11px] text-[#7a5830]">Открыть папку</div>
-        </div>
-
-        <div className="pointer-events-none absolute left-4 right-4 top-[68px] z-20 flex flex-col gap-1.5">
-          {preview.length ? preview.map((project, index) => {
-            const slipTitle = project.person?.full_name || project.title || "Проект";
-            return (
-              <div
-                key={project.id}
-                className="dashboard-folder-name-slip rounded-[8px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
-                style={{
-                  marginLeft: `${index * 10}px`,
-                  marginRight: `${Math.max(0, 20 - index * 5)}px`,
-                  transform: `translateY(${index * 8}px) rotate(${index % 2 === 0 ? -0.8 : 0.65}deg)`,
-                  zIndex: 30 - index,
-                }}
-              >
-                <span className="block truncate">{slipTitle}</span>
-              </div>
-            );
-          }) : (
-            <div className="dashboard-folder-name-slip rounded-[8px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
-              <span className="block truncate">Папка пуста</span>
+            <div className="absolute left-4 right-12 top-10 z-20">
+              <div className="truncate text-[16px] font-semibold leading-tight text-[#5c3e1f]">{folder.name}</div>
+              <div className="mt-1 text-[11px] text-[#7a5830]">Открыть папку</div>
             </div>
-          )}
-        </div>
 
-        <div className="absolute bottom-3 right-4 z-20 rounded-full border border-[#d5be99] bg-[#fff9f0]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
+            <div className="pointer-events-none absolute left-4 right-4 top-[68px] z-20 flex flex-col gap-1.5">
+              {preview.length ? preview.map((project, index) => {
+                const slipTitle = project.person?.full_name || project.title || "Проект";
+                return (
+                  <div
+                    key={project.id}
+                    className="dashboard-folder-name-slip rounded-[8px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm"
+                    style={{
+                      marginLeft: `${index * 10}px`,
+                      marginRight: `${Math.max(0, 20 - index * 5)}px`,
+                      transform: `translateY(${index * 8}px) rotate(${index % 2 === 0 ? -0.8 : 0.65}deg)`,
+                      zIndex: 30 - index,
+                    }}
+                  >
+                    <span className="block truncate">{slipTitle}</span>
+                  </div>
+                );
+              }) : (
+                <div className="dashboard-folder-name-slip rounded-[8px] border px-3 py-1 text-left text-[10px] font-semibold shadow-sm">
+                  <span className="block truncate">Папка пуста</span>
+                </div>
+              )}
+            </div>
+
+            <div className="absolute bottom-3 right-4 z-20 rounded-full border border-[#d5be99] bg-[#fff9f0]/92 px-2 py-1 text-[11px] font-medium text-[#5b4024] shadow-sm">{projects.length}</div>
+          </>
+        )}
       </button>
       <button
         type="button"
@@ -2423,6 +2472,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
 }
 
 type ProjectDesktopIconProps = {
+  desktopVariant?: DesktopVariant;
   project: ProjectRow;
   onOpen: () => void;
   onDragStart: () => void;
@@ -2438,7 +2488,7 @@ type ProjectDesktopIconProps = {
   onDragMoveStart?: (e: any) => void;
 };
 
-function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: ProjectDesktopIconProps) {
+function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart, desktopVariant = "scheme" }: ProjectDesktopIconProps) {
   const displayName = project.person?.full_name || project.title || "Проект";
   const titleLine = project.title || displayName;
   const roleLine = project.target_role || project.person?.current_position || "Роль не указана";
@@ -2447,6 +2497,7 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const completed = Math.min(project.attempts_count || 0, total || 0);
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
+  const desktopMode = desktopVariant === "classic";
 
   return (
     <div className={`group relative h-full w-full dashboard-desk-sheet-wrap ${selected ? "dashboard-desk-entity-selected" : ""}`}>
@@ -2480,20 +2531,32 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
           onSelect?.();
           if (!sceneEditMode) onOpen();
         }}
-        className={`dashboard-desk-sheet dashboard-desk-sheet-plain ${compact ? "dashboard-desk-sheet-compact" : ""} ${busy ? "opacity-60" : ""}`}
+        className={`${desktopMode ? "dashboard-desktop-file" : `dashboard-desk-sheet dashboard-desk-sheet-plain ${compact ? "dashboard-desk-sheet-compact" : ""}`} ${busy ? "opacity-60" : ""}`}
       >
-        <span className="dashboard-desk-sheet-clip" aria-hidden="true" />
-        <span className="dashboard-desk-sheet-kicker">Лист проекта</span>
-        <span className="dashboard-desk-sheet-title">{titleLine}</span>
-        <span className="dashboard-desk-sheet-row"><span>Имя</span><strong>{displayName}</strong></span>
-        <span className="dashboard-desk-sheet-row"><span>Цель</span><strong>{goal?.shortTitle || project.goal}</strong></span>
-        <span className="dashboard-desk-sheet-row"><span>Роль</span><strong>{roleLine}</strong></span>
-        <span className="dashboard-desk-sheet-row"><span>Оценка</span><strong>{assessmentLine}</strong></span>
-        <span className="dashboard-desk-sheet-footer">
-          <span>{completed}/{total || 0} тестов</span>
-          <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
-        </span>
-        <span className={`dashboard-desk-sheet-stamp ${isDone ? "dashboard-desk-sheet-stamp-done" : "dashboard-desk-sheet-stamp-pending"}`}>{isDone ? "ЗАВЕРШЕНО" : "НЕ ЗАВЕРШЕНО"}</span>
+        {desktopMode ? (
+          <>
+            <span className="dashboard-desktop-file-glyph" aria-hidden="true">
+              <span className="dashboard-desktop-file-corner" />
+            </span>
+            <span className="dashboard-desktop-icon-label">{titleLine}</span>
+            <span className="dashboard-desktop-icon-meta">{isDone ? "Готово" : `${completed}/${total || 0} тестов`}</span>
+          </>
+        ) : (
+          <>
+            <span className="dashboard-desk-sheet-clip" aria-hidden="true" />
+            <span className="dashboard-desk-sheet-kicker">Лист проекта</span>
+            <span className="dashboard-desk-sheet-title">{titleLine}</span>
+            <span className="dashboard-desk-sheet-row"><span>Имя</span><strong>{displayName}</strong></span>
+            <span className="dashboard-desk-sheet-row"><span>Цель</span><strong>{goal?.shortTitle || project.goal}</strong></span>
+            <span className="dashboard-desk-sheet-row"><span>Роль</span><strong>{roleLine}</strong></span>
+            <span className="dashboard-desk-sheet-row"><span>Оценка</span><strong>{assessmentLine}</strong></span>
+            <span className="dashboard-desk-sheet-footer">
+              <span>{completed}/{total || 0} тестов</span>
+              <span>{new Date(project.created_at).toLocaleDateString("ru-RU")}</span>
+            </span>
+            <span className={`dashboard-desk-sheet-stamp ${isDone ? "dashboard-desk-sheet-stamp-done" : "dashboard-desk-sheet-stamp-pending"}`}>{isDone ? "ЗАВЕРШЕНО" : "НЕ ЗАВЕРШЕНО"}</span>
+          </>
+        )}
       </button>
       {sceneEditMode && selected ? (
         <>
