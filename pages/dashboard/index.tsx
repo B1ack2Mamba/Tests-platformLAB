@@ -1989,7 +1989,7 @@ export default function DashboardPage() {
                 <div className="absolute z-[12] overflow-hidden" style={{ left: `${guideClip.x}px`, top: `${guideClip.y}px`, width: `${guideClip.width}px`, height: `${guideClip.height}px`, transform: getGuideTransform(deskPositions[TRAY_GUIDE_ID]), transformOrigin: 'top left', clipPath: getGuideClipPath(deskPositions[TRAY_GUIDE_ID]), pointerEvents: 'none' }}>
               {trayFolders.map(({ folder, projects: folderProjects }, folderIndex) => {
                 const itemId = `folder:${folder.id}`;
-                const position = deskPositions[itemId] || (desktopVariant === "classic" ? getClassicFolderRenderPosition(folderIndex) : getDefaultFolderPosition(folderIndex));
+                const position = deskPositions[itemId] || getDefaultFolderPosition(folderIndex);
                 const width = position.width || DESK_FOLDER_WIDTH;
                 const height = position.height || DESK_FOLDER_HEIGHT;
                 const rotation = (position.rotation || 0) + getEntityTilt(folder.id, 2) * 0.42;
