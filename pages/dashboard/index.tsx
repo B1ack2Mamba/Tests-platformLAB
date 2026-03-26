@@ -1730,15 +1730,17 @@ export default function DashboardPage() {
 
           {activeFolder ? (
             <FolderModal
-              folder={activeFolder}
-              projects={activeFolderProjects}
+              folder={activeFolder.folder}
+              projects={activeFolder.projects}
+              busy={busyFolderId === activeFolder.folder.id}
               onClose={() => setActiveFolderId(null)}
-              onRename={renameFolder}
-              onDelete={deleteFolder}
-              onCreateProject={createProjectInFolder}
-              onDetachProject={(projectId) => moveProject(projectId, null)}
-              onOpenProject={(project) => setPreviewProject(project)}
-              busyFolderId={busyFolderId}
+              onManage={() => setFolderActionTarget(activeFolder.folder)}
+              onOpenProject={(projectId) => {
+                const project = activeFolder.projects.find((item) => item.id === projectId);
+                if (project) setPreviewProject(project);
+              }}
+              onMoveToDesktop={(projectId) => moveProject(projectId, null)}
+              onDeleteProject={deleteProject}
             />
           ) : null}
 
