@@ -82,7 +82,8 @@ type DeskItemInteractionState = {
 
 type SceneWidgetKind = "text" | "button" | "image";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
-type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "scheme";
+type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
+type DesktopVariant = "scheme" | "classic";
 type TrashItemKind = "folder" | "project";
 
 type TrashEntry = {
@@ -318,8 +319,14 @@ function writeGlobalDeskTemplates(source: DeskPositions) {
   } catch {}
 }
 
-function getSceneWidgetsStorageKey(workspaceId: string) {
-  return `${SCENE_WIDGETS_STORAGE_PREFIX}${workspaceId}`;
+function getSceneWidgetsStorageKey(workspaceId: string, variant: DesktopVariant = "scheme") {
+  return variant === "scheme"
+    ? `${SCENE_WIDGETS_STORAGE_PREFIX}${workspaceId}`
+    : `${SCENE_WIDGETS_STORAGE_PREFIX}${workspaceId}:${variant}`;
+}
+
+function getDesktopVariantStorageKey(workspaceId: string) {
+  return `${DESKTOP_VARIANT_STORAGE_PREFIX}${workspaceId}`;
 }
 
 function getTrayGuideTextStorageKey(workspaceId: string) {
@@ -330,7 +337,7 @@ function getTrashStorageKey(workspaceId: string) {
   return `${TRASH_STORAGE_PREFIX}${workspaceId}`;
 }
 
-function buildDefaultSceneWidgets(params: {
+function buildSchemeSceneWidgets(params: {
   displayName: string;
   workspaceName: string;
   email: string;
@@ -342,6 +349,20 @@ function buildDefaultSceneWidgets(params: {
     { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
     { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
     { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
+  ];
+}
+
+function buildClassicSceneWidgets(params: {
+  displayName: string;
+  workspaceName: string;
+  email: string;
+  balanceText: string;
+  investedText: string;
+  greeneryLabel: string;
+}): SceneWidget[] {
+  return [
+    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonSketch", x: 418, y: 468, width: 320, height: 94, rotation: -0.6, fontSize: 27, z: 31 },
+    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonSketch", x: 786, y: 468, width: 352, height: 94, rotation: 0.4, fontSize: 27, z: 31 },
   ];
 }
 
@@ -493,6 +514,7 @@ export default function DashboardPage() {
   const canEditScene = user?.email === "storyguild9@gmail.com" || isAdmin;
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
+  const [desktopVariant, setDesktopVariant] = useState<DesktopVariant>("scheme");
   const [trayGuideText, setTrayGuideText] = useState("Создать новую папку проектов");
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
@@ -599,7 +621,7 @@ export default function DashboardPage() {
   const displayName = data?.profile?.full_name || (user?.user_metadata as any)?.full_name || user?.email || "Пользователь";
   const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user?.user_metadata as any)?.company_name || "Рабочее пространство";
   const defaultSceneWidgets = useMemo(
-    () => buildDefaultSceneWidgets({
+    () => (desktopVariant === "classic" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
       displayName,
       workspaceName,
       email: data?.profile?.email || user?.email || "email не указан",
@@ -607,40 +629,65 @@ export default function DashboardPage() {
       investedText,
       greeneryLabel,
     }),
-    [balanceText, data?.profile?.email, displayName, greeneryLabel, investedText, user?.email, workspaceName]
+    [balanceText, data?.profile?.email, desktopVariant, displayName, greeneryLabel, investedText, user?.email, workspaceName]
   );
 
   useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id));
+      if (raw === "classic" || raw === "scheme") setDesktopVariant(raw);
+    } catch {}
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id), desktopVariant);
+    } catch {}
+  }, [desktopVariant, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
-    const key = getSceneWidgetsStorageKey(workspace.workspace.workspace_id);
+    const key = getSceneWidgetsStorageKey(workspace.workspace.workspace_id, desktopVariant);
     let saved: SceneWidget[] = [];
     if (typeof window !== "undefined") {
       try {
         const raw = window.localStorage.getItem(key);
         if (raw) saved = JSON.parse(raw) as SceneWidget[];
+        if (!raw && desktopVariant === "scheme") {
+          const legacyRaw = window.localStorage.getItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id));
+          if (legacyRaw) saved = JSON.parse(legacyRaw) as SceneWidget[];
+        }
       } catch {
         saved = [];
       }
     }
 
-    const legacyWidgetIds = new Set([
-      "wallet-title",
-      "wallet-value",
-      "wallet-note",
-      "profile-title",
-      "profile-name",
-      "profile-role",
-      "profile-email",
-      "create-folder",
-    ]);
-    const hasLegacyBoardLayout = saved.some((item) => legacyWidgetIds.has(item.id));
-    const hasMarkerScheme = saved.some((item) => item.id === "board-scheme") || sharedSceneWidgets.some((item) => item.id === "board-scheme");
-    const needsMarkerSceneUpgrade = !hasLegacyBoardLayout && !hasMarkerScheme;
     const allowedIds = new Set(defaultSceneWidgets.map((item) => item.id));
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
-    const sourceWidgets = hasLegacyBoardLayout || needsMarkerSceneUpgrade
-      ? (sharedSceneWidgets.some((item) => item.id === "board-scheme") ? sharedSceneWidgets : defaultSceneWidgets)
-      : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
+
+    let sourceWidgets: SceneWidget[] = [];
+    if (desktopVariant === "classic") {
+      sourceWidgets = saved.length ? saved : defaultSceneWidgets;
+    } else {
+      const legacyWidgetIds = new Set([
+        "wallet-title",
+        "wallet-value",
+        "wallet-note",
+        "profile-title",
+        "profile-name",
+        "profile-role",
+        "profile-email",
+        "create-folder",
+      ]);
+      const hasLegacyBoardLayout = saved.some((item) => legacyWidgetIds.has(item.id));
+      const hasMarkerScheme = saved.some((item) => item.id === "board-scheme") || sharedSceneWidgets.some((item) => item.id === "board-scheme");
+      const needsMarkerSceneUpgrade = !hasLegacyBoardLayout && !hasMarkerScheme;
+      sourceWidgets = hasLegacyBoardLayout || needsMarkerSceneUpgrade
+        ? (sharedSceneWidgets.some((item) => item.id === "board-scheme") ? sharedSceneWidgets : defaultSceneWidgets)
+        : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
+    }
 
     const normalizedWidgets = sourceWidgets
       .filter((item) => allowedIds.has(item.id))
@@ -664,12 +711,12 @@ export default function DashboardPage() {
     normalizedWidgets.sort((a, b) => a.z - b.z);
 
     setSceneWidgets(normalizedWidgets.length ? normalizedWidgets : defaultSceneWidgets);
-  }, [defaultSceneWidgets, sharedSceneReady, sharedSceneWidgets, workspace?.workspace?.workspace_id]);
+  }, [defaultSceneWidgets, desktopVariant, sharedSceneReady, sharedSceneWidgets, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined" || !sceneWidgets.length) return;
-    window.localStorage.setItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id), JSON.stringify(sceneWidgets));
-  }, [sceneWidgets, sharedSceneReady, workspace?.workspace?.workspace_id]);
+    window.localStorage.setItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id, desktopVariant), JSON.stringify(sceneWidgets));
+  }, [desktopVariant, sceneWidgets, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
 
   useEffect(() => {
@@ -1031,14 +1078,14 @@ export default function DashboardPage() {
   const resetSceneWidgets = useCallback(() => {
     const workspaceId = workspace?.workspace?.workspace_id;
     if (workspaceId && typeof window !== "undefined") {
-      window.localStorage.removeItem(getSceneWidgetsStorageKey(workspaceId));
+      window.localStorage.removeItem(getSceneWidgetsStorageKey(workspaceId, desktopVariant));
       window.localStorage.removeItem(getTrayGuideTextStorageKey(workspaceId));
       window.localStorage.removeItem(getDeskStorageKey(workspaceId));
     }
 
     const allowedIds = new Set(defaultSceneWidgets.map((item) => item.id));
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
-    const baseWidgets = sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets;
+    const baseWidgets = desktopVariant === "scheme" && sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets;
     const normalizedWidgets = baseWidgets
       .filter((item) => allowedIds.has(item.id))
       .map((item) => {
@@ -1059,7 +1106,7 @@ export default function DashboardPage() {
     setDeskPositions(mergeDeskPositions(folders, folderBuckets.uncategorized, { ...sharedDeskPositions, ...readGlobalDeskTemplates() }));
     setSelectedWidgetId(null);
     setSelectedDeskItemId(null);
-  }, [defaultSceneWidgets, folderBuckets.uncategorized, folders, sharedDeskPositions, sharedSceneWidgets, sharedTrayGuideText, workspace?.workspace?.workspace_id]);
+  }, [defaultSceneWidgets, desktopVariant, folderBuckets.uncategorized, folders, sharedDeskPositions, sharedSceneWidgets, sharedTrayGuideText, workspace?.workspace?.workspace_id]);
 
   const activeFolder = useMemo(
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,
@@ -1556,6 +1603,13 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
+            >
+              {desktopVariant === "scheme" ? "Классический стол" : "Схема на доске"}
+            </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>Новая папка</button>
             {canEditScene ? (

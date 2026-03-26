@@ -174,11 +174,10 @@ html.native-app .app-brand {
 @layer components {
   .dashboard-experience {
     background:
-      radial-gradient(circle at 12% 8%, rgba(166, 245, 194, 0.62), transparent 26%),
-      radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.92), transparent 30%),
-      radial-gradient(circle at 78% 72%, rgba(197, 246, 222, 0.38), transparent 28%),
-      linear-gradient(132deg, #c6f5d6 0%, #e7fff0 40%, #ffffff 74%, #fbfffd 100%);
-    box-shadow: 0 24px 80px -44px rgba(15, 23, 42, 0.26);
+      radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.94), transparent 30%),
+      radial-gradient(circle at 78% 72%, rgba(238, 230, 216, 0.32), transparent 28%),
+      linear-gradient(132deg, #f5efe8 0%, #faf7f2 42%, #ffffff 78%, #fffdfb 100%);
+    box-shadow: 0 24px 80px -44px rgba(15, 23, 42, 0.22);
   }
 
   .dashboard-surface-gradient {
@@ -571,11 +570,10 @@ html.native-app .app-brand {
 @layer components {
   .dashboard-experience {
     background:
-      radial-gradient(circle at 12% 8%, rgba(166, 245, 194, 0.62), transparent 26%),
-      radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.92), transparent 30%),
-      radial-gradient(circle at 78% 72%, rgba(197, 246, 222, 0.38), transparent 28%),
-      linear-gradient(132deg, #c6f5d6 0%, #e7fff0 40%, #ffffff 74%, #fbfffd 100%);
-    box-shadow: 0 24px 80px -44px rgba(15, 23, 42, 0.26);
+      radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.94), transparent 30%),
+      radial-gradient(circle at 78% 72%, rgba(238, 230, 216, 0.32), transparent 28%),
+      linear-gradient(132deg, #f5efe8 0%, #faf7f2 42%, #ffffff 78%, #fffdfb 100%);
+    box-shadow: 0 24px 80px -44px rgba(15, 23, 42, 0.22);
   }
 
   .dashboard-surface-gradient {
@@ -3183,6 +3181,20 @@ html.native-app .app-brand {
   letter-spacing: 0.01em;
   color: #3a2a18;
   text-align: center;
+}
+
+.dashboard-scene-widget-buttonSketch {
+  background: linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(250,245,236,0.98) 100%);
+  border: 1.5px dashed rgba(84, 98, 121, 0.42);
+  box-shadow: 0 20px 36px -28px rgba(31,24,18,0.42), inset 0 1px 0 rgba(255,255,255,0.78);
+}
+
+.dashboard-scene-widget-buttonSketch .dashboard-scene-widget-label {
+  font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(44, 55, 82, 0.88);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
   text-shadow: 0 1px 0 rgba(255,255,255,0.42);
 }
 
