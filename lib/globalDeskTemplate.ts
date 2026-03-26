@@ -24,6 +24,7 @@ export type SceneWidgetTemplate = {
   id: string;
   kind?: string;
   text?: string;
+  src?: string;
   action?: string;
   tone?: string;
   x: number;
@@ -89,6 +90,7 @@ function sanitizeSceneWidget(value: any): SceneWidgetTemplate | null {
   }
   if (typeof value.kind === "string" && value.kind.trim()) next.kind = value.kind.trim();
   if (typeof value.text === "string") next.text = value.text;
+  if (typeof value.src === "string" && value.src.trim()) next.src = value.src.trim();
   if (typeof value.action === "string" && value.action.trim()) next.action = value.action.trim();
   if (typeof value.tone === "string" && value.tone.trim()) next.tone = value.tone.trim();
   return next as SceneWidgetTemplate;

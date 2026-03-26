@@ -80,9 +80,9 @@ type DeskItemInteractionState = {
   position: DeskPosition;
 };
 
-type SceneWidgetKind = "text" | "button";
+type SceneWidgetKind = "text" | "button" | "image";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
-type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary";
+type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "scheme";
 type TrashItemKind = "folder" | "project";
 
 type TrashEntry = {
@@ -97,6 +97,7 @@ type SceneWidget = {
   id: string;
   kind: SceneWidgetKind;
   text: string;
+  src?: string;
   action?: SceneWidgetAction;
   tone?: SceneWidgetTone;
   x: number;
@@ -125,7 +126,7 @@ const DESK_SHEET_WIDTH = 184;
 const DESK_SHEET_HEIGHT = 132;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const GLOBAL_DESK_TEMPLATE_STORAGE_KEY = "commercialGlobalDeskTemplate:v1839";
-const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
+const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1840:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
@@ -338,8 +339,9 @@ function buildDefaultSceneWidgets(params: {
   greeneryLabel: string;
 }): SceneWidget[] {
   return [
-    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 430, y: 452, width: 280, height: 84, rotation: -1.3, fontSize: 22, z: 30 },
-    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 792, y: 452, width: 280, height: 84, rotation: -1.1, fontSize: 22, z: 31 },
+    { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
+    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
+    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
   ];
 }
 
@@ -632,9 +634,13 @@ export default function DashboardPage() {
       "create-folder",
     ]);
     const hasLegacyBoardLayout = saved.some((item) => legacyWidgetIds.has(item.id));
+    const hasMarkerScheme = saved.some((item) => item.id === "board-scheme") || sharedSceneWidgets.some((item) => item.id === "board-scheme");
+    const needsMarkerSceneUpgrade = !hasLegacyBoardLayout && !hasMarkerScheme;
     const allowedIds = new Set(defaultSceneWidgets.map((item) => item.id));
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
-    const sourceWidgets = hasLegacyBoardLayout ? (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets) : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
+    const sourceWidgets = hasLegacyBoardLayout || needsMarkerSceneUpgrade
+      ? (sharedSceneWidgets.some((item) => item.id === "board-scheme") ? sharedSceneWidgets : defaultSceneWidgets)
+      : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
 
     const normalizedWidgets = sourceWidgets
       .filter((item) => allowedIds.has(item.id))
@@ -647,9 +653,15 @@ export default function DashboardPage() {
           action: defaults.action,
           kind: defaults.kind,
           tone: defaults.tone,
+          src: (item as SceneWidget).src || defaults.src,
         };
-      })
-      .sort((a, b) => a.z - b.z);
+      });
+
+    for (const defaults of defaultSceneWidgets) {
+      if (!normalizedWidgets.some((item) => item.id === defaults.id)) normalizedWidgets.push({ ...defaults });
+    }
+
+    normalizedWidgets.sort((a, b) => a.z - b.z);
 
     setSceneWidgets(normalizedWidgets.length ? normalizedWidgets : defaultSceneWidgets);
   }, [defaultSceneWidgets, sharedSceneReady, sharedSceneWidgets, workspace?.workspace?.workspace_id]);
@@ -923,9 +935,10 @@ export default function DashboardPage() {
         return;
       }
       if (current.mode === "resize") {
+        const isImageWidget = current.widget.kind === "image";
         updateSceneWidget(current.id, {
-          width: clampDesk(current.widget.width + dx, 110, 520),
-          height: clampDesk(current.widget.height + dy, 30, 180),
+          width: clampDesk(current.widget.width + dx, isImageWidget ? 280 : 110, isImageWidget ? DESK_WIDTH - 20 : 520),
+          height: clampDesk(current.widget.height + dy, isImageWidget ? 180 : 30, isImageWidget ? DESK_HEIGHT - 10 : 180),
         });
         return;
       }
@@ -1577,12 +1590,20 @@ export default function DashboardPage() {
               <label className="text-xs text-[#7b5b3b] md:col-span-1">Поворот
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={selectedWidget.rotation} onChange={(e) => updateSceneWidget(selectedWidget.id, { rotation: Number(e.target.value || 0) })} />
               </label>
-              <label className="text-xs text-[#7b5b3b] md:col-span-1">Шрифт
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={selectedWidget.fontSize} onChange={(e) => updateSceneWidget(selectedWidget.id, { fontSize: Number(e.target.value || 0) })} />
-              </label>
-              <label className="text-xs text-[#7b5b3b] md:col-span-2">Текст
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={selectedWidget.text} onChange={(e) => updateSceneWidget(selectedWidget.id, { text: e.target.value })} />
-              </label>
+              {selectedWidget.kind !== "image" ? (
+                <>
+                  <label className="text-xs text-[#7b5b3b] md:col-span-1">Шрифт
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={selectedWidget.fontSize} onChange={(e) => updateSceneWidget(selectedWidget.id, { fontSize: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b] md:col-span-2">Текст
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={selectedWidget.text} onChange={(e) => updateSceneWidget(selectedWidget.id, { text: e.target.value })} />
+                  </label>
+                </>
+              ) : (
+                <label className="text-xs text-[#7b5b3b] md:col-span-3">Изображение
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] bg-[#f8f3ea] px-3 py-2 text-sm text-[#7b5b3b]" type="text" value={selectedWidget.src || ""} readOnly />
+                </label>
+              )}
             </div>
           </div>
         ) : null}
@@ -1698,10 +1719,12 @@ export default function DashboardPage() {
                       transform: `rotate(${widget.rotation}deg)`,
                       zIndex: widget.z,
                       fontSize: `${widget.fontSize}px`,
+                      pointerEvents: widget.kind === "image" && !sceneEditMode ? "none" : "auto",
                     }}
                     onMouseDown={(e) => startWidgetInteraction(e, widget, "drag")}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (widget.kind === "image" && !sceneEditMode) return;
                       setSelectedWidgetId(widget.id);
                       setSelectedDeskItemId(null);
                       if (!sceneEditMode && widget.kind === "button") handleSceneWidgetAction(widget.action);
@@ -1711,7 +1734,11 @@ export default function DashboardPage() {
                       if (widget.kind === "button") handleSceneWidgetAction(widget.action);
                     }}
                   >
-                    <span className="dashboard-scene-widget-label">{widget.text}</span>
+                    {widget.kind === "image" ? (
+                      <img className="dashboard-scene-widget-image-el" src={widget.src} alt="Схема на доске" draggable={false} />
+                    ) : (
+                      <span className="dashboard-scene-widget-label">{widget.text}</span>
+                    )}
                     {sceneEditMode && isSelected ? (
                       <>
                         <button type="button" className="dashboard-scene-widget-rotate" onMouseDown={(e) => startWidgetInteraction(e, widget, "rotate")} aria-label="Повернуть элемент">↻</button>
