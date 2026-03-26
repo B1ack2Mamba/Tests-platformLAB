@@ -298,8 +298,10 @@ function getGuideClipPath(position?: DeskPosition) {
   return `polygon(${tlx}px ${tly}px, ${trx}px ${trY}px, ${brx}px ${bry}px, ${blx}px ${bly}px)`;
 }
 
-function getDeskStorageKey(workspaceId: string) {
-  return `${DESK_STORAGE_PREFIX}${workspaceId}`;
+function getDeskStorageKey(workspaceId: string, variant: DesktopVariant = "scheme") {
+  return variant === "scheme"
+    ? `${DESK_STORAGE_PREFIX}${workspaceId}`
+    : `${DESK_STORAGE_PREFIX}${workspaceId}:${variant}`;
 }
 
 function readGlobalDeskTemplates(): DeskPositions {
@@ -1099,7 +1101,7 @@ export default function DashboardPage() {
     if (workspaceId && typeof window !== "undefined") {
       window.localStorage.removeItem(getSceneWidgetsStorageKey(workspaceId, desktopVariant));
       window.localStorage.removeItem(getTrayGuideTextStorageKey(workspaceId));
-      window.localStorage.removeItem(getDeskStorageKey(workspaceId));
+      window.localStorage.removeItem(getDeskStorageKey(workspaceId, desktopVariant));
     }
 
     const allowedIds = new Set(defaultSceneWidgets.map((item) => item.id));
@@ -1175,7 +1177,7 @@ export default function DashboardPage() {
     const saved = typeof window !== "undefined"
       ? (() => {
           try {
-            const raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id));
+            const raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant));
             return raw ? (JSON.parse(raw) as DeskPositions) : {};
           } catch {
             return {} as DeskPositions;
@@ -1189,12 +1191,12 @@ export default function DashboardPage() {
       setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
       return merged;
     });
-  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, sharedDeskPositions]);
+  }, [desktopVariant, workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, sharedDeskPositions]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
-    window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id), JSON.stringify(deskPositions));
-  }, [deskPositions, sharedSceneReady, workspace?.workspace?.workspace_id]);
+    window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant), JSON.stringify(deskPositions));
+  }, [deskPositions, desktopVariant, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
   function getNextFolderSpawnPosition(folderId: string): DeskPosition {
     const guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
