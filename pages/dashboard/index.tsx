@@ -129,6 +129,8 @@ const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const GLOBAL_DESK_TEMPLATE_STORAGE_KEY = "commercialGlobalDeskTemplate:v1839";
 const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1840:";
 const DESKTOP_VARIANT_STORAGE_PREFIX = "commercialDesktopVariant:v1841:";
+const ROOM_LIGHT_STORAGE_PREFIX = "commercialRoomLight:v1842:";
+const ROOM_SWITCH_STORAGE_PREFIX = "commercialRoomSwitch:v1843:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
@@ -137,6 +139,8 @@ const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
 const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
 const SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
 const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
+const DEFAULT_ROOM_SWITCH_ZONE = { x: 48, y: 248, width: 136, height: 116 };
+const ROOM_DIM_HOTSPOT = { x: 42, y: 386, width: 188, height: 94 };
 const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
 
@@ -330,6 +334,14 @@ function getSceneWidgetsStorageKey(workspaceId: string, variant: DesktopVariant 
 
 function getDesktopVariantStorageKey(workspaceId: string) {
   return `${DESKTOP_VARIANT_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function getRoomLightStorageKey(workspaceId: string) {
+  return `${ROOM_LIGHT_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function getRoomSwitchStorageKey(workspaceId: string) {
+  return `${ROOM_SWITCH_STORAGE_PREFIX}${workspaceId}`;
 }
 
 function getTrayGuideTextStorageKey(workspaceId: string) {
@@ -548,6 +560,10 @@ export default function DashboardPage() {
   const [sharedSceneWidgets, setSharedSceneWidgets] = useState<SceneWidget[]>([]);
   const [sharedTrayGuideText, setSharedTrayGuideText] = useState("");
   const [sharedSceneReady, setSharedSceneReady] = useState(false);
+  const [isRoomLightDimmed, setIsRoomLightDimmed] = useState(false);
+  const [roomSwitchPosition, setRoomSwitchPosition] = useState(DEFAULT_ROOM_SWITCH_ZONE);
+  const roomSwitchInteractionRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
+  const suppressRoomSwitchClickRef = useRef(false);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -641,6 +657,9 @@ export default function DashboardPage() {
 
   const displayName = data?.profile?.full_name || (user?.user_metadata as any)?.full_name || user?.email || "Пользователь";
   const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user?.user_metadata as any)?.company_name || "Рабочее пространство";
+  const toggleRoomLight = useCallback(() => {
+    setIsRoomLightDimmed((current) => !current);
+  }, []);
   const defaultSceneWidgets = useMemo(
     () => (desktopVariant === "classic" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
       displayName,
@@ -667,6 +686,53 @@ export default function DashboardPage() {
       window.localStorage.setItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id), desktopVariant);
     } catch {}
   }, [desktopVariant, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getRoomLightStorageKey(workspace.workspace.workspace_id));
+      setIsRoomLightDimmed(raw === "dimmed");
+    } catch {
+      setIsRoomLightDimmed(false);
+    }
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getRoomSwitchStorageKey(workspace.workspace.workspace_id));
+      if (!raw) {
+        setRoomSwitchPosition(DEFAULT_ROOM_SWITCH_ZONE);
+        return;
+      }
+      const parsed = JSON.parse(raw) as Partial<typeof DEFAULT_ROOM_SWITCH_ZONE>;
+      setRoomSwitchPosition({
+        x: clampDesk(Number(parsed?.x ?? DEFAULT_ROOM_SWITCH_ZONE.x), 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
+        y: clampDesk(Number(parsed?.y ?? DEFAULT_ROOM_SWITCH_ZONE.y), 0, DESK_HEIGHT - DEFAULT_ROOM_SWITCH_ZONE.height),
+        width: DEFAULT_ROOM_SWITCH_ZONE.width,
+        height: DEFAULT_ROOM_SWITCH_ZONE.height,
+      });
+    } catch {
+      setRoomSwitchPosition(DEFAULT_ROOM_SWITCH_ZONE);
+    }
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getRoomLightStorageKey(workspace.workspace.workspace_id), isRoomLightDimmed ? "dimmed" : "normal");
+    } catch {}
+  }, [isRoomLightDimmed, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getRoomSwitchStorageKey(workspace.workspace.workspace_id), JSON.stringify({
+        x: Math.round(roomSwitchPosition.x),
+        y: Math.round(roomSwitchPosition.y),
+      }));
+    } catch {}
+  }, [roomSwitchPosition, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
@@ -1034,6 +1100,19 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!sceneEditMode) return;
     const handleMove = (e: MouseEvent) => {
+      const currentSwitch = roomSwitchInteractionRef.current;
+      if (currentSwitch) {
+        const dx = e.clientX - currentSwitch.startX;
+        const dy = e.clientY - currentSwitch.startY;
+        if (!currentSwitch.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) currentSwitch.moved = true;
+        setRoomSwitchPosition({
+          x: clampDesk(currentSwitch.startLeft + dx, 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
+          y: clampDesk(currentSwitch.startTop + dy, 0, DESK_HEIGHT - DEFAULT_ROOM_SWITCH_ZONE.height),
+          width: DEFAULT_ROOM_SWITCH_ZONE.width,
+          height: DEFAULT_ROOM_SWITCH_ZONE.height,
+        });
+        return;
+      }
       const current = deskInteractionRef.current;
       if (!current) return;
       const dx = e.clientX - current.startX;
@@ -1065,6 +1144,8 @@ export default function DashboardPage() {
       updateDeskItem(current.id, { rotation: (current.position.rotation ?? 0) + dx * 0.18 });
     };
     const handleUp = () => {
+      if (roomSwitchInteractionRef.current?.moved) suppressRoomSwitchClickRef.current = true;
+      roomSwitchInteractionRef.current = null;
       deskInteractionRef.current = null;
     };
     window.addEventListener('mousemove', handleMove);
@@ -1927,8 +2008,121 @@ export default function DashboardPage() {
         <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
           <div className="dashboard-office-scene-backdrop absolute inset-0" />
           <div className="dashboard-office-scene-vignette absolute inset-0" />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-[160] transition-opacity duration-300"
+            style={{
+              opacity: isRoomLightDimmed ? 1 : 0,
+              background: "radial-gradient(circle at 50% 14%, rgba(26, 23, 18, 0.2) 0%, rgba(10, 10, 14, 0.84) 56%, rgba(3, 4, 7, 0.94) 100%)",
+            }}
+          />
 
-          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+          <button
+            type="button"
+            className="absolute z-[182] flex items-start justify-start transition-[transform,opacity] duration-200"
+            style={{
+              left: `${roomSwitchPosition.x}px`,
+              top: `${roomSwitchPosition.y}px`,
+              width: `${roomSwitchPosition.width}px`,
+              height: `${roomSwitchPosition.height}px`,
+              cursor: sceneEditMode ? "grab" : "pointer",
+              opacity: isRoomLightDimmed ? 0.9 : 0.98,
+              transform: sceneEditMode ? "translateZ(0)" : "none",
+            }}
+            onMouseDown={(e) => {
+              if (!sceneEditMode || !canEditScene) return;
+              e.preventDefault();
+              e.stopPropagation();
+              suppressRoomSwitchClickRef.current = false;
+              setSelectedWidgetId(null);
+              setSelectedDeskItemId(null);
+              roomSwitchInteractionRef.current = {
+                startX: e.clientX,
+                startY: e.clientY,
+                startLeft: roomSwitchPosition.x,
+                startTop: roomSwitchPosition.y,
+                moved: false,
+              };
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (suppressRoomSwitchClickRef.current) {
+                suppressRoomSwitchClickRef.current = false;
+                return;
+              }
+              toggleRoomLight();
+            }}
+            aria-label={isRoomLightDimmed ? "Включить основной свет" : "Приглушить основной свет"}
+            aria-pressed={isRoomLightDimmed}
+            title={sceneEditMode ? "Перетащи выключатель или кликни, чтобы переключить свет" : isRoomLightDimmed ? "Включить основной свет" : "Приглушить основной свет"}
+          >
+            <span
+              className="pointer-events-none relative block transition-all duration-300"
+              style={{
+                width: "118px",
+                height: "78px",
+                filter: isRoomLightDimmed
+                  ? "brightness(0.58) saturate(0.84) contrast(0.96)"
+                  : "brightness(1) saturate(1.02) contrast(1)",
+                transform: isRoomLightDimmed ? "translateY(2px) scale(0.992)" : "translateY(0) scale(1)",
+              }}
+            >
+              <img
+                src="/room-light-switch-office.png"
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="h-full w-full object-contain"
+                style={{
+                  filter: isRoomLightDimmed
+                    ? "drop-shadow(0 6px 16px rgba(6, 6, 10, 0.34)) drop-shadow(0 0 6px rgba(255, 213, 145, 0.08))"
+                    : "drop-shadow(0 10px 18px rgba(24, 17, 11, 0.24))",
+                }}
+              />
+              {sceneEditMode ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-[18px] border border-dashed border-white/28"
+                  style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)" }}
+                />
+              ) : null}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className="absolute z-[181] transition-all duration-200"
+            style={{
+              left: `${ROOM_DIM_HOTSPOT.x}px`,
+              top: `${ROOM_DIM_HOTSPOT.y}px`,
+              width: `${ROOM_DIM_HOTSPOT.width}px`,
+              minHeight: `${ROOM_DIM_HOTSPOT.height}px`,
+              borderRadius: sceneEditMode ? "28px" : "32px",
+              border: sceneEditMode ? `1.5px dashed ${isRoomLightDimmed ? "rgba(245, 208, 147, 0.52)" : "rgba(255,255,255,0.36)"}` : "none",
+              background: sceneEditMode ? (isRoomLightDimmed ? "rgba(73, 53, 31, 0.2)" : "rgba(255,255,255,0.05)") : "transparent",
+              boxShadow: sceneEditMode ? "inset 0 0 0 1px rgba(255,255,255,0.06)" : "none",
+              opacity: sceneEditMode ? 1 : 0,
+              pointerEvents: sceneEditMode ? "auto" : "none",
+              backdropFilter: sceneEditMode ? "blur(2px)" : "none",
+              WebkitBackdropFilter: sceneEditMode ? "blur(2px)" : "none",
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleRoomLight();
+            }}
+            aria-label={isRoomLightDimmed ? "Вернуть обычное освещение" : "Приглушить свет на 90%"}
+            title={isRoomLightDimmed ? "Вернуть обычное освещение" : "Приглушить свет на 90%"}
+            tabIndex={sceneEditMode ? 0 : -1}
+          >
+            {sceneEditMode ? (
+              <span className="pointer-events-none absolute inset-0 flex flex-col justify-between rounded-[28px] px-4 py-3 text-left">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/55">Виртуальная зона</span>
+                <span className="text-sm font-semibold text-white/82">{isRoomLightDimmed ? "Вернуть свет" : "Клик — приглушить на 90%"}</span>
+              </span>
+            ) : null}
+          </button>
+
+          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden transition-[filter] duration-300" style={{ filter: isRoomLightDimmed ? "brightness(0.16) saturate(0.7)" : "brightness(1)", willChange: "filter" }} onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
             <div className="absolute inset-0 z-[8]">
               {sceneWidgets.map((widget) => {
                 const isSelected = widget.id === selectedWidgetId;
