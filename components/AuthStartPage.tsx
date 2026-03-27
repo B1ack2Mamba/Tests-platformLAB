@@ -73,6 +73,39 @@ function TextSide() {
 
 type Mode = "login" | "signup";
 
+
+const PENDING_PROMO_CODE_KEY = "pending_promo_code";
+const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
+const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
+
+function getPendingPromoCode() {
+  if (typeof window === "undefined") return "";
+  return (window.localStorage.getItem(PENDING_PROMO_CODE_KEY) || "").trim().toUpperCase();
+}
+
+function setPendingPromoCode(code: string) {
+  if (typeof window === "undefined") return;
+  const value = code.trim().toUpperCase();
+  if (!value) return;
+  window.localStorage.setItem(PENDING_PROMO_CODE_KEY, value);
+}
+
+function clearPendingPromoCode() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(PENDING_PROMO_CODE_KEY);
+}
+
+function setPromoFlashSuccess(message: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PROMO_FLASH_SUCCESS_KEY, message);
+  window.localStorage.removeItem(PROMO_FLASH_ERROR_KEY);
+}
+
+function setPromoFlashError(message: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PROMO_FLASH_ERROR_KEY, message);
+}
+
 export default function AuthStartPage() {
   const { supabase, user, session, loading: sessionLoading } = useSession();
   const router = useRouter();
@@ -91,26 +124,37 @@ export default function AuthStartPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const autoRedeemAttemptRef = useRef<string>("");
 
   useEffect(() => {
-    if (!sessionLoading && user && session) {
-      const pendingPromo = typeof window !== "undefined" ? window.localStorage.getItem("pending_promo_code") : null;
-      if (pendingPromo && session.access_token) {
-        fetch("/api/commercial/promo-codes/redeem", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ code: pendingPromo }),
-        })
-          .then((r) => r.json().catch(() => ({})))
-          .finally(() => {
-            if (typeof window !== "undefined") window.localStorage.removeItem("pending_promo_code");
-          });
-      }
+    if (sessionLoading || !user || !session) return;
+
+    const pendingPromo = getPendingPromoCode();
+    if (!pendingPromo || !session.access_token) {
       router.replace(next);
+      return;
     }
+
+    const attemptKey = `${user.id}:${pendingPromo}`;
+    if (autoRedeemAttemptRef.current === attemptKey) return;
+    autoRedeemAttemptRef.current = attemptKey;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await redeemPromoWithToken(pendingPromo, session.access_token);
+        clearPendingPromoCode();
+        setPromoFlashSuccess(`Промокод ${pendingPromo} успешно активирован.`);
+      } catch (err: any) {
+        setPromoFlashError(err?.message || `Не удалось активировать промокод ${pendingPromo}. Он сохранён, попробуй ещё раз в кошельке.`);
+      } finally {
+        if (!cancelled) router.replace(next);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, session, sessionLoading, next, router]);
 
   async function redeemPromoWithToken(code: string, accessToken: string) {
@@ -137,10 +181,9 @@ export default function AuthStartPage() {
       if (mode === "login") {
         const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
-        const pendingPromo = typeof window !== "undefined" ? window.localStorage.getItem("pending_promo_code") : null;
+        const pendingPromo = getPendingPromoCode();
         if (pendingPromo && data.session?.access_token) {
-          await redeemPromoWithToken(pendingPromo, data.session.access_token).catch(() => null);
-          if (typeof window !== "undefined") window.localStorage.removeItem("pending_promo_code");
+          setInfo(`Промокод ${pendingPromo} проверяется и применится после входа.`);
         }
         return;
       }
@@ -170,12 +213,20 @@ export default function AuthStartPage() {
       }).catch(() => null);
 
       if (promoCode.trim()) {
+        const normalizedPromo = promoCode.trim().toUpperCase();
         if (data.session?.access_token) {
-          await redeemPromoWithToken(promoCode, data.session.access_token).catch(() => null);
-          setInfo("Аккаунт создан. Промокод добавлен к кабинету. Если подтверждение почты включено — подтверди email.");
+          try {
+            await redeemPromoWithToken(normalizedPromo, data.session.access_token);
+            clearPendingPromoCode();
+            setInfo("Аккаунт создан. Промокод успешно активирован.");
+          } catch (promoErr: any) {
+            setPendingPromoCode(normalizedPromo);
+            setInfo("Аккаунт создан, но промокод пока не применился. Мы сохранили его, и ты сможешь повторить активацию позже в кошельке.");
+            setError(promoErr?.message || "Не удалось активировать промокод сразу.");
+          }
         } else {
-          if (typeof window !== "undefined") window.localStorage.setItem("pending_promo_code", promoCode.trim().toUpperCase());
-          setInfo("Аккаунт создан. Промокод сохранён и применится после первого входа.");
+          setPendingPromoCode(normalizedPromo);
+          setInfo("Аккаунт создан. Промокод сохранён и применится после первого входа. Если что-то пойдёт не так, он останется доступен в кошельке.");
         }
       } else {
         setInfo("Аккаунт создан. Если подтверждение почты включено — подтверди email. Если нет — войди сразу.");
@@ -226,6 +277,12 @@ export default function AuthStartPage() {
                   <input className="input" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Например: START-500" />
                 </label>
               </>
+            ) : null}
+
+            {mode === "login" && getPendingPromoCode() ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Сохранён промокод <b>{getPendingPromoCode()}</b>. После входа попробуем активировать его автоматически. Если не сработает — он останется доступен в кошельке.
+              </div>
             ) : null}
 
             <label className="grid gap-1">

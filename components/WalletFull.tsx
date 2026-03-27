@@ -2,7 +2,7 @@ import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED } from "@/lib/payments";
 
 type CreateTopupResp = {
@@ -13,6 +13,29 @@ type CreateTopupResp = {
 };
 
 const QUICK_AMOUNTS = [1000, 3000, 5000, 10000, 50000];
+
+
+const PENDING_PROMO_CODE_KEY = "pending_promo_code";
+const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
+const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
+
+function getStoredPromoCode() {
+  if (typeof window === "undefined") return "";
+  return (window.localStorage.getItem(PENDING_PROMO_CODE_KEY) || "").trim().toUpperCase();
+}
+
+function clearStoredPromoCode() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(PENDING_PROMO_CODE_KEY);
+}
+
+function readAndClearPromoFlash(key: string) {
+  if (typeof window === "undefined") return "";
+  const value = window.localStorage.getItem(key) || "";
+  if (value) window.localStorage.removeItem(key);
+  return value;
+}
+
 
 function reasonLabel(reason: string): string {
   switch (reason) {
@@ -41,12 +64,66 @@ export default function WalletPage() {
   const [amountRub, setAmountRub] = useState("3000");
   const [topupBusy, setTopupBusy] = useState(false);
   const [topupError, setTopupError] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoInfo, setPromoInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPromoCode(getStoredPromoCode());
+    const promoSuccess = readAndClearPromoFlash(PROMO_FLASH_SUCCESS_KEY);
+    const promoErrorText = readAndClearPromoFlash(PROMO_FLASH_ERROR_KEY);
+    if (promoSuccess) setPromoInfo(promoSuccess);
+    if (promoErrorText) setPromoError(promoErrorText);
+  }, []);
 
   const parsedRub = useMemo(() => {
     const n = Number(String(amountRub).replace(",", "."));
     if (!Number.isFinite(n)) return null;
     return Math.floor(n);
   }, [amountRub]);
+
+
+  async function redeemPromo(code: string) {
+    const normalizedCode = code.trim().toUpperCase();
+    if (!normalizedCode) {
+      setPromoError("Укажи промокод.");
+      return;
+    }
+    if (!session?.access_token) {
+      setPromoError("Нужно войти, чтобы активировать промокод.");
+      return;
+    }
+
+    setPromoBusy(true);
+    setPromoError(null);
+    setPromoInfo(null);
+    try {
+      const r = await fetch("/api/commercial/promo-codes/redeem", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ code: normalizedCode }),
+      });
+      const data = await r.json().catch(() => ({} as any));
+      if (!r.ok || !data?.ok) {
+        throw new Error(data?.error || "Не удалось активировать промокод");
+      }
+      clearStoredPromoCode();
+      setPromoCode("");
+      setPromoInfo(`Промокод ${normalizedCode} успешно активирован.`);
+      await refresh();
+    } catch (e: any) {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(PENDING_PROMO_CODE_KEY, normalizedCode);
+      }
+      setPromoError(e?.message || "Не удалось активировать промокод");
+    } finally {
+      setPromoBusy(false);
+    }
+  }
 
   async function startTopup(rub: number) {
     if (!session?.access_token) {
@@ -126,6 +203,30 @@ export default function WalletPage() {
 
               {error ? <div className="relative mt-3 text-sm text-red-600">{error}</div> : null}
               {loading ? <div className="relative mt-2 text-xs text-slate-500">⏳ Загружаю…</div> : null}
+            </div>
+
+            <div className="card bg-white">
+              <div className="text-sm font-semibold text-emerald-900">Промокод</div>
+              <div className="mt-2 text-sm text-slate-600">Здесь можно безопасно повторить активацию. Если код не применился при регистрации или первом входе, он останется сохранён.</div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="Например: START-500"
+                  className="input"
+                />
+                <button
+                  type="button"
+                  onClick={() => redeemPromo(promoCode)}
+                  disabled={promoBusy || !promoCode.trim()}
+                  className="btn btn-primary whitespace-nowrap"
+                >
+                  {promoBusy ? "Активирую…" : "Активировать"}
+                </button>
+              </div>
+              {promoError ? <div className="mt-2 text-sm text-red-600">{promoError}</div> : null}
+              {promoInfo ? <div className="mt-2 text-sm text-emerald-700">{promoInfo}</div> : null}
+              {getStoredPromoCode() ? <div className="mt-2 text-xs text-amber-700">Сохранённый код: {getStoredPromoCode()}</div> : null}
             </div>
 
             <div className="card bg-white">
