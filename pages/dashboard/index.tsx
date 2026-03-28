@@ -8,7 +8,7 @@ import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIco
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail } from "@/lib/admin";
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
-import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
+import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 
 type DashboardPayload = {
   profile: {
@@ -155,6 +155,57 @@ const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
 const DEFAULT_LAPTOP_POSITION: DeskPosition = { x: 936, y: 432, width: 372, height: 248, z: 24, rotation: -5.4, tiltX: 0, tiltY: 0 };
 const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 226, height: 132, z: 26, rotation: -5.4, tiltX: 0, tiltY: 0 };
+
+
+type DeskRect = { left: number; top: number; right: number; bottom: number };
+
+function getDeskRect(position: Partial<DeskPosition>, fallbackWidth: number, fallbackHeight: number, inset = 0): DeskRect {
+  const width = Math.max(0, Number(position.width ?? fallbackWidth));
+  const height = Math.max(0, Number(position.height ?? fallbackHeight));
+  const left = Number(position.x ?? 0) + inset;
+  const top = Number(position.y ?? 0) + inset;
+  const right = left + Math.max(0, width - inset * 2);
+  const bottom = top + Math.max(0, height - inset * 2);
+  return { left, top, right, bottom };
+}
+
+function rectsOverlap(a: DeskRect, b: DeskRect) {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function keepRectOutOfBlockedZone(itemRect: DeskRect, blockedRect: DeskRect, bounds: { minX: number; minY: number; maxX: number; maxY: number }) {
+  if (!rectsOverlap(itemRect, blockedRect)) {
+    return { x: itemRect.left, y: itemRect.top };
+  }
+
+  const width = itemRect.right - itemRect.left;
+  const height = itemRect.bottom - itemRect.top;
+  const candidates = [
+    { x: blockedRect.left - width - 12, y: itemRect.top },
+    { x: blockedRect.right + 12, y: itemRect.top },
+    { x: itemRect.left, y: blockedRect.top - height - 12 },
+    { x: itemRect.left, y: blockedRect.bottom + 12 },
+  ].map((candidate) => ({
+    x: clampDesk(candidate.x, bounds.minX, bounds.maxX),
+    y: clampDesk(candidate.y, bounds.minY, bounds.maxY),
+  }));
+
+  const valid = candidates.find((candidate) => !rectsOverlap({ left: candidate.x, top: candidate.y, right: candidate.x + width, bottom: candidate.y + height }, blockedRect));
+  if (valid) return valid;
+
+  return {
+    x: clampDesk(itemRect.left, bounds.minX, bounds.maxX),
+    y: clampDesk(blockedRect.bottom + 12, bounds.minY, bounds.maxY),
+  };
+}
+
+function getSubscriptionDaysLeft(expiresAt: string | null | undefined) {
+  if (!expiresAt) return null;
+  const target = new Date(expiresAt).getTime();
+  if (!Number.isFinite(target)) return null;
+  const diff = target - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -719,7 +770,7 @@ export default function DashboardPage() {
       </span>
       <span className="mt-1 text-xs leading-5 text-slate-600">
         {activeSubscription
-          ? `${activeSubscription.plan_title} · до ${formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}`
+          ? `${activeSubscription.plan_title} · до ${getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.`
           : subscriptionError || "Открой кошелёк, чтобы подключить пакет на 30, 50 или 100 проектов."}
       </span>
     </Link>
@@ -1076,13 +1127,31 @@ export default function DashboardPage() {
   }, []);
 
   const updateDeskItem = useCallback((id: string, patch: Partial<DeskPosition>) => {
-    setDeskPositions((prev) => ({
-      ...prev,
-      [id]: {
+    setDeskPositions((prev) => {
+      const current = {
         ...(prev[id] || { x: 48, y: 48, z: deskLayer + 1 }),
         ...patch,
-      },
-    }));
+      } as DeskPosition;
+
+      if (id.startsWith("project:")) {
+        const itemWidth = current.width || DESK_SHEET_WIDTH;
+        const itemHeight = current.height || DESK_SHEET_HEIGHT;
+        const minX = -itemWidth * 0.5;
+        const minY = -itemHeight * 0.5;
+        const maxX = DESK_WIDTH - itemWidth * 0.5;
+        const maxY = DESK_HEIGHT - itemHeight * 0.5;
+        const blockedRect = getDeskRect(prev[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION, DEFAULT_LAPTOP_PANEL_POSITION.width || 226, DEFAULT_LAPTOP_PANEL_POSITION.height || 132, 6);
+        const nextRect = { left: current.x ?? 0, top: current.y ?? 0, right: (current.x ?? 0) + itemWidth, bottom: (current.y ?? 0) + itemHeight };
+        const safe = keepRectOutOfBlockedZone(nextRect, blockedRect, { minX, minY, maxX, maxY });
+        current.x = safe.x;
+        current.y = safe.y;
+      }
+
+      return {
+        ...prev,
+        [id]: current,
+      };
+    });
   }, [deskLayer]);
 
   const showTemplateFeedback = useCallback((kind: "success" | "error", text: string) => {
@@ -1610,8 +1679,15 @@ export default function DashboardPage() {
     const minY = kind === "project" ? -itemHeight * 0.5 : 24;
     const maxX = kind === "project" ? DESK_WIDTH - itemWidth * 0.5 : DESK_WIDTH - itemWidth - 24;
     const maxY = kind === "project" ? DESK_HEIGHT - itemHeight * 0.5 : DESK_HEIGHT - itemHeight - 24;
-    const nextX = clampDesk(x, minX, maxX);
-    const nextY = clampDesk(y, minY, maxY);
+    let nextX = clampDesk(x, minX, maxX);
+    let nextY = clampDesk(y, minY, maxY);
+
+    if (kind === "project") {
+      const blockedRect = getDeskRect(laptopPanelPosition, DEFAULT_LAPTOP_PANEL_POSITION.width || 226, DEFAULT_LAPTOP_PANEL_POSITION.height || 132, 6);
+      const safe = keepRectOutOfBlockedZone({ left: nextX, top: nextY, right: nextX + itemWidth, bottom: nextY + itemHeight }, blockedRect, { minX, minY, maxX, maxY });
+      nextX = safe.x;
+      nextY = safe.y;
+    }
 
     if (kind === "folder") {
       const folderId = itemId.replace("folder:", "");
@@ -1647,7 +1723,7 @@ export default function DashboardPage() {
         rotation: current.rotation,
       },
     }));
-  }, [deskLayer, deskPositions, folders, isInsideGuideRect]);
+  }, [deskLayer, deskPositions, folders, isInsideGuideRect, laptopPanelPosition]);
 
   const handleDeskDrop = useCallback((e: any) => {
     e.preventDefault();
@@ -2495,36 +2571,32 @@ export default function DashboardPage() {
                 setSelectedWidgetId(null);
               }}
             >
-              <div className="relative h-full w-full overflow-hidden rounded-[18px] border border-white/10 bg-slate-950/90 text-white shadow-[0_18px_36px_-20px_rgba(15,23,42,0.75)]">
-                <div className="absolute inset-x-0 top-0 h-7 bg-gradient-to-r from-slate-800/95 via-slate-700/90 to-slate-800/95" />
-                <div className="absolute left-4 right-4 top-3 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-slate-300">
-                  <span>Панель кабинета</span>
-                  <span>{subscriptionLoading ? "…" : activeSubscription ? `${activeSubscription.projects_remaining}/${activeSubscription.projects_limit}` : "без тарифа"}</span>
-                </div>
-                <div className="relative z-[1] flex h-full flex-col gap-2 px-4 pb-3 pt-10">
+              <div className="relative h-full w-full overflow-hidden rounded-none border border-[#92b9cf]/70 bg-[linear-gradient(180deg,rgba(219,241,250,0.96),rgba(176,215,232,0.9))] text-slate-900 shadow-[0_18px_36px_-20px_rgba(31,78,108,0.35)]">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.52),transparent_58%)]" />
+                <div className="relative z-[1] flex h-full flex-col gap-2 px-4 py-4">
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-2xl border border-emerald-400/18 bg-emerald-400/10 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.14em] text-emerald-200/78">Баланс</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{balanceText}</div>
+                    <div className="rounded-[16px] border border-emerald-500/25 bg-[rgba(11,116,104,0.11)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-900/78">Баланс</div>
+                      <div className="mt-1 text-base font-semibold text-slate-900">{balanceText}</div>
                     </div>
-                    <div className="rounded-2xl border border-sky-400/18 bg-sky-400/10 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.14em] text-sky-200/78">Тариф</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
+                    <div className="rounded-[16px] border border-sky-600/18 bg-[rgba(29,78,216,0.08)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-sky-900/74">Тариф</div>
+                      <div className="mt-1 text-sm font-semibold leading-5 text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
+                      <div className="mt-2 space-y-1 text-[11px] leading-4 text-slate-700/92">
+                        {activeSubscription ? (
+                          <>
+                            <div>До завершения: <span className="font-semibold text-slate-900">{getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.</span></div>
+                            <div>Осталось: <span className="font-semibold text-slate-900">{activeSubscription.projects_remaining}</span> из {activeSubscription.projects_limit}</div>
+                          </>
+                        ) : (
+                          <div>Пакет пока не подключён</div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="min-h-0 flex-1 rounded-2xl border border-white/8 bg-white/5 px-3 py-2 text-[12px] leading-5 text-slate-200/92">
-                    {activeSubscription ? (
-                      <>Лимит до <span className="font-semibold text-white">{formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</span>. Осталось <span className="font-semibold text-white">{activeSubscription.projects_remaining}</span> проектов из {activeSubscription.projects_limit}.</>
-                    ) : (
-                      <>Месячный тариф пока не подключён.</>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Link href="/wallet" onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }} className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 text-xs font-semibold transition ${sceneEditMode ? "pointer-events-none bg-slate-700/50 text-slate-300" : "bg-emerald-400 text-emerald-950 hover:bg-emerald-300"}`}>
-                      {activeSubscription ? "Открыть кошелёк" : "Подключить тариф"}
-                    </Link>
-                    <Link href="/wallet" onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }} className={`inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-xs font-semibold transition ${sceneEditMode ? "pointer-events-none border-white/10 bg-white/5 text-slate-400" : "border-white/12 bg-white/7 text-white hover:bg-white/12"}`}>
-                      {activeSubscription ? "Продлить" : "Пакеты"}
+                  <div className="mt-auto pt-1">
+                    <Link href="/wallet" onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }} className={`inline-flex w-full items-center justify-center rounded-[14px] px-3 py-2 text-xs font-semibold transition ${sceneEditMode ? "pointer-events-none bg-slate-500/25 text-slate-500" : "bg-[#123f57] text-white hover:bg-[#0f3447]"}`}>
+                      Кошелёк
                     </Link>
                   </div>
                 </div>
