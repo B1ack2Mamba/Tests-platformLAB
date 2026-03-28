@@ -91,6 +91,7 @@ type SceneWidgetKind = "text" | "button" | "image";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
 type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
 type DesktopVariant = "scheme" | "classic";
+type ClassicViewMode = "desktop" | "sheet";
 type TrashItemKind = "folder" | "project";
 
 type TrashEntry = {
@@ -138,6 +139,7 @@ const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1840:";
 const DESKTOP_VARIANT_STORAGE_PREFIX = "commercialDesktopVariant:v1841:";
 const ROOM_LIGHT_STORAGE_PREFIX = "commercialRoomLight:v1842:";
 const ROOM_SWITCH_STORAGE_PREFIX = "commercialRoomSwitch:v1843:";
+const CLASSIC_VIEW_MODE_STORAGE_PREFIX = "commercialClassicViewMode:v1844:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
@@ -407,6 +409,10 @@ function getRoomSwitchStorageKey(workspaceId: string) {
   return `${ROOM_SWITCH_STORAGE_PREFIX}${workspaceId}`;
 }
 
+function getClassicViewModeStorageKey(workspaceId: string) {
+  return `${CLASSIC_VIEW_MODE_STORAGE_PREFIX}${workspaceId}`;
+}
+
 function getTrayGuideTextStorageKey(workspaceId: string) {
   return `${TRAY_GUIDE_TEXT_STORAGE_PREFIX}${workspaceId}`;
 }
@@ -615,6 +621,7 @@ export default function DashboardPage() {
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
   const [desktopVariant, setDesktopVariant] = useState<DesktopVariant>("scheme");
+  const [classicViewMode, setClassicViewMode] = useState<ClassicViewMode>("desktop");
   const [trayGuideText, setTrayGuideText] = useState("Создать новую папку проектов");
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
@@ -797,6 +804,22 @@ export default function DashboardPage() {
       window.localStorage.setItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id), desktopVariant);
     } catch {}
   }, [desktopVariant, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getClassicViewModeStorageKey(workspace.workspace.workspace_id));
+      if (raw === "desktop" || raw === "sheet") setClassicViewMode(raw);
+    } catch {}
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getClassicViewModeStorageKey(workspace.workspace.workspace_id), classicViewMode);
+    } catch {}
+  }, [classicViewMode, workspace?.workspace?.workspace_id]);
+
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
