@@ -1140,7 +1140,13 @@ export default function DashboardPage() {
         const minY = -itemHeight * 0.5;
         const maxX = DESK_WIDTH - itemWidth * 0.5;
         const maxY = DESK_HEIGHT - itemHeight * 0.5;
-        const blockedRect = getDeskRect(prev[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION, DEFAULT_LAPTOP_PANEL_POSITION.width || 226, DEFAULT_LAPTOP_PANEL_POSITION.height || 132, 6);
+        const panelPosition = (prev[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION) as DeskPosition;
+        const blockedRect = getDeskRect(
+          panelPosition,
+          panelPosition.width || DEFAULT_LAPTOP_PANEL_POSITION.width || 226,
+          panelPosition.height || DEFAULT_LAPTOP_PANEL_POSITION.height || 132,
+          6,
+        );
         const nextRect = { left: current.x ?? 0, top: current.y ?? 0, right: (current.x ?? 0) + itemWidth, bottom: (current.y ?? 0) + itemHeight };
         const safe = keepRectOutOfBlockedZone(nextRect, blockedRect, { minX, minY, maxX, maxY });
         current.x = safe.x;
@@ -1683,7 +1689,12 @@ export default function DashboardPage() {
     let nextY = clampDesk(y, minY, maxY);
 
     if (kind === "project") {
-      const blockedRect = getDeskRect(laptopPanelPosition, DEFAULT_LAPTOP_PANEL_POSITION.width || 226, DEFAULT_LAPTOP_PANEL_POSITION.height || 132, 6);
+      const blockedRect = getDeskRect(
+        laptopPanelPosition,
+        laptopPanelPosition.width || DEFAULT_LAPTOP_PANEL_POSITION.width || 226,
+        laptopPanelPosition.height || DEFAULT_LAPTOP_PANEL_POSITION.height || 132,
+        6,
+      );
       const safe = keepRectOutOfBlockedZone({ left: nextX, top: nextY, right: nextX + itemWidth, bottom: nextY + itemHeight }, blockedRect, { minX, minY, maxX, maxY });
       nextX = safe.x;
       nextY = safe.y;
@@ -2571,41 +2582,45 @@ export default function DashboardPage() {
                 setSelectedWidgetId(null);
               }}
             >
-              <div className="relative h-full w-full overflow-hidden border border-[#95a8ba] bg-[linear-gradient(180deg,#eef5fb_0%,#d8e6f1_100%)] text-slate-900 shadow-[0_18px_36px_-20px_rgba(47,76,105,0.34)]">
-                <div className="absolute inset-x-0 top-0 h-7 border-b border-[#b8c8d7] bg-[linear-gradient(180deg,#f7fbff_0%,#deebf5_100%)]" />
-                <div className="absolute right-3 top-[9px] flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full border border-[#b4c2cf] bg-[#f4f8fb]" />
-                  <span className="h-2.5 w-2.5 rounded-full border border-[#b4c2cf] bg-[#f4f8fb]" />
-                  <span className="h-2.5 w-2.5 rounded-full border border-[#b4c2cf] bg-[#f4f8fb]" />
+              <div className="relative h-full w-full overflow-hidden border border-[#8ea8bb] bg-[linear-gradient(180deg,#f3f8fc_0%,#dfe9f2_100%)] text-slate-900 shadow-[0_14px_28px_-18px_rgba(47,76,105,0.28)]">
+                <div className="absolute inset-x-0 top-0 h-[20px] border-b border-[#9eb8cc] bg-[linear-gradient(180deg,#d7ecfd_0%,#9fc2e3_100%)]" />
+                <div className="absolute left-2 top-[5px] flex items-center gap-1.5">
+                  <span className="h-[8px] w-[8px] rounded-[2px] border border-white/70 bg-white/75" />
+                  <span className="h-[8px] w-[22px] rounded-[2px] bg-white/35" />
                 </div>
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),transparent_52%)]" />
-                <div className="relative z-[1] grid h-full grid-cols-[0.92fr_1.08fr] gap-3 px-3 pb-3 pt-10">
-                  <div className="flex h-full flex-col rounded-[6px] border border-[#adbfce] bg-[linear-gradient(180deg,#fdfefe_0%,#edf4f9_100%)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_8px_18px_-16px_rgba(44,67,92,0.38)]">
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Баланс</div>
-                    <div className="mt-2 text-[22px] font-semibold leading-none text-slate-900">{balanceText}</div>
+                <div className="absolute right-2 top-[4px] flex items-center gap-1">
+                  <span className="h-[10px] w-[10px] border border-white/55 bg-white/25" />
+                  <span className="h-[10px] w-[10px] border border-white/55 bg-white/25" />
+                  <span className="h-[10px] w-[10px] border border-white/55 bg-white/25" />
+                </div>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_48%)]" />
+                <div className="relative z-[1] grid h-full grid-cols-[0.95fr_1.05fr] gap-2 px-2 pb-2 pt-6">
+                  <div className="flex h-full min-h-0 flex-col rounded-[4px] border border-[#b8cad8] bg-[linear-gradient(180deg,#ffffff_0%,#eef4f8_100%)] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                    <div className="text-[8px] uppercase tracking-[0.14em] text-slate-500">Баланс</div>
+                    <div className="mt-1 text-[18px] font-semibold leading-none text-slate-900">{balanceText}</div>
                     <Link
                       href="/wallet"
                       onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }}
-                      className={`mt-auto inline-flex h-9 w-full items-center justify-center border px-3 text-[12px] font-semibold transition ${sceneEditMode ? "pointer-events-none border-slate-300 bg-slate-200/70 text-slate-500" : "border-[#7e95aa] bg-[linear-gradient(180deg,#ffffff_0%,#dfeaf3_100%)] text-[#29435b] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-[linear-gradient(180deg,#ffffff_0%,#d6e4ef_100%)]"}`}
+                      className={`mt-2 inline-flex h-7 w-full items-center justify-center border px-2 text-[10px] font-semibold transition ${sceneEditMode ? "pointer-events-none border-slate-300 bg-slate-200/70 text-slate-500" : "border-[#7f97ab] bg-[linear-gradient(180deg,#ffffff_0%,#dbe7f0_100%)] text-[#29435b] shadow-[inset_0_1px_0_rgba(255,255,255,0.96)] hover:bg-[linear-gradient(180deg,#ffffff_0%,#d2e0eb_100%)]"}`}
                     >
                       Кошелёк
                     </Link>
                   </div>
-                  <div className="flex h-full flex-col rounded-[6px] border border-[#adbfce] bg-[linear-gradient(180deg,#fdfefe_0%,#edf4f9_100%)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_8px_18px_-16px_rgba(44,67,92,0.32)]">
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Тариф</div>
-                    <div className="mt-2 text-[15px] font-semibold leading-5 text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
+                  <div className="flex h-full min-h-0 flex-col rounded-[4px] border border-[#b8cad8] bg-[linear-gradient(180deg,#ffffff_0%,#eef4f8_100%)] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                    <div className="text-[8px] uppercase tracking-[0.14em] text-slate-500">Тариф</div>
+                    <div className="mt-1 line-clamp-2 text-[10px] font-semibold leading-[1.15] text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
                     {activeSubscription ? (
-                      <div className="mt-3 space-y-2 text-[11px] leading-4 text-slate-700">
-                        <div className="rounded-[4px] border border-[#d0dbe5] bg-[#f6fbff] px-2 py-2">
+                      <div className="mt-1.5 space-y-1 text-[9px] leading-[1.25] text-slate-700">
+                        <div className="rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1">
                           До завершения: <span className="font-semibold text-slate-900">{getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.</span>
                         </div>
-                        <div className="rounded-[4px] border border-[#d0dbe5] bg-[#f6fbff] px-2 py-2">
-                          Осталось использований: <span className="font-semibold text-slate-900">{activeSubscription.projects_remaining}</span> из {activeSubscription.projects_limit}
+                        <div className="rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1">
+                          Осталось: <span className="font-semibold text-slate-900">{activeSubscription.projects_remaining}</span> / {activeSubscription.projects_limit}
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-3 rounded-[4px] border border-[#d0dbe5] bg-[#f6fbff] px-2 py-2 text-[11px] leading-4 text-slate-600">
-                        Управление тарифом — в кошельке.
+                      <div className="mt-1.5 rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1 text-[9px] leading-[1.25] text-slate-600">
+                        Тариф не подключён.
                       </div>
                     )}
                   </div>
