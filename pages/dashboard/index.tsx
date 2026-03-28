@@ -759,22 +759,18 @@ export default function DashboardPage() {
   const laptopPosition = deskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION;
   const laptopPanelPosition = deskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION;
 
-  const subscriptionSummaryBlock = (
-    <Link
-      href="/wallet"
-      className="inline-flex min-w-[260px] max-w-full flex-col rounded-[20px] border border-emerald-200 bg-emerald-50/85 px-4 py-3 shadow-[0_10px_28px_-22px_rgba(16,185,129,0.35)] transition hover:border-emerald-300 hover:bg-emerald-50"
-    >
-      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-700">Месячный тариф</span>
-      <span className="mt-1 text-sm font-semibold text-slate-950">
-        {subscriptionLoading ? "Загружаем лимит…" : activeSubscription ? `${activeSubscription.projects_remaining} из ${activeSubscription.projects_limit} проектов осталось` : "Тариф пока не подключён"}
-      </span>
-      <span className="mt-1 text-xs leading-5 text-slate-600">
-        {activeSubscription
-          ? `${activeSubscription.plan_title} · до ${getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.`
-          : subscriptionError || "Управление тарифом доступно в кошельке."}
-      </span>
-    </Link>
-  );
+  const sceneEditControls = canEditScene ? (
+    <div className="pointer-events-auto absolute right-4 top-4 z-[90] flex flex-wrap items-center justify-end gap-2 rounded-[18px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_16px_30px_-24px_rgba(54,35,19,0.24)] backdrop-blur-xl">
+      <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={(e) => { e.stopPropagation(); setSceneEditMode((prev) => !prev); }}>
+        {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
+      </button>
+      {sceneEditMode ? (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); resetSceneWidgets(); }}>
+          Сбросить сцену
+        </button>
+      ) : null}
+    </div>
+  ) : null;
   const defaultSceneWidgets = useMemo(
     () => (desktopVariant === "classic" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
       displayName,
@@ -2035,35 +2031,8 @@ export default function DashboardPage() {
         <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7a5b37]">Кабинет специалиста</div>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="text-xl font-semibold text-[#2c1b10]">{displayName}</span>
-                <span className="text-sm text-[#6a4b31]">{workspaceName}</span>
-                <span className="text-sm text-[#8b6a48]">{data?.profile?.email || user.email || "email не указан"}</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>Новая папка</button>
-              {canEditScene ? (
-                <>
-                  <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setSceneEditMode((prev) => !prev)}>
-                    {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
-                  </button>
-                  {sceneEditMode ? (
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mb-3 flex flex-wrap items-stretch gap-3">
-            {subscriptionSummaryBlock}
+          <div className="mb-3 flex items-center justify-end rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
           </div>
 
           {canEditScene && sceneEditMode && selectedDeskItem ? (
@@ -2096,6 +2065,7 @@ export default function DashboardPage() {
           ) : null}
 
           <div className="dashboard-classic-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#d4d9e4] bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.14)]" onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+            {sceneEditControls}
             <div className="dashboard-classic-surface absolute inset-0" />
             {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
               const itemId = `folder:${folder.id}`;
@@ -2188,41 +2158,14 @@ export default function DashboardPage() {
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
         {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7a5b37]">Кабинет специалиста</div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-xl font-semibold text-[#2c1b10]">{displayName}</span>
-              <span className="text-sm text-[#6a4b31]">{workspaceName}</span>
-              <span className="text-sm text-[#8b6a48]">{data?.profile?.email || user.email || "email не указан"}</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
-            >
-              {desktopVariant === "scheme" ? "Рабочий стол" : "Схема на доске"}
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>Новая папка</button>
-            {canEditScene ? (
-              <>
-                <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setSceneEditMode((prev) => !prev)}>
-                  {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
-                </button>
-                {sceneEditMode ? (
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mb-3 flex flex-wrap items-stretch gap-3">
-          {subscriptionSummaryBlock}
+        <div className="mb-3 flex items-center justify-end rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
+          >
+            {desktopVariant === "scheme" ? "Рабочий стол" : "Схема на доске"}
+          </button>
         </div>
 
         {canEditScene && sceneEditMode && selectedWidget ? (
