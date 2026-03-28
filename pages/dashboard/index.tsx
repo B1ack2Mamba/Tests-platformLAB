@@ -1511,7 +1511,7 @@ export default function DashboardPage() {
       kind: "project" as const,
       id: project.id,
       name: project.person?.full_name || project.title || "Проект",
-      goal: getGoalDefinition(project.goal).title,
+      goal: getGoalDefinition(project.goal)?.title || "Цель не указана",
       status: project.status === "completed" ? "Оценка собрана" : project.status === "in_progress" ? "В работе" : "Ещё не собрана",
       place: project.folder_id ? (folders.find((folder) => folder.id === project.folder_id)?.name || "Папка") : "На рабочем столе",
       createdAt: project.created_at,
