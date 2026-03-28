@@ -2463,7 +2463,10 @@ export default function DashboardPage() {
                 style={{ filter: "drop-shadow(0 26px 28px rgba(5,10,24,0.34))" }}
               />
               {sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? (
-                <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "rotate", laptopPosition)} aria-label="Повернуть ноутбук">↻</button>
+                <>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "rotate", laptopPosition)} aria-label="Повернуть ноутбук">↻</button>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "resize", laptopPosition)} aria-label="Изменить размер ноутбука">↘</button>
+                </>
               ) : null}
             </div>
 
@@ -2513,7 +2516,7 @@ export default function DashboardPage() {
                     {activeSubscription ? (
                       <>Лимит до <span className="font-semibold text-white">{formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</span>. Осталось <span className="font-semibold text-white">{activeSubscription.projects_remaining}</span> проектов из {activeSubscription.projects_limit}.</>
                     ) : (
-                      <>Подключи месячный пакет на 30, 50 или 100 проектов, чтобы открывать готовые оценки без ручной оплаты каждого проекта.</>
+                      <>Месячный тариф пока не подключён.</>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -2527,7 +2530,10 @@ export default function DashboardPage() {
                 </div>
               </div>
               {sceneEditMode && selectedDeskItemId === LAPTOP_PANEL_ID ? (
-                <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "resize", laptopPanelPosition)} aria-label="Изменить размер панели ноутбука">↘</button>
+                <>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "rotate", laptopPanelPosition)} aria-label="Повернуть панель ноутбука">↻</button>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "resize", laptopPanelPosition)} aria-label="Изменить размер панели ноутбука">↘</button>
+                </>
               ) : null}
             </div>
 
