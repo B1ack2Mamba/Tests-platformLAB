@@ -771,7 +771,7 @@ export default function DashboardPage() {
       <span className="mt-1 text-xs leading-5 text-slate-600">
         {activeSubscription
           ? `${activeSubscription.plan_title} · до ${getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.`
-          : subscriptionError || "Открой кошелёк, чтобы подключить пакет на 30, 50 или 100 проектов."}
+          : subscriptionError || "Управление тарифом доступно в кошельке."}
       </span>
     </Link>
   );
@@ -2571,33 +2571,43 @@ export default function DashboardPage() {
                 setSelectedWidgetId(null);
               }}
             >
-              <div className="relative h-full w-full overflow-hidden rounded-none border border-[#92b9cf]/70 bg-[linear-gradient(180deg,rgba(219,241,250,0.96),rgba(176,215,232,0.9))] text-slate-900 shadow-[0_18px_36px_-20px_rgba(31,78,108,0.35)]">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.52),transparent_58%)]" />
-                <div className="relative z-[1] flex h-full flex-col gap-2 px-4 py-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-[16px] border border-emerald-500/25 bg-[rgba(11,116,104,0.11)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-900/78">Баланс</div>
-                      <div className="mt-1 text-base font-semibold text-slate-900">{balanceText}</div>
-                    </div>
-                    <div className="rounded-[16px] border border-sky-600/18 bg-[rgba(29,78,216,0.08)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-sky-900/74">Тариф</div>
-                      <div className="mt-1 text-sm font-semibold leading-5 text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
-                      <div className="mt-2 space-y-1 text-[11px] leading-4 text-slate-700/92">
-                        {activeSubscription ? (
-                          <>
-                            <div>До завершения: <span className="font-semibold text-slate-900">{getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.</span></div>
-                            <div>Осталось: <span className="font-semibold text-slate-900">{activeSubscription.projects_remaining}</span> из {activeSubscription.projects_limit}</div>
-                          </>
-                        ) : (
-                          <div>Пакет пока не подключён</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-auto pt-1">
-                    <Link href="/wallet" onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }} className={`inline-flex w-full items-center justify-center rounded-[14px] px-3 py-2 text-xs font-semibold transition ${sceneEditMode ? "pointer-events-none bg-slate-500/25 text-slate-500" : "bg-[#123f57] text-white hover:bg-[#0f3447]"}`}>
+              <div className="relative h-full w-full overflow-hidden border border-[#95a8ba] bg-[linear-gradient(180deg,#eef5fb_0%,#d8e6f1_100%)] text-slate-900 shadow-[0_18px_36px_-20px_rgba(47,76,105,0.34)]">
+                <div className="absolute inset-x-0 top-0 h-7 border-b border-[#b8c8d7] bg-[linear-gradient(180deg,#f7fbff_0%,#deebf5_100%)]" />
+                <div className="absolute right-3 top-[9px] flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full border border-[#b4c2cf] bg-[#f4f8fb]" />
+                  <span className="h-2.5 w-2.5 rounded-full border border-[#b4c2cf] bg-[#f4f8fb]" />
+                  <span className="h-2.5 w-2.5 rounded-full border border-[#b4c2cf] bg-[#f4f8fb]" />
+                </div>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),transparent_52%)]" />
+                <div className="relative z-[1] grid h-full grid-cols-[0.92fr_1.08fr] gap-3 px-3 pb-3 pt-10">
+                  <div className="flex h-full flex-col rounded-[6px] border border-[#adbfce] bg-[linear-gradient(180deg,#fdfefe_0%,#edf4f9_100%)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_8px_18px_-16px_rgba(44,67,92,0.38)]">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Баланс</div>
+                    <div className="mt-2 text-[22px] font-semibold leading-none text-slate-900">{balanceText}</div>
+                    <Link
+                      href="/wallet"
+                      onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }}
+                      className={`mt-auto inline-flex h-9 w-full items-center justify-center border px-3 text-[12px] font-semibold transition ${sceneEditMode ? "pointer-events-none border-slate-300 bg-slate-200/70 text-slate-500" : "border-[#7e95aa] bg-[linear-gradient(180deg,#ffffff_0%,#dfeaf3_100%)] text-[#29435b] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-[linear-gradient(180deg,#ffffff_0%,#d6e4ef_100%)]"}`}
+                    >
                       Кошелёк
                     </Link>
+                  </div>
+                  <div className="flex h-full flex-col rounded-[6px] border border-[#adbfce] bg-[linear-gradient(180deg,#fdfefe_0%,#edf4f9_100%)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_8px_18px_-16px_rgba(44,67,92,0.32)]">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Тариф</div>
+                    <div className="mt-2 text-[15px] font-semibold leading-5 text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
+                    {activeSubscription ? (
+                      <div className="mt-3 space-y-2 text-[11px] leading-4 text-slate-700">
+                        <div className="rounded-[4px] border border-[#d0dbe5] bg-[#f6fbff] px-2 py-2">
+                          До завершения: <span className="font-semibold text-slate-900">{getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.</span>
+                        </div>
+                        <div className="rounded-[4px] border border-[#d0dbe5] bg-[#f6fbff] px-2 py-2">
+                          Осталось использований: <span className="font-semibold text-slate-900">{activeSubscription.projects_remaining}</span> из {activeSubscription.projects_limit}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-[4px] border border-[#d0dbe5] bg-[#f6fbff] px-2 py-2 text-[11px] leading-4 text-slate-600">
+                        Управление тарифом — в кошельке.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

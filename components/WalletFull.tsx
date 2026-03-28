@@ -25,6 +25,14 @@ type CreateSubscriptionResp = {
   error?: string;
 };
 
+type WalletSubscriptionPurchaseResp = {
+  ok: boolean;
+  payment_id?: string;
+  charged_kopeks?: number;
+  balance_kopeks?: number;
+  error?: string;
+};
+
 type SubscriptionStatusResp = {
   ok: boolean;
   error?: string;
@@ -88,7 +96,7 @@ export default function WalletPage() {
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoInfo, setPromoInfo] = useState<string | null>(null);
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
-  const [subscriptionBusyKey, setSubscriptionBusyKey] = useState<MonthlyPlanKey | null>(null);
+  const [subscriptionBusyKey, setSubscriptionBusyKey] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [subscriptionInfo, setSubscriptionInfo] = useState<string | null>(null);
 
@@ -211,7 +219,7 @@ export default function WalletPage() {
       return;
     }
 
-    setSubscriptionBusyKey(planKey);
+    setSubscriptionBusyKey(`online:${planKey}`);
     setSubscriptionError(null);
     setSubscriptionInfo(null);
     try {
@@ -230,6 +238,38 @@ export default function WalletPage() {
       window.location.href = data.confirmation_url;
     } catch (err: any) {
       setSubscriptionError(err?.message || "Не удалось создать оплату тарифа");
+    } finally {
+      setSubscriptionBusyKey(null);
+    }
+  }
+
+  async function buyMonthlyPlanFromWallet(planKey: MonthlyPlanKey) {
+    if (!session?.access_token) {
+      setSubscriptionError("Нужно войти, чтобы купить тариф с баланса.");
+      return;
+    }
+
+    setSubscriptionBusyKey(`wallet:${planKey}`);
+    setSubscriptionError(null);
+    setSubscriptionInfo(null);
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/purchase-from-wallet", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan_key: planKey }),
+      });
+      const data = (await resp.json().catch(() => ({}))) as WalletSubscriptionPurchaseResp;
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Не удалось купить тариф с баланса");
+      }
+      setSubscriptionInfo("Тариф куплен с баланса кошелька и уже активирован.");
+      await refresh();
+      await loadSubscriptionStatus();
+    } catch (err: any) {
+      setSubscriptionError(err?.message || "Не удалось купить тариф с баланса");
     } finally {
       setSubscriptionBusyKey(null);
     }
@@ -287,7 +327,7 @@ export default function WalletPage() {
                     {wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}
                   </div>
                   <div className="mt-2 max-w-xl text-sm text-slate-600">
-                    Баланс используется для открытия уровней результата, AI-интерпретаций и расширенных функций. Месячный тариф ниже может открыть полную оценку сразу на 30, 50 или 100 проектов.
+                    Баланс используется для открытия уровней результата, AI-интерпретаций и расширенных функций. Тарифы ниже можно купить онлайн или сразу с внутреннего баланса кошелька.
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                     {isUnlimited ? <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-900">Тестовый безлимит</span> : null}
@@ -343,7 +383,7 @@ export default function WalletPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-emerald-900">Ежемесячные тарифы</div>
-                  <div className="mt-2 text-sm text-slate-600">Полное открытие оценки на 30, 50 или 100 проектов в течение 30 дней. Один проект списывается только один раз, дальше внутри него можно открывать весь результат без доплаты.</div>
+                  <div className="mt-2 text-sm text-slate-600">Тариф действует 30 дней. Один проект списывается только один раз, дальше внутри него можно открывать весь результат без доплаты. Тариф можно оплатить онлайн или купить сразу с баланса кошелька.</div>
                 </div>
                 {activeSubscription ? (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -366,14 +406,33 @@ export default function WalletPage() {
                         <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-white text-slate-600"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
                       </div>
                       <div className="mt-3 text-sm leading-6 text-slate-600">{plan.description}</div>
-                      <button
-                        type="button"
-                        className="btn btn-primary mt-4 w-full"
-                        disabled={!PAYMENTS_UI_ENABLED || !!subscriptionBusyKey}
-                        onClick={() => startMonthlyPlanPurchase(plan.key)}
-                      >
-                        {!PAYMENTS_UI_ENABLED ? "Онлайн-оплата выключена" : subscriptionBusyKey === plan.key ? "Создаю оплату…" : isActive ? "Продлить / переоформить" : "Оформить тариф"}
-                      </button>
+                      <div className="mt-4 grid gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-primary w-full"
+                          disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
+                          onClick={() => buyMonthlyPlanFromWallet(plan.key)}
+                        >
+                          {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю с баланса…" : `Купить с баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
+                        </button>
+                        {PAYMENTS_UI_ENABLED ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary w-full"
+                            disabled={!!subscriptionBusyKey}
+                            onClick={() => startMonthlyPlanPurchase(plan.key)}
+                          >
+                            {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : isActive ? "Продлить онлайн" : "Оплатить онлайн"}
+                          </button>
+                        ) : (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                            Онлайн-оплата сейчас выключена, но тариф можно купить прямо с баланса кошелька.
+                          </div>
+                        )}
+                        {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100 ? (
+                          <div className="text-xs text-amber-700">На балансе пока меньше стоимости тарифа.</div>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}
@@ -406,7 +465,7 @@ export default function WalletPage() {
             <div className="card bg-white">
               <div className="text-sm font-semibold text-emerald-900">{PAYMENTS_UI_ENABLED ? "Быстрое пополнение" : "Пополнение временно отключено"}</div>
               {activeSubscription ? <div className="mt-2 text-xs text-emerald-700">Активный тариф: {activeSubscription.plan_title} · осталось {activeSubscription.projects_remaining} проектов.</div> : null}
-              <div className="mt-2 text-sm text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и сразу перейди к оплате." : "ЮKassa пока не подключена. Кошелёк работает без онлайн-оплаты."}</div>
+              <div className="mt-2 text-sm text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и сразу перейди к оплате." : "Онлайн-оплата выключена. Пополнение недоступно, но тарифы всё равно можно покупать с уже существующего баланса."}</div>
               {PAYMENTS_UI_ENABLED ? (<>
               <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 {QUICK_AMOUNTS.map((a) => (

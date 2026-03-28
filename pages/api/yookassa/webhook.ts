@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { activateWorkspaceSubscription } from "@/lib/serverCommercialSubscriptions";
 
 type ErrResp = { ok: false; error: string };
 
@@ -98,36 +99,19 @@ export default async function handler(
       return res.status(200).json({ ok: true, ignored: true, reason: "missing subscription metadata" });
     }
 
-    const nowIso = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-
-    await supabaseAdmin
-      .from("commercial_workspace_subscriptions")
-      .update({ status: "replaced", updated_at: nowIso })
-      .eq("workspace_id", workspaceId)
-      .eq("status", "active");
-
-    const { error: upsertError } = await supabaseAdmin
-      .from("commercial_workspace_subscriptions")
-      .upsert({
-        workspace_id: workspaceId,
-        created_by_user_id: userId || null,
-        payment_id: paymentId,
-        plan_key: planKey,
-        plan_title: planTitle,
-        price_kopeks: amountKopeks,
-        projects_limit: projectsLimit,
-        projects_used: 0,
-        duration_days: durationDays,
-        status: "active",
-        started_at: nowIso,
-        activated_at: nowIso,
-        expires_at: expiresAt,
-        updated_at: nowIso,
-      }, { onConflict: "payment_id" });
-
-    if (upsertError) {
-      return res.status(500).json({ ok: false, error: upsertError.message || "Failed to activate subscription" });
+    try {
+      await activateWorkspaceSubscription(supabaseAdmin, {
+        workspaceId,
+        userId: userId || null,
+        paymentId,
+        planKey,
+        planTitle,
+        amountKopeks,
+        projectsLimit,
+        durationDays,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ ok: false, error: error?.message || "Failed to activate subscription" });
     }
 
     return res.status(200).json({ ok: true, activated: true, kind });
