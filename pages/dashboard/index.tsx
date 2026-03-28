@@ -1495,6 +1495,30 @@ export default function DashboardPage() {
     };
   }, [folders, projects]);
 
+  const classicSheetRows = useMemo(() => {
+    const folderRows = folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => ({
+      rowId: `folder:${folder.id}`,
+      kind: "folder" as const,
+      id: folder.id,
+      name: folder.name,
+      goal: `Папка · ${folderProjects.length} ${folderProjects.length === 1 ? "проект" : folderProjects.length >= 2 && folderProjects.length <= 4 ? "проекта" : "проектов"}`,
+      status: "Готова к работе",
+      place: "Рабочий стол",
+      createdAt: folder.created_at,
+    }));
+    const projectRows = projects.map((project) => ({
+      rowId: `project:${project.id}`,
+      kind: "project" as const,
+      id: project.id,
+      name: project.person?.full_name || project.title || "Проект",
+      goal: getGoalDefinition(project.goal).title,
+      status: project.status === "completed" ? "Оценка собрана" : project.status === "in_progress" ? "В работе" : "Ещё не собрана",
+      place: project.folder_id ? (folders.find((folder) => folder.id === project.folder_id)?.name || "Папка") : "На рабочем столе",
+      createdAt: project.created_at,
+    }));
+    return [...folderRows, ...projectRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [folderBuckets.byFolder, folders, projects]);
+
   const resetSceneWidgets = useCallback(() => {
     const workspaceId = workspace?.workspace?.workspace_id;
     if (workspaceId && typeof window !== "undefined") {
@@ -1591,11 +1615,9 @@ export default function DashboardPage() {
       : ({} as DeskPositions);
     const globalTemplates = readGlobalDeskTemplates();
 
-    setDeskPositions((current) => {
-      const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...sharedDeskPositions, ...globalTemplates, ...saved, ...current });
-      setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
-      return merged;
-    });
+    const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...sharedDeskPositions, ...globalTemplates, ...saved });
+    setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
+    setDeskPositions(merged);
   }, [desktopVariant, workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, sharedDeskPositions]);
 
   useEffect(() => {
@@ -2031,8 +2053,13 @@ export default function DashboardPage() {
         <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-          <div className="mb-3 flex items-center justify-end rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
+              <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Рабочий стол</button>
+              <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
           </div>
 
           {canEditScene && sceneEditMode && selectedDeskItem ? (
@@ -2065,8 +2092,48 @@ export default function DashboardPage() {
           ) : null}
 
           <div className="dashboard-classic-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#d4d9e4] bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.14)]" onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
-            {sceneEditControls}
             <div className="dashboard-classic-surface absolute inset-0" />
+            {classicViewMode === "sheet" ? (
+              <div className="absolute inset-0 z-[2] p-5">
+                <div className="h-full overflow-auto rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                  <div className="sticky top-0 z-[3] grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] border-b border-[#d5deea] bg-[linear-gradient(180deg,#eff4fa_0%,#dde7f3_100%)] text-[11px] font-semibold uppercase tracking-[0.22em] text-[#5f7992]">
+                    <div className="px-4 py-3">Тип</div>
+                    <div className="px-4 py-3">Название</div>
+                    <div className="px-4 py-3">Цель / состав</div>
+                    <div className="px-4 py-3">Статус</div>
+                    <div className="px-4 py-3">Расположение</div>
+                    <div className="px-4 py-3 text-right">Действие</div>
+                  </div>
+                  <div className="divide-y divide-[#dde6f0]">
+                    {classicSheetRows.map((row, index) => (
+                      <div key={row.rowId} className={`grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] text-[13px] text-[#24384b] ${index % 2 === 0 ? "bg-white/82" : "bg-[#f5f9fd]/90"}`}>
+                        <div className="px-4 py-3 font-semibold text-[#5d7691]">{row.kind === "folder" ? "Папка" : "Проект"}</div>
+                        <div className="px-4 py-3">
+                          <div className="font-semibold leading-[1.25] text-[#1f3142]">{row.name}</div>
+                        </div>
+                        <div className="px-4 py-3 text-[#516679]">{row.goal}</div>
+                        <div className="px-4 py-3 text-[#516679]">{row.status}</div>
+                        <div className="px-4 py-3 text-[#516679]">{row.place}</div>
+                        <div className="flex items-center justify-end gap-2 px-4 py-3">
+                          {row.kind === "folder" ? (
+                            <>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveFolderId(row.id)}>Открыть</button>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const folder = folders.find((item) => item.id === row.id); if (folder) setFolderActionTarget(folder); }}>...</button>
+                            </>
+                          ) : (
+                            <>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const project = projects.find((item) => item.id === row.id); if (project) setPreviewProject(project); }}>Открыть</button>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void deleteProject(row.id)}>Удалить</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
             {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
               const itemId = `folder:${folder.id}`;
               const position = deskPositions[itemId] || getClassicFolderPosition(folderIndex);
@@ -2123,6 +2190,8 @@ export default function DashboardPage() {
                 </div>
               );
             })}
+              </>
+            )}
           </div>
 
           {activeFolder ? (
@@ -2158,14 +2227,17 @@ export default function DashboardPage() {
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
         {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-        <div className="mb-3 flex items-center justify-end rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
-          >
-            {desktopVariant === "scheme" ? "Рабочий стол" : "Схема на доске"}
-          </button>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
+            >
+              {desktopVariant === "scheme" ? "Рабочий стол" : "Схема на доске"}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
         </div>
 
         {canEditScene && sceneEditMode && selectedWidget ? (
