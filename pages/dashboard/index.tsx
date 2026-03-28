@@ -76,7 +76,7 @@ type DeskPosition = {
   clipBly?: number;
 };
 type DeskPositions = Record<string, DeskPosition>;
-type DeskItemKind = "folder" | "project" | "guide";
+type DeskItemKind = "folder" | "project" | "guide" | "device" | "panel";
 type DeskItemInteractionMode = "drag" | "resize" | "rotate";
 type DeskItemInteractionState = {
   id: string;
@@ -149,8 +149,12 @@ const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
 const DEFAULT_ROOM_SWITCH_ZONE = { x: 48, y: 248, width: 136, height: 116 };
 const ROOM_DIM_HOTSPOT = { x: 42, y: 386, width: 188, height: 94 };
 const ROOM_SWITCH_STANDARD_ID = "scene:roomSwitch";
+const LAPTOP_DEVICE_ID = "scene:deskLaptop";
+const LAPTOP_PANEL_ID = "scene:deskLaptopPanel";
 const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
+const DEFAULT_LAPTOP_POSITION: DeskPosition = { x: 936, y: 432, width: 372, height: 248, z: 24, rotation: -5.4, tiltX: 0, tiltY: 0 };
+const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 226, height: 132, z: 26, rotation: -5.4, tiltX: 0, tiltY: 0 };
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -470,6 +474,8 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
 
   next[TRAY_GUIDE_ID] = saved[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
   next[TRASH_GUIDE_ID] = saved[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
+  next[LAPTOP_DEVICE_ID] = saved[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION;
+  next[LAPTOP_PANEL_ID] = saved[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION;
 
   const folderTemplate = saved[FOLDER_TEMPLATE_ID] || {};
   const projectTemplate = saved[PROJECT_TEMPLATE_ID] || {};
@@ -519,6 +525,8 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
 
   if (saved[FOLDER_TEMPLATE_ID]) next[FOLDER_TEMPLATE_ID] = saved[FOLDER_TEMPLATE_ID];
   if (saved[PROJECT_TEMPLATE_ID]) next[PROJECT_TEMPLATE_ID] = saved[PROJECT_TEMPLATE_ID];
+  if (saved[LAPTOP_DEVICE_ID]) next[LAPTOP_DEVICE_ID] = saved[LAPTOP_DEVICE_ID];
+  if (saved[LAPTOP_PANEL_ID]) next[LAPTOP_PANEL_ID] = saved[LAPTOP_PANEL_ID];
 
   return next;
 }
@@ -697,6 +705,9 @@ export default function DashboardPage() {
   const toggleRoomLight = useCallback(() => {
     setIsRoomLightDimmed((current) => !current);
   }, []);
+  const laptopPosition = deskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION;
+  const laptopPanelPosition = deskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION;
+
   const subscriptionSummaryBlock = (
     <Link
       href="/wallet"
@@ -864,6 +875,93 @@ export default function DashboardPage() {
 
     return () => window.clearTimeout(timer);
   }, [canEditScene, roomSwitchPosition.x, roomSwitchPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+
+  useEffect(() => {
+    if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
+    const sharedLaptop = (sharedDeskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION) as DeskPosition;
+    const sharedPanel = (sharedDeskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION) as DeskPosition;
+    const currentLaptop = laptopPosition;
+    const currentPanel = laptopPanelPosition;
+
+    const sameLaptop = Math.round(currentLaptop.x || 0) === Math.round(sharedLaptop.x || 0)
+      && Math.round(currentLaptop.y || 0) === Math.round(sharedLaptop.y || 0)
+      && Math.round(currentLaptop.width || 0) === Math.round(sharedLaptop.width || 0)
+      && Math.round(currentLaptop.height || 0) === Math.round(sharedLaptop.height || 0)
+      && Number((currentLaptop.rotation || 0).toFixed(1)) === Number((sharedLaptop.rotation || 0).toFixed(1));
+    const samePanel = Math.round(currentPanel.x || 0) === Math.round(sharedPanel.x || 0)
+      && Math.round(currentPanel.y || 0) === Math.round(sharedPanel.y || 0)
+      && Math.round(currentPanel.width || 0) === Math.round(sharedPanel.width || 0)
+      && Math.round(currentPanel.height || 0) === Math.round(sharedPanel.height || 0)
+      && Number((currentPanel.rotation || 0).toFixed(1)) === Number((sharedPanel.rotation || 0).toFixed(1));
+
+    if (sameLaptop && samePanel) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const standardPayload = {
+          positions: {
+            ...sharedDeskPositions,
+            [LAPTOP_DEVICE_ID]: {
+              x: Math.round(currentLaptop.x || 0),
+              y: Math.round(currentLaptop.y || 0),
+              width: Math.round(currentLaptop.width || DEFAULT_LAPTOP_POSITION.width || 0),
+              height: Math.round(currentLaptop.height || DEFAULT_LAPTOP_POSITION.height || 0),
+              rotation: Number((currentLaptop.rotation || 0).toFixed(1)),
+              z: Number(currentLaptop.z ?? sharedLaptop.z ?? DEFAULT_LAPTOP_POSITION.z ?? 24),
+            },
+            [LAPTOP_PANEL_ID]: {
+              x: Math.round(currentPanel.x || 0),
+              y: Math.round(currentPanel.y || 0),
+              width: Math.round(currentPanel.width || DEFAULT_LAPTOP_PANEL_POSITION.width || 0),
+              height: Math.round(currentPanel.height || DEFAULT_LAPTOP_PANEL_POSITION.height || 0),
+              rotation: Number((currentPanel.rotation || 0).toFixed(1)),
+              z: Number(currentPanel.z ?? sharedPanel.z ?? DEFAULT_LAPTOP_PANEL_POSITION.z ?? 26),
+            },
+          },
+          widgets: sceneWidgets.map((item) => ({
+            id: item.id,
+            kind: item.kind,
+            text: item.text,
+            action: item.action,
+            tone: item.tone,
+            src: item.src,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height: item.height,
+            rotation: item.rotation,
+            fontSize: item.fontSize,
+            z: item.z,
+          })),
+          trayGuideText,
+        };
+
+        const resp = await fetch("/api/commercial/scene-template", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            standard: standardPayload,
+            positions: standardPayload.positions,
+            widgets: standardPayload.widgets,
+            trayGuideText: standardPayload.trayGuideText,
+          }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить ноутбук на сцене");
+        const parsedStandard = pickSceneStandard(json?.standard || json || {});
+        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
+        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
+        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      } catch (err) {
+        console.error(err);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [canEditScene, laptopPanelPosition.height, laptopPanelPosition.rotation, laptopPanelPosition.width, laptopPanelPosition.x, laptopPanelPosition.y, laptopPosition.height, laptopPosition.rotation, laptopPosition.width, laptopPosition.x, laptopPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
@@ -1250,15 +1348,33 @@ export default function DashboardPage() {
       const dy = e.clientY - current.startY;
       const isFolder = current.kind === "folder";
       const isGuide = current.kind === "guide";
-      const defaultWidth = isGuide ? (current.position.width ?? 228) : isFolder ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH;
-      const defaultHeight = isGuide ? (current.position.height ?? 104) : isFolder ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT;
+      const isDevice = current.kind === "device";
+      const isPanel = current.kind === "panel";
+      const defaultWidth = isPanel
+        ? (current.position.width ?? DEFAULT_LAPTOP_PANEL_POSITION.width ?? 226)
+        : isDevice
+          ? (current.position.width ?? DEFAULT_LAPTOP_POSITION.width ?? 372)
+          : isGuide
+            ? (current.position.width ?? 228)
+            : isFolder
+              ? DESK_FOLDER_WIDTH
+              : DESK_SHEET_WIDTH;
+      const defaultHeight = isPanel
+        ? (current.position.height ?? DEFAULT_LAPTOP_PANEL_POSITION.height ?? 132)
+        : isDevice
+          ? (current.position.height ?? DEFAULT_LAPTOP_POSITION.height ?? 248)
+          : isGuide
+            ? (current.position.height ?? 104)
+            : isFolder
+              ? DESK_FOLDER_HEIGHT
+              : DESK_SHEET_HEIGHT;
       const baseWidth = current.position.width ?? defaultWidth;
       const baseHeight = current.position.height ?? defaultHeight;
       if (current.mode === "drag") {
-        const minX = current.kind === "project" ? -baseWidth * 0.5 : 0;
-        const minY = current.kind === "project" ? -baseHeight * 0.5 : 0;
-        const maxX = current.kind === "project" ? DESK_WIDTH - baseWidth * 0.5 : DESK_WIDTH - baseWidth;
-        const maxY = current.kind === "project" ? DESK_HEIGHT - baseHeight * 0.5 : DESK_HEIGHT - baseHeight;
+        const minX = current.kind === "project" ? -baseWidth * 0.5 : isDevice ? -baseWidth * 0.2 : 0;
+        const minY = current.kind === "project" ? -baseHeight * 0.5 : isDevice ? -baseHeight * 0.12 : 0;
+        const maxX = current.kind === "project" ? DESK_WIDTH - baseWidth * 0.5 : isDevice ? DESK_WIDTH - baseWidth * 0.8 : DESK_WIDTH - baseWidth;
+        const maxY = current.kind === "project" ? DESK_HEIGHT - baseHeight * 0.5 : isDevice ? DESK_HEIGHT - baseHeight * 0.8 : DESK_HEIGHT - baseHeight;
         updateDeskItem(current.id, {
           x: clampDesk((current.position.x ?? 0) + dx, minX, maxX),
           y: clampDesk((current.position.y ?? 0) + dy, minY, maxY),
@@ -1267,8 +1383,8 @@ export default function DashboardPage() {
       }
       if (current.mode === "resize") {
         updateDeskItem(current.id, {
-          width: clampDesk(baseWidth + dx, isGuide ? 120 : isFolder ? 120 : 140, isGuide ? 420 : isFolder ? 280 : 320),
-          height: clampDesk(baseHeight + dy, isGuide ? 48 : isFolder ? 100 : 110, isGuide ? 220 : isFolder ? 260 : 320),
+          width: clampDesk(baseWidth + dx, isPanel ? 180 : isDevice ? 260 : isGuide ? 120 : isFolder ? 120 : 140, isPanel ? 420 : isDevice ? 560 : isGuide ? 420 : isFolder ? 280 : 320),
+          height: clampDesk(baseHeight + dy, isPanel ? 110 : isDevice ? 160 : isGuide ? 48 : isFolder ? 100 : 110, isPanel ? 260 : isDevice ? 360 : isGuide ? 220 : isFolder ? 260 : 320),
         });
         return;
       }
@@ -1356,6 +1472,12 @@ export default function DashboardPage() {
     }
     if (selectedDeskItemId === TRASH_GUIDE_ID) {
       return { kind: "guide" as const, id: selectedDeskItemId, title: "Виртуальная зона корзины", position: deskPositions[selectedDeskItemId] || getDefaultTrashGuidePosition() };
+    }
+    if (selectedDeskItemId === LAPTOP_DEVICE_ID) {
+      return { kind: "device" as const, id: selectedDeskItemId, title: "Ноутбук на столе", position: deskPositions[selectedDeskItemId] || DEFAULT_LAPTOP_POSITION };
+    }
+    if (selectedDeskItemId === LAPTOP_PANEL_ID) {
+      return { kind: "panel" as const, id: selectedDeskItemId, title: "Панель ноутбука", position: deskPositions[selectedDeskItemId] || DEFAULT_LAPTOP_PANEL_POSITION };
     }
     if (selectedDeskItemId.startsWith("folder:")) {
       const id = selectedDeskItemId.replace("folder:", "");
@@ -2064,10 +2186,10 @@ export default function DashboardPage() {
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.y || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { y: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Ширина
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "guide" ? 228 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "panel" ? (DEFAULT_LAPTOP_PANEL_POSITION.width || 226) : selectedDeskItem.kind === "device" ? (DEFAULT_LAPTOP_POSITION.width || 372) : selectedDeskItem.kind === "guide" ? 228 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Высота
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "guide" ? 104 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "panel" ? (DEFAULT_LAPTOP_PANEL_POSITION.height || 132) : selectedDeskItem.kind === "device" ? (DEFAULT_LAPTOP_POSITION.height || 248) : selectedDeskItem.kind === "guide" ? 104 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Поворот Z
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.rotation || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { rotation: Number(e.target.value || 0) })} />
@@ -2112,7 +2234,7 @@ export default function DashboardPage() {
                 </>
               ) : null}
             </div>
-            {selectedDeskItem.kind !== "guide" ? (
+            {selectedDeskItem.kind === "folder" || selectedDeskItem.kind === "project" ? (
               <div className="mt-3 border-t border-[#ead9c2] pt-3">
                 {templateFeedback ? (
                   <div
@@ -2307,6 +2429,108 @@ export default function DashboardPage() {
                 );
               })}
             </div>
+
+            <div
+              className={`absolute ${selectedDeskItemId === LAPTOP_DEVICE_ID ? "dashboard-desk-entity-selected" : ""}`}
+              style={{
+                left: `${laptopPosition.x}px`,
+                top: `${laptopPosition.y}px`,
+                width: `${laptopPosition.width || DEFAULT_LAPTOP_POSITION.width}px`,
+                height: `${laptopPosition.height || DEFAULT_LAPTOP_POSITION.height}px`,
+                zIndex: laptopPosition.z || DEFAULT_LAPTOP_POSITION.z || 24,
+                transform: `rotate(${laptopPosition.rotation || 0}deg)`,
+                transformOrigin: "center center",
+              }}
+              onMouseDown={(e) => {
+                if (!sceneEditMode) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_DEVICE_ID);
+                setSelectedWidgetId(null);
+                startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "drag", laptopPosition);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_DEVICE_ID);
+                setSelectedWidgetId(null);
+              }}
+            >
+              <img
+                src="/dashboard-laptop-transparent.png"
+                alt="Ноутбук на столе"
+                draggable={false}
+                className="pointer-events-none h-full w-full object-contain"
+                style={{ filter: "drop-shadow(0 26px 28px rgba(5,10,24,0.34))" }}
+              />
+              {sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? (
+                <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "rotate", laptopPosition)} aria-label="Повернуть ноутбук">↻</button>
+              ) : null}
+            </div>
+
+            <div
+              className={`absolute ${selectedDeskItemId === LAPTOP_PANEL_ID ? "dashboard-desk-entity-selected" : ""}`}
+              style={{
+                left: `${laptopPanelPosition.x}px`,
+                top: `${laptopPanelPosition.y}px`,
+                width: `${laptopPanelPosition.width || DEFAULT_LAPTOP_PANEL_POSITION.width}px`,
+                height: `${laptopPanelPosition.height || DEFAULT_LAPTOP_PANEL_POSITION.height}px`,
+                zIndex: laptopPanelPosition.z || DEFAULT_LAPTOP_PANEL_POSITION.z || 26,
+                transform: `rotate(${laptopPanelPosition.rotation || 0}deg)`,
+                transformOrigin: "center center",
+              }}
+              onMouseDown={(e) => {
+                if (!sceneEditMode) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_PANEL_ID);
+                setSelectedWidgetId(null);
+                startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "drag", laptopPanelPosition);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_PANEL_ID);
+                setSelectedWidgetId(null);
+              }}
+            >
+              <div className="relative h-full w-full overflow-hidden rounded-[18px] border border-white/10 bg-slate-950/90 text-white shadow-[0_18px_36px_-20px_rgba(15,23,42,0.75)]">
+                <div className="absolute inset-x-0 top-0 h-7 bg-gradient-to-r from-slate-800/95 via-slate-700/90 to-slate-800/95" />
+                <div className="absolute left-4 right-4 top-3 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-slate-300">
+                  <span>Панель кабинета</span>
+                  <span>{subscriptionLoading ? "…" : activeSubscription ? `${activeSubscription.projects_remaining}/${activeSubscription.projects_limit}` : "без тарифа"}</span>
+                </div>
+                <div className="relative z-[1] flex h-full flex-col gap-2 px-4 pb-3 pt-10">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl border border-emerald-400/18 bg-emerald-400/10 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-emerald-200/78">Баланс</div>
+                      <div className="mt-1 text-sm font-semibold text-white">{balanceText}</div>
+                    </div>
+                    <div className="rounded-2xl border border-sky-400/18 bg-sky-400/10 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-sky-200/78">Тариф</div>
+                      <div className="mt-1 text-sm font-semibold text-white">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1 rounded-2xl border border-white/8 bg-white/5 px-3 py-2 text-[12px] leading-5 text-slate-200/92">
+                    {activeSubscription ? (
+                      <>Лимит до <span className="font-semibold text-white">{formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</span>. Осталось <span className="font-semibold text-white">{activeSubscription.projects_remaining}</span> проектов из {activeSubscription.projects_limit}.</>
+                    ) : (
+                      <>Подключи месячный пакет на 30, 50 или 100 проектов, чтобы открывать готовые оценки без ручной оплаты каждого проекта.</>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link href="/wallet" onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }} className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 text-xs font-semibold transition ${sceneEditMode ? "pointer-events-none bg-slate-700/50 text-slate-300" : "bg-emerald-400 text-emerald-950 hover:bg-emerald-300"}`}>
+                      {activeSubscription ? "Открыть кошелёк" : "Подключить тариф"}
+                    </Link>
+                    <Link href="/wallet" onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }} className={`inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-xs font-semibold transition ${sceneEditMode ? "pointer-events-none border-white/10 bg-white/5 text-slate-400" : "border-white/12 bg-white/7 text-white hover:bg-white/12"}`}>
+                      {activeSubscription ? "Продлить" : "Пакеты"}
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              {sceneEditMode && selectedDeskItemId === LAPTOP_PANEL_ID ? (
+                <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "resize", laptopPanelPosition)} aria-label="Изменить размер панели ноутбука">↘</button>
+              ) : null}
+            </div>
+
             {(() => {
               const trashPosition = deskPositions[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
               const width = trashPosition.width || TRASH_ZONE.width;

@@ -366,9 +366,6 @@ export default function WalletPage() {
                         <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-white text-slate-600"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
                       </div>
                       <div className="mt-3 text-sm leading-6 text-slate-600">{plan.description}</div>
-                      <div className="mt-4 rounded-2xl border border-white/80 bg-white px-3 py-3 text-xs leading-5 text-slate-600">
-                        Подходит, если хочешь открывать полностью готовую оценку для {plan.projectsLimit} проектов без ручной оплаты каждого отдельно.
-                      </div>
                       <button
                         type="button"
                         className="btn btn-primary mt-4 w-full"
