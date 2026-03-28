@@ -153,6 +153,7 @@ const ROOM_DIM_HOTSPOT = { x: 42, y: 386, width: 188, height: 94 };
 const ROOM_SWITCH_STANDARD_ID = "scene:roomSwitch";
 const LAPTOP_DEVICE_ID = "scene:deskLaptop";
 const LAPTOP_PANEL_ID = "scene:deskLaptopPanel";
+const SHARED_SCENE_POSITION_IDS = new Set([ROOM_SWITCH_STANDARD_ID, LAPTOP_DEVICE_ID, LAPTOP_PANEL_ID]);
 const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
 const DEFAULT_LAPTOP_POSITION: DeskPosition = { x: 936, y: 432, width: 372, height: 248, z: 24, rotation: -5.4, tiltX: 0, tiltY: 0 };
@@ -524,6 +525,15 @@ function getDefaultTrashGuidePosition(): DeskPosition {
     tiltX: 0,
     tiltY: 0,
   };
+}
+
+function stripSharedScenePositions(source: DeskPositions): DeskPositions {
+  const next: DeskPositions = {};
+  for (const [key, value] of Object.entries(source || {})) {
+    if (SHARED_SCENE_POSITION_IDS.has(key)) continue;
+    next[key] = value;
+  }
+  return next;
 }
 
 function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved: DeskPositions): DeskPositions {
@@ -1630,7 +1640,8 @@ export default function DashboardPage() {
       ? (() => {
           try {
             const raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant));
-            return raw ? (JSON.parse(raw) as DeskPositions) : {};
+            const parsed = raw ? (JSON.parse(raw) as DeskPositions) : {};
+            return stripSharedScenePositions(parsed);
           } catch {
             return {} as DeskPositions;
           }
@@ -1645,7 +1656,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
-    window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant), JSON.stringify(deskPositions));
+    window.localStorage.setItem(
+      getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant),
+      JSON.stringify(stripSharedScenePositions(deskPositions))
+    );
   }, [deskPositions, desktopVariant, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
   function getNextFolderSpawnPosition(folderId: string): DeskPosition {
