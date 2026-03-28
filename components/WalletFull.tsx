@@ -4,12 +4,31 @@ import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED } from "@/lib/payments";
+import {
+  MONTHLY_SUBSCRIPTION_PLANS,
+  formatMonthlySubscriptionPeriod,
+  type WorkspaceSubscriptionStatus,
+  type MonthlyPlanKey,
+} from "@/lib/commercialSubscriptions";
 
 type CreateTopupResp = {
   ok: boolean;
   confirmation_url?: string;
   payment_id?: string;
   error?: string;
+};
+
+type CreateSubscriptionResp = {
+  ok: boolean;
+  confirmation_url?: string;
+  payment_id?: string;
+  error?: string;
+};
+
+type SubscriptionStatusResp = {
+  ok: boolean;
+  error?: string;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
 const QUICK_AMOUNTS = [1000, 3000, 5000, 10000, 50000];
@@ -68,6 +87,10 @@ export default function WalletPage() {
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoInfo, setPromoInfo] = useState<string | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [subscriptionBusyKey, setSubscriptionBusyKey] = useState<MonthlyPlanKey | null>(null);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<string | null>(null);
 
   useEffect(() => {
     setPromoCode(getStoredPromoCode());
@@ -75,6 +98,16 @@ export default function WalletPage() {
     const promoErrorText = readAndClearPromoFlash(PROMO_FLASH_ERROR_KEY);
     if (promoSuccess) setPromoInfo(promoSuccess);
     if (promoErrorText) setPromoError(promoErrorText);
+
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("plan_paid") === "1") {
+        setSubscriptionInfo("Оплата тарифа принята. Проверяем активацию и обновляем лимит проектов…");
+      }
+      if (url.searchParams.get("paid") === "1") {
+        setTopupError(null);
+      }
+    }
   }, []);
 
   const parsedRub = useMemo(() => {
@@ -82,6 +115,34 @@ export default function WalletPage() {
     if (!Number.isFinite(n)) return null;
     return Math.floor(n);
   }, [amountRub]);
+
+  useEffect(() => {
+    if (!user || !session?.access_token) {
+      setActiveSubscription(null);
+      return;
+    }
+    loadSubscriptionStatus();
+  }, [user?.id, session?.access_token]);
+
+  useEffect(() => {
+    if (!user || !session?.access_token || typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const needsPlanPolling = url.searchParams.get("plan_paid") === "1";
+    const needsWalletPolling = url.searchParams.get("paid") === "1";
+    if (!needsPlanPolling && !needsWalletPolling) return;
+
+    let cancelled = false;
+    const ticks = [0, 2500, 6000, 12000];
+    ticks.forEach((delay) => {
+      window.setTimeout(async () => {
+        if (cancelled) return;
+        if (needsWalletPolling) await refresh();
+        if (needsPlanPolling) await loadSubscriptionStatus();
+      }, delay);
+    });
+
+    return () => { cancelled = true; };
+  }, [user?.id, session?.access_token, refresh]);
 
 
   async function redeemPromo(code: string) {
@@ -115,6 +176,7 @@ export default function WalletPage() {
       setPromoCode("");
       setPromoInfo(`Промокод ${normalizedCode} успешно активирован.`);
       await refresh();
+      await loadSubscriptionStatus();
     } catch (e: any) {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(PENDING_PROMO_CODE_KEY, normalizedCode);
@@ -122,6 +184,54 @@ export default function WalletPage() {
       setPromoError(e?.message || "Не удалось активировать промокод");
     } finally {
       setPromoBusy(false);
+    }
+  }
+
+
+  async function loadSubscriptionStatus() {
+    if (!session?.access_token) {
+      setActiveSubscription(null);
+      return;
+    }
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/status", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = (await resp.json().catch(() => ({}))) as SubscriptionStatusResp;
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить месячный тариф");
+      setActiveSubscription(json.active_subscription || null);
+    } catch (err: any) {
+      setSubscriptionError((current) => current || err?.message || "Не удалось загрузить месячный тариф");
+    }
+  }
+
+  async function startMonthlyPlanPurchase(planKey: MonthlyPlanKey) {
+    if (!session?.access_token) {
+      setSubscriptionError("Нужно войти, чтобы оформить тариф.");
+      return;
+    }
+
+    setSubscriptionBusyKey(planKey);
+    setSubscriptionError(null);
+    setSubscriptionInfo(null);
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/create", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan_key: planKey }),
+      });
+      const data = (await resp.json().catch(() => ({}))) as CreateSubscriptionResp;
+      if (!resp.ok || !data.ok || !data.confirmation_url) {
+        throw new Error(data.error || "Не удалось создать оплату тарифа");
+      }
+      window.location.href = data.confirmation_url;
+    } catch (err: any) {
+      setSubscriptionError(err?.message || "Не удалось создать оплату тарифа");
+    } finally {
+      setSubscriptionBusyKey(null);
     }
   }
 
@@ -177,7 +287,7 @@ export default function WalletPage() {
                     {wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}
                   </div>
                   <div className="mt-2 max-w-xl text-sm text-slate-600">
-                    Баланс используется для открытия уровней результата, AI-интерпретаций и расширенных функций.
+                    Баланс используется для открытия уровней результата, AI-интерпретаций и расширенных функций. Месячный тариф ниже может открыть полную оценку сразу на 30, 50 или 100 проектов.
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                     {isUnlimited ? <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-900">Тестовый безлимит</span> : null}
@@ -230,6 +340,53 @@ export default function WalletPage() {
             </div>
 
             <div className="card bg-white">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-emerald-900">Ежемесячные тарифы</div>
+                  <div className="mt-2 text-sm text-slate-600">Полное открытие оценки на 30, 50 или 100 проектов в течение 30 дней. Один проект списывается только один раз, дальше внутри него можно открывать весь результат без доплаты.</div>
+                </div>
+                {activeSubscription ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                    <div className="font-medium">Активен: {activeSubscription.plan_title}</div>
+                    <div className="mt-1 text-xs">Осталось: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
+                  const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
+                  return (
+                    <div key={plan.key} className={`rounded-3xl border p-4 ${isActive ? "border-emerald-300 bg-emerald-50/60" : "border-slate-200 bg-slate-50/60"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-base font-semibold text-slate-950">{plan.projectsLimit} проектов / месяц</div>
+                          <div className="mt-1 text-sm text-slate-500">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽ / месяц</div>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-white text-slate-600"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
+                      </div>
+                      <div className="mt-3 text-sm leading-6 text-slate-600">{plan.description}</div>
+                      <div className="mt-4 rounded-2xl border border-white/80 bg-white px-3 py-3 text-xs leading-5 text-slate-600">
+                        Подходит, если хочешь открывать полностью готовую оценку для {plan.projectsLimit} проектов без ручной оплаты каждого отдельно.
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-primary mt-4 w-full"
+                        disabled={!PAYMENTS_UI_ENABLED || !!subscriptionBusyKey}
+                        onClick={() => startMonthlyPlanPurchase(plan.key)}
+                      >
+                        {!PAYMENTS_UI_ENABLED ? "Онлайн-оплата выключена" : subscriptionBusyKey === plan.key ? "Создаю оплату…" : isActive ? "Продлить / переоформить" : "Оформить тариф"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {subscriptionError ? <div className="mt-3 text-sm text-red-600">{subscriptionError}</div> : null}
+              {subscriptionInfo ? <div className="mt-3 text-sm text-emerald-700">{subscriptionInfo}</div> : null}
+            </div>
+
+            <div className="card bg-white">
               <div className="text-sm font-semibold text-emerald-900">Как это работает</div>
               <div className="mt-2 grid gap-3 sm:grid-cols-3">
                 <div className="card-soft bg-white p-3 text-sm text-slate-700">
@@ -238,7 +395,7 @@ export default function WalletPage() {
                 </div>
                 <div className="card-soft bg-white p-3 text-sm text-slate-700">
                   <div className="font-medium">2. Открытие уровней</div>
-                  <div className="mt-1 text-xs text-slate-500">База, Премиум AI и Премиум AI+.</div>
+                  <div className="mt-1 text-xs text-slate-500">База, Премиум AI, Премиум AI+ и месячные лимиты по проектам.</div>
                 </div>
                 <div className="card-soft bg-white p-3 text-sm text-slate-700">
                   <div className="font-medium">3. История</div>
@@ -251,6 +408,7 @@ export default function WalletPage() {
           <div className="grid gap-4">
             <div className="card bg-white">
               <div className="text-sm font-semibold text-emerald-900">{PAYMENTS_UI_ENABLED ? "Быстрое пополнение" : "Пополнение временно отключено"}</div>
+              {activeSubscription ? <div className="mt-2 text-xs text-emerald-700">Активный тариф: {activeSubscription.plan_title} · осталось {activeSubscription.projects_remaining} проектов.</div> : null}
               <div className="mt-2 text-sm text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и сразу перейди к оплате." : "ЮKassa пока не подключена. Кошелёк работает без онлайн-оплаты."}</div>
               {PAYMENTS_UI_ENABLED ? (<>
               <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">

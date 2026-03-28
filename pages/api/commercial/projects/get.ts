@@ -14,7 +14,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
-    const { data, error } = await authed.supabaseAdmin
+    const [{ data, error }, { data: subscriptionCoverage, error: subscriptionError }] = await Promise.all([
+      authed.supabaseAdmin
       .from("commercial_projects")
       .select(`
         id,
@@ -35,9 +36,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       `)
       .eq("workspace_id", workspace.workspace_id)
       .eq("id", id)
-      .maybeSingle();
+      .maybeSingle(),
+      authed.supabaseAdmin
+        .from("commercial_workspace_subscription_projects")
+        .select("subscription_id")
+        .eq("project_id", id)
+        .maybeSingle(),
+    ]);
 
     if (error) throw error;
+    if (subscriptionError) throw subscriptionError;
     if (!data) return res.status(404).json({ ok: false, error: "Проект не найден" });
 
     return res.status(200).json({
@@ -51,6 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         unlocked_package_mode: (data as any).unlocked_package_mode || null,
         unlocked_package_paid_at: (data as any).unlocked_package_paid_at || null,
         unlocked_package_price_kopeks: Number((data as any).unlocked_package_price_kopeks || 0),
+        subscription_applied: Boolean((subscriptionCoverage as any)?.subscription_id),
         target_role: (data as any).target_role,
         status: (data as any).status,
         summary: (data as any).summary,

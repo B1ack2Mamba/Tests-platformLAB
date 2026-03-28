@@ -125,7 +125,7 @@ export default function AdminPage() {
               <Link href="/dashboard" className="btn btn-secondary btn-sm">Назад в кабинет</Link>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <Link href="/admin" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm font-medium text-emerald-950 shadow-sm">
                 Промокоды
                 <div className="mt-1 text-xs font-normal text-emerald-800">Создание и включение кодов</div>
@@ -137,6 +137,10 @@ export default function AdminPage() {
               <Link href="/admin/credit" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
                 Начисление в кошелёк
                 <div className="mt-1 text-xs font-normal text-slate-500">Служебное пополнение баланса</div>
+              </Link>
+              <Link href="/admin/support" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
+                Диалоги поддержки
+                <div className="mt-1 text-xs font-normal text-slate-500">Переписка с пользователями внутри сайта</div>
               </Link>
             </div>
           </section>

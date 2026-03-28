@@ -8,6 +8,7 @@ import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIco
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail } from "@/lib/admin";
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
+import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 
 type DashboardPayload = {
   profile: {
@@ -48,6 +49,12 @@ type WorkspacePayload = {
   workspace: { workspace_id: string; role: string; name: string };
   folders: FolderRow[];
   projects: ProjectRow[];
+};
+
+type SubscriptionStatusResp = {
+  ok: boolean;
+  error?: string;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
 type DeskPosition = {
@@ -141,6 +148,7 @@ const SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
 const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
 const DEFAULT_ROOM_SWITCH_ZONE = { x: 48, y: 248, width: 136, height: 116 };
 const ROOM_DIM_HOTSPOT = { x: 42, y: 386, width: 188, height: 94 };
+const ROOM_SWITCH_STANDARD_ID = "scene:roomSwitch";
 const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
 
@@ -564,6 +572,9 @@ export default function DashboardPage() {
   const [roomSwitchPosition, setRoomSwitchPosition] = useState(DEFAULT_ROOM_SWITCH_ZONE);
   const roomSwitchInteractionRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
   const suppressRoomSwitchClickRef = useRef(false);
+  const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -655,11 +666,53 @@ export default function DashboardPage() {
     loadDashboard();
   }, [router, session, sessionLoading, user, loadDashboard]);
 
+  const loadSubscriptionStatus = useCallback(async () => {
+    if (!session?.access_token) {
+      setActiveSubscription(null);
+      return;
+    }
+    setSubscriptionLoading(true);
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/status", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = (await resp.json().catch(() => ({}))) as SubscriptionStatusResp;
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить тариф");
+      setActiveSubscription(json.active_subscription || null);
+      setSubscriptionError(null);
+    } catch (err: any) {
+      setSubscriptionError(err?.message || "Не удалось загрузить тариф");
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    loadSubscriptionStatus();
+  }, [loadSubscriptionStatus, session?.access_token]);
+
   const displayName = data?.profile?.full_name || (user?.user_metadata as any)?.full_name || user?.email || "Пользователь";
   const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user?.user_metadata as any)?.company_name || "Рабочее пространство";
   const toggleRoomLight = useCallback(() => {
     setIsRoomLightDimmed((current) => !current);
   }, []);
+  const subscriptionSummaryBlock = (
+    <Link
+      href="/wallet"
+      className="inline-flex min-w-[260px] max-w-full flex-col rounded-[20px] border border-emerald-200 bg-emerald-50/85 px-4 py-3 shadow-[0_10px_28px_-22px_rgba(16,185,129,0.35)] transition hover:border-emerald-300 hover:bg-emerald-50"
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-700">Месячный тариф</span>
+      <span className="mt-1 text-sm font-semibold text-slate-950">
+        {subscriptionLoading ? "Загружаем лимит…" : activeSubscription ? `${activeSubscription.projects_remaining} из ${activeSubscription.projects_limit} проектов осталось` : "Тариф пока не подключён"}
+      </span>
+      <span className="mt-1 text-xs leading-5 text-slate-600">
+        {activeSubscription
+          ? `${activeSubscription.plan_title} · до ${formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}`
+          : subscriptionError || "Открой кошелёк, чтобы подключить пакет на 30, 50 или 100 проектов."}
+      </span>
+    </Link>
+  );
   const defaultSceneWidgets = useMemo(
     () => (desktopVariant === "classic" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
       displayName,
@@ -698,8 +751,19 @@ export default function DashboardPage() {
   }, [workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
     try {
+      const sharedPosition = sharedDeskPositions[ROOM_SWITCH_STANDARD_ID] as DeskPosition | undefined;
+      if (sharedPosition && Number.isFinite(Number(sharedPosition.x)) && Number.isFinite(Number(sharedPosition.y))) {
+        setRoomSwitchPosition({
+          x: clampDesk(Number(sharedPosition.x), 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
+          y: clampDesk(Number(sharedPosition.y), 0, DESK_HEIGHT - DEFAULT_ROOM_SWITCH_ZONE.height),
+          width: DEFAULT_ROOM_SWITCH_ZONE.width,
+          height: DEFAULT_ROOM_SWITCH_ZONE.height,
+        });
+        return;
+      }
+
       const raw = window.localStorage.getItem(getRoomSwitchStorageKey(workspace.workspace.workspace_id));
       if (!raw) {
         setRoomSwitchPosition(DEFAULT_ROOM_SWITCH_ZONE);
@@ -715,7 +779,7 @@ export default function DashboardPage() {
     } catch {
       setRoomSwitchPosition(DEFAULT_ROOM_SWITCH_ZONE);
     }
-  }, [workspace?.workspace?.workspace_id]);
+  }, [sharedDeskPositions, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -733,6 +797,73 @@ export default function DashboardPage() {
       }));
     } catch {}
   }, [roomSwitchPosition, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
+    const sharedPosition = sharedDeskPositions[ROOM_SWITCH_STANDARD_ID] as DeskPosition | undefined;
+    const currentX = Math.round(roomSwitchPosition.x);
+    const currentY = Math.round(roomSwitchPosition.y);
+    const sharedX = Math.round(Number(sharedPosition?.x ?? DEFAULT_ROOM_SWITCH_ZONE.x));
+    const sharedY = Math.round(Number(sharedPosition?.y ?? DEFAULT_ROOM_SWITCH_ZONE.y));
+    if (currentX === sharedX && currentY === sharedY) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const standardPayload = {
+          positions: {
+            ...sharedDeskPositions,
+            [ROOM_SWITCH_STANDARD_ID]: {
+              x: currentX,
+              y: currentY,
+              width: DEFAULT_ROOM_SWITCH_ZONE.width,
+              height: DEFAULT_ROOM_SWITCH_ZONE.height,
+              z: Number(sharedPosition?.z ?? 182),
+            },
+          },
+          widgets: sceneWidgets.map((item) => ({
+            id: item.id,
+            kind: item.kind,
+            text: item.text,
+            action: item.action,
+            tone: item.tone,
+            src: item.src,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height: item.height,
+            rotation: item.rotation,
+            fontSize: item.fontSize,
+            z: item.z,
+          })),
+          trayGuideText,
+        };
+
+        const resp = await fetch("/api/commercial/scene-template", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            standard: standardPayload,
+            positions: standardPayload.positions,
+            widgets: standardPayload.widgets,
+            trayGuideText: standardPayload.trayGuideText,
+          }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить положение выключателя");
+        const parsedStandard = pickSceneStandard(json?.standard || json || {});
+        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
+        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
+        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      } catch (err) {
+        console.error(err);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [canEditScene, roomSwitchPosition.x, roomSwitchPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
@@ -1722,6 +1853,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <div className="mb-3 flex flex-wrap items-stretch gap-3">
+            {subscriptionSummaryBlock}
+          </div>
+
           {canEditScene && sceneEditMode && selectedDeskItem ? (
             <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">
               <div className="mb-3 text-sm font-semibold text-[#55361f]">Объект · {selectedDeskItem.title}</div>
@@ -1875,6 +2010,10 @@ export default function DashboardPage() {
               </>
             ) : null}
           </div>
+        </div>
+
+        <div className="mb-3 flex flex-wrap items-stretch gap-3">
+          {subscriptionSummaryBlock}
         </div>
 
         {canEditScene && sceneEditMode && selectedWidget ? (

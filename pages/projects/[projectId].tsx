@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { QRCodeBlock } from "@/components/QRCodeBlock";
+import { ThinkingStatus } from "@/components/ThinkingStatus";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import {
   COMMERCIAL_GOALS,
@@ -15,6 +16,7 @@ import {
   type AssessmentGoal,
   type EvaluationPackage,
 } from "@/lib/commercialGoals";
+import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 
 type ProjectPayload = {
   ok: true;
@@ -27,6 +29,7 @@ type ProjectPayload = {
     unlocked_package_mode: EvaluationPackage | null;
     unlocked_package_paid_at: string | null;
     unlocked_package_price_kopeks: number;
+    subscription_applied?: boolean;
     target_role: string | null;
     status: string;
     summary: string | null;
@@ -55,6 +58,35 @@ type EvaluationPayload = {
     sections: Array<{ kind: string; title: string; body: string }>;
   } | null;
 };
+
+type SubscriptionStatusResp = {
+  ok: boolean;
+  error?: string;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
+};
+
+function getThinkingMessages(mode: EvaluationPackage | null) {
+  switch (mode) {
+    case "premium_ai_plus":
+      return [
+        "Обрабатываем информацию. Это может занять около 5 минут.",
+        "Собираем общий профиль по всем тестам и формируем вывод по запросу.",
+        "Проверяем связи между результатами и считаем индекс соответствия.",
+        "AI раскладывает рекомендации по развитию и управленческим выводам.",
+      ];
+    case "premium":
+      return [
+        "Обрабатываем информацию. Это может занять около 5 минут.",
+        "Формируем вывод по каждому тесту и проверяем смысловые связи.",
+        "AI догружает данные и собирает интерпретации по разделам.",
+      ];
+    default:
+      return [
+        "Подгружаем результат и собираем итоговые показатели.",
+        "Сверяем данные проекта и готовим аккуратную выдачу.",
+      ];
+  }
+}
 
 function formatStatus(status: string | null | undefined) {
   switch (status) {
@@ -89,10 +121,14 @@ function sectionKey(mode: string, index: number) {
 function getPackageButtonLabel(
   target: EvaluationPackage,
   current: EvaluationPackage | null | undefined,
-  isUnlimited: boolean
+  isUnlimited: boolean,
+  activeSubscription: WorkspaceSubscriptionStatus | null,
+  projectCoveredBySubscription: boolean
 ) {
   if (isUnlimited) return "Открыть бесплатно";
   if (isPackageAccessible(current, target)) return "Открыто";
+  if (projectCoveredBySubscription) return "Открыть по тарифу";
+  if (activeSubscription && activeSubscription.projects_remaining > 0) return "Открыть по тарифу";
   const upgradeRub = getUpgradePriceRub(current, target);
   if (current) return `Доплатить ${formatRub(upgradeRub)}`;
   return `Оплатить ${formatRub(getEvaluationPackageDefinition(target)?.priceRub || 0)}`;
@@ -116,6 +152,7 @@ export default function ProjectDetailsPage() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [aiPlusRequest, setAiPlusRequest] = useState("");
   const [packageHelp, setPackageHelp] = useState<EvaluationPackage | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -174,6 +211,23 @@ export default function ProjectDetailsPage() {
     }
   }
 
+  async function loadSubscriptionStatus() {
+    if (!session?.access_token) {
+      setActiveSubscription(null);
+      return;
+    }
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/status", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = (await resp.json().catch(() => ({}))) as SubscriptionStatusResp;
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить месячный тариф");
+      setActiveSubscription(json.active_subscription || null);
+    } catch (err: any) {
+      setError(err?.message || "Не удалось загрузить месячный тариф");
+    }
+  }
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!session || !user) {
@@ -182,11 +236,13 @@ export default function ProjectDetailsPage() {
     }
     if (!projectId) return;
     loadProject();
+    loadSubscriptionStatus();
   }, [projectId, router, session, sessionLoading, user]);
 
   const goal = useMemo(() => getGoalDefinition(data?.project.goal), [data?.project.goal]);
   const completedSet = useMemo(() => new Set((data?.project.attempts || []).map((item) => item.test_slug)), [data?.project.attempts]);
   const unlockedMode = data?.project.unlocked_package_mode || null;
+  const projectCoveredBySubscription = Boolean(data?.project.subscription_applied);
   const shareUrl = useMemo(() => {
     const token = data?.project.invite_token;
     if (!token) return "";
@@ -293,8 +349,13 @@ export default function ProjectDetailsPage() {
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось открыть уровень результата");
       const chargedRub = Number(json?.charged_rub || 0);
-      setInfo(chargedRub > 0 ? `Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт.` : "Уровень уже был открыт.");
+      if (json?.used_subscription) {
+        setInfo(`Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт по месячному тарифу.${Number.isFinite(Number(json?.subscription_remaining)) ? ` Осталось ${Number(json?.subscription_remaining)} проектов.` : ""}`);
+      } else {
+        setInfo(chargedRub > 0 ? `Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт.` : "Уровень уже был открыт.");
+      }
       await loadProject();
+      await loadSubscriptionStatus();
       await refreshWallet();
       setActiveEvaluationMode(mode);
       await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
@@ -463,12 +524,14 @@ export default function ProjectDetailsPage() {
               <div>
                 <div className="text-sm font-semibold text-slate-900">Результаты по режимам</div>
                 <div className="mt-1 text-sm text-slate-500">Открой нужную глубину результата после завершения всех тестов.</div>
+                {projectCoveredBySubscription ? <div className="mt-2 text-xs text-emerald-700">Этот проект уже покрыт месячным тарифом — внутри него результат можно раскрывать без доплаты.</div> : null}
               </div>
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-100 bg-white px-4 py-3">
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-slate-500">Баланс</div>
                   <div className="mt-1 text-lg font-semibold text-slate-950">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
                   {isUnlimited ? <div className="text-[11px] text-emerald-700">Тестовый безлимит активен</div> : null}
+                  {activeSubscription ? <div className="mt-1 text-[11px] text-emerald-700">Тариф: {activeSubscription.plan_title} · осталось {activeSubscription.projects_remaining} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div> : null}
                 </div>
                 <div className="flex gap-2">
                   {!isUnlimited ? <Link href="/wallet" className="btn btn-secondary btn-sm">Пополнить</Link> : null}
@@ -532,10 +595,10 @@ export default function ProjectDetailsPage() {
                           disabled={isBusy}
                           onClick={() => unlockPackage(item.key)}
                         >
-                          {getPackageButtonLabel(item.key, unlockedMode, isUnlimited)}
+                          {getPackageButtonLabel(item.key, unlockedMode, isUnlimited, activeSubscription, projectCoveredBySubscription)}
                         </button>
                       )}
-                      {!accessible && !isUnlimited && balance_rub < upgradeRub ? <div className="mt-2 text-xs text-amber-700">Не хватает {formatRub(upgradeRub - balance_rub)}.</div> : null}
+                      {!accessible && !isUnlimited && !projectCoveredBySubscription && !(activeSubscription && activeSubscription.projects_remaining > 0) && balance_rub < upgradeRub ? <div className="mt-2 text-xs text-amber-700">Не хватает {formatRub(upgradeRub - balance_rub)}.</div> : null}
                     </div>
                   </div>
                 );
@@ -592,7 +655,7 @@ export default function ProjectDetailsPage() {
                 ) : null}
 
                 {evaluationLoading[activeEvaluationMode] ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-100 bg-white p-4 text-sm text-slate-600">Собираем результат…</div>
+                  <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
                 ) : activeSections.length ? (
                   <div className="mt-4 grid gap-4">
                     {overviewSections.length ? (

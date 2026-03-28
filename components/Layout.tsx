@@ -12,6 +12,11 @@ const AdminNavNoSSR = dynamic(
   { ssr: false, loading: () => null }
 );
 
+const DeveloperSupportWidgetNoSSR = dynamic(
+  () => import("@/components/DeveloperSupportWidget").then((m) => m.DeveloperSupportWidget),
+  { ssr: false, loading: () => null }
+);
+
 export function Layout({
   title,
   children,
@@ -46,6 +51,8 @@ export function Layout({
         {title ? <h1 className="mb-4 text-2xl font-semibold tracking-tight text-[#1f6b55]">{title}</h1> : null}
         {children}
       </main>
+
+      <DeveloperSupportWidgetNoSSR />
 
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-3 py-4 text-xs text-slate-500 sm:px-4 sm:py-5">

@@ -3,6 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 type ErrResp = { ok: false; error: string };
 
+function toPositiveInt(value: unknown, fallback: number) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<any | ErrResp>
@@ -30,41 +35,35 @@ export default async function handler(
   const obj = req.body?.object;
   const paymentId: string | undefined = obj?.id;
   if (!paymentId) {
-    // Acknowledge malformed payloads to avoid endless retries.
     return res.status(200).json({ ok: true });
   }
 
-  // Verify payment status by fetching it from YooKassa API (simple safety check).
   const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
   const checkResp = await fetch(`https://api.yookassa.ru/v3/payments/${paymentId}`, {
     method: "GET",
-    headers: {
-      authorization: `Basic ${auth}`,
-    },
+    headers: { authorization: `Basic ${auth}` },
   });
 
   const raw = await checkResp.text();
   let payment: any = null;
   try {
     payment = JSON.parse(raw);
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   if (!checkResp.ok || !payment) {
-    // Let YooKassa retry later.
     return res
       .status(500)
       .json({ ok: false, error: payment?.description || raw || "Failed to verify payment" });
   }
 
   const status: string | undefined = payment?.status;
-  const userId: string | undefined = payment?.metadata?.user_id;
+  const metadata = payment?.metadata || {};
+  const kind: string = String(metadata?.kind || "wallet_topup");
+  const userId: string | undefined = metadata?.user_id;
   const amountStr: string | undefined = payment?.amount?.value;
 
-  // Only credit on succeeded.
   if (status !== "succeeded") {
-    if (userId && amountStr) {
+    if (kind === "wallet_topup" && userId && amountStr) {
       const supabaseAdmin = createClient(url, serviceKey);
       await supabaseAdmin.from("yookassa_topups").upsert({
         payment_id: paymentId,
@@ -77,10 +76,8 @@ export default async function handler(
     return res.status(200).json({ ok: true, ignored: true, status });
   }
 
-  if (!userId || !amountStr) {
-    return res
-      .status(200)
-      .json({ ok: true, ignored: true, reason: "missing metadata.user_id or amount" });
+  if (!amountStr) {
+    return res.status(200).json({ ok: true, ignored: true, reason: "missing amount" });
   }
 
   const amountRub = Number(amountStr);
@@ -89,10 +86,57 @@ export default async function handler(
   }
 
   const amountKopeks = Math.round(amountRub * 100);
-
   const supabaseAdmin = createClient(url, serviceKey);
 
-  // Mark payment paid (for visibility)
+  if (kind === "commercial_subscription") {
+    const workspaceId = String(metadata?.workspace_id || "").trim();
+    const planKey = String(metadata?.plan_key || "").trim();
+    const planTitle = String(metadata?.plan_title || planKey || "Месячный тариф").trim();
+    const projectsLimit = toPositiveInt(metadata?.projects_limit, 0);
+    const durationDays = toPositiveInt(metadata?.duration_days, 30);
+    if (!workspaceId || !planKey || !projectsLimit) {
+      return res.status(200).json({ ok: true, ignored: true, reason: "missing subscription metadata" });
+    }
+
+    const nowIso = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+    await supabaseAdmin
+      .from("commercial_workspace_subscriptions")
+      .update({ status: "replaced", updated_at: nowIso })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active");
+
+    const { error: upsertError } = await supabaseAdmin
+      .from("commercial_workspace_subscriptions")
+      .upsert({
+        workspace_id: workspaceId,
+        created_by_user_id: userId || null,
+        payment_id: paymentId,
+        plan_key: planKey,
+        plan_title: planTitle,
+        price_kopeks: amountKopeks,
+        projects_limit: projectsLimit,
+        projects_used: 0,
+        duration_days: durationDays,
+        status: "active",
+        started_at: nowIso,
+        activated_at: nowIso,
+        expires_at: expiresAt,
+        updated_at: nowIso,
+      }, { onConflict: "payment_id" });
+
+    if (upsertError) {
+      return res.status(500).json({ ok: false, error: upsertError.message || "Failed to activate subscription" });
+    }
+
+    return res.status(200).json({ ok: true, activated: true, kind });
+  }
+
+  if (!userId) {
+    return res.status(200).json({ ok: true, ignored: true, reason: "missing metadata.user_id" });
+  }
+
   await supabaseAdmin.from("yookassa_topups").upsert({
     payment_id: paymentId,
     user_id: userId,
@@ -101,7 +145,6 @@ export default async function handler(
     paid_at: new Date().toISOString(),
   });
 
-  // Credit wallet idempotently using unique (user_id, ref) in wallet_ledger.
   const { error } = await supabaseAdmin.rpc("credit_wallet", {
     p_user_id: userId,
     p_amount_kopeks: amountKopeks,
@@ -111,11 +154,9 @@ export default async function handler(
 
   if (error) {
     const msg = error.message || "credit_wallet error";
-    // If it's a duplicate credit (replayed webhook), treat as OK.
     if (/duplicate key|unique constraint/i.test(msg)) {
       return res.status(200).json({ ok: true, already: true });
     }
-    // Let YooKassa retry.
     return res.status(500).json({ ok: false, error: msg });
   }
 

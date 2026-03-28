@@ -66,10 +66,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const chargeRub = getUpgradePriceRub(currentMode, targetMode);
     const chargeKopeks = chargeRub * 100;
     let balanceKopeks: number | null = null;
-
     const isUnlimited = isTestUnlimitedEmail(authed.user.email);
+    let billedBySubscription = false;
+    let subscriptionRemaining: number | null = null;
 
     if (chargeKopeks > 0 && !isUnlimited) {
+      const { data: existingCoverage } = await authed.supabaseAdmin
+        .from("commercial_workspace_subscription_projects")
+        .select("subscription_id")
+        .eq("project_id", projectId)
+        .maybeSingle();
+
+      if (existingCoverage?.subscription_id) {
+        billedBySubscription = true;
+      } else {
+        const { data: consumeData, error: consumeError } = await authed.supabaseAdmin.rpc("consume_commercial_workspace_subscription", {
+          p_workspace_id: workspace.workspace_id,
+          p_project_id: projectId,
+        });
+
+        if (consumeError) {
+          throw consumeError;
+        }
+
+        if ((consumeData as any)?.ok && ((consumeData as any)?.applied || (consumeData as any)?.already)) {
+          billedBySubscription = true;
+          subscriptionRemaining = Number((consumeData as any)?.remaining ?? 0);
+        }
+      }
+    }
+
+    if (chargeKopeks > 0 && !isUnlimited && !billedBySubscription) {
       const ref = `commercial-evaluation:${projectId}:${targetMode}`;
       try {
         const debitData = await chargeWallet(authed.supabaseAdmin, {
@@ -89,7 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .update({
         unlocked_package_mode: targetMode,
         unlocked_package_paid_at: new Date().toISOString(),
-        unlocked_package_price_kopeks: getEvaluationPackagePriceRub(targetMode) * 100,
+        unlocked_package_price_kopeks: billedBySubscription ? 0 : getEvaluationPackagePriceRub(targetMode) * 100,
       })
       .eq("id", projectId)
       .eq("workspace_id", workspace.workspace_id);
@@ -110,8 +137,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       ok: true,
       package_mode: targetMode,
-      charged_rub: chargeRub,
+      charged_rub: billedBySubscription ? 0 : chargeRub,
       balance_kopeks: balanceKopeks,
+      used_subscription: billedBySubscription,
+      subscription_remaining: subscriptionRemaining,
     });
   } catch (err: any) {
     return res.status(400).json({ ok: false, error: err?.message || "Не удалось открыть уровень оценки" });
