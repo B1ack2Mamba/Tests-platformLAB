@@ -4,7 +4,7 @@ import { Layout } from "@/components/Layout";
 import type { Tag } from "@/lib/testTypes";
 import { ForcedPairTestSchema, type ImportedForcedPairTest } from "@/lib/testSchema";
 import { useSession } from "@/lib/useSession";
-import { isAdminEmail, ADMIN_EMAIL } from "@/lib/admin";
+import { isAdminEmail, ADMIN_EMAILS } from "@/lib/admin";
 
 function downloadJson(filename: string, obj: unknown) {
   const blob = new Blob([JSON.stringify(obj, null, 2)], {

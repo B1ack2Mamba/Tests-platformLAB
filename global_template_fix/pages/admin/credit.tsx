@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
-import { isAdminEmail, ADMIN_EMAIL } from "@/lib/admin";
+import { isAdminEmail, ADMIN_EMAILS } from "@/lib/admin";
 
 export default function CreditPage() {
   const { user, session, loading, envOk } = useSession();
