@@ -27,13 +27,12 @@ function normalizeStringArray(value: unknown) {
   return value.map((item) => String(item || "").trim()).filter(Boolean);
 }
 
-function normalizeWeights(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {} as Record<string, number>;
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .map(([key, raw]) => [String(key), Math.max(0, Math.min(10, Number(raw) || 0))])
-      .filter(([, weight]) => Number.isFinite(weight) && weight > 0)
-  );
+function normalizeWeights(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const entries: Array<[string, number]> = Object.entries(value as Record<string, unknown>)
+    .map(([key, raw]): [string, number] => [String(key), Math.max(0, Math.min(10, Number(raw) || 0))])
+    .filter(([, weight]) => Number.isFinite(weight) && weight > 0);
+  return Object.fromEntries(entries);
 }
 
 function rowToRole(row: FitConfigRow): FitRoleProfile {
