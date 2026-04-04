@@ -960,7 +960,7 @@ function uniqueStrings(values: string[]) {
 }
 
 function sortSlugs(values: string[]) {
-  const order = new Map(DEFAULT_TEST_ORDER.map((slug, index) => [slug, index]));
+  const order = new Map<string, number>(DEFAULT_TEST_ORDER.map((slug, index) => [slug, index]));
   return [...values].sort((a, b) => {
     const delta = (order.get(a) ?? 999) - (order.get(b) ?? 999);
     if (delta !== 0) return delta;
