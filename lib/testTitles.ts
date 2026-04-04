@@ -9,6 +9,7 @@ export const TEST_TITLE_BY_SLUG: Record<string, string> = {
   "learning-typology": "Типология личности обучения",
   "motivation-cards": "Мотивационные карты",
   "situational-guidance": "Ситуативное руководство",
+  "negotiation-style": "Ваш переговорный стиль",
 };
 
 export function getTestDisplayTitle(slug: string, fallbackTitle?: string | null) {

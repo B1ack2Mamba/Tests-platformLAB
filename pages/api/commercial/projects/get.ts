@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
+import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { getTestDisplayTitle } from "@/lib/testTitles";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -48,6 +49,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (subscriptionError) throw subscriptionError;
     if (!data) return res.status(404).json({ ok: false, error: "Проект не найден" });
 
+    const parsedSummary = parseProjectSummary((data as any).summary);
+
     return res.status(200).json({
       ok: true,
       workspace,
@@ -62,7 +65,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         subscription_applied: Boolean((subscriptionCoverage as any)?.subscription_id),
         target_role: (data as any).target_role,
         status: (data as any).status,
-        summary: (data as any).summary,
+        summary: parsedSummary.text || null,
+        routing_meta: parsedSummary.meta,
         created_at: (data as any).created_at,
         invite_token: (data as any).invite_token || null,
         person: (data as any).commercial_people || null,

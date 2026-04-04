@@ -418,7 +418,7 @@ export default function ProjectDetailsPage() {
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">Статус: {formatStatus(data?.project.status)}</span>
                 {unlockedMode ? <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">Открыт уровень: {getEvaluationPackageDefinition(unlockedMode)?.shortTitle || unlockedMode}</span> : null}
               </div>
-              <div className="mt-4 text-sm leading-6 text-slate-700">{goal?.description || data?.project.summary || ""}</div>
+              <div className="mt-4 text-sm leading-6 text-slate-700">{data?.project.summary || goal?.description || ""}</div>
               {data?.project.target_role ? <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">Целевая роль: <span className="font-medium text-slate-950">{data.project.target_role}</span></div> : null}
             </div>
 

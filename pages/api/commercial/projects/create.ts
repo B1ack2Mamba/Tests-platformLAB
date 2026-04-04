@@ -1,7 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
-import { getGoalDefinition, isAssessmentGoal, isEvaluationPackage, type AssessmentGoal, type EvaluationPackage } from "@/lib/commercialGoals";
+import {
+  getGoalDefinition,
+  isAssessmentGoal,
+  isEvaluationPackage,
+  type AssessmentGoal,
+  type EvaluationPackage,
+} from "@/lib/commercialGoals";
+import {
+  getClosestGoalForCompetencies,
+  getCompetencyLongLabel,
+  getCompetencyShortLabel,
+  isRoutingMode,
+  normalizeCompetencyIds,
+  type RoutingMode,
+} from "@/lib/competencyRouter";
+import { encodeProjectSummary } from "@/lib/projectRoutingMeta";
 import { getTestDisplayTitle } from "@/lib/testTitles";
 
 function normalizeGoal(value: any): AssessmentGoal | null {
@@ -12,6 +27,10 @@ function normalizePackage(value: any): EvaluationPackage {
   return isEvaluationPackage(value) ? value : "basic";
 }
 
+function normalizeRoutingMode(value: any): RoutingMode {
+  return isRoutingMode(value) ? value : "goal";
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
 
@@ -19,8 +38,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!authed) return;
 
   const body = typeof req.body === "object" && req.body ? req.body : {};
-  const goal = normalizeGoal(body.goal);
+  const requestedGoal = normalizeGoal(body.goal);
   const packageMode = normalizePackage(body.package_mode);
+  const routingMode = normalizeRoutingMode(body.selection_mode || body.routing_mode);
+  const competencyIds = normalizeCompetencyIds(body.selected_competency_ids);
   const personName = String(body.person_name || "").trim();
   const personEmail = String(body.person_email || "").trim() || null;
   const currentPosition = String(body.current_position || "").trim() || null;
@@ -30,11 +51,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ? Array.from(new Set<string>(body.tests.map((item: any) => String(item || "").trim()).filter(Boolean)))
     : [];
 
+  let goal: AssessmentGoal | null = requestedGoal;
+  if (routingMode === "competency") {
+    if (!competencyIds.length) {
+      return res.status(400).json({ ok: false, error: "Выбери хотя бы одну компетенцию" });
+    }
+    goal = requestedGoal || getClosestGoalForCompetencies(competencyIds) || "general_assessment";
+  }
+
   if (!goal) return res.status(400).json({ ok: false, error: "Не выбрана цель оценки" });
   if (!personName) return res.status(400).json({ ok: false, error: "Укажи имя и фамилию" });
 
   const definition = getGoalDefinition(goal);
   if (!definition) return res.status(400).json({ ok: false, error: "Цель оценки не распознана" });
+
+  const selectionLabel = routingMode === "competency" ? getCompetencyShortLabel(competencyIds) : definition.shortTitle;
+  const projectTitle = routingMode === "competency"
+    ? `${selectionLabel} · ${personName}`
+    : `${definition.shortTitle} · ${personName}`;
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
@@ -42,6 +76,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!testsToUse.length) {
       return res.status(400).json({ ok: false, error: "Нужно выбрать хотя бы один тест" });
     }
+
+    const summaryText = routingMode === "competency"
+      ? [
+          "Режим проекта: оценка по компетенциям.",
+          `Выбрано: ${getCompetencyLongLabel(competencyIds)}.`,
+          `Аналитическая опора внутри системы: ${definition.shortTitle}.`,
+          targetRole ? `Целевая роль: ${targetRole}.` : null,
+          notes ? `Контекст специалиста: ${notes}` : null,
+        ].filter(Boolean).join(" ")
+      : [
+          `Цель проекта: ${definition.shortTitle}.`,
+          definition.description,
+          targetRole ? `Целевая роль: ${targetRole}.` : null,
+          notes ? `Контекст специалиста: ${notes}` : null,
+        ].filter(Boolean).join(" ");
+
+    const encodedSummary = encodeProjectSummary(summaryText, {
+      version: 1,
+      mode: routingMode,
+      goal,
+      competencyIds: routingMode === "competency" ? competencyIds : [],
+      selectionLabel,
+    });
 
     const { data: person, error: personError } = await authed.supabaseAdmin
       .from("commercial_people")
@@ -58,7 +115,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (personError) throw personError;
 
-    const projectTitle = `${definition.shortTitle} · ${personName}`;
     const { data: project, error: projectError } = await authed.supabaseAdmin
       .from("commercial_projects")
       .insert({
@@ -69,7 +125,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         package_mode: packageMode,
         title: projectTitle,
         target_role: targetRole,
-        summary: notes || definition.description,
+        summary: encodedSummary,
         status: "draft",
       })
       .select("id, invite_token")
