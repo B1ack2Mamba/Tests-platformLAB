@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
-import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
+import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
 
 type PromoCodeRow = {
   id: string;
@@ -112,7 +112,7 @@ export default function AdminPage() {
         </div>
       ) : !canUseAdmin ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Доступ запрещён. Админ: <span className="font-mono">{ADMIN_EMAIL}</span>
+          Доступ запрещён. Админы: <span className="font-mono">{ADMIN_EMAILS.join(", ")}</span>
         </div>
       ) : (
         <div className="grid gap-4">
