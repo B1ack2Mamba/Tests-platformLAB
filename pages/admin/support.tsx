@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
-import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
+import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
 import type { SupportChatMessage, SupportChatThread } from "@/lib/supportChat";
 
 type AdminThreadSummary = SupportChatThread & {
@@ -197,7 +197,7 @@ export default function AdminSupportPage() {
       ) : !user ? (
         <div className="card text-sm text-zinc-600">Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.</div>
       ) : !canUseAdmin ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Доступ запрещён. Админ: <span className="font-mono">{ADMIN_EMAIL}</span></div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Доступ запрещён. Админы: <span className="font-mono">{ADMIN_EMAILS.join(", ")}</span></div>
       ) : (
         <div className="grid gap-4">
           <section className="card">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/lib/useSession";
+import { isAdminEmail } from "@/lib/admin";
 import type { SupportChatMessage, SupportChatThread } from "@/lib/supportChat";
 
 type ChatLoadResp = {
@@ -54,7 +55,7 @@ export function DeveloperSupportWidget() {
     const fullName = ((user?.user_metadata as any)?.full_name || "").toString().trim();
     return fullName || user?.email || "Пользователь";
   }, [user?.email, user?.user_metadata]);
-  const isSupportAdmin = (user?.email || "").toLowerCase() === "storyguild9@gmail.com";
+  const isSupportAdmin = isAdminEmail(user?.email);
 
   async function loadChat(markRead = false, silent = false) {
     if (!session?.access_token) {

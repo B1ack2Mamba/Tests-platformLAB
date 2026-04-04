@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { ADMIN_EMAILS } from "@/lib/admin";
 
 function getBearerToken(req: NextApiRequest): string | null {
   const h = req.headers.authorization;
@@ -26,7 +27,6 @@ export async function assertAdmin(req: NextApiRequest, res: NextApiResponse) {
     return null;
   }
 
-  const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "storyguild9@gmail.com").toLowerCase();
   const supabase = createClient(url, publishableKey, { auth: { persistSession: false } });
   const { data, error } = await supabase.auth.getUser(token);
 
@@ -35,8 +35,8 @@ export async function assertAdmin(req: NextApiRequest, res: NextApiResponse) {
     return null;
   }
 
-  const email = (data.user.email || "").toLowerCase();
-  if (!email || email !== adminEmail) {
+  const email = (data.user.email || "").trim().toLowerCase();
+  if (!email || !ADMIN_EMAILS.includes(email)) {
     res.status(403).json({ ok: false, error: "Forbidden" });
     return null;
   }

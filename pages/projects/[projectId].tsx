@@ -17,6 +17,8 @@ import {
   type EvaluationPackage,
 } from "@/lib/commercialGoals";
 import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
+import { getFitRoleProfiles, type FitRoleProfile } from "@/lib/fitProfiles";
+import type { ProjectRoutingMeta } from "@/lib/projectRoutingMeta";
 
 type ProjectPayload = {
   ok: true;
@@ -33,6 +35,7 @@ type ProjectPayload = {
     target_role: string | null;
     status: string;
     summary: string | null;
+    routing_meta?: ProjectRoutingMeta | null;
     invite_token: string | null;
     created_at: string;
     person: {
@@ -118,6 +121,15 @@ function sectionKey(mode: string, index: number) {
   return `${mode}:${index}`;
 }
 
+function splitSectionBody(body: string) {
+  const clean = cleanSectionBody(body);
+  const [preview, ...rest] = clean.split(/\n\n+/);
+  return {
+    preview: preview || clean,
+    details: rest.join("\n\n").trim(),
+  };
+}
+
 function getPackageButtonLabel(
   target: EvaluationPackage,
   current: EvaluationPackage | null | undefined,
@@ -151,8 +163,13 @@ export default function ProjectDetailsPage() {
   const [activeEvaluationMode, setActiveEvaluationMode] = useState<EvaluationPackage | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [aiPlusRequest, setAiPlusRequest] = useState("");
+  const [fitRequested, setFitRequested] = useState(false);
+  const [fitProfileId, setFitProfileId] = useState("");
+  const [fitRequest, setFitRequest] = useState("");
   const [packageHelp, setPackageHelp] = useState<EvaluationPackage | null>(null);
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [fitProfiles, setFitProfiles] = useState<FitRoleProfile[]>(() => getFitRoleProfiles());
+
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -198,6 +215,15 @@ export default function ProjectDetailsPage() {
       if (mode === "premium_ai_plus" && opts?.customRequest?.trim()) {
         url.searchParams.set("custom_request", opts.customRequest.trim());
       }
+      if (mode === "premium_ai_plus") {
+        url.searchParams.set("fit_enabled", fitRequested ? "1" : "0");
+        if (fitRequested && fitProfileId) {
+          url.searchParams.set("fit_profile_id", fitProfileId);
+        }
+        if (fitRequested && fitRequest.trim()) {
+          url.searchParams.set("fit_request", fitRequest.trim());
+        }
+      }
       const resp = await fetch(url.toString(), {
         headers: { authorization: `Bearer ${session.access_token}` },
       });
@@ -227,6 +253,26 @@ export default function ProjectDetailsPage() {
       setError(err?.message || "Не удалось загрузить месячный тариф");
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadFitProfiles() {
+      try {
+        const resp = await fetch("/api/commercial/fit-config/options");
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok || !Array.isArray(json?.profiles)) return;
+        if (!cancelled && json.profiles.length) {
+          setFitProfiles(json.profiles);
+        }
+      } catch {
+        // fallback to embedded presets
+      }
+    }
+    loadFitProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -634,22 +680,48 @@ export default function ProjectDetailsPage() {
                 {activeEvaluationMode === "premium_ai_plus" ? (
                   <div className="mt-4 rounded-2xl border border-emerald-100 bg-white/40 p-4">
                     <div className="text-sm font-semibold text-slate-900">Дополнительный запрос к Премиум AI+</div>
-                    <div className="mt-1 text-sm text-slate-500">Добавь уточнение — оно пойдёт в DeepSeek поверх базовых промптов и поможет сделать профиль точнее.</div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                    <div className="mt-1 text-sm text-slate-500">Можно задать дополнительный акцент анализа и отдельно включить индекс соответствия только тогда, когда он реально нужен.</div>
+                    <div className="mt-3 grid gap-4">
                       <textarea
                         className="input min-h-[96px]"
                         value={aiPlusRequest}
                         onChange={(e) => setAiPlusRequest(e.target.value)}
-                        placeholder="Например: сделай акцент на управленческий потенциал и индекс соответствия роли руководителя группы."
+                        placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска."
                       />
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={!!evaluationLoading.premium_ai_plus}
-                        onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}
-                      >
-                        {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
-                      </button>
+                      <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        <input type="checkbox" className="mt-1 h-4 w-4" checked={fitRequested} onChange={(e) => setFitRequested(e.target.checked)} />
+                        <span>
+                          <span className="font-medium text-slate-900">Считать индекс соответствия</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-500">Включай только если хочешь проверить соответствие конкретной роли, должности или ожиданиям.</span>
+                        </span>
+                      </label>
+                      {fitRequested ? (
+                        <div className="grid gap-3">
+                          <select className="input" value={fitProfileId} onChange={(e) => setFitProfileId(e.target.value)}>
+                            <option value="">Автоопределение по запросу / роли</option>
+                            {fitProfiles.map((profile) => (
+                              <option key={profile.id} value={profile.id}>{profile.label}</option>
+                            ))}
+                          </select>
+                          <textarea
+                            className="input min-h-[84px]"
+                            value={fitRequest}
+                            onChange={(e) => setFitRequest(e.target.value)}
+                            placeholder="Например: соответствие должности руководителя отдела продаж или ожиданиям по самостоятельности, влиянию и стрессоустойчивости."
+                          />
+                          <div className="text-xs leading-5 text-slate-500">Можно выбрать готовую ролевую матрицу или оставить автоопределение и просто описать ожидания словами.</div>
+                        </div>
+                      ) : null}
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={!!evaluationLoading.premium_ai_plus}
+                          onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}
+                        >
+                          {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -661,10 +733,30 @@ export default function ProjectDetailsPage() {
                     {overviewSections.length ? (
                       <div className={`grid gap-3 ${overviewSections.length > 1 ? "md:grid-cols-2" : ""}`}>
                         {overviewSections.map((section, index) => (
-                          <div key={`${section.title}:${index}`} className="rounded-2xl border border-emerald-100 bg-slate-50/50 p-4">
-                            <div className="text-sm font-semibold text-slate-900">{section.title}</div>
-                            <div className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-700">{cleanSectionBody(section.body)}</div>
-                          </div>
+                          (() => {
+                            const key = sectionKey(`${activeEvaluationMode}:overview`, index);
+                            const isOpen = openSections[key] ?? false;
+                            const parts = splitSectionBody(section.body);
+                            const hasDetails = Boolean(parts.details);
+                            return (
+                              <div key={`${section.title}:${index}`} className="rounded-2xl border border-emerald-100 bg-slate-50/50 p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="text-sm font-semibold text-slate-900">{section.title}</div>
+                                  {hasDetails ? (
+                                    <button
+                                      type="button"
+                                      className="text-xs font-medium text-slate-500"
+                                      onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}
+                                    >
+                                      {isOpen ? "Скрыть детали" : "Подробнее"}
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <div className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-700">{parts.preview}</div>
+                                {hasDetails && isOpen ? <div className="mt-3 whitespace-pre-line border-t border-emerald-100 pt-3 text-sm leading-7 text-slate-700">{parts.details}</div> : null}
+                              </div>
+                            );
+                          })()
                         ))}
                       </div>
                     ) : null}

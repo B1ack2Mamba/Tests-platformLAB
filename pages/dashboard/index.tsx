@@ -627,7 +627,7 @@ export default function DashboardPage() {
   const trashHoverTimer = useRef<number | null>(null);
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [trashOpen, setTrashOpen] = useState(false);
-  const canEditScene = user?.email === "storyguild9@gmail.com" || isAdmin;
+  const canEditScene = isAdmin;
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
   const [desktopVariant, setDesktopVariant] = useState<DesktopVariant>("scheme");

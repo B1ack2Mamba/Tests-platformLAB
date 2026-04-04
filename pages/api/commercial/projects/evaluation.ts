@@ -4,6 +4,7 @@ import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { buildCommercialEvaluation } from "@/lib/commercialEvaluation";
 import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
 import { isEvaluationPackage, isPackageAccessible, type EvaluationPackage } from "@/lib/commercialGoals";
+import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -14,6 +15,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const requestedModeRaw = typeof req.query.mode === "string" ? req.query.mode : "";
   const requestedMode = isEvaluationPackage(requestedModeRaw) ? (requestedModeRaw as EvaluationPackage) : null;
   const customRequest = typeof req.query.custom_request === "string" ? req.query.custom_request.trim() : "";
+  const fitEnabled = typeof req.query.fit_enabled === "string" ? req.query.fit_enabled === "1" : false;
+  const fitRequest = typeof req.query.fit_request === "string" ? req.query.fit_request.trim() : "";
+  const fitProfileId = typeof req.query.fit_profile_id === "string" ? req.query.fit_profile_id.trim() : "";
   if (!id) return res.status(400).json({ ok: false, error: "id is required" });
 
   try {
@@ -27,7 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         package_mode,
         unlocked_package_mode,
         target_role,
-        commercial_people(full_name),
+        summary,
+        commercial_people(full_name, email, current_position, notes),
         commercial_project_tests(test_slug),
         commercial_project_attempts(test_slug, test_title, result, created_at)
       `)
@@ -37,6 +42,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (error) throw error;
     if (!data) return res.status(404).json({ ok: false, error: "Проект не найден" });
+
+    const parsedSummary = parseProjectSummary((data as any).summary);
 
     const attempts = ((data as any).commercial_project_attempts || []) as Array<any>;
     const tests = ((data as any).commercial_project_tests || []) as Array<any>;
@@ -81,12 +88,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         package_mode: modeToBuild,
         target_role: (data as any).target_role || null,
         person_name: (data as any).commercial_people?.full_name || null,
+        person_email: (data as any).commercial_people?.email || null,
+        current_position: (data as any).commercial_people?.current_position || null,
+        notes: (data as any).commercial_people?.notes || null,
+        routing_meta: parsedSummary.meta,
       },
       attempts,
       modeToBuild,
       {
         interpretationKeysBySlug: keysBySlug,
         aiPlusRequest: customRequest || null,
+        fitEnabled,
+        fitRequest: fitRequest || null,
+        fitProfileId: fitProfileId || null,
       }
     );
 

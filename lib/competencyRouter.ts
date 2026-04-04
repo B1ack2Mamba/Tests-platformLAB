@@ -1071,6 +1071,14 @@ export function getClosestGoalForCompetencies(ids: readonly string[]): Assessmen
   return ranked[0]?.[0] || null;
 }
 
+export function getAllCompetencyIds() {
+  return COMPETENCY_ROUTES.map((item) => item.id);
+}
+
+export function getCompetenciesForGoal(goal: AssessmentGoal) {
+  return COMPETENCY_ROUTES.filter((item) => item.linkedGoals.includes(goal));
+}
+
 export function getCompetencyNames(ids: readonly string[]) {
   return getCompetencyRoutes(ids).map((item) => item.name);
 }

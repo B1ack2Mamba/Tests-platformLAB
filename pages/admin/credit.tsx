@@ -67,7 +67,7 @@ export default function CreditPage() {
         </div>
       ) : !isAdminEmail(user.email) ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Доступ запрещён. Админ: <span className="font-mono">{ADMIN_EMAIL}</span>
+          Доступ запрещён. Админы: <span className="font-mono">{ADMIN_EMAILS.join(", ")}</span>
         </div>
       ) : (
       <div className="card">

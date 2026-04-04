@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
-import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
+import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
 
 type PromoCodeRow = {
   id: string;
@@ -112,7 +112,7 @@ export default function AdminPage() {
         </div>
       ) : !canUseAdmin ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Доступ запрещён. Админ: <span className="font-mono">{ADMIN_EMAIL}</span>
+          Доступ запрещён. Админы: <span className="font-mono">{ADMIN_EMAILS.join(", ")}</span>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -141,6 +141,10 @@ export default function AdminPage() {
               <Link href="/admin/support" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
                 Диалоги поддержки
                 <div className="mt-1 text-xs font-normal text-slate-500">Переписка с пользователями внутри сайта</div>
+              </Link>
+              <Link href="/admin/fit-config" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
+                Матрица соответствия
+                <div className="mt-1 text-xs font-normal text-slate-500">Роли, ожидания, веса и критичные сигналы</div>
               </Link>
             </div>
           </section>
