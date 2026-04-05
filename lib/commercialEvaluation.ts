@@ -11,8 +11,11 @@ import {
   getCompetencyRecommendedTests,
   getCompetencyRoutes,
   getCompetencyShortLabel,
+  type CompetencyRoute,
 } from "@/lib/competencyRouter";
 import { getWeightedCompetencyLabels } from "@/lib/fitProfiles";
+import { renderPromptTemplate, type CompetencyPromptRow } from "@/lib/competencyPrompts";
+import { loadCompetencyPromptMap } from "@/lib/serverCompetencyPrompts";
 import {
   getServerFitProfileById,
   resolveFitMatrixServer,
@@ -147,6 +150,76 @@ function cleanText(value: string) {
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function compactLine(value: string | null | undefined, fallback = "—") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text || fallback;
+}
+
+function buildRelevantTestResultsBlock(attempts: AttemptLike[]) {
+  if (!attempts.length) return "Нет завершённых релевантных тестов по этой компетенции.";
+  return attempts
+    .map((attempt, index) => [`${index + 1}. ${attempt.test_title || attempt.test_slug}`, formatTopRows(attempt.result)].join("\n"))
+    .join("\n\n---\n\n");
+}
+
+function buildRelevantPremiumBlock(attempts: AttemptLike[], premiumByTest: Array<{ title: string; body: string }>) {
+  const chunks = attempts
+    .map((attempt) => {
+      const title = attempt.test_title || attempt.test_slug;
+      const premium = premiumByTest.find((item) => item.title === title);
+      if (!premium?.body) return "";
+      return `${title}\n${trimText(cleanText(premium.body), 700)}`;
+    })
+    .filter(Boolean);
+  return chunks.length ? chunks.join("\n\n---\n\n") : "Дополнительных интерпретаций по релевантным тестам пока нет.";
+}
+
+async function buildCompetencyAiDetail(args: {
+  project: ProjectLike;
+  route: CompetencyRoute;
+  signal: CompetencySignal;
+  relevantAttempts: AttemptLike[];
+  premiumByTest: Array<{ title: string; body: string }>;
+  profileContext: string;
+  customRequest?: string | null;
+  fitRequest?: string | null;
+  promptConfig?: CompetencyPromptRow | null;
+}) {
+  const { project, route, signal, relevantAttempts, premiumByTest, profileContext, customRequest, fitRequest, promptConfig } = args;
+  const template = String(promptConfig?.prompt_template || "").trim();
+  if (!template) return null;
+
+  const systemPrompt = compactLine(
+    promptConfig?.system_prompt,
+    "Ты помогаешь специалисту по оценке персонала интерпретировать одну компетенцию по данным нескольких тестов."
+  );
+
+  const prompt = renderPromptTemplate(template, {
+    competency_id: route.id,
+    competency_name: route.name,
+    competency_cluster: route.cluster,
+    competency_definition: route.definition,
+    competency_fit_gate: route.fitGate,
+    competency_score: String(signal.score),
+    competency_status: signal.status,
+    competency_short: signal.short,
+    project_goal_label: goalLabel(project.goal),
+    project_title: compactLine(project.title),
+    person_name: compactLine(project.person_name),
+    current_position: compactLine(project.current_position),
+    target_role: compactLine(project.target_role),
+    notes: compactLine(project.notes),
+    custom_request: compactLine(customRequest),
+    fit_request: compactLine(fitRequest),
+    profile_context: profileContext,
+    test_results_block: buildRelevantTestResultsBlock(relevantAttempts),
+    premium_interpretations_block: buildRelevantPremiumBlock(relevantAttempts, premiumByTest),
+  });
+
+  const text = await callDeepseek(systemPrompt, prompt, 900).catch(() => null);
+  return text ? cleanText(text) : null;
 }
 
 function goalLabel(goal: string) {
@@ -545,11 +618,43 @@ export async function buildCommercialEvaluation(
       body: buildCompactIndicatorText(competencySignals),
     });
 
-    for (const item of [...competencySignals].reverse()) {
+    const promptMap = await loadCompetencyPromptMap(competencySignals.map((item) => item.id));
+    const routeMap = new Map(getCompetencyRoutes(competencySignals.map((item) => item.id)).map((route) => [route.id, route] as const));
+    const competencyBodies = await Promise.all(
+      competencySignals.map(async (item) => {
+        const route = routeMap.get(item.id);
+        if (!route) return { item, body: `${item.status} — ${item.score}/100. ${item.short}
+
+${item.details}` };
+        const relevantSlugs = getCompetencyRecommendedTests([item.id], attempts.map((attempt) => attempt.test_slug), "standard");
+        const relevantAttempts = attempts.filter((attempt) => relevantSlugs.includes(attempt.test_slug));
+        const aiBody = await buildCompetencyAiDetail({
+          project,
+          route,
+          signal: item,
+          relevantAttempts,
+          premiumByTest,
+          profileContext,
+          customRequest: options?.aiPlusRequest || null,
+          fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
+          promptConfig: promptMap[item.id]?.is_active === false ? null : (promptMap[item.id] || null),
+        });
+        return {
+          item,
+          body: aiBody ? `${item.status} — ${item.score}/100. ${item.short}
+
+${aiBody}` : `${item.status} — ${item.score}/100. ${item.short}
+
+${item.details}`,
+        };
+      })
+    );
+
+    for (const entry of [...competencyBodies].reverse()) {
       sections.unshift({
         kind: "development",
-        title: item.title,
-        body: `${item.status} — ${item.score}/100. ${item.short}\n\n${item.details}`,
+        title: entry.item.title,
+        body: entry.body,
       });
     }
 

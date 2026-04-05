@@ -146,6 +146,10 @@ export default function AdminPage() {
                 Матрица соответствия
                 <div className="mt-1 text-xs font-normal text-slate-500">Роли, ожидания, веса и критичные сигналы</div>
               </Link>
+              <Link href="/admin/competency-prompts" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
+                AI-шаблоны компетенций
+                <div className="mt-1 text-xs font-normal text-slate-500">Практические промпты по каждой компетенции</div>
+              </Link>
             </div>
           </section>
 
