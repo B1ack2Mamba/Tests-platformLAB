@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Layout from "@/components/Layout";
+import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
 import {
