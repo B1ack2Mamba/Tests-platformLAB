@@ -177,56 +177,64 @@ export default function CompetencyPromptsAdminPage() {
               {!activeRow ? (
                 <div className="text-sm text-slate-500">Выбери компетенцию слева.</div>
               ) : (
-                <div className="grid gap-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">{activeRow.competency_id} · {activeRow.competency_name}</div>
-                      <div className="mt-1 text-sm text-slate-500">{activeRow.competency_cluster}</div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={resetActiveToDefault}>Вернуть базовый шаблон</button>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={saveActive} disabled={busy}>Сохранить</button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                      <input type="checkbox" checked={activeRow.is_active} onChange={(e) => patchActive({ is_active: e.target.checked })} />
-                      Использовать этот шаблон в AI+ анализе
-                    </label>
-                  </div>
-
-                  <label className="grid gap-1">
-                    <span className="text-xs text-slate-600">Системный prompt</span>
-                    <textarea className="input min-h-[120px]" value={activeRow.system_prompt} onChange={(e) => patchActive({ system_prompt: e.target.value })} />
-                  </label>
-
-                  <label className="grid gap-1">
-                    <span className="text-xs text-slate-600">Шаблон user-prompt</span>
-                    <textarea className="input min-h-[360px] font-mono text-xs leading-6" value={activeRow.prompt_template} onChange={(e) => patchActive({ prompt_template: e.target.value })} />
-                  </label>
-
-                  <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-                    <label className="grid gap-1">
-                      <span className="text-xs text-slate-600">Заметка для себя</span>
-                      <textarea className="input min-h-[120px]" value={activeRow.notes || ""} onChange={(e) => patchActive({ notes: e.target.value })} />
-                    </label>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Подстановки</div>
-                      <div className="mt-3 grid gap-2 text-xs text-slate-600">
-                        {COMPETENCY_PROMPT_PLACEHOLDERS.map((item) => (
-                          <div key={item.key} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="font-mono text-[11px] text-slate-900">{`{{${item.key}}}`}</div>
-                            <div className="mt-1 text-[11px] text-slate-500">{item.label}</div>
-                          </div>
-                        ))}
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
+                  <div className="grid gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{activeRow.competency_id} · {activeRow.competency_name}</div>
+                        <div className="mt-1 text-sm text-slate-500">{activeRow.competency_cluster}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={resetActiveToDefault}>Вернуть базовый шаблон</button>
+                        <button type="button" className="btn btn-primary btn-sm" onClick={saveActive} disabled={busy}>Сохранить</button>
                       </div>
                     </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" checked={activeRow.is_active} onChange={(e) => patchActive({ is_active: e.target.checked })} />
+                        Использовать этот шаблон в AI+ анализе
+                      </label>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <label className="grid gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Системный prompt</span>
+                        <textarea className="input min-h-[120px] resize-y" value={activeRow.system_prompt} onChange={(e) => patchActive({ system_prompt: e.target.value })} />
+                      </label>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Главный prompt по компетенции</span>
+                        <span className="text-[11px] text-slate-400">Практический шаблон для AI</span>
+                      </div>
+                      <textarea className="input min-h-[420px] resize-y font-mono text-xs leading-6" value={activeRow.prompt_template} onChange={(e) => patchActive({ prompt_template: e.target.value })} />
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <label className="grid gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Заметка для себя</span>
+                        <textarea className="input min-h-[140px] resize-y" value={activeRow.notes || ""} onChange={(e) => patchActive({ notes: e.target.value })} />
+                      </label>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                      AI берёт твой шаблон, подставляет туда реальные результаты релевантных тестов по этой компетенции, короткие интерпретации, профиль человека и текущий запрос проекта. Так ты сможешь постепенно встраивать свой практический опыт прямо в систему, а не надеяться на один общий промпт на весь проект.
+                    </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                    AI берёт твой шаблон, подставляет туда реальные результаты релевантных тестов по этой компетенции, короткие интерпретации, профиль человека и текущий запрос проекта. Так ты сможешь постепенно встраивать свой практический опыт прямо в систему, а не надеяться на один общий промпт на весь проект.
-                  </div>
+                  <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:sticky xl:top-4 self-start">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Подстановки</div>
+                    <div className="mt-3 grid gap-2 text-xs text-slate-600 max-h-[70vh] overflow-auto pr-1">
+                      {COMPETENCY_PROMPT_PLACEHOLDERS.map((item) => (
+                        <div key={item.key} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                          <div className="font-mono text-[11px] text-slate-900">{`{{${item.key}}}`}</div>
+                          <div className="mt-1 text-[11px] text-slate-500">{item.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
                 </div>
               )}
             </div>
