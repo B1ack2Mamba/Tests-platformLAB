@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
+import { getCompetencyRoute, getCompetencyRecommendedTests } from "@/lib/competencyRouter";
+import { getTestDisplayTitle } from "@/lib/testTitles";
 import {
   buildDefaultCompetencyPromptRows,
   COMPETENCY_PROMPT_PLACEHOLDERS,
@@ -21,6 +23,15 @@ export default function CompetencyPromptsAdminPage() {
   const [tableReady, setTableReady] = useState(false);
 
   const activeRow = rows.find((row) => row.competency_id === activeId) || rows[0] || null;
+  const activeRoute = activeRow ? getCompetencyRoute(activeRow.competency_id) : null;
+  const routeTests = useMemo(() => {
+    if (!activeRow) return { quick: [] as string[], standard: [] as string[], full: [] as string[] };
+    return {
+      quick: getCompetencyRecommendedTests([activeRow.competency_id], undefined, "quick"),
+      standard: getCompetencyRecommendedTests([activeRow.competency_id], undefined, "standard"),
+      full: getCompetencyRecommendedTests([activeRow.competency_id], undefined, "full"),
+    };
+  }, [activeRow]);
   const groupedRows = useMemo(() => {
     const groups = new Map<string, CompetencyPromptRow[]>();
     for (const row of rows) {
@@ -195,6 +206,49 @@ export default function CompetencyPromptsAdminPage() {
                         <input type="checkbox" checked={activeRow.is_active} onChange={(e) => patchActive({ is_active: e.target.checked })} />
                         Использовать этот шаблон в AI+ анализе
                       </label>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">Тесты для определения компетенции</div>
+                      <div className="mt-3 grid gap-3">
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Стандартный маршрут</div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {routeTests.standard.map((slug) => (
+                              <span key={`standard-${slug}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-800">
+                                {getTestDisplayTitle(slug)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        {activeRoute ? (
+                          <>
+                            <div>
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Семейства сигналов</div>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {activeRoute.standardFamilies.map((family) => (
+                                  <span key={family} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">
+                                    {family}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Быстрый маршрут</div>
+                                <div className="mt-2 text-xs text-slate-700">{routeTests.quick.map((slug) => getTestDisplayTitle(slug)).join(" · ") || "—"}</div>
+                              </div>
+                              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Расширенный маршрут</div>
+                                <div className="mt-2 text-xs text-slate-700">{routeTests.full.map((slug) => getTestDisplayTitle(slug)).join(" · ") || "—"}</div>
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                              <span className="font-semibold text-slate-700">Правило чтения:</span> {activeRoute.fitGate}
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
