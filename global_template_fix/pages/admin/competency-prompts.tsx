@@ -41,11 +41,13 @@ export default function CompetencyPromptsAdminPage() {
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить AI-шаблоны");
-      const nextRows = Array.isArray(json.rows) && json.rows.length ? json.rows : buildDefaultCompetencyPromptRows();
+      const nextRows: CompetencyPromptRow[] = Array.isArray(json.rows) && json.rows.length
+        ? (json.rows as CompetencyPromptRow[])
+        : buildDefaultCompetencyPromptRows();
       setRows(nextRows);
       setSource(json.source || "fallback");
       setTableReady(Boolean(json.tableReady));
-      if (!nextRows.find((item) => item.competency_id === activeId)) setActiveId(nextRows[0]?.competency_id || "");
+      if (!nextRows.find((item: CompetencyPromptRow) => item.competency_id === activeId)) setActiveId(nextRows[0]?.competency_id || "");
     } catch (error: any) {
       setMessage(error?.message || "Не удалось загрузить AI-шаблоны");
     } finally {
