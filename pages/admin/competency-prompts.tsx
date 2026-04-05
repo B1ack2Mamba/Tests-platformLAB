@@ -9,28 +9,71 @@ import {
   buildDefaultCompetencyPromptRows,
   COMPETENCY_PROMPT_PLACEHOLDERS,
   getDefaultCompetencyPromptRowById,
+  normalizePracticalExperience,
   type CompetencyPromptRow,
 } from "@/lib/competencyPrompts";
+
+const PRACTICAL_EXPERIENCE_DRAFT_PREFIX = "competency_prompt_practical_draft:";
+
+function getPracticalDraftKey(competencyId: string) {
+  return `${PRACTICAL_EXPERIENCE_DRAFT_PREFIX}${competencyId}`;
+}
+
+function readPracticalDraft(competencyId: string) {
+  if (typeof window === "undefined" || !competencyId) return "";
+  try {
+    return normalizePracticalExperience(window.localStorage.getItem(getPracticalDraftKey(competencyId)) || "");
+  } catch {
+    return "";
+  }
+}
+
+function writePracticalDraft(competencyId: string, value: string) {
+  if (typeof window === "undefined" || !competencyId) return;
+  try {
+    const normalized = normalizePracticalExperience(value);
+    if (normalized) {
+      window.localStorage.setItem(getPracticalDraftKey(competencyId), normalized);
+    } else {
+      window.localStorage.removeItem(getPracticalDraftKey(competencyId));
+    }
+  } catch {}
+}
+
+function clearPracticalDraft(competencyId: string) {
+  if (typeof window === "undefined" || !competencyId) return;
+  try {
+    window.localStorage.removeItem(getPracticalDraftKey(competencyId));
+  } catch {}
+}
+
+function mergeRowsWithDrafts(rows: CompetencyPromptRow[]) {
+  return rows.map((row) => {
+    const draft = readPracticalDraft(row.competency_id);
+    return draft ? { ...row, notes: draft } : row;
+  });
+}
 
 export default function CompetencyPromptsAdminPage() {
   const { user, session, loading, envOk } = useSession();
   const canUseAdmin = isAdminEmail(user?.email);
-  const [rows, setRows] = useState<CompetencyPromptRow[]>(() => buildDefaultCompetencyPromptRows());
+  const [rows, setRows] = useState<CompetencyPromptRow[]>(() => mergeRowsWithDrafts(buildDefaultCompetencyPromptRows()));
   const [activeId, setActiveId] = useState<string>(() => buildDefaultCompetencyPromptRows()[0]?.competency_id || "");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<"db" | "fallback" | "error">("fallback");
   const [tableReady, setTableReady] = useState(false);
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
+  const [showMainPrompt, setShowMainPrompt] = useState(false);
 
   const activeRow = rows.find((row) => row.competency_id === activeId) || rows[0] || null;
   const activeRoute = activeRow ? getCompetencyRoute(activeRow.competency_id) : null;
-  const routeTests = useMemo(() => {
-    if (!activeRow) return { quick: [] as string[], standard: [] as string[], full: [] as string[] };
-    return {
-      quick: getCompetencyRecommendedTests([activeRow.competency_id], undefined, "quick"),
-      standard: getCompetencyRecommendedTests([activeRow.competency_id], undefined, "standard"),
-      full: getCompetencyRecommendedTests([activeRow.competency_id], undefined, "full"),
-    };
+  const allRouteTests = useMemo(() => {
+    if (!activeRow) return [] as string[];
+    const full = getCompetencyRecommendedTests([activeRow.competency_id], undefined, "full");
+    const standard = getCompetencyRecommendedTests([activeRow.competency_id], undefined, "standard");
+    const quick = getCompetencyRecommendedTests([activeRow.competency_id], undefined, "quick");
+    return Array.from(new Set([...full, ...standard, ...quick]));
   }, [activeRow]);
   const groupedRows = useMemo(() => {
     const groups = new Map<string, CompetencyPromptRow[]>();
@@ -53,8 +96,8 @@ export default function CompetencyPromptsAdminPage() {
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить AI-шаблоны");
       const nextRows: CompetencyPromptRow[] = Array.isArray(json.rows) && json.rows.length
-        ? (json.rows as CompetencyPromptRow[])
-        : buildDefaultCompetencyPromptRows();
+        ? mergeRowsWithDrafts(json.rows as CompetencyPromptRow[])
+        : mergeRowsWithDrafts(buildDefaultCompetencyPromptRows());
       setRows(nextRows);
       setSource(json.source || "fallback");
       setTableReady(Boolean(json.tableReady));
@@ -71,9 +114,25 @@ export default function CompetencyPromptsAdminPage() {
     loadRows();
   }, [session?.access_token, canUseAdmin]);
 
+  useEffect(() => {
+    if (!activeRow) return;
+    const draft = readPracticalDraft(activeRow.competency_id);
+    if (draft && draft !== normalizePracticalExperience(activeRow.notes)) {
+      setRows((current) => current.map((row) => row.competency_id === activeRow.competency_id ? { ...row, notes: draft } : row));
+    }
+  }, [activeId]);
+
   function patchActive(patch: Partial<CompetencyPromptRow>) {
     if (!activeRow) return;
     setRows((current) => current.map((row) => row.competency_id === activeRow.competency_id ? { ...row, ...patch } : row));
+  }
+
+  function patchPracticalExperience(value: string) {
+    if (!activeRow) return;
+    const normalized = value.replace(/\r/g, "");
+    writePracticalDraft(activeRow.competency_id, normalized);
+    patchActive({ notes: normalized });
+    setMessage("Черновик практического опыта сохранён локально. Нажми «Сохранить в систему», чтобы он учитывался в AI-анализе.");
   }
 
   async function saveActive() {
@@ -81,17 +140,19 @@ export default function CompetencyPromptsAdminPage() {
     setBusy(true);
     setMessage("");
     try {
+      const payload = { ...activeRow, notes: normalizePracticalExperience(activeRow.notes) || null };
       const resp = await fetch("/api/admin/competency-prompts", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ action: "save", item: activeRow }),
+        body: JSON.stringify({ action: "save", item: payload }),
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить AI-шаблон");
-      setMessage(`Сохранено: ${activeRow.competency_name}`);
+      clearPracticalDraft(activeRow.competency_id);
+      setMessage(`Сохранено: ${activeRow.competency_name}. Практический опыт будет учитываться в генерации ответа.`);
       await loadRows();
     } catch (error: any) {
       setMessage(error?.message || "Не удалось сохранить AI-шаблон");
@@ -128,8 +189,9 @@ export default function CompetencyPromptsAdminPage() {
     if (!activeRow) return;
     const fallback = getDefaultCompetencyPromptRowById(activeRow.competency_id);
     if (!fallback) return;
-    setRows((current) => current.map((row) => row.competency_id === activeRow.competency_id ? fallback : row));
-    setMessage(`Шаблон «${activeRow.competency_name}» сброшен к базовой версии. Нажми «Сохранить», чтобы записать в систему.`);
+    clearPracticalDraft(activeRow.competency_id);
+    setRows((current) => current.map((row) => row.competency_id === activeRow.competency_id ? { ...fallback, notes: null } : row));
+    setMessage(`Шаблон «${activeRow.competency_name}» сброшен к базовой версии. Нажми «Сохранить в систему», чтобы записать изменения.`);
   }
 
   return (
@@ -150,7 +212,7 @@ export default function CompetencyPromptsAdminPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-slate-900">AI-шаблоны по компетенциям</div>
-                <div className="mt-1 text-sm text-slate-500">Здесь ты можешь под каждую компетенцию вписать свой рабочий промпт для AI. В шаблон автоматически подставятся результаты релевантных тестов, профиль человека и контекст проекта.</div>
+                <div className="mt-1 text-sm text-slate-500">Системный prompt и основной шаблон спрятаны, чтобы не мешать. Основное рабочее поле — практический опыт специалиста. Его черновик хранится локально, а после нажатия «Сохранить в систему» начинает учитываться в AI-анализе по компетенции.</div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link href="/admin" className="btn btn-secondary btn-sm">Назад в админку</Link>
@@ -197,7 +259,6 @@ export default function CompetencyPromptsAdminPage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button type="button" className="btn btn-secondary btn-sm" onClick={resetActiveToDefault}>Вернуть базовый шаблон</button>
-                        <button type="button" className="btn btn-primary btn-sm" onClick={saveActive} disabled={busy}>Сохранить</button>
                       </div>
                     </div>
 
@@ -210,71 +271,62 @@ export default function CompetencyPromptsAdminPage() {
 
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">Тесты для определения компетенции</div>
-                      <div className="mt-3 grid gap-3">
-                        <div>
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Стандартный маршрут</div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {routeTests.standard.map((slug) => (
-                              <span key={`standard-${slug}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-800">
-                                {getTestDisplayTitle(slug)}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        {activeRoute ? (
-                          <>
-                            <div>
-                              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Семейства сигналов</div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {activeRoute.standardFamilies.map((family) => (
-                                  <span key={family} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">
-                                    {family}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="grid gap-2 md:grid-cols-2">
-                              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Быстрый маршрут</div>
-                                <div className="mt-2 text-xs text-slate-700">{routeTests.quick.map((slug) => getTestDisplayTitle(slug)).join(" · ") || "—"}</div>
-                              </div>
-                              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Расширенный маршрут</div>
-                                <div className="mt-2 text-xs text-slate-700">{routeTests.full.map((slug) => getTestDisplayTitle(slug)).join(" · ") || "—"}</div>
-                              </div>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                              <span className="font-semibold text-slate-700">Правило чтения:</span> {activeRoute.fitGate}
-                            </div>
-                          </>
-                        ) : null}
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        {allRouteTests.length ? allRouteTests.map((slug) => getTestDisplayTitle(slug)).join(" · ") : "Тесты пока не определены."}
                       </div>
+                      {activeRoute ? (
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                          <span className="font-semibold text-slate-700">Правило чтения:</span> {activeRoute.fitGate}
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                      <label className="grid gap-2">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Системный prompt</span>
-                        <textarea className="input min-h-[120px] resize-y" value={activeRow.system_prompt} onChange={(e) => patchActive({ system_prompt: e.target.value })} />
-                      </label>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">Системный prompt</div>
+                          <div className="mt-1 text-xs text-slate-500">Скрыт по умолчанию. Нужен только для тонкой настройки логики.</div>
+                        </div>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowSystemPrompt((value) => !value)}>
+                          {showSystemPrompt ? "Скрыть" : "Редактировать"}
+                        </button>
+                      </div>
+                      {showSystemPrompt ? (
+                        <label className="mt-3 grid gap-2">
+                          <textarea className="input min-h-[120px] resize-y" value={activeRow.system_prompt} onChange={(e) => patchActive({ system_prompt: e.target.value })} />
+                        </label>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">Главный prompt по компетенции</div>
+                          <div className="mt-1 text-xs text-slate-500">Уже заполнен. Обычно здесь ничего не меняют без необходимости.</div>
+                        </div>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowMainPrompt((value) => !value)}>
+                          {showMainPrompt ? "Скрыть" : "Редактировать"}
+                        </button>
+                      </div>
+                      {showMainPrompt ? (
+                        <textarea className="input mt-3 min-h-[300px] resize-y font-mono text-xs leading-6" value={activeRow.prompt_template} onChange={(e) => patchActive({ prompt_template: e.target.value })} />
+                      ) : null}
                     </div>
 
                     <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Главный prompt по компетенции</span>
-                        <span className="text-[11px] text-slate-400">Практический шаблон для AI</span>
-                      </div>
-                      <textarea className="input min-h-[420px] resize-y font-mono text-xs leading-6" value={activeRow.prompt_template} onChange={(e) => patchActive({ prompt_template: e.target.value })} />
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-700">Практический опыт специалиста</div>
+                      <div className="mt-1 text-sm text-slate-500">Сюда вбивай свои правила чтения, совокупности результатов, пороги, конкретные цифры и исключения. Черновик не пропадёт при случайном обновлении страницы.</div>
+                      <textarea
+                        className="input mt-3 min-h-[360px] resize-y text-sm leading-6"
+                        value={activeRow.notes || ""}
+                        onChange={(e) => patchPracticalExperience(e.target.value)}
+                        placeholder="Например: если по 16PF доминантность высокая, а ЭМИН по управлению эмоциями низкий, не считать управленческую зрелость устойчивой. Или: если Belbin + переговорный стиль + УСК дают согласованный сигнал, усиливать вывод по компетенции."
+                      />
                     </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                      <label className="grid gap-2">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Заметка для себя</span>
-                        <textarea className="input min-h-[140px] resize-y" value={activeRow.notes || ""} onChange={(e) => patchActive({ notes: e.target.value })} />
-                      </label>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                      AI берёт твой шаблон, подставляет туда реальные результаты релевантных тестов по этой компетенции, короткие интерпретации, профиль человека и текущий запрос проекта. Так ты сможешь постепенно встраивать свой практический опыт прямо в систему, а не надеяться на один общий промпт на весь проект.
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-sm text-slate-600">После сохранения этот текст будет учитываться при генерации ответа по компетенции.</div>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={saveActive} disabled={busy}>Сохранить в систему</button>
                     </div>
                   </div>
 

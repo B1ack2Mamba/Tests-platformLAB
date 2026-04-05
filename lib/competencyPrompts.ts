@@ -26,6 +26,7 @@ export const COMPETENCY_PROMPT_PLACEHOLDERS = [
   { key: "current_position", label: "Текущая позиция" },
   { key: "target_role", label: "Целевая роль" },
   { key: "notes", label: "Заметки специалиста" },
+  { key: "practical_experience", label: "Практические правила и опыт специалиста" },
   { key: "custom_request", label: "Дополнительный запрос специалиста" },
   { key: "fit_request", label: "Запрос на индекс соответствия" },
   { key: "profile_context", label: "Готовый профильный контекст" },
@@ -82,10 +83,19 @@ export function buildDefaultCompetencyPromptRows(): CompetencyPromptRow[] {
     competency_cluster: route.cluster,
     system_prompt: DEFAULT_COMPETENCY_SYSTEM_PROMPT,
     prompt_template: getDefaultCompetencyPromptTemplate(route),
-    notes: `Базовый AI-шаблон для компетенции «${route.name}». Можно заменить на практический промпт специалиста.`,
+    notes: null,
     sort_order: index + 1,
     is_active: true,
   }));
+}
+
+
+const LEGACY_DEFAULT_NOTE_RE = /^Базовый AI-шаблон для компетенции/u;
+
+export function normalizePracticalExperience(value: unknown) {
+  const text = normalizePromptText(value);
+  if (!text) return "";
+  return LEGACY_DEFAULT_NOTE_RE.test(text) ? "" : text;
 }
 
 export function getDefaultCompetencyPromptRowById(id: string | null | undefined): CompetencyPromptRow | null {

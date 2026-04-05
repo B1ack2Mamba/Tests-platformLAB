@@ -213,12 +213,21 @@ async function buildCompetencyAiDetail(args: {
     notes: compactLine(project.notes),
     custom_request: compactLine(customRequest),
     fit_request: compactLine(fitRequest),
+    practical_experience: compactLine(promptConfig?.notes),
     profile_context: profileContext,
     test_results_block: buildRelevantTestResultsBlock(relevantAttempts),
     premium_interpretations_block: buildRelevantPremiumBlock(relevantAttempts, premiumByTest),
   });
 
-  const text = await callDeepseek(systemPrompt, prompt, 900).catch(() => null);
+  const finalPrompt = [
+    prompt,
+    promptConfig?.notes?.trim()
+      ? `Практические правила и накопленный опыт специалиста по этой компетенции:
+${promptConfig.notes.trim()}`
+      : "",
+  ].filter(Boolean).join("\n\n");
+
+  const text = await callDeepseek(systemPrompt, finalPrompt, 900).catch(() => null);
   return text ? cleanText(text) : null;
 }
 

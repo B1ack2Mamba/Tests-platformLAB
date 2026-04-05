@@ -3,6 +3,7 @@ import {
   buildDefaultCompetencyPromptRows,
   getCompetencyRouteOrNull,
   normalizePromptText,
+  normalizePracticalExperience,
   type CompetencyPromptRow,
 } from "@/lib/competencyPrompts";
 
@@ -22,7 +23,7 @@ function normalizeRow(input: Partial<CompetencyPromptRow> & { competency_id: str
     competency_cluster: normalizePromptText(input.competency_cluster) || route?.cluster || fallback?.competency_cluster || "Компетенции",
     system_prompt: normalizePromptText(input.system_prompt) || fallback?.system_prompt || "",
     prompt_template: normalizePromptText(input.prompt_template) || fallback?.prompt_template || "",
-    notes: normalizePromptText(input.notes) || fallback?.notes || null,
+    notes: normalizePracticalExperience(input.notes) || fallback?.notes || null,
     sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : fallback?.sort_order || 999,
     is_active: input.is_active !== false,
   };
