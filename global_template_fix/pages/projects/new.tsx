@@ -459,12 +459,13 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   useEffect(() => {
     if (!builderGesture) return;
+    const gesture = builderGesture;
 
     function onMove(event: PointerEvent) {
-      if (builderGesture.mode === "move") {
-        const nextX = builderGesture.startX + (event.clientX - builderGesture.startClientX);
-        const nextY = builderGesture.startY + (event.clientY - builderGesture.startClientY);
-        if (builderGesture.target === "tablet") {
+      if (gesture.mode === "move") {
+        const nextX = gesture.startX + (event.clientX - gesture.startClientX);
+        const nextY = gesture.startY + (event.clientY - gesture.startClientY);
+        if (gesture.target === "tablet") {
           setPageBuilder((prev) => ({ ...prev, tabletX: Math.round(nextX), tabletY: Math.round(nextY) }));
         } else {
           setPageBuilder((prev) => ({ ...prev, pageX: Math.round(nextX), pageY: Math.round(nextY) }));
@@ -472,12 +473,12 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
         return;
       }
 
-      const delta = (event.clientX - builderGesture.startClientX + event.clientY - builderGesture.startClientY) / 420;
-      const nextScale = builderGesture.target === "tablet"
-        ? clamp(builderGesture.startScale + delta, 0.7, 1.45)
-        : clamp(builderGesture.startScale + delta, 0.72, 1.35);
+      const delta = (event.clientX - gesture.startClientX + event.clientY - gesture.startClientY) / 420;
+      const nextScale = gesture.target === "tablet"
+        ? clamp(gesture.startScale + delta, 0.7, 1.45)
+        : clamp(gesture.startScale + delta, 0.72, 1.35);
 
-      if (builderGesture.target === "tablet") {
+      if (gesture.target === "tablet") {
         setPageBuilder((prev) => ({ ...prev, tabletScale: Number(nextScale.toFixed(3)) }));
       } else {
         setPageBuilder((prev) => ({ ...prev, pageScale: Number(nextScale.toFixed(3)) }));
