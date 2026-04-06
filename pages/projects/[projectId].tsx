@@ -150,7 +150,7 @@ function getPackageButtonLabel(
 const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v1";
 
-type DetailsTemplateTarget = "strip" | "main" | "profile" | "qr" | "tests";
+type DetailsTemplateTarget = "strip" | "main" | "profile" | "qr" | "tests" | "status";
 
 type DetailsTemplateState = {
   builderOpen: boolean;
@@ -169,25 +169,31 @@ type DetailsTemplateState = {
   testsX: number;
   testsY: number;
   testsScale: number;
+  statusX: number;
+  statusY: number;
+  statusScale: number;
 };
 
 const DEFAULT_DETAILS_TEMPLATE_STATE: DetailsTemplateState = {
   builderOpen: false,
-  stripX: 188,
+  stripX: 184,
   stripY: 0,
   stripScale: 1,
-  mainX: 0,
-  mainY: 88,
-  mainScale: 1,
-  profileX: 865,
-  profileY: 92,
-  profileScale: 0.92,
-  qrX: 888,
-  qrY: 674,
-  qrScale: 0.94,
-  testsX: 8,
-  testsY: 1228,
-  testsScale: 0.95,
+  mainX: 8,
+  mainY: 92,
+  mainScale: 0.686,
+  profileX: 855,
+  profileY: 120,
+  profileScale: 0.39,
+  qrX: 880,
+  qrY: 360,
+  qrScale: 0.385,
+  testsX: 24,
+  testsY: 1018,
+  testsScale: 1.0,
+  statusX: 995,
+  statusY: 1098,
+  statusScale: 0.32,
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -455,6 +461,9 @@ export default function ProjectDetailsPage() {
           testsX: detailsTemplate.testsX,
           testsY: detailsTemplate.testsY,
           testsScale: detailsTemplate.testsScale,
+          statusX: detailsTemplate.statusX,
+          statusY: detailsTemplate.statusY,
+          statusScale: detailsTemplate.statusScale,
         },
       };
       const resp = await fetch("/api/commercial/project-details-template", {
@@ -497,9 +506,10 @@ export default function ProjectDetailsPage() {
   const detailsCanvasHeight = Math.max(
     1700,
     detailsTemplate.mainY + 1050 * detailsTemplate.mainScale + 80,
-    detailsTemplate.profileY + 552 * detailsTemplate.profileScale + 80,
-    detailsTemplate.qrY + 630 * detailsTemplate.qrScale + 80,
-    detailsTemplate.testsY + 500 * detailsTemplate.testsScale + 80
+    detailsTemplate.profileY + 217 * detailsTemplate.profileScale + 80,
+    detailsTemplate.qrY + 532 * detailsTemplate.qrScale + 80,
+    detailsTemplate.testsY + 400 * detailsTemplate.testsScale + 80,
+    detailsTemplate.statusY + 200 * detailsTemplate.statusScale + 80
   );
 
   function renderTemplateHandles(target: DetailsTemplateTarget, label: string) {
@@ -683,14 +693,14 @@ export default function ProjectDetailsPage() {
             </div>
           </div>
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 625, height: 1050, transform: `translate(${detailsTemplate.mainX}px, ${detailsTemplate.mainY}px) scale(${detailsTemplate.mainScale})` }}>
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 760, height: 1066, transform: `translate(${detailsTemplate.mainX}px, ${detailsTemplate.mainY}px) scale(${detailsTemplate.mainScale})` }}>
             <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-main-template.png')" }}>
               {renderTemplateHandles("main", "лист")}
-              <div className="absolute inset-x-[36px] top-[40px] text-[#7d6548]">
+              <div className="absolute inset-x-[52px] top-[64px] text-[#7d6548]">
                 <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Проект #{data?.project.id ? data.project.id.slice(0, 5) : "—"}</div>
                 <div className="mt-2 text-sm text-[#958066]">{data?.workspace.name || "Рабочее пространство"} / {data?.project.created_at ? new Date(data.project.created_at).toLocaleDateString("ru-RU") : "—"}</div>
                 <div className="mt-5 text-sm font-semibold uppercase tracking-[0.22em] text-[#7d6548]">Проект оценки</div>
-                <h1 className="mt-2 max-w-[440px] text-[2.1rem] font-semibold leading-[1.04] text-[#2f5031]">{data?.project.title || "—"}</h1>
+                <h1 className="mt-3 max-w-[560px] text-[2.15rem] font-semibold leading-[1.08] text-[#2f5031]">{data?.project.title || "—"}</h1>
 
                 <div className="mt-5 flex items-start justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
@@ -726,10 +736,10 @@ export default function ProjectDetailsPage() {
             </div>
           </div>
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 352, height: 552, transform: `translate(${detailsTemplate.profileX}px, ${detailsTemplate.profileY}px) scale(${detailsTemplate.profileScale})` }}>
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 360, height: 217, transform: `translate(${detailsTemplate.profileX}px, ${detailsTemplate.profileY}px) scale(${detailsTemplate.profileScale})` }}>
             <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-profile-template.png')" }}>
               {renderTemplateHandles("profile", "профиль")}
-              <div className="absolute inset-x-[42px] top-[72px] text-[#2d2a22]">
+              <div className="absolute inset-x-[26px] top-[28px] text-[#2d2a22]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-[2rem] font-semibold text-[#2f5031]">Профиль участника</div>
@@ -753,7 +763,7 @@ export default function ProjectDetailsPage() {
                     </div>
                   )}
                 </div>
-                <div className="mt-4 rounded-[22px] border border-[#e1d3bf] bg-white/55 p-4">
+                <div className="mt-3 rounded-[20px] border border-[#e1d3bf] bg-white/60 p-4">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий специалиста</div>
                   {editing ? <textarea className="input mt-3 min-h-[118px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" /> : <div className="mt-3 text-sm leading-7 text-[#6f6454]">{data?.project.person?.notes || "Комментарий пока не добавлен."}</div>}
                 </div>
@@ -762,47 +772,53 @@ export default function ProjectDetailsPage() {
             </div>
           </div>
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 320, height: 630, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px) scale(${detailsTemplate.qrScale})` }}>
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 300, height: 532, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px) scale(${detailsTemplate.qrScale})` }}>
             <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-qr-template.png')" }}>
-              {renderTemplateHandles("qr", "доступ")}
-              <div className="absolute inset-x-[42px] top-[78px] text-[#2d2a22]">
-                <div className="text-[1.6rem] font-semibold">Доступ участника</div>
-                <div className="mt-6 rounded-[20px] border border-[#e1d3bf] bg-white/55 p-4">
+              {renderTemplateHandles("qr", "QR")}
+              <div className="absolute inset-x-[34px] top-[202px] text-[#2d2a22]">
+                <div className="text-[1.1rem] font-semibold text-center">Доступ участника</div>
+                <div className="mt-4 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Ссылка</div>
                   <div className="mt-3 flex gap-2">
                     <input className="input flex-1" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
                     <button type="button" onClick={copyShareUrl} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">{copied ? "Скопировано" : "Копировать"}</button>
                   </div>
                 </div>
-                <div className="mt-6 text-center">
-                  <div className="text-[11px] uppercase tracking-[0.26em] text-[#9d7a4b]">QR для прохождения</div>
-                  <div className="mt-4 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} size={152} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
-                  <div className="mt-4 text-sm leading-6 text-[#8d7860]">Открой ссылку на телефоне или отсканируй QR.</div>
+                <div className="mt-4 text-center">
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">QR для прохождения</div>
+                  <div className="mt-3 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={124} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
+                  <div className="mt-3 text-sm leading-6 text-[#8d7860]">Открой ссылку на телефоне или отсканируй QR.</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 790, height: 500, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px) scale(${detailsTemplate.testsScale})` }}>
+
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 178, height: 208, transform: `translate(${detailsTemplate.statusX}px, ${detailsTemplate.statusY}px) scale(${detailsTemplate.statusScale})` }}>
+            <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-status-template.png')" }}>
+              {renderTemplateHandles("status", "статусы")}
+              <div className="absolute inset-x-[18px] top-[18px] flex h-[172px] flex-col justify-between text-center text-[0.95rem] font-medium text-[#5a4a37]">
+                <div className="flex h-[46px] items-center justify-center">Не пройден</div>
+                <div className="flex h-[60px] items-center justify-center text-[#53664a]">В процессе</div>
+                <div className="flex h-[46px] items-center justify-center">Завершён</div>
+              </div>
+            </div>
+          </div>
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 870, height: 400, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px) scale(${detailsTemplate.testsScale})` }}>
             <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-tests-template.png')" }}>
               {renderTemplateHandles("tests", "тесты")}
-              <div className="absolute inset-x-[26px] top-[40px] text-[#2d2a22]">
+              <div className="absolute inset-x-[36px] top-[34px] text-[#2d2a22]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-2xl font-semibold">Назначенные тесты</div>
                     <div className="mt-1 text-sm text-[#8d7860]">Список назначенных методик и статус прохождения.</div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="rounded-full border border-[#d9c4a4] bg-[#fff8ec] px-4 py-2 text-sm font-medium text-[#6b5943]">Не пройден</span>
-                    <span className="rounded-full border border-[#d9c4a4] bg-[#f6eedc] px-4 py-2 text-sm font-medium text-[#8a6a35]">В процессе</span>
-                    <span className="rounded-full border border-[#bfd7b8] bg-[#edf7e7] px-4 py-2 text-sm font-medium text-[#446047]">Завершён</span>
                   </div>
                 </div>
                 <div className="mt-5 grid gap-3">
                   {(data?.project.tests || []).map((test) => {
                     const done = completedSet.has(test.test_slug);
                     return (
-                      <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[22px] border border-[#dfcfb5] bg-[#fffaf1] px-5 py-4">
+                      <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[20px] border border-[#dfcfb5] bg-[#fffaf1] px-5 py-3.5">
                         <div className="text-xl font-semibold text-[#2d2a22]">{test.test_title}</div>
                         <span className={`rounded-full px-4 py-2 text-sm font-medium ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Завершён" : "Не пройден"}</span>
                       </div>
