@@ -564,7 +564,8 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
             <div
               className="relative aspect-[2/3] bg-no-repeat bg-top bg-contain"
               style={{
-                width: "min(100%, 980px, calc((100vh - 24px) * 0.6667))",
+                width: "min(100%, 1180px)",
+                maxWidth: "calc(100vw - 32px)",
                 backgroundImage: "url('/project-create-clipboard-photo.png')",
                 transform: `translate(${pageBuilder.tabletX}px, ${pageBuilder.tabletY}px) scale(${pageBuilder.tabletScale})`,
                 transformOrigin: "top center",
