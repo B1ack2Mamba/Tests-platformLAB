@@ -30,6 +30,28 @@ type WorkspacePayload = {
 
 type NewProjectPageProps = { tests: Pick<AnyTest, "slug" | "title">[] };
 
+type PageBuilderState = {
+  builderOpen: boolean;
+  tabletX: number;
+  tabletY: number;
+  tabletScale: number;
+  pageX: number;
+  pageY: number;
+  pageScale: number;
+};
+
+const DEFAULT_PAGE_BUILDER_STATE: PageBuilderState = {
+  builderOpen: false,
+  tabletX: 0,
+  tabletY: 0,
+  tabletScale: 1,
+  pageX: 0,
+  pageY: 0,
+  pageScale: 1,
+};
+
+const PAGE_BUILDER_STORAGE_KEY = "project-create-page-builder-v1";
+
 function InfoHint({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <details className="group relative shrink-0">
@@ -50,6 +72,24 @@ function InfoHint({ label, children }: { label: string; children: React.ReactNod
 
 function testsLabel(count: number) {
   return `${count} тест${count === 1 ? "" : count < 5 ? "а" : "ов"}`;
+}
+
+function GoalDescriptionHint({ title, description }: { title: string; description: string }) {
+  return (
+    <details className="group relative shrink-0">
+      <summary
+        className="flex h-6 w-6 list-none items-center justify-center rounded-full border border-[#d3c0a2] bg-[#fff8ed] text-[10px] font-semibold text-[#7c5d2c] shadow-sm transition hover:bg-[#fff2dc]"
+        aria-label={`Описание цели: ${title}`}
+        title={`Описание цели: ${title}`}
+      >
+        ?
+      </summary>
+      <div className="absolute right-0 z-20 mt-2 w-64 rounded-3xl border border-[#e7d8bf] bg-[#fffaf2] p-3 text-xs leading-5 text-[#6a5640] shadow-xl">
+        <div className="mb-1 text-xs font-semibold text-[#3d3124]">{title}</div>
+        <div>{description}</div>
+      </div>
+    </details>
+  );
 }
 
 function ChoiceCard({
@@ -76,9 +116,11 @@ function ChoiceCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className={`text-sm font-semibold ${active ? "text-[#2f4c32]" : "text-[#3d3124]"}`}>{title}</div>
-          <div className="mt-1 text-xs leading-5 text-[#6a5640]">{description}</div>
         </div>
-        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${active ? "bg-[#6ea374]" : "bg-[#d8cfc0]"}`} />
+        <div className="flex items-center gap-2">
+          <GoalDescriptionHint title={title} description={description} />
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${active ? "bg-[#6ea374]" : "bg-[#d8cfc0]"}`} />
+        </div>
       </div>
     </button>
   );
@@ -182,6 +224,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
   const [competencyQuery, setCompetencyQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pageBuilder, setPageBuilder] = useState<PageBuilderState>(DEFAULT_PAGE_BUILDER_STATE);
 
   useEffect(() => {
     if (isAssessmentGoal(initialGoal)) {
@@ -207,6 +250,25 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       }
     })();
   }, [router, session, sessionLoading, user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(PAGE_BUILDER_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<PageBuilderState>;
+      setPageBuilder((prev) => ({
+        ...prev,
+        ...parsed,
+        builderOpen: Boolean(parsed.builderOpen),
+      }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PAGE_BUILDER_STORAGE_KEY, JSON.stringify(pageBuilder));
+  }, [pageBuilder]);
 
   const effectiveGoal = useMemo<AssessmentGoal>(() => {
     if (selectionMode === "goal") return goal;
@@ -265,6 +327,14 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   function restoreAutoSelected() {
     setSelectedTests(autoSelectedTests);
+  }
+
+  function updateBuilder<K extends keyof PageBuilderState>(key: K, value: PageBuilderState[K]) {
+    setPageBuilder((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resetBuilder() {
+    setPageBuilder(DEFAULT_PAGE_BUILDER_STATE);
   }
 
   function testNote(slug: string) {
@@ -340,14 +410,24 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
   return (
     <Layout title="Новый проект оценки">
       <div className="mx-auto px-2 pb-6 pt-2 sm:px-4">
-        <div
-          className="relative mx-auto aspect-[2/3] bg-no-repeat bg-top bg-contain"
-          style={{
-            width: "min(100%, 980px, calc((100vh - 24px) * 0.6667))",
-            backgroundImage: "url('/project-create-clipboard-photo.png')",
-          }}
-        >
-          <div className="absolute left-[11.2%] top-[11.2%] h-[79.8%] w-[77.6%] overflow-y-auto rounded-[24px] px-[2.8%] pb-[3.2%] pt-[2.8%] [scrollbar-width:thin]">
+        <div className="relative mx-auto min-h-[calc(100vh-40px)] max-w-[1280px] overflow-visible">
+          <div className="flex min-h-[calc(100vh-40px)] items-start justify-center overflow-visible pt-4">
+            <div
+              className="relative aspect-[2/3] bg-no-repeat bg-top bg-contain"
+              style={{
+                width: "min(100%, 980px, calc((100vh - 24px) * 0.6667))",
+                backgroundImage: "url('/project-create-clipboard-photo.png')",
+                transform: `translate(${pageBuilder.tabletX}px, ${pageBuilder.tabletY}px) scale(${pageBuilder.tabletScale})`,
+                transformOrigin: "top center",
+              }}
+            >
+              <div
+                className="absolute left-[11.2%] top-[11.2%] h-[79.8%] w-[77.6%] overflow-y-auto rounded-[24px] px-[2.8%] pb-[3.2%] pt-[2.8%] [scrollbar-width:thin]"
+                style={{
+                  transform: `translate(${pageBuilder.pageX}px, ${pageBuilder.pageY}px) scale(${pageBuilder.pageScale})`,
+                  transformOrigin: "top center",
+                }}
+              >
             <div className="relative overflow-hidden rounded-[28px] border border-[rgba(172,140,101,0.24)] bg-[rgba(255,251,245,0.68)] px-3 pb-4 pt-5 shadow-[0_18px_40px_rgba(92,67,38,0.06)] backdrop-blur-[1px] sm:px-5 sm:pb-5 sm:pt-6">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.78),rgba(255,255,255,0)_30%),linear-gradient(90deg,rgba(180,142,101,0.045)_1px,transparent_1px),linear-gradient(rgba(180,142,101,0.045)_1px,transparent_1px)] [background-size:auto,100%_100%,100%_34px] opacity-55" />
               <div className="relative">
@@ -367,6 +447,67 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                 </Link>
               </div>
 
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[20px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] px-3 py-2.5 shadow-[0_8px_18px_rgba(98,73,41,0.04)]">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6a46]">Конструктор посадки</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateBuilder("builderOpen", !pageBuilder.builderOpen)}
+                    className="inline-flex min-h-[34px] items-center rounded-full border border-[#d6bea0] bg-[#fff8ec] px-3 py-1.5 text-xs font-medium text-[#5d4830] shadow-sm transition hover:bg-[#fff2df]"
+                  >
+                    {pageBuilder.builderOpen ? "Скрыть конструктор" : "Открыть конструктор"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetBuilder}
+                    className="inline-flex min-h-[34px] items-center rounded-full border border-[#d6bea0] bg-[#fff8ec] px-3 py-1.5 text-xs font-medium text-[#5d4830] shadow-sm transition hover:bg-[#fff2df]"
+                  >
+                    Сбросить
+                  </button>
+                </div>
+              </div>
+
+              {pageBuilder.builderOpen ? (
+                <div className="mb-4 rounded-[20px] border border-[#eadbc4] bg-[rgba(255,252,246,0.92)] p-3 shadow-[0_8px_18px_rgba(98,73,41,0.04)]">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-[18px] border border-[#efe2cf] bg-[#fffdf8] p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#8a6a46]">Планшет</div>
+                      <div className="grid gap-2">
+                        <label className="grid gap-1 text-xs text-[#6b5843]">
+                          <span>Смещение по X: {pageBuilder.tabletX}px</span>
+                          <input type="range" min={-240} max={240} step={2} value={pageBuilder.tabletX} onChange={(e) => updateBuilder("tabletX", Number(e.target.value))} />
+                        </label>
+                        <label className="grid gap-1 text-xs text-[#6b5843]">
+                          <span>Смещение по Y: {pageBuilder.tabletY}px</span>
+                          <input type="range" min={-240} max={240} step={2} value={pageBuilder.tabletY} onChange={(e) => updateBuilder("tabletY", Number(e.target.value))} />
+                        </label>
+                        <label className="grid gap-1 text-xs text-[#6b5843]">
+                          <span>Масштаб: {pageBuilder.tabletScale.toFixed(2)}</span>
+                          <input type="range" min={0.75} max={1.3} step={0.01} value={pageBuilder.tabletScale} onChange={(e) => updateBuilder("tabletScale", Number(e.target.value))} />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="rounded-[18px] border border-[#efe2cf] bg-[#fffdf8] p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#8a6a46]">Лист / страница</div>
+                      <div className="grid gap-2">
+                        <label className="grid gap-1 text-xs text-[#6b5843]">
+                          <span>Смещение по X: {pageBuilder.pageX}px</span>
+                          <input type="range" min={-180} max={180} step={2} value={pageBuilder.pageX} onChange={(e) => updateBuilder("pageX", Number(e.target.value))} />
+                        </label>
+                        <label className="grid gap-1 text-xs text-[#6b5843]">
+                          <span>Смещение по Y: {pageBuilder.pageY}px</span>
+                          <input type="range" min={-180} max={180} step={2} value={pageBuilder.pageY} onChange={(e) => updateBuilder("pageY", Number(e.target.value))} />
+                        </label>
+                        <label className="grid gap-1 text-xs text-[#6b5843]">
+                          <span>Масштаб: {pageBuilder.pageScale.toFixed(2)}</span>
+                          <input type="range" min={0.8} max={1.2} step={0.01} value={pageBuilder.pageScale} onChange={(e) => updateBuilder("pageScale", Number(e.target.value))} />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <form onSubmit={onSubmit} className="grid gap-3.5">
                 <section className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
                   <div className="flex items-start justify-between gap-3">
@@ -381,7 +522,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </InfoHint>
                   </div>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="mt-4 grid gap-3 xl:grid-cols-2">
                     <label className="grid gap-1.5">
                       <span className="text-sm font-medium text-[#6c563b]">Имя и фамилия</span>
                       <input
@@ -610,7 +751,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       )}
 
                       {editorOpen ? (
-                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        <div className="mt-3 grid gap-2 xl:grid-cols-2">
                           {tests.map((test) => (
                             <TestToggleRow
                               key={test.slug}
@@ -650,6 +791,8 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
         </div>
       </div>
     </div>
+  </div>
+</div>
     </Layout>
   );
 }
