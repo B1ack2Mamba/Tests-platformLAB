@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { QRCodeBlock } from "@/components/QRCodeBlock";
+import { ThinkingStatus } from "@/components/ThinkingStatus";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import {
   COMMERCIAL_GOALS,
@@ -15,6 +16,10 @@ import {
   type AssessmentGoal,
   type EvaluationPackage,
 } from "@/lib/commercialGoals";
+import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
+import { getFitRoleProfiles, type FitRoleProfile } from "@/lib/fitProfiles";
+import type { ProjectRoutingMeta } from "@/lib/projectRoutingMeta";
+import { getCompetencyLongLabel } from "@/lib/competencyRouter";
 
 type ProjectPayload = {
   ok: true;
@@ -27,9 +32,11 @@ type ProjectPayload = {
     unlocked_package_mode: EvaluationPackage | null;
     unlocked_package_paid_at: string | null;
     unlocked_package_price_kopeks: number;
+    subscription_applied?: boolean;
     target_role: string | null;
     status: string;
     summary: string | null;
+    routing_meta?: ProjectRoutingMeta | null;
     invite_token: string | null;
     created_at: string;
     person: {
@@ -55,6 +62,35 @@ type EvaluationPayload = {
     sections: Array<{ kind: string; title: string; body: string }>;
   } | null;
 };
+
+type SubscriptionStatusResp = {
+  ok: boolean;
+  error?: string;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
+};
+
+function getThinkingMessages(mode: EvaluationPackage | null) {
+  switch (mode) {
+    case "premium_ai_plus":
+      return [
+        "Обрабатываем информацию. Это может занять около 5 минут.",
+        "Собираем общий профиль по всем тестам и формируем вывод по запросу.",
+        "Проверяем связи между результатами и считаем индекс соответствия.",
+        "AI раскладывает рекомендации по развитию и управленческим выводам.",
+      ];
+    case "premium":
+      return [
+        "Обрабатываем информацию. Это может занять около 5 минут.",
+        "Формируем вывод по каждому тесту и проверяем смысловые связи.",
+        "AI догружает данные и собирает интерпретации по разделам.",
+      ];
+    default:
+      return [
+        "Подгружаем результат и собираем итоговые показатели.",
+        "Сверяем данные проекта и готовим аккуратную выдачу.",
+      ];
+  }
+}
 
 function formatStatus(status: string | null | undefined) {
   switch (status) {
@@ -86,13 +122,26 @@ function sectionKey(mode: string, index: number) {
   return `${mode}:${index}`;
 }
 
+function splitSectionBody(body: string) {
+  const clean = cleanSectionBody(body);
+  const [preview, ...rest] = clean.split(/\n\n+/);
+  return {
+    preview: preview || clean,
+    details: rest.join("\n\n").trim(),
+  };
+}
+
 function getPackageButtonLabel(
   target: EvaluationPackage,
   current: EvaluationPackage | null | undefined,
-  isUnlimited: boolean
+  isUnlimited: boolean,
+  activeSubscription: WorkspaceSubscriptionStatus | null,
+  projectCoveredBySubscription: boolean
 ) {
   if (isUnlimited) return "Открыть бесплатно";
   if (isPackageAccessible(current, target)) return "Открыто";
+  if (projectCoveredBySubscription) return "Открыть по тарифу";
+  if (activeSubscription && activeSubscription.projects_remaining > 0) return "Открыть по тарифу";
   const upgradeRub = getUpgradePriceRub(current, target);
   if (current) return `Доплатить ${formatRub(upgradeRub)}`;
   return `Оплатить ${formatRub(getEvaluationPackageDefinition(target)?.priceRub || 0)}`;
@@ -115,7 +164,13 @@ export default function ProjectDetailsPage() {
   const [activeEvaluationMode, setActiveEvaluationMode] = useState<EvaluationPackage | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [aiPlusRequest, setAiPlusRequest] = useState("");
+  const [fitRequested, setFitRequested] = useState(false);
+  const [fitProfileId, setFitProfileId] = useState("");
+  const [fitRequest, setFitRequest] = useState("");
   const [packageHelp, setPackageHelp] = useState<EvaluationPackage | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [fitProfiles, setFitProfiles] = useState<FitRoleProfile[]>(() => getFitRoleProfiles());
+
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -161,6 +216,15 @@ export default function ProjectDetailsPage() {
       if (mode === "premium_ai_plus" && opts?.customRequest?.trim()) {
         url.searchParams.set("custom_request", opts.customRequest.trim());
       }
+      if (mode === "premium_ai_plus") {
+        url.searchParams.set("fit_enabled", fitRequested ? "1" : "0");
+        if (fitRequested && fitProfileId) {
+          url.searchParams.set("fit_profile_id", fitProfileId);
+        }
+        if (fitRequested && fitRequest.trim()) {
+          url.searchParams.set("fit_request", fitRequest.trim());
+        }
+      }
       const resp = await fetch(url.toString(), {
         headers: { authorization: `Bearer ${session.access_token}` },
       });
@@ -174,6 +238,43 @@ export default function ProjectDetailsPage() {
     }
   }
 
+  async function loadSubscriptionStatus() {
+    if (!session?.access_token) {
+      setActiveSubscription(null);
+      return;
+    }
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/status", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = (await resp.json().catch(() => ({}))) as SubscriptionStatusResp;
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить месячный тариф");
+      setActiveSubscription(json.active_subscription || null);
+    } catch (err: any) {
+      setError(err?.message || "Не удалось загрузить месячный тариф");
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadFitProfiles() {
+      try {
+        const resp = await fetch("/api/commercial/fit-config/options");
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok || !Array.isArray(json?.profiles)) return;
+        if (!cancelled && json.profiles.length) {
+          setFitProfiles(json.profiles);
+        }
+      } catch {
+        // fallback to embedded presets
+      }
+    }
+    loadFitProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!session || !user) {
@@ -182,11 +283,13 @@ export default function ProjectDetailsPage() {
     }
     if (!projectId) return;
     loadProject();
+    loadSubscriptionStatus();
   }, [projectId, router, session, sessionLoading, user]);
 
   const goal = useMemo(() => getGoalDefinition(data?.project.goal), [data?.project.goal]);
   const completedSet = useMemo(() => new Set((data?.project.attempts || []).map((item) => item.test_slug)), [data?.project.attempts]);
   const unlockedMode = data?.project.unlocked_package_mode || null;
+  const projectCoveredBySubscription = Boolean(data?.project.subscription_applied);
   const shareUrl = useMemo(() => {
     const token = data?.project.invite_token;
     if (!token) return "";
@@ -199,6 +302,9 @@ export default function ProjectDetailsPage() {
     return { completed, total };
   }, [completedSet, data?.project.tests?.length]);
   const fullyDone = progress.total > 0 && progress.completed >= progress.total;
+  const routingMeta = data?.project.routing_meta || null;
+  const competencyLabel = routingMeta?.competencyIds?.length ? getCompetencyLongLabel(routingMeta.competencyIds) : "";
+  const shareCompactUrl = shareUrl ? shareUrl.replace(/^https?:\/\//, "") : "";
 
   useEffect(() => {
     if (!fullyDone || !unlockedMode) return;
@@ -293,8 +399,13 @@ export default function ProjectDetailsPage() {
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось открыть уровень результата");
       const chargedRub = Number(json?.charged_rub || 0);
-      setInfo(chargedRub > 0 ? `Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт.` : "Уровень уже был открыт.");
+      if (json?.used_subscription) {
+        setInfo(`Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт по месячному тарифу.${Number.isFinite(Number(json?.subscription_remaining)) ? ` Осталось ${Number(json?.subscription_remaining)} проектов.` : ""}`);
+      } else {
+        setInfo(chargedRub > 0 ? `Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт.` : "Уровень уже был открыт.");
+      }
       await loadProject();
+      await loadSubscriptionStatus();
       await refreshWallet();
       setActiveEvaluationMode(mode);
       await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
@@ -326,216 +437,186 @@ export default function ProjectDetailsPage() {
 
   return (
     <Layout title={data?.project.title || "Проект оценки"}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-slate-600">{data?.workspace.name || "Рабочее пространство"}</div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard" className="btn btn-secondary btn-sm">Кабинет</Link>
-          <Link href="/projects/new" className="btn btn-secondary btn-sm">Новый проект</Link>
-          <button type="button" onClick={deleteProject} className="btn btn-secondary btn-sm">Удалить проект</button>
+      <div className="mx-auto max-w-[1480px] px-3 pb-10 pt-2 sm:px-4">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-[0.28em] text-[#9d7a4b]">Название рабочего пространства / ID проекта</div>
+            <div className="mt-1 truncate text-sm text-[#6f5a42]">{data?.workspace.name || "Рабочее пространство"} / {data?.project.id ? data.project.id.slice(0, 8) : "—"}</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/dashboard" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(90,68,33,0.08)] transition hover:bg-white">Кабинет</Link>
+            <Link href="/projects/new" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(90,68,33,0.08)] transition hover:bg-white">Новый проект</Link>
+            <button type="button" onClick={deleteProject} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(90,68,33,0.08)] transition hover:bg-white">Удалить проект</button>
+          </div>
         </div>
-      </div>
 
-      {error ? <div className="mb-4 card text-sm text-red-600">{error}</div> : null}
-      {info ? <div className="mb-4 card text-sm text-emerald-700">{info}</div> : null}
+        {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_10px_24px_rgba(124,45,18,0.08)]">{error}</div> : null}
+        {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}
 
-      <div className="grid gap-4">
-        <div className="card">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.8fr)_minmax(300px,0.8fr)]">
-            <div className="rounded-3xl border border-emerald-100 bg-white/80 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="relative overflow-hidden rounded-[34px] border border-[#d7c4a6] bg-[#fcf8ee] p-6 shadow-[0_24px_60px_rgba(93,71,39,0.14)]">
+            <div className="absolute inset-x-10 top-0 h-10 rounded-b-[18px] bg-white/45 blur-md" />
+            <div className="absolute left-1/2 top-0 h-10 w-44 -translate-x-1/2 rounded-b-[18px] border border-[#a98449] bg-[linear-gradient(180deg,#ead09a_0%,#d5ad6f_45%,#b98a49_100%)] shadow-[0_12px_24px_rgba(102,74,37,0.22)]" />
+            <div className="relative">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Проект оценки</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-950">{data?.project.title || "—"}</div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-[#9d7a4b]">Проект #{data?.project.id ? data.project.id.slice(0, 5) : "—"}</div>
+                  <div className="mt-3 text-sm text-[#958066]">{data?.workspace.name || "Рабочее пространство"} / {data?.project.created_at ? new Date(data.project.created_at).toLocaleDateString("ru-RU") : "—"}</div>
+                  <div className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-[#7d6548]">Проект оценки</div>
+                  <h1 className="mt-2 max-w-3xl text-[clamp(2rem,3vw,3rem)] font-semibold leading-tight text-[#2f5031]">{data?.project.title || "—"}</h1>
                 </div>
-                <div className={`rounded-2xl border px-4 py-3 text-right ${fullyDone ? "border-emerald-300 bg-white" : "border-emerald-100 bg-white"}`}>
-                  <div className="text-xs text-slate-500">Готово тестов</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-950">{progress.completed} / {progress.total}</div>
+                <div className="rounded-[22px] border border-[#ddcbb0] bg-[#fff9ee] px-5 py-4 text-right shadow-[0_10px_20px_rgba(93,71,39,0.08)]">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Готово тестов</div>
+                  <div className="mt-2 text-4xl font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">{goal?.shortTitle || data?.project.goal || "—"}</span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">Статус: {formatStatus(data?.project.status)}</span>
-                {unlockedMode ? <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">Открыт уровень: {getEvaluationPackageDefinition(unlockedMode)?.shortTitle || unlockedMode}</span> : null}
-              </div>
-              <div className="mt-4 text-sm leading-6 text-slate-700">{goal?.description || data?.project.summary || ""}</div>
-              {data?.project.target_role ? <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">Целевая роль: <span className="font-medium text-slate-950">{data.project.target_role}</span></div> : null}
-            </div>
 
-            <div className="rounded-3xl border border-emerald-100 bg-white/80 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">Профиль участника</div>
-                  <div className="mt-1 text-sm text-slate-500">Имя, email, должность и комментарий специалиста.</div>
-                </div>
-                <button type="button" onClick={() => setEditing((prev) => !prev)} className="btn btn-secondary btn-sm">
-                  {editing ? "Свернуть" : "Редактировать"}
-                </button>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-[#d8c4a2] bg-[#fff9ef] px-4 py-1.5 text-sm font-medium text-[#6d573d]">{goal?.shortTitle || data?.project.goal || "—"}</span>
+                <span className="rounded-full border border-[#e3d7c4] bg-[#f5efe4] px-4 py-1.5 text-sm font-medium text-[#6f6454]">{formatStatus(data?.project.status)}</span>
+                {unlockedMode ? <span className="rounded-full border border-[#d8c4a2] bg-[#fff9ef] px-4 py-1.5 text-sm font-medium text-[#6d573d]">{getEvaluationPackageDefinition(unlockedMode)?.shortTitle || unlockedMode}</span> : null}
               </div>
-              <div className="mt-4 grid gap-3">
-                <div className="rounded-2xl border border-emerald-100 bg-slate-50/60 p-4">
-                  <div className="text-xs text-slate-500">Участник</div>
-                  <div className="mt-2 text-xl font-semibold text-slate-950">{data?.project.person?.full_name || "—"}</div>
-                  <div className="mt-1 text-sm text-slate-600">{data?.project.person?.current_position || "Должность не указана"}</div>
-                  {data?.project.person?.email ? <div className="mt-1 text-sm text-slate-600">{data.project.person.email}</div> : null}
-                </div>
-                <div className="rounded-2xl border border-emerald-100 bg-slate-50/60 p-4 text-sm leading-6 text-slate-700">
-                  <div className="text-xs text-slate-500">Комментарий специалиста</div>
-                  <div className="mt-2">{data?.project.person?.notes || "Комментарий пока не добавлен."}</div>
-                </div>
-              </div>
-            </div>
 
-            <div className="rounded-3xl border border-emerald-100 bg-white/80 p-5">
-              <div className="text-sm font-semibold text-slate-900">Ссылка и QR</div>
-              <div className="mt-1 text-sm text-slate-500">Сотрудник пройдёт тесты по ссылке или QR и не увидит результаты.</div>
-              <div className="mt-4 flex gap-2">
-                <input className="input flex-1" readOnly value={shareUrl} />
-                <button type="button" onClick={copyShareUrl} className="btn btn-secondary btn-sm">{copied ? "Скопировано" : "Копировать"}</button>
+              <div className="mt-6 rounded-[26px] border border-[#ddcbb0] bg-white/45 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Режим проекта</div>
+                    <div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{routingMeta?.mode === "competency" ? "Оценка по компетенциям" : "Оценка по текущей цели"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Фокус оценки</div>
+                    <div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{competencyLabel || data?.project.target_role || goal?.title || "Не задан"}</div>
+                  </div>
+                  {data?.project.target_role ? (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Целевая роль</div>
+                      <div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{data.project.target_role}</div>
+                    </div>
+                  ) : null}
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Аналитическая опора</div>
+                    <div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{goal?.title || "Общая оценка"}</div>
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 flex justify-center">
-                <QRCodeBlock value={shareUrl} title="QR для прохождения" />
+
+              <div className="mt-5 rounded-[24px] border border-[#ddcbb0] bg-[#f8f1e5] px-5 py-4 text-sm leading-7 text-[#685742] shadow-[0_12px_24px_rgba(93,71,39,0.06)]">
+                <span className="font-semibold text-[#4d4338]">Примечание специалисту:</span> результаты откроются после того, как участник завершит назначенные тесты.
               </div>
             </div>
           </div>
 
-          {editing ? (
-            <div className="mt-4 rounded-3xl border border-emerald-200 bg-white p-4">
-              <div className="mb-4 text-sm font-semibold text-slate-900">Редактирование участника и параметров проекта</div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-1 text-sm">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Имя и фамилия</span>
-                  <input className="input" value={form.full_name} onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))} />
-                </label>
-                <label className="grid gap-1 text-sm">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Email</span>
-                  <input className="input" type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="optional@example.com" />
-                </label>
-                <label className="grid gap-1 text-sm">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Должность участника</span>
-                  <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Например: менеджер по продажам" />
-                </label>
-                <label className="grid gap-1 text-sm">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Целевая роль / вакансия</span>
-                  <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Например: руководитель группы" />
-                </label>
-                <label className="grid gap-1 text-sm md:col-span-1">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Цель оценки</span>
-                  <select className="input" value={form.goal} onChange={(e) => setForm((prev) => ({ ...prev, goal: e.target.value as AssessmentGoal }))}>
-                    {COMMERCIAL_GOALS.map((item) => (
-                      <option key={item.key} value={item.key}>{item.shortTitle}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-1 text-sm md:col-span-2">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Комментарий специалиста</span>
-                  <textarea className="input min-h-[110px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Короткий внутренний комментарий по участнику" />
-                </label>
+          <div className="flex flex-col gap-5">
+            <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] p-5 shadow-[0_18px_40px_rgba(93,71,39,0.12)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[1.6rem] font-semibold text-[#2f5031]">Профиль участника</div>
+                  <div className="mt-2 text-sm leading-6 text-[#8d7860]">Профиль, должность и комментарий специалиста.</div>
+                </div>
+                <button type="button" onClick={() => setEditing((prev) => !prev)} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(90,68,33,0.08)]">{editing ? "Скрыть" : "Редактировать"}</button>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" onClick={saveDetails} disabled={saving} className="btn btn-primary">
-                  {saving ? "Сохраняем…" : "Сохранить изменения"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(false);
-                    setForm({
-                      full_name: data?.project.person?.full_name || "",
-                      email: data?.project.person?.email || "",
-                      current_position: data?.project.person?.current_position || "",
-                      goal: data?.project.goal || "role_fit",
-                      target_role: data?.project.target_role || "",
-                      notes: data?.project.person?.notes || "",
-                    });
-                  }}
-                  className="btn btn-secondary"
-                >
-                  Отмена
-                </button>
+
+              <div className="mt-5 space-y-3">
+                <div className="rounded-[22px] border border-[#e1d3bf] bg-white/55 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Участник</div>
+                  {editing ? (
+                    <div className="mt-3 grid gap-3">
+                      <input className="input" value={form.full_name} onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Имя и фамилия" />
+                      <input className="input" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
+                      <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Текущая должность" />
+                      <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Целевая роль" />
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-xl font-semibold text-[#2d2a22]">{data?.project.person?.full_name || "Имя участника"}</div>
+                      <div className="text-sm text-[#6f6454]">{data?.project.person?.current_position || "Должность не указана"}</div>
+                      {data?.project.person?.email ? <div className="text-sm text-[#6f6454]">{data.project.person.email}</div> : null}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-[22px] border border-[#e1d3bf] bg-white/55 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий специалиста</div>
+                  {editing ? (
+                    <textarea className="input mt-3 min-h-[120px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
+                  ) : (
+                    <div className="mt-3 text-sm leading-7 text-[#6f6454]">{data?.project.person?.notes || "Комментарий пока не добавлен."}</div>
+                  )}
+                </div>
+              </div>
+
+              {editing ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
+                  <button type="button" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]" onClick={() => setEditing(false)}>Отменить</button>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] p-5 shadow-[0_18px_40px_rgba(93,71,39,0.12)]">
+              <div className="text-[1.35rem] font-semibold text-[#2d2a22]">Доступ участника</div>
+              <div className="mt-3 rounded-[20px] border border-[#e1d3bf] bg-white/55 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Ссылка</div>
+                <div className="mt-3 flex gap-2">
+                  <input className="input flex-1" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
+                  <button type="button" onClick={copyShareUrl} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">{copied ? "Скопировано" : "Копировать"}</button>
+                </div>
+              </div>
+              <div className="mt-4 rounded-[24px] border border-[#e1d3bf] bg-white/55 p-4 text-center">
+                <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">QR для прохождения</div>
+                <div className="mt-3 flex justify-center">
+                  {shareUrl ? <QRCodeBlock value={shareUrl} size={168} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}
+                </div>
+                <div className="mt-3 text-sm leading-6 text-[#8d7860]">Открой ссылку на телефоне или отсканируй QR.</div>
               </div>
             </div>
-          ) : null}
+
+            <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] p-4 shadow-[0_18px_40px_rgba(93,71,39,0.12)]">
+              <div className="text-xs uppercase tracking-[0.22em] text-[#9d7a4b]">Статусы</div>
+              <div className="mt-3 flex flex-col gap-2">
+                <span className="rounded-full border border-[#d9c4a4] bg-[#fff8ec] px-4 py-2 text-sm font-medium text-[#6b5943]">Не пройден</span>
+                <span className="rounded-full border border-[#d9c4a4] bg-[#f6eedc] px-4 py-2 text-sm font-medium text-[#8a6a35]">В процессе</span>
+                <span className="rounded-full border border-[#bfd7b8] bg-[#edf7e7] px-4 py-2 text-sm font-medium text-[#446047]">Завершён</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {fullyDone ? (
-          <div className="card">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-100 pb-4">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Результаты по режимам</div>
-                <div className="mt-1 text-sm text-slate-500">Открой нужную глубину результата после завершения всех тестов.</div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-100 bg-white px-4 py-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Баланс</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-950">{walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`}</div>
-                  {isUnlimited ? <div className="text-[11px] text-emerald-700">Тестовый безлимит активен</div> : null}
-                </div>
-                <div className="flex gap-2">
-                  {!isUnlimited ? <Link href="/wallet" className="btn btn-secondary btn-sm">Пополнить</Link> : null}
-                  <Link href="/wallet" className="btn btn-secondary btn-sm">Кошелёк</Link>
-                </div>
-              </div>
-            </div>
+          <div className="rounded-[30px] border border-[#d7c4a6] bg-[#fbf5ea] p-5 shadow-[0_20px_44px_rgba(93,71,39,0.12)]">
+            <div className="text-lg font-semibold text-[#2d2a22]">Уровни результата</div>
+            <div className="mt-1 text-sm text-[#8d7860]">Открывай нужный уровень интерпретации по мере готовности проекта.</div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
               {EVALUATION_PACKAGES.map((item) => {
-                const accessible = isPackageAccessible(unlockedMode, item.key);
+                const unlocked = isPackageAccessible(unlockedMode, item.key);
+                const currentEval = evaluationByMode[item.key];
+                const isBusy = !!saving || !!evaluationLoading[item.key];
                 const upgradeRub = getUpgradePriceRub(unlockedMode, item.key);
-                const isBusy = !!evaluationLoading[item.key] || saving;
+                const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
                 const isActive = activeEvaluationMode === item.key;
                 return (
-                  <div key={item.key} className={`flex h-full min-h-[220px] flex-col rounded-3xl border p-5 ${accessible ? "border-emerald-200 bg-white" : "border-slate-200 bg-slate-50/90"} ${isActive ? "ring-2 ring-emerald-200" : ""}`}>
+                  <div key={item.key} className={`rounded-[24px] border p-4 shadow-[0_10px_20px_rgba(93,71,39,0.06)] ${isActive ? "border-[#8eb48d] bg-[#f3faef]" : "border-[#dfcfb5] bg-[#fffaf1]"}`}>
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-lg font-semibold text-slate-950">{item.title}{item.note ? <span className="text-xs font-normal text-slate-500"> ({item.note})</span> : null}</div>
-                          {item.helpText ? (
-                            <button
-                              type="button"
-                              className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs font-semibold transition ${packageHelp === item.key ? "border-emerald-300 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:text-emerald-800"}`}
-                              onClick={() => setPackageHelp((current) => (current === item.key ? null : item.key))}
-                              aria-label={`Информация о тарифе ${item.title}`}
-                              title={`Информация о тарифе ${item.title}`}
-                            >
-                              ?
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="mt-1 text-sm font-medium text-slate-500">{formatRub(item.priceRub)}</div>
+                      <div>
+                        <div className="text-base font-semibold text-[#2d2a22]">{item.title}</div>
+                        <div className="mt-1 text-sm leading-6 text-[#7a6a57]">{item.description}</div>
                       </div>
-                      <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${accessible ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{accessible ? "Открыто" : "Закрыто"}</span>
+                      <button type="button" className="text-xs font-medium text-[#8b6b3c]" onClick={() => setPackageHelp((prev) => (prev === item.key ? null : item.key))}>Что внутри?</button>
                     </div>
-                    {item.helpText && packageHelp === item.key ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-100 bg-white p-3 text-xs leading-6 text-slate-700">
-                        {item.helpText}
-                      </div>
-                    ) : null}
-                    <div className="mt-4 text-sm leading-6 text-slate-700">{item.description}</div>
-                    <div className="mt-auto pt-5">
-                      {accessible ? (
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm w-full"
-                          onClick={async () => {
-                            setActiveEvaluationMode(item.key);
-                            if (!evaluationByMode[item.key] && !evaluationLoading[item.key]) {
-                              await loadEvaluation(item.key, item.key === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
-                            }
-                          }}
-                        >
+                    {packageHelp === item.key ? <div className="mt-3 rounded-2xl border border-[#ecdcbf] bg-white/70 p-3 text-sm leading-6 text-[#685742]">{item.help}</div> : null}
+                    <div className="mt-4 text-sm font-semibold text-[#2f5031]">{accessible ? (unlocked ? "Уровень уже открыт" : projectCoveredBySubscription ? "Откроется по тарифу" : activeSubscription?.projects_remaining ? `Осталось ${activeSubscription.projects_remaining} проектов по тарифу` : "Можно открыть") : upgradeRub ? `Стоимость: ${formatRub(upgradeRub)}` : "Доступно после предыдущего уровня"}</div>
+                    <div className="mt-4">
+                      {unlocked ? (
+                        <button type="button" className={`w-full rounded-2xl border px-4 py-2.5 text-sm font-medium ${isActive ? "border-[#8eb48d] bg-[#cde7c1] text-[#27402b]" : "border-[#d9c4a4] bg-[#fffaf0] text-[#5b4731]"}`} onClick={() => setActiveEvaluationMode(item.key)}>
                           {isActive ? "Показано ниже" : "Показать результат"}
                         </button>
                       ) : (
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm w-full"
-                          disabled={isBusy}
-                          onClick={() => unlockPackage(item.key)}
-                        >
-                          {getPackageButtonLabel(item.key, unlockedMode, isUnlimited)}
+                        <button type="button" className="w-full rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] disabled:opacity-60" disabled={isBusy} onClick={() => unlockPackage(item.key)}>
+                          {getPackageButtonLabel(item.key, unlockedMode, isUnlimited, activeSubscription, projectCoveredBySubscription)}
                         </button>
                       )}
-                      {!accessible && !isUnlimited && balance_rub < upgradeRub ? <div className="mt-2 text-xs text-amber-700">Не хватает {formatRub(upgradeRub - balance_rub)}.</div> : null}
+                      {!accessible && !isUnlimited && !projectCoveredBySubscription && !(activeSubscription && activeSubscription.projects_remaining > 0) && balance_rub < upgradeRub ? <div className="mt-2 text-xs text-amber-700">Не хватает {formatRub(upgradeRub - balance_rub)}.</div> : null}
                     </div>
                   </div>
                 );
@@ -543,25 +624,15 @@ export default function ProjectDetailsPage() {
             </div>
 
             {activeEvaluationMode && isPackageAccessible(unlockedMode, activeEvaluationMode) ? (
-              <div className="mt-5 rounded-3xl border border-emerald-200 bg-white p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-100 pb-4">
+              <div className="mt-5 rounded-[26px] border border-[#d7c4a6] bg-[#fffaf1] p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9bf] pb-4">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{getEvaluationPackageDefinition(activeEvaluationMode)?.title || "Результат"}</div>
-                    <div className="mt-1 text-sm text-slate-500">Один аккуратный блок результата без вложенной каши.</div>
+                    <div className="text-lg font-semibold text-[#2d2a22]">{getEvaluationPackageDefinition(activeEvaluationMode)?.title || "Результат"}</div>
+                    <div className="mt-1 text-sm text-[#8d7860]">Аккуратная выдача результата по выбранному уровню.</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {EVALUATION_PACKAGES.filter((item) => isPackageAccessible(unlockedMode, item.key)).map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        className={`rounded-full border px-3 py-1.5 text-xs font-medium ${activeEvaluationMode === item.key ? "border-emerald-300 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}
-                        onClick={async () => {
-                          setActiveEvaluationMode(item.key);
-                          if (!evaluationByMode[item.key] && !evaluationLoading[item.key]) {
-                            await loadEvaluation(item.key, item.key === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
-                          }
-                        }}
-                      >
+                      <button key={item.key} type="button" className={`rounded-full border px-3 py-1.5 text-xs font-medium ${activeEvaluationMode === item.key ? "border-[#8eb48d] bg-[#e4f1de] text-[#355039]" : "border-[#dec9a8] bg-[#fff8ec] text-[#6b5943]"}`} onClick={async () => { setActiveEvaluationMode(item.key); if (!evaluationByMode[item.key] && !evaluationLoading[item.key]) { await loadEvaluation(item.key, item.key === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined); } }}>
                         {item.shortTitle}
                       </button>
                     ))}
@@ -569,62 +640,78 @@ export default function ProjectDetailsPage() {
                 </div>
 
                 {activeEvaluationMode === "premium_ai_plus" ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-100 bg-white/40 p-4">
-                    <div className="text-sm font-semibold text-slate-900">Дополнительный запрос к Премиум AI+</div>
-                    <div className="mt-1 text-sm text-slate-500">Добавь уточнение — оно пойдёт в DeepSeek поверх базовых промптов и поможет сделать профиль точнее.</div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                      <textarea
-                        className="input min-h-[96px]"
-                        value={aiPlusRequest}
-                        onChange={(e) => setAiPlusRequest(e.target.value)}
-                        placeholder="Например: сделай акцент на управленческий потенциал и индекс соответствия роли руководителя группы."
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={!!evaluationLoading.premium_ai_plus}
-                        onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}
-                      >
-                        {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
-                      </button>
+                  <div className="mt-4 rounded-[24px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
+                    <div className="text-sm font-semibold text-[#2d2a22]">Дополнительный запрос к Премиум AI+</div>
+                    <div className="mt-1 text-sm text-[#8d7860]">Можно задать акцент анализа и отдельно включить индекс соответствия.</div>
+                    <div className="mt-3 grid gap-4">
+                      <textarea className="input min-h-[96px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
+                      <label className="flex items-start gap-3 rounded-[20px] border border-[#e1d3bf] bg-white/60 px-4 py-3 text-sm text-[#6f6454]">
+                        <input type="checkbox" className="mt-1 h-4 w-4" checked={fitRequested} onChange={(e) => setFitRequested(e.target.checked)} />
+                        <span>
+                          <span className="font-medium text-[#2d2a22]">Считать индекс соответствия</span>
+                          <span className="mt-1 block text-xs leading-5 text-[#8d7860]">Включай только если нужно проверить соответствие конкретной роли или ожиданиям.</span>
+                        </span>
+                      </label>
+                      {fitRequested ? (
+                        <div className="grid gap-3">
+                          <select className="input" value={fitProfileId} onChange={(e) => setFitProfileId(e.target.value)}>
+                            <option value="">Автоопределение по запросу / роли</option>
+                            {fitProfiles.map((profile) => (
+                              <option key={profile.id} value={profile.id}>{profile.label}</option>
+                            ))}
+                          </select>
+                          <textarea className="input min-h-[84px]" value={fitRequest} onChange={(e) => setFitRequest(e.target.value)} placeholder="Например: соответствие роли руководителя отдела продаж или ожиданиям по самостоятельности, влиянию и стрессоустойчивости." />
+                        </div>
+                      ) : null}
+                      <div className="flex justify-end">
+                        <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
+                          {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : null}
 
                 {evaluationLoading[activeEvaluationMode] ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-100 bg-white p-4 text-sm text-slate-600">Собираем результат…</div>
+                  <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
                 ) : activeSections.length ? (
                   <div className="mt-4 grid gap-4">
                     {overviewSections.length ? (
                       <div className={`grid gap-3 ${overviewSections.length > 1 ? "md:grid-cols-2" : ""}`}>
-                        {overviewSections.map((section, index) => (
-                          <div key={`${section.title}:${index}`} className="rounded-2xl border border-emerald-100 bg-slate-50/50 p-4">
-                            <div className="text-sm font-semibold text-slate-900">{section.title}</div>
-                            <div className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-700">{cleanSectionBody(section.body)}</div>
-                          </div>
-                        ))}
+                        {overviewSections.map((section, index) => (() => {
+                          const key = sectionKey(`${activeEvaluationMode}:overview`, index);
+                          const isOpen = openSections[key] ?? false;
+                          const parts = splitSectionBody(section.body);
+                          const hasDetails = Boolean(parts.details);
+                          return (
+                            <div key={`${section.title}:${index}`} className="rounded-[22px] border border-[#dfcfb5] bg-[#fffaf1] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="text-sm font-semibold text-[#2d2a22]">{section.title}</div>
+                                {hasDetails ? <button type="button" className="text-xs font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>{isOpen ? "Скрыть детали" : "Подробнее"}</button> : null}
+                              </div>
+                              <div className="mt-2 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.preview}</div>
+                              {hasDetails && isOpen ? <div className="mt-3 whitespace-pre-line border-t border-[#ead9bf] pt-3 text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                            </div>
+                          );
+                        })())}
                       </div>
                     ) : null}
 
                     {testSections.length ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
-                        <div className="text-sm font-semibold text-slate-900">По отдельным тестам</div>
-                        <div className="mt-1 text-sm text-slate-500">Открывай только те методики, которые нужно посмотреть сейчас.</div>
+                      <div className="rounded-[22px] border border-[#dfcfb5] bg-[#fffaf1] p-4">
+                        <div className="text-sm font-semibold text-[#2d2a22]">По отдельным тестам</div>
+                        <div className="mt-1 text-sm text-[#8d7860]">Открывай только те методики, которые нужно посмотреть сейчас.</div>
                         <div className="mt-4 grid gap-3">
                           {testSections.map((section, index) => {
                             const key = sectionKey(activeEvaluationMode, index);
                             const isOpen = openSections[key] ?? index === 0;
                             return (
-                              <div key={key} className="overflow-hidden rounded-2xl border border-emerald-100 bg-white">
-                                <button
-                                  type="button"
-                                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                                  onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? index === 0) }))}
-                                >
-                                  <div className="text-sm font-semibold text-slate-900">{section.title}</div>
-                                  <span className="text-xs text-slate-500">{isOpen ? "Скрыть" : "Открыть"}</span>
+                              <div key={key} className="overflow-hidden rounded-[20px] border border-[#e2d1b6] bg-white/70">
+                                <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? index === 0) }))}>
+                                  <div className="text-sm font-semibold text-[#2d2a22]">{section.title}</div>
+                                  <span className="text-xs text-[#8b6b3c]">{isOpen ? "Скрыть" : "Открыть"}</span>
                                 </button>
-                                {isOpen ? <div className="border-t border-emerald-100 px-4 py-4 whitespace-pre-line text-sm leading-7 text-slate-700">{cleanSectionBody(section.body)}</div> : null}
+                                {isOpen ? <div className="border-t border-[#ead9bf] px-4 py-4 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{cleanSectionBody(section.body)}</div> : null}
                               </div>
                             );
                           })}
@@ -633,35 +720,35 @@ export default function ProjectDetailsPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">Результат для этого уровня пока не собран.</div>
+                  <div className="mt-4 rounded-[22px] border border-[#e1d3bf] bg-[#fcf7ef] p-4 text-sm text-[#6f6454]">Результат для этого уровня пока не собран.</div>
                 )}
               </div>
             ) : null}
           </div>
         ) : (
-          <div className="card text-sm text-slate-700">Уровни результата откроются после того, как участник завершит все назначенные тесты.</div>
+          <div className="rounded-[26px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-4 text-sm text-[#6f6454] shadow-[0_16px_34px_rgba(93,71,39,0.10)]">Уровни результата откроются после того, как участник завершит все назначенные тесты.</div>
         )}
 
-        <div className="card">
+        <div className="rounded-[32px] border border-[#d7c4a6] bg-[#fbf5ea] p-5 shadow-[0_24px_50px_rgba(93,71,39,0.14)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-slate-900">Назначенные тесты</div>
-              <div className="mt-1 text-sm text-slate-500">Показываем только название и статус прохождения.</div>
+              <div className="text-2xl font-semibold text-[#2d2a22]">Назначенные тесты</div>
+              <div className="mt-1 text-sm text-[#8d7860]">Список назначенных методик и статус прохождения.</div>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-5 grid gap-3">
             {(data?.project.tests || []).map((test) => {
               const done = completedSet.has(test.test_slug);
               return (
-                <div key={test.test_slug} className={`rounded-2xl border p-4 ${done ? "border-emerald-200 bg-white" : "border-slate-200 bg-white"}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-950">{test.test_title}</div>
-                    <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${done ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>{done ? "Готово" : "Не пройден"}</span>
+                <div key={test.test_slug} className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dfcfb5] bg-[#fffaf1] px-5 py-4">
+                  <div>
+                    <div className="text-xl font-semibold text-[#2d2a22]">{test.test_title}</div>
                   </div>
+                  <span className={`rounded-full px-4 py-2 text-sm font-medium ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Завершён" : "Не пройден"}</span>
                 </div>
               );
             })}
-            {!loading && !(data?.project.tests || []).length ? <div className="text-sm text-slate-600">Для проекта пока не назначены тесты.</div> : null}
+            {!loading && !(data?.project.tests || []).length ? <div className="text-sm text-[#6f6454]">Для проекта пока не назначены тесты.</div> : null}
           </div>
         </div>
       </div>
