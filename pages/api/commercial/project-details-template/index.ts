@@ -9,21 +9,33 @@ type TemplateShape = {
   mainX?: number;
   mainY?: number;
   mainScale?: number;
+  mainWidthScale?: number;
+  mainHeightScale?: number;
+  mainTextScale?: number;
   mainContentX?: number;
   mainContentY?: number;
   profileX?: number;
   profileY?: number;
   profileScale?: number;
+  profileWidthScale?: number;
+  profileHeightScale?: number;
+  profileTextScale?: number;
   profileContentX?: number;
   profileContentY?: number;
   qrX?: number;
   qrY?: number;
   qrScale?: number;
+  qrWidthScale?: number;
+  qrHeightScale?: number;
+  qrTextScale?: number;
   qrContentX?: number;
   qrContentY?: number;
   testsX?: number;
   testsY?: number;
   testsScale?: number;
+  testsWidthScale?: number;
+  testsHeightScale?: number;
+  testsTextScale?: number;
   testsContentX?: number;
   testsContentY?: number;
 };
@@ -38,25 +50,37 @@ function normalizeTemplate(value: unknown): Required<TemplateShape> {
   const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   return {
     mainX: clamp(source.mainX, -300, 300, 8),
-    mainY: clamp(source.mainY, 0, 300, 92),
+    mainY: clamp(source.mainY, 0, 360, 92),
     mainScale: clamp(source.mainScale, 0.6, 1.4, 0.686),
-    mainContentX: clamp(source.mainContentX, -220, 220, 0),
-    mainContentY: clamp(source.mainContentY, -220, 220, 0),
-    profileX: clamp(source.profileX, 620, 1100, 855),
-    profileY: clamp(source.profileY, 0, 500, 120),
+    mainWidthScale: clamp(source.mainWidthScale, 0.72, 1.8, 1),
+    mainHeightScale: clamp(source.mainHeightScale, 0.72, 2.4, 1),
+    mainTextScale: clamp(source.mainTextScale, 0.75, 1.8, 1),
+    mainContentX: clamp(source.mainContentX, -260, 260, 0),
+    mainContentY: clamp(source.mainContentY, -260, 260, 0),
+    profileX: clamp(source.profileX, 260, 1100, 612),
+    profileY: clamp(source.profileY, 0, 700, 118),
     profileScale: clamp(source.profileScale, 0.3, 1.2, 0.39),
-    profileContentX: clamp(source.profileContentX, -160, 160, 0),
-    profileContentY: clamp(source.profileContentY, -160, 160, 0),
-    qrX: clamp(source.qrX, 620, 1100, 880),
-    qrY: clamp(source.qrY, 200, 1300, 360),
+    profileWidthScale: clamp(source.profileWidthScale, 0.72, 1.8, 1),
+    profileHeightScale: clamp(source.profileHeightScale, 0.72, 2.4, 1),
+    profileTextScale: clamp(source.profileTextScale, 0.75, 1.8, 1),
+    profileContentX: clamp(source.profileContentX, -220, 220, 0),
+    profileContentY: clamp(source.profileContentY, -220, 220, 0),
+    qrX: clamp(source.qrX, 240, 1100, 540),
+    qrY: clamp(source.qrY, 120, 1500, 352),
     qrScale: clamp(source.qrScale, 0.3, 1.2, 0.385),
-    qrContentX: clamp(source.qrContentX, -180, 180, 0),
-    qrContentY: clamp(source.qrContentY, -220, 220, 0),
+    qrWidthScale: clamp(source.qrWidthScale, 0.72, 1.8, 1),
+    qrHeightScale: clamp(source.qrHeightScale, 0.72, 2.4, 1),
+    qrTextScale: clamp(source.qrTextScale, 0.75, 1.8, 1),
+    qrContentX: clamp(source.qrContentX, -220, 220, 0),
+    qrContentY: clamp(source.qrContentY, -260, 260, 0),
     testsX: clamp(source.testsX, -80, 300, 24),
-    testsY: clamp(source.testsY, 700, 1700, 1018),
-    testsScale: clamp(source.testsScale, 0.6, 1.3, 1),
-    testsContentX: clamp(source.testsContentX, -220, 220, 0),
-    testsContentY: clamp(source.testsContentY, -160, 160, 0),
+    testsY: clamp(source.testsY, 620, 2200, 1002),
+    testsScale: clamp(source.testsScale, 0.6, 1.3, 0.96),
+    testsWidthScale: clamp(source.testsWidthScale, 0.72, 1.8, 0.94),
+    testsHeightScale: clamp(source.testsHeightScale, 0.72, 2.8, 1),
+    testsTextScale: clamp(source.testsTextScale, 0.75, 1.8, 1),
+    testsContentX: clamp(source.testsContentX, -260, 260, 0),
+    testsContentY: clamp(source.testsContentY, -220, 220, 0),
   };
 }
 
