@@ -649,6 +649,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
           </div>
         </div>
       </div>
+    </div>
     </Layout>
   );
 }
