@@ -437,8 +437,8 @@ export default function ProjectDetailsPage() {
 
   return (
     <Layout title={data?.project.title || "Проект оценки"}>
-      <div className="mx-auto max-w-[1480px] px-3 pb-10 pt-2 sm:px-4">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
+      <div className="mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4">
+        <div className="mx-auto mb-5 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-[0.28em] text-[#9d7a4b]">Название рабочего пространства / ID проекта</div>
             <div className="mt-1 truncate text-sm text-[#6f5a42]">{data?.workspace.name || "Рабочее пространство"} / {data?.project.id ? data.project.id.slice(0, 8) : "—"}</div>
@@ -453,10 +453,10 @@ export default function ProjectDetailsPage() {
         {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_10px_24px_rgba(124,45,18,0.08)]">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="relative overflow-hidden rounded-[34px] border border-[#d7c4a6] bg-[#fcf8ee] p-6 shadow-[0_24px_60px_rgba(93,71,39,0.14)]">
-            <div className="absolute inset-x-10 top-0 h-10 rounded-b-[18px] bg-white/45 blur-md" />
-            <div className="absolute left-1/2 top-0 h-10 w-44 -translate-x-1/2 rounded-b-[18px] border border-[#a98449] bg-[linear-gradient(180deg,#ead09a_0%,#d5ad6f_45%,#b98a49_100%)] shadow-[0_12px_24px_rgba(102,74,37,0.22)]" />
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,790px)_320px] xl:items-start">
+          <div className="relative mx-auto w-full max-w-[790px] min-h-[1120px] bg-[url('/project-create-clipboard-photo.png')] bg-top bg-contain bg-no-repeat px-[84px] pb-[110px] pt-[128px]">
+            <div className="hidden" />
+            <div className="hidden" />
             <div className="relative">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -465,9 +465,9 @@ export default function ProjectDetailsPage() {
                   <div className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-[#7d6548]">Проект оценки</div>
                   <h1 className="mt-2 max-w-3xl text-[clamp(2rem,3vw,3rem)] font-semibold leading-tight text-[#2f5031]">{data?.project.title || "—"}</h1>
                 </div>
-                <div className="rounded-[22px] border border-[#ddcbb0] bg-[#fff9ee] px-5 py-4 text-right shadow-[0_10px_20px_rgba(93,71,39,0.08)]">
+                <div className="rounded-[18px] border border-[#ddcbb0] bg-[#fff9ee]/95 px-4 py-3 text-right shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
                   <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Готово тестов</div>
-                  <div className="mt-2 text-4xl font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
+                  <div className="mt-2 text-[2.2rem] font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
                 </div>
               </div>
 
@@ -477,7 +477,7 @@ export default function ProjectDetailsPage() {
                 {unlockedMode ? <span className="rounded-full border border-[#d8c4a2] bg-[#fff9ef] px-4 py-1.5 text-sm font-medium text-[#6d573d]">{getEvaluationPackageDefinition(unlockedMode)?.shortTitle || unlockedMode}</span> : null}
               </div>
 
-              <div className="mt-6 rounded-[26px] border border-[#ddcbb0] bg-white/45 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+              <div className="mt-6 rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.84)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-[1px]">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Режим проекта</div>
@@ -506,8 +506,8 @@ export default function ProjectDetailsPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-5">
-            <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] p-5 shadow-[0_18px_40px_rgba(93,71,39,0.12)]">
+          <div className="mx-auto flex w-full max-w-[320px] flex-col gap-4 xl:mx-0 xl:pt-8">
+            <div className="rounded-[26px] border border-[#d8c5a8] bg-[#fbf5ea] p-5 shadow-[0_14px_30px_rgba(93,71,39,0.12)]">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-[1.6rem] font-semibold text-[#2f5031]">Профиль участника</div>
@@ -553,7 +553,7 @@ export default function ProjectDetailsPage() {
               ) : null}
             </div>
 
-            <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] p-5 shadow-[0_18px_40px_rgba(93,71,39,0.12)]">
+            <div className="rounded-[26px] border border-[#d8c5a8] bg-[#fbf5ea] p-5 shadow-[0_14px_30px_rgba(93,71,39,0.12)]">
               <div className="text-[1.35rem] font-semibold text-[#2d2a22]">Доступ участника</div>
               <div className="mt-3 rounded-[20px] border border-[#e1d3bf] bg-white/55 p-4">
                 <div className="text-xs uppercase tracking-[0.18em] text-[#9d7a4b]">Ссылка</div>
@@ -571,7 +571,7 @@ export default function ProjectDetailsPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] p-4 shadow-[0_18px_40px_rgba(93,71,39,0.12)]">
+            <div className="rounded-[24px] border border-[#d8c5a8] bg-[#fbf5ea] p-4 shadow-[0_12px_28px_rgba(93,71,39,0.12)]">
               <div className="text-xs uppercase tracking-[0.22em] text-[#9d7a4b]">Статусы</div>
               <div className="mt-3 flex flex-col gap-2">
                 <span className="rounded-full border border-[#d9c4a4] bg-[#fff8ec] px-4 py-2 text-sm font-medium text-[#6b5943]">Не пройден</span>
@@ -583,7 +583,7 @@ export default function ProjectDetailsPage() {
         </div>
 
         {fullyDone ? (
-          <div className="rounded-[30px] border border-[#d7c4a6] bg-[#fbf5ea] p-5 shadow-[0_20px_44px_rgba(93,71,39,0.12)]">
+          <div className="mx-auto max-w-[1220px] rounded-[26px] border border-[#d7c4a6] bg-[#fbf5ea] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.12)]">
             <div className="text-lg font-semibold text-[#2d2a22]">Уровни результата</div>
             <div className="mt-1 text-sm text-[#8d7860]">Открывай нужный уровень интерпретации по мере готовности проекта.</div>
 
@@ -729,7 +729,7 @@ export default function ProjectDetailsPage() {
           <div className="rounded-[26px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-4 text-sm text-[#6f6454] shadow-[0_16px_34px_rgba(93,71,39,0.10)]">Уровни результата откроются после того, как участник завершит все назначенные тесты.</div>
         )}
 
-        <div className="rounded-[32px] border border-[#d7c4a6] bg-[#fbf5ea] p-5 shadow-[0_24px_50px_rgba(93,71,39,0.14)]">
+        <div className="mx-auto max-w-[1220px] rounded-[26px] border border-[#d7c4a6] bg-[#fbf5ea] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.14)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-2xl font-semibold text-[#2d2a22]">Назначенные тесты</div>
