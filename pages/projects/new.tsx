@@ -67,7 +67,7 @@ function ChoiceCard({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-[24px] border px-4 py-4 text-left transition ${
+      className={`rounded-[20px] border px-3.5 py-3 text-left transition ${
         active
           ? "border-[#8eb792] bg-[#edf6ea] shadow-sm"
           : "border-[#e6d9c4] bg-[#fffdf8] hover:border-[#c9b492] hover:bg-[#fff8ee]"
@@ -339,37 +339,40 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   return (
     <Layout title="Новый проект оценки">
-      <div className="mx-auto max-w-[1180px] px-2 pb-10 pt-2 sm:px-4">
+      <div className="mx-auto px-2 pb-6 pt-2 sm:px-4">
         <div
-          className="relative mx-auto max-w-[1100px] bg-no-repeat bg-top bg-contain"
-          style={{ backgroundImage: "url('/project-create-clipboard-photo.png')" }}
+          className="relative mx-auto aspect-[2/3] bg-no-repeat bg-top bg-contain"
+          style={{
+            width: "min(100%, 980px, calc((100vh - 24px) * 0.6667))",
+            backgroundImage: "url('/project-create-clipboard-photo.png')",
+          }}
         >
-          <div className="relative px-[10%] pb-[8%] pt-[17%] sm:px-[11%] sm:pb-[7%] sm:pt-[16%] md:px-[12%] md:pt-[15%]">
-            <div className="relative overflow-hidden rounded-[34px] border border-[rgba(172,140,101,0.28)] bg-[rgba(255,251,245,0.78)] px-4 pb-5 pt-8 shadow-[0_24px_50px_rgba(92,67,38,0.08)] backdrop-blur-[1.5px] sm:px-7 sm:pb-7 sm:pt-10 md:px-10 md:pb-10 md:pt-12">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(255,255,255,0)_34%),linear-gradient(90deg,rgba(180,142,101,0.05)_1px,transparent_1px),linear-gradient(rgba(180,142,101,0.05)_1px,transparent_1px)] [background-size:auto,100%_100%,100%_42px] opacity-60" />
+          <div className="absolute left-[11.2%] top-[11.2%] h-[79.8%] w-[77.6%] overflow-y-auto rounded-[24px] px-[2.8%] pb-[3.2%] pt-[2.8%] [scrollbar-width:thin]">
+            <div className="relative overflow-hidden rounded-[28px] border border-[rgba(172,140,101,0.24)] bg-[rgba(255,251,245,0.68)] px-3 pb-4 pt-5 shadow-[0_18px_40px_rgba(92,67,38,0.06)] backdrop-blur-[1px] sm:px-5 sm:pb-5 sm:pt-6">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.78),rgba(255,255,255,0)_30%),linear-gradient(90deg,rgba(180,142,101,0.045)_1px,transparent_1px),linear-gradient(rgba(180,142,101,0.045)_1px,transparent_1px)] [background-size:auto,100%_100%,100%_34px] opacity-55" />
               <div className="relative">
-              <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#8a6a46]">Лист проекта</div>
-                  <h1 className="mt-3 text-[28px] font-semibold tracking-[0.01em] text-[#31492f] sm:text-[34px]">Новый проект оценки</h1>
+                  <h1 className="mt-2.5 text-[24px] font-semibold tracking-[0.01em] text-[#31492f] sm:text-[28px]">Новый проект оценки</h1>
                   <div className="mt-2 text-sm text-[#6a5640]">
                     {workspaceName ? `Рабочее пространство: ${workspaceName}` : "Подготавливаем рабочее пространство…"}
                   </div>
                 </div>
                 <Link
                   href="/dashboard"
-                  className="inline-flex min-h-[42px] items-center rounded-full border border-[#d9c2a0] bg-[#fff8ec] px-4 py-2 text-sm font-medium text-[#5d4830] shadow-sm transition hover:bg-[#fff3df]"
+                  className="inline-flex min-h-[38px] items-center rounded-full border border-[#d9c2a0] bg-[#fff8ec] px-3.5 py-1.5 text-sm font-medium text-[#5d4830] shadow-sm transition hover:bg-[#fff3df]"
                 >
                   Назад в кабинет
                 </Link>
               </div>
 
-              <form onSubmit={onSubmit} className="grid gap-5">
-                <section className="rounded-[28px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-4 shadow-[0_10px_25px_rgba(98,73,41,0.06)] sm:p-6">
+              <form onSubmit={onSubmit} className="grid gap-3.5">
+                <section className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-xl font-semibold text-[#3d3124]">Шаг 1. Личная информация клиента</div>
-                      <div className="mt-1 text-sm leading-6 text-[#6b5843]">
+                      <div className="text-[18px] font-semibold text-[#3d3124]">Шаг 1. Личная информация клиента</div>
+                      <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
                         Заполни только базовые данные. Этого достаточно, чтобы сразу создать проект и выдать ссылку человеку.
                       </div>
                     </div>
@@ -378,11 +381,11 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </InfoHint>
                   </div>
 
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <label className="grid gap-1.5">
                       <span className="text-sm font-medium text-[#6c563b]">Имя и фамилия</span>
                       <input
-                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        className="h-11 rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
                         value={personName}
                         onChange={(e) => setPersonName(e.target.value)}
                         placeholder="Например: Иван Петров"
@@ -392,7 +395,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     <label className="grid gap-1.5">
                       <span className="text-sm font-medium text-[#6c563b]">Email</span>
                       <input
-                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        className="h-11 rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
                         type="email"
                         value={personEmail}
                         onChange={(e) => setPersonEmail(e.target.value)}
@@ -402,7 +405,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     <label className="grid gap-1.5">
                       <span className="text-sm font-medium text-[#6c563b]">Текущая должность</span>
                       <input
-                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        className="h-11 rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
                         value={currentPosition}
                         onChange={(e) => setCurrentPosition(e.target.value)}
                         placeholder="Например: менеджер по продажам"
@@ -411,7 +414,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     <label className="grid gap-1.5">
                       <span className="text-sm font-medium text-[#6c563b]">Целевая роль</span>
                       <input
-                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        className="h-11 rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
                         value={targetRole}
                         onChange={(e) => setTargetRole(e.target.value)}
                         placeholder="Например: руководитель группы"
@@ -420,7 +423,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     <label className="grid gap-1.5 md:col-span-2">
                       <span className="text-sm font-medium text-[#6c563b]">Комментарий специалиста</span>
                       <textarea
-                        className="min-h-[108px] rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 py-3 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        className="min-h-[92px] rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 py-3 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Коротко опиши контекст оценки, задачу руководителя или риски, которые важно проверить."
@@ -429,11 +432,11 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-4 shadow-[0_10px_25px_rgba(98,73,41,0.06)] sm:p-6">
+                <section className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-xl font-semibold text-[#3d3124]">Шаг 2. Что проверяем</div>
-                      <div className="mt-1 text-sm leading-6 text-[#6b5843]">
+                      <div className="text-[18px] font-semibold text-[#3d3124]">Шаг 2. Что проверяем</div>
+                      <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
                         Можно идти от текущих целей оценки или от конкретных компетенций. Набор тестов система подберёт сама.
                       </div>
                     </div>
@@ -442,7 +445,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </InfoHint>
                   </div>
 
-                  <div className="mt-5 inline-flex rounded-full border border-[#dcc8ab] bg-[#fff8ee] p-1.5 shadow-sm">
+                  <div className="mt-4 inline-flex rounded-full border border-[#dcc8ab] bg-[#fff8ee] p-1.5 shadow-sm">
                     <button
                       type="button"
                       onClick={() => setSelectionMode("goal")}
@@ -464,7 +467,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   </div>
 
                   {selectionMode === "goal" ? (
-                    <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                    <div className="mt-4 grid gap-2.5 lg:grid-cols-2">
                       {COMMERCIAL_GOALS.map((item) => (
                         <ChoiceCard
                           key={item.key}
@@ -476,17 +479,17 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-5 grid gap-4">
-                      <div className="rounded-[26px] border border-[#e7d8c0] bg-[#fff7eb] p-4">
+                    <div className="mt-4 grid gap-3">
+                      <div className="rounded-[22px] border border-[#e7d8c0] bg-[#fff7eb] p-3">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <div className="text-base font-semibold text-[#3d3124]">Выбери одну или несколько компетенций</div>
-                            <div className="mt-1 text-sm leading-6 text-[#6b5843]">
+                            <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
                               Система объединит маршруты и предложит стандартный набор тестов по выбранным компетенциям.
                             </div>
                           </div>
                           <input
-                            className="h-11 min-w-[240px] max-w-[320px] rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                            className="h-10 min-w-[220px] max-w-[300px] rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
                             value={competencyQuery}
                             onChange={(e) => setCompetencyQuery(e.target.value)}
                             placeholder="Найти компетенцию"
@@ -518,7 +521,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                           return (
                             <details
                               key={group.cluster}
-                              className="rounded-[26px] border border-[#e7d8c0] bg-[#fffdf8] p-4"
+                              className="rounded-[20px] border border-[#e7d8c0] bg-[#fffdf8] p-3"
                               open={selectedCount > 0 || Boolean(competencyQuery)}
                             >
                               <summary className="cursor-pointer list-none text-sm font-semibold text-[#3d3124]">
@@ -529,7 +532,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                                   </span>
                                 </div>
                               </summary>
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-2.5 flex flex-wrap gap-1.5">
                                 {group.items.map((item) => (
                                   <CompetencyToggle
                                     key={item.id}
@@ -546,12 +549,12 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </div>
                   )}
 
-                  <div className="mt-6">
-                    <div className="rounded-[26px] border border-[#a8d1a7] bg-[#edf6ea] p-4">
+                  <div className="mt-4">
+                    <div className="rounded-[22px] border border-[#a8d1a7] bg-[#edf6ea] p-3.5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <div className="text-base font-semibold text-[#2f4c32]">Набор тестов подобран автоматически</div>
-                          <div className="mt-1 text-sm leading-6 text-[#507154]">
+                          <div className="text-[15px] font-semibold text-[#2f4c32]">Набор тестов подобран автоматически</div>
+                          <div className="mt-1 text-[13px] leading-5 text-[#507154]">
                             {selectionMode === "goal"
                               ? "Это рекомендуемый набор под выбранную цель."
                               : "Это стандартный маршрут по выбранным компетенциям. При необходимости его можно скорректировать вручную."}
@@ -570,12 +573,12 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       </div>
 
                       {selectionMode === "competency" && selectedCompetencyIds.length === 0 ? (
-                        <div className="mt-4 rounded-[20px] border border-dashed border-[#c9c0b1] bg-[#fffdf8] px-4 py-4 text-sm text-[#7b6650]">
+                        <div className="mt-3 rounded-[18px] border border-dashed border-[#c9c0b1] bg-[#fffdf8] px-3.5 py-3 text-[13px] text-[#7b6650]">
                           Сначала выбери хотя бы одну компетенцию — после этого система сразу соберёт набор тестов.
                         </div>
                       ) : (
                         <>
-                          <div className="mt-4 flex flex-wrap gap-2">
+                          <div className="mt-3 flex flex-wrap gap-1.5">
                             {autoSelectedTestCards.map((test) => (
                               <span
                                 key={test.slug}
@@ -586,7 +589,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                             ))}
                           </div>
 
-                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
                             <button
                               type="button"
                               onClick={() => setEditorOpen((prev) => !prev)}
@@ -607,7 +610,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       )}
 
                       {editorOpen ? (
-                        <div className="mt-4 grid gap-2 md:grid-cols-2">
+                        <div className="mt-3 grid gap-2 md:grid-cols-2">
                           {tests.map((test) => (
                             <TestToggleRow
                               key={test.slug}
@@ -623,8 +626,8 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-4 shadow-[0_10px_25px_rgba(98,73,41,0.06)] sm:p-6">
-                  <div className="flex flex-col items-center gap-4 text-center">
+                <section className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
+                  <div className="flex flex-col items-center gap-3 text-center">
                     {error ? (
                       <div className="w-full max-w-3xl rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{error}</div>
                     ) : (
@@ -635,7 +638,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     <button
                       type="submit"
                       disabled={loading || !selectedTests.length || (selectionMode === "competency" && selectedCompetencyIds.length === 0)}
-                      className="inline-flex min-h-[52px] min-w-[260px] items-center justify-center rounded-[18px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-8 py-3 text-base font-semibold text-[#2f4c32] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_18px_rgba(76,128,82,0.18)] transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex min-h-[48px] min-w-[240px] items-center justify-center rounded-[18px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-8 py-3 text-base font-semibold text-[#2f4c32] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_18px_rgba(76,128,82,0.18)] transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {loading ? "Создаём проект…" : "Создать проект"}
                     </button>
@@ -645,7 +648,6 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
             </div>
           </div>
         </div>
-      </div>
       </div>
     </Layout>
   );
