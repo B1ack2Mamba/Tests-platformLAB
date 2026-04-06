@@ -505,11 +505,12 @@ export default function ProjectDetailsPage() {
   const shareCompactUrl = shareUrl ? shareUrl.replace(/^https?:\/\//, "") : "";
   const detailsCanvasHeight = Math.max(
     1700,
-    detailsTemplate.mainY + 1050 * detailsTemplate.mainScale + 80,
-    detailsTemplate.profileY + 217 * detailsTemplate.profileScale + 80,
-    detailsTemplate.qrY + 532 * detailsTemplate.qrScale + 80,
-    detailsTemplate.testsY + 400 * detailsTemplate.testsScale + 80,
-    detailsTemplate.statusY + 200 * detailsTemplate.statusScale + 80
+    detailsTemplate.mainY + 1066 * Math.max(1, detailsTemplate.mainScale) + 80,
+    detailsTemplate.profileY + 217 * Math.max(1, detailsTemplate.profileScale) + 80,
+    detailsTemplate.qrY + 532 * Math.max(1, detailsTemplate.qrScale) + 80,
+    detailsTemplate.testsY + 400 * Math.max(1, detailsTemplate.testsScale) + 80,
+    detailsTemplate.statusY + 208 * Math.max(1, detailsTemplate.statusScale) + 80,
+    detailsTemplate.stripY + 102 * Math.max(1, detailsTemplate.stripScale) + 80
   );
 
   function renderTemplateHandles(target: DetailsTemplateTarget, label: string) {
@@ -676,10 +677,12 @@ export default function ProjectDetailsPage() {
         <div className="relative mx-auto w-full max-w-[1220px]" style={{ height: detailsCanvasHeight }}>
           <div className="absolute inset-0 rounded-[36px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.72))]" />
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 840, height: 102, transform: `translate(${detailsTemplate.stripX}px, ${detailsTemplate.stripY}px) scale(${detailsTemplate.stripScale})` }}>
-            <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-top-strip-template.png')" }}>
-              {renderTemplateHandles("strip", "верх")}
-              <div className="absolute inset-x-[18px] top-[12px] flex items-center justify-between gap-3 px-3">
+          <div className="absolute left-0 top-0" style={{ width: 840, height: 102, transform: `translate(${detailsTemplate.stripX}px, ${detailsTemplate.stripY}px)` }}>
+            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: 840, height: 102, transform: `scale(${detailsTemplate.stripScale})` }}>
+              <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-top-strip-template.png')" }} />
+            </div>
+            {renderTemplateHandles("strip", "верх")}
+            <div className="absolute inset-x-[18px] top-[12px] flex items-center justify-between gap-3 px-3">
                 <div className="min-w-0 pt-1">
                   <div className="text-[10px] uppercase tracking-[0.22em] text-[#9d7a4b]">Название рабочего пространства / ID проекта</div>
                   <div className="mt-1 truncate text-sm text-[#6f5a42]">{data?.workspace.name || "Рабочее пространство"} / {data?.project.id ? data.project.id.slice(0, 8) : "—"}</div>
@@ -688,15 +691,15 @@ export default function ProjectDetailsPage() {
                   <Link href="/dashboard" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(90,68,33,0.08)]">Кабинет</Link>
                   <Link href="/projects/new" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(90,68,33,0.08)]">Новый проект</Link>
                   <button type="button" onClick={deleteProject} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(90,68,33,0.08)]">Удалить проект</button>
-                </div>
               </div>
-            </div>
           </div>
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 760, height: 1066, transform: `translate(${detailsTemplate.mainX}px, ${detailsTemplate.mainY}px) scale(${detailsTemplate.mainScale})` }}>
-            <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-main-template.png')" }}>
-              {renderTemplateHandles("main", "лист")}
-              <div className="absolute inset-x-[52px] top-[64px] text-[#7d6548]">
+          <div className="absolute left-0 top-0" style={{ width: 760, height: 1066, transform: `translate(${detailsTemplate.mainX}px, ${detailsTemplate.mainY}px)` }}>
+            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: 760, height: 1066, transform: `scale(${detailsTemplate.mainScale})` }}>
+              <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-main-template.png')" }} />
+            </div>
+            {renderTemplateHandles("main", "лист")}
+            <div className="absolute inset-x-[52px] top-[64px] text-[#7d6548]">
                 <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Проект #{data?.project.id ? data.project.id.slice(0, 5) : "—"}</div>
                 <div className="mt-2 text-sm text-[#958066]">{data?.workspace.name || "Рабочее пространство"} / {data?.project.created_at ? new Date(data.project.created_at).toLocaleDateString("ru-RU") : "—"}</div>
                 <div className="mt-5 text-sm font-semibold uppercase tracking-[0.22em] text-[#7d6548]">Проект оценки</div>
@@ -732,14 +735,15 @@ export default function ProjectDetailsPage() {
                 </div>
 
                 <div className="mt-5 rounded-[24px] border border-[#ddcbb0] bg-[#f8f1e5] px-5 py-4 text-sm leading-7 text-[#685742] shadow-[0_12px_24px_rgba(93,71,39,0.06)]"><span className="font-semibold text-[#4d4338]">Примечание специалисту:</span> результаты откроются после того, как участник завершит назначенные тесты.</div>
-              </div>
             </div>
           </div>
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 360, height: 217, transform: `translate(${detailsTemplate.profileX}px, ${detailsTemplate.profileY}px) scale(${detailsTemplate.profileScale})` }}>
-            <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-profile-template.png')" }}>
-              {renderTemplateHandles("profile", "профиль")}
-              <div className="absolute inset-x-[26px] top-[28px] text-[#2d2a22]">
+          <div className="absolute left-0 top-0" style={{ width: 360, height: 217, transform: `translate(${detailsTemplate.profileX}px, ${detailsTemplate.profileY}px)` }}>
+            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: 360, height: 217, transform: `scale(${detailsTemplate.profileScale})` }}>
+              <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-profile-template.png')" }} />
+            </div>
+            {renderTemplateHandles("profile", "профиль")}
+            <div className="absolute inset-x-[26px] top-[28px] text-[#2d2a22]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-[2rem] font-semibold text-[#2f5031]">Профиль участника</div>
@@ -768,14 +772,15 @@ export default function ProjectDetailsPage() {
                   {editing ? <textarea className="input mt-3 min-h-[118px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" /> : <div className="mt-3 text-sm leading-7 text-[#6f6454]">{data?.project.person?.notes || "Комментарий пока не добавлен."}</div>}
                 </div>
                 {editing ? <div className="mt-4 flex flex-wrap gap-2"><button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button><button type="button" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]" onClick={() => setEditing(false)}>Отменить</button></div> : null}
-              </div>
             </div>
           </div>
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 300, height: 532, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px) scale(${detailsTemplate.qrScale})` }}>
-            <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-qr-template.png')" }}>
-              {renderTemplateHandles("qr", "QR")}
-              <div className="absolute inset-x-[34px] top-[202px] text-[#2d2a22]">
+          <div className="absolute left-0 top-0" style={{ width: 300, height: 532, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px)` }}>
+            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: 300, height: 532, transform: `scale(${detailsTemplate.qrScale})` }}>
+              <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-qr-template.png')" }} />
+            </div>
+            {renderTemplateHandles("qr", "QR")}
+            <div className="absolute inset-x-[34px] top-[202px] text-[#2d2a22]">
                 <div className="text-[1.1rem] font-semibold text-center">Доступ участника</div>
                 <div className="mt-4 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Ссылка</div>
@@ -789,25 +794,27 @@ export default function ProjectDetailsPage() {
                   <div className="mt-3 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={124} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
                   <div className="mt-3 text-sm leading-6 text-[#8d7860]">Открой ссылку на телефоне или отсканируй QR.</div>
                 </div>
-              </div>
             </div>
           </div>
 
 
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 178, height: 208, transform: `translate(${detailsTemplate.statusX}px, ${detailsTemplate.statusY}px) scale(${detailsTemplate.statusScale})` }}>
-            <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-status-template.png')" }}>
-              {renderTemplateHandles("status", "статусы")}
-              <div className="absolute inset-x-[18px] top-[18px] flex h-[172px] flex-col justify-between text-center text-[0.95rem] font-medium text-[#5a4a37]">
+          <div className="absolute left-0 top-0" style={{ width: 178, height: 208, transform: `translate(${detailsTemplate.statusX}px, ${detailsTemplate.statusY}px)` }}>
+            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: 178, height: 208, transform: `scale(${detailsTemplate.statusScale})` }}>
+              <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-status-template.png')" }} />
+            </div>
+            {renderTemplateHandles("status", "статусы")}
+            <div className="absolute inset-x-[18px] top-[18px] flex h-[172px] flex-col justify-between text-center text-[0.95rem] font-medium text-[#5a4a37]">
                 <div className="flex h-[46px] items-center justify-center">Не пройден</div>
                 <div className="flex h-[60px] items-center justify-center text-[#53664a]">В процессе</div>
                 <div className="flex h-[46px] items-center justify-center">Завершён</div>
-              </div>
             </div>
           </div>
-          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 870, height: 400, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px) scale(${detailsTemplate.testsScale})` }}>
-            <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-tests-template.png')" }}>
-              {renderTemplateHandles("tests", "тесты")}
-              <div className="absolute inset-x-[36px] top-[34px] text-[#2d2a22]">
+          <div className="absolute left-0 top-0" style={{ width: 870, height: 400, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
+            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: 870, height: 400, transform: `scale(${detailsTemplate.testsScale})` }}>
+              <div className="relative h-full w-full bg-contain bg-no-repeat" style={{ backgroundImage: "url('/project-details-tests-template.png')" }} />
+            </div>
+            {renderTemplateHandles("tests", "тесты")}
+            <div className="absolute inset-x-[36px] top-[34px] text-[#2d2a22]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-2xl font-semibold">Назначенные тесты</div>
