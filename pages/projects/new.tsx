@@ -16,7 +16,6 @@ import {
   getCompetencyGroups,
   getCompetencyLongLabel,
   getCompetencyRecommendedTests,
-  getCompetencyShortLabel,
   getCompetencyTestReasons,
   type RoutingMode,
 } from "@/lib/competencyRouter";
@@ -33,16 +32,16 @@ type NewProjectPageProps = { tests: Pick<AnyTest, "slug" | "title">[] };
 
 function InfoHint({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <details className="group relative">
+    <details className="group relative shrink-0">
       <summary
-        className="flex h-6 w-6 list-none items-center justify-center rounded-full border border-emerald-200 bg-white text-[11px] font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+        className="flex h-7 w-7 list-none items-center justify-center rounded-full border border-[#d3c0a2] bg-[#fff8ed] text-[11px] font-semibold text-[#7c5d2c] shadow-sm transition hover:bg-[#fff2dc]"
         aria-label={label}
         title={label}
       >
         ?
       </summary>
-      <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border border-emerald-100 bg-white/98 p-3 text-xs leading-5 text-slate-600 shadow-xl backdrop-blur-sm">
-        <div className="mb-1 text-xs font-semibold text-slate-900">{label}</div>
+      <div className="absolute right-0 z-20 mt-2 w-72 rounded-3xl border border-[#e7d8bf] bg-[#fffaf2] p-3 text-xs leading-5 text-[#6a5640] shadow-xl">
+        <div className="mb-1 text-xs font-semibold text-[#3d3124]">{label}</div>
         <div>{children}</div>
       </div>
     </details>
@@ -68,16 +67,18 @@ function ChoiceCard({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-3xl border px-4 py-4 text-left transition ${
-        active ? "border-emerald-400 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:border-emerald-200"
+      className={`rounded-[24px] border px-4 py-4 text-left transition ${
+        active
+          ? "border-[#8eb792] bg-[#edf6ea] shadow-sm"
+          : "border-[#e6d9c4] bg-[#fffdf8] hover:border-[#c9b492] hover:bg-[#fff8ee]"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className={`text-sm font-semibold ${active ? "text-emerald-950" : "text-slate-900"}`}>{title}</div>
-          <div className="mt-1 text-xs leading-5 text-slate-600">{description}</div>
+          <div className={`text-sm font-semibold ${active ? "text-[#2f4c32]" : "text-[#3d3124]"}`}>{title}</div>
+          <div className="mt-1 text-xs leading-5 text-[#6a5640]">{description}</div>
         </div>
-        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${active ? "bg-emerald-500" : "bg-slate-200"}`} />
+        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${active ? "bg-[#6ea374]" : "bg-[#d8cfc0]"}`} />
       </div>
     </button>
   );
@@ -97,12 +98,14 @@ function CompetencyToggle({
       type="button"
       onClick={onToggle}
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
-        active ? "border-emerald-400 bg-emerald-50 text-emerald-950 shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
+        active
+          ? "border-[#93be97] bg-[#edf6ea] text-[#2f4c32] shadow-sm"
+          : "border-[#e5d7c4] bg-[#fffdf8] text-[#5f4f3f] hover:border-[#ccb18d] hover:bg-[#fff7eb]"
       }`}
     >
       <span
         className={`flex h-4.5 w-4.5 items-center justify-center rounded-full border text-[10px] font-semibold ${
-          active ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"
+          active ? "border-[#6ea374] bg-[#6ea374] text-white" : "border-[#c9c0b4] bg-white text-transparent"
         }`}
       >
         ✓
@@ -127,20 +130,22 @@ function TestToggleRow({
     <button
       type="button"
       onClick={onToggle}
-      className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
-        active ? "border-emerald-300 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:border-emerald-200"
+      className={`flex w-full items-start gap-3 rounded-[22px] border px-3 py-3 text-left transition ${
+        active
+          ? "border-[#92bb97] bg-[#edf6ea] shadow-sm"
+          : "border-[#e5d8c4] bg-[#fffdf8] hover:border-[#ccb18d] hover:bg-[#fff8ee]"
       }`}
     >
       <span
         className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[11px] font-semibold ${
-          active ? "border-emerald-400 bg-emerald-500 text-white" : "border-slate-300 bg-white text-transparent"
+          active ? "border-[#6ea374] bg-[#6ea374] text-white" : "border-[#cbc1b3] bg-white text-transparent"
         }`}
       >
         ✓
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-slate-900">{title}</span>
-        <span className="mt-1 block text-xs leading-5 text-slate-500">{note}</span>
+        <span className="block text-sm font-medium text-[#3d3124]">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-[#6a5640]">{note}</span>
       </span>
     </button>
   );
@@ -214,9 +219,10 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     [allSlugs, selectedCompetencyIds]
   );
   const autoSelectedTests = useMemo(
-    () => selectionMode === "goal"
-      ? getGoalRecommendedTests(goal, allSlugs)
-      : getCompetencyRecommendedTests(selectedCompetencyIds, allSlugs, "standard"),
+    () =>
+      selectionMode === "goal"
+        ? getGoalRecommendedTests(goal, allSlugs)
+        : getCompetencyRecommendedTests(selectedCompetencyIds, allSlugs, "standard"),
     [allSlugs, goal, selectedCompetencyIds, selectionMode]
   );
   const autoSelectedKey = useMemo(() => autoSelectedTests.join("|"), [autoSelectedTests]);
@@ -231,7 +237,9 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     return getCompetencyGroups()
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => !query || item.name.toLowerCase().includes(query) || item.definition.toLowerCase().includes(query)),
+        items: group.items.filter(
+          (item) => !query || item.name.toLowerCase().includes(query) || item.definition.toLowerCase().includes(query)
+        ),
       }))
       .filter((group) => group.items.length > 0);
   }, [competencyQuery]);
@@ -245,17 +253,14 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     () => autoSelectedTests.map((slug) => testMap.get(slug) || { slug, title: getTestDisplayTitle(slug) }),
     [autoSelectedTests, testMap]
   );
-  const hasCustomTestSelection = useMemo(
-    () => !sameSlugSet(selectedTests, autoSelectedTests),
-    [autoSelectedTests, selectedTests]
-  );
+  const hasCustomTestSelection = useMemo(() => !sameSlugSet(selectedTests, autoSelectedTests), [autoSelectedTests, selectedTests]);
 
   function toggleCompetency(id: string) {
-    setSelectedCompetencyIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
+    setSelectedCompetencyIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }
 
   function toggleTest(slug: string) {
-    setSelectedTests((prev) => prev.includes(slug) ? prev.filter((item) => item !== slug) : [...prev, slug]);
+    setSelectedTests((prev) => (prev.includes(slug) ? prev.filter((item) => item !== slug) : [...prev, slug]));
   }
 
   function restoreAutoSelected() {
@@ -265,7 +270,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
   function testNote(slug: string) {
     if (selectionMode === "goal") {
       const weight = getGoalWeight(goal, slug);
-      if (weight > 0) return `Автоподбор по цели «${definition?.shortTitle || "Цель"}»: ${weight * 10}%`;
+      if (weight > 0) return `Автоподбор по цели «${definition?.shortTitle || "Цель"}": ${weight * 10}%`;
       return "Можно добавить вручную для уточнения профиля.";
     }
     const reasons = competencyReasonMap[slug] || [];
@@ -329,274 +334,351 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     );
   }
 
-  const selectedCriteriaLabel = selectionMode === "goal"
-    ? definition?.shortTitle || "Цель оценки"
-    : getCompetencyLongLabel(selectedCompetencyIds);
+  const selectedCriteriaLabel =
+    selectionMode === "goal" ? definition?.shortTitle || "Цель оценки" : getCompetencyLongLabel(selectedCompetencyIds);
 
   return (
     <Layout title="Новый проект оценки">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-slate-600">
-          {workspaceName ? `Рабочее пространство: ${workspaceName}` : "Подготавливаем рабочее пространство…"}
-        </div>
-        <Link href="/dashboard" className="btn btn-secondary btn-sm">Назад в кабинет</Link>
-      </div>
+      <div className="mx-auto max-w-[1100px] px-2 pb-10 pt-2 sm:px-4">
+        <div className="relative rounded-[42px] bg-[linear-gradient(145deg,#bf8a55_0%,#d9ab73_18%,#ba8450_34%,#d8a36d_52%,#be8450_72%,#9f6a3c_100%)] p-3 shadow-[0_30px_80px_rgba(61,42,18,0.18)] sm:p-5 md:p-6">
+          <div className="pointer-events-none absolute left-1/2 top-0 z-10 h-20 w-44 -translate-x-1/2 -translate-y-1/3 rounded-b-[36px] rounded-t-[24px] bg-[linear-gradient(180deg,#efd08e_0%,#d0a357_48%,#ae7b31_100%)] shadow-[0_18px_30px_rgba(87,55,13,0.24)] before:absolute before:left-1/2 before:top-0 before:h-9 before:w-9 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:border-[6px] before:border-[#b17d34] before:bg-transparent before:content-[''] after:absolute after:inset-x-3 after:bottom-2 after:h-1.5 after:rounded-full after:bg-[rgba(255,255,255,0.18)] after:content-['']" />
 
-      <form onSubmit={onSubmit} className="mx-auto grid max-w-5xl gap-4">
-        <section className="card">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Шаг 1. Личная информация клиента</div>
-              <div className="mt-1 text-xs leading-5 text-slate-500">
-                Заполни только базовые данные. Этого достаточно, чтобы сразу создать проект и выдать ссылку человеку.
-              </div>
-            </div>
-            <InfoHint label="Что обязательно на этом шаге?">
-              Обязательно только имя. Остальное можно заполнить коротко: почта, текущая должность, целевая роль и контекст запроса.
-            </InfoHint>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label className="grid gap-1 md:col-span-2 xl:col-span-2">
-              <span className="text-xs text-slate-600">Имя и фамилия</span>
-              <input className="input" value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Например: Иван Петров" required />
-            </label>
-            <label className="grid gap-1 md:col-span-2 xl:col-span-2">
-              <span className="text-xs text-slate-600">Email</span>
-              <input className="input" type="email" value={personEmail} onChange={(e) => setPersonEmail(e.target.value)} placeholder="candidate@example.com" />
-            </label>
-            <label className="grid gap-1 md:col-span-1 xl:col-span-2">
-              <span className="text-xs text-slate-600">Текущая должность</span>
-              <input className="input" value={currentPosition} onChange={(e) => setCurrentPosition(e.target.value)} placeholder="Например: менеджер по продажам" />
-            </label>
-            <label className="grid gap-1 md:col-span-1 xl:col-span-2">
-              <span className="text-xs text-slate-600">Целевая роль</span>
-              <input className="input" value={targetRole} onChange={(e) => setTargetRole(e.target.value)} placeholder="Например: руководитель группы" />
-            </label>
-            <label className="grid gap-1 md:col-span-2 xl:col-span-4">
-              <span className="text-xs text-slate-600">Комментарий специалиста</span>
-              <textarea className="input min-h-[96px]" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Коротко опиши контекст оценки, задачу руководителя или риски, которые важно проверить." />
-            </label>
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Шаг 2. Что проверяем</div>
-              <div className="mt-1 text-xs leading-5 text-slate-500">
-                Можно идти от текущих целей оценки или от конкретных компетенций. Набор тестов система подберёт сама.
-              </div>
-            </div>
-            <InfoHint label="Как выбирать режим?">
-              Если нужен привычный сценарий — выбери цель. Если нужна точечная проверка, выбери одну или несколько компетенций, а система соберёт общий набор тестов.
-            </InfoHint>
-          </div>
-
-          <div className="mt-4 inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
-            <button
-              type="button"
-              onClick={() => setSelectionMode("goal")}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${selectionMode === "goal" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600"}`}
-            >
-              По текущей цели
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectionMode("competency")}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${selectionMode === "competency" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600"}`}
-            >
-              По компетенциям
-            </button>
-          </div>
-
-          {selectionMode === "goal" ? (
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {COMMERCIAL_GOALS.map((item) => (
-                <ChoiceCard
-                  key={item.key}
-                  active={item.key === goal}
-                  title={item.shortTitle}
-                  description={item.description}
-                  onClick={() => setGoal(item.key)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-4">
-              <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">Выбери одну или несколько компетенций</div>
-                    <div className="mt-1 text-xs leading-5 text-slate-500">Система объединит маршруты и предложит стандартный набор тестов по выбранным компетенциям.</div>
+          <div className="relative overflow-hidden rounded-[34px] border border-[rgba(153,109,61,0.28)] bg-[linear-gradient(180deg,#fffdf8_0%,#fff9ef_100%)] px-4 pb-5 pt-10 sm:px-7 sm:pb-7 sm:pt-12 md:px-10 md:pb-10 md:pt-14">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(255,255,255,0)_32%),linear-gradient(90deg,rgba(180,142,101,0.06)_1px,transparent_1px),linear-gradient(rgba(180,142,101,0.06)_1px,transparent_1px)] [background-size:auto,100%_100%,100%_42px] opacity-60" />
+            <div className="relative">
+              <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#8a6a46]">Лист проекта</div>
+                  <h1 className="mt-3 text-[28px] font-semibold tracking-[0.01em] text-[#31492f] sm:text-[34px]">Новый проект оценки</h1>
+                  <div className="mt-2 text-sm text-[#6a5640]">
+                    {workspaceName ? `Рабочее пространство: ${workspaceName}` : "Подготавливаем рабочее пространство…"}
                   </div>
-                  <input
-                    className="input h-10 min-w-[240px] max-w-[320px]"
-                    value={competencyQuery}
-                    onChange={(e) => setCompetencyQuery(e.target.value)}
-                    placeholder="Найти компетенцию"
-                  />
                 </div>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex min-h-[42px] items-center rounded-full border border-[#d9c2a0] bg-[#fff8ec] px-4 py-2 text-sm font-medium text-[#5d4830] shadow-sm transition hover:bg-[#fff3df]"
+                >
+                  Назад в кабинет
+                </Link>
               </div>
 
-              {selectedCompetencyIds.length ? (
-                <div className="flex flex-wrap gap-2">
-                  {selectedCompetencyIds.map((id) => {
-                    const groups = getCompetencyGroups();
-                    const match = groups.flatMap((group) => group.items).find((item) => item.id === id);
-                    if (!match) return null;
-                    return (
-                      <span key={id} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900">
-                        {match.name}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <form onSubmit={onSubmit} className="grid gap-5">
+                <section className="rounded-[28px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-4 shadow-[0_10px_25px_rgba(98,73,41,0.06)] sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xl font-semibold text-[#3d3124]">Шаг 1. Личная информация клиента</div>
+                      <div className="mt-1 text-sm leading-6 text-[#6b5843]">
+                        Заполни только базовые данные. Этого достаточно, чтобы сразу создать проект и выдать ссылку человеку.
+                      </div>
+                    </div>
+                    <InfoHint label="Что обязательно на этом шаге?">
+                      Обязательно только имя. Остальное можно заполнить коротко: почта, текущая должность, целевая роль и контекст запроса.
+                    </InfoHint>
+                  </div>
 
-              <div className="grid gap-3">
-                {competencyGroups.map((group) => {
-                  const selectedCount = group.items.filter((item) => selectedCompetencySet.has(item.id)).length;
-                  return (
-                    <details key={group.cluster} className="rounded-3xl border border-slate-200 bg-white p-4" open={selectedCount > 0 || Boolean(competencyQuery)}>
-                      <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
-                        <div className="flex items-center justify-between gap-3">
-                          <span>{group.cluster}</span>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                            {selectedCount ? `${selectedCount} выбрано` : `${group.items.length} вариантов`}
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-[#6c563b]">Имя и фамилия</span>
+                      <input
+                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        value={personName}
+                        onChange={(e) => setPersonName(e.target.value)}
+                        placeholder="Например: Иван Петров"
+                        required
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-[#6c563b]">Email</span>
+                      <input
+                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        type="email"
+                        value={personEmail}
+                        onChange={(e) => setPersonEmail(e.target.value)}
+                        placeholder="candidate@example.com"
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-[#6c563b]">Текущая должность</span>
+                      <input
+                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        value={currentPosition}
+                        onChange={(e) => setCurrentPosition(e.target.value)}
+                        placeholder="Например: менеджер по продажам"
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-medium text-[#6c563b]">Целевая роль</span>
+                      <input
+                        className="h-12 rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        value={targetRole}
+                        onChange={(e) => setTargetRole(e.target.value)}
+                        placeholder="Например: руководитель группы"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 md:col-span-2">
+                      <span className="text-sm font-medium text-[#6c563b]">Комментарий специалиста</span>
+                      <textarea
+                        className="min-h-[108px] rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 py-3 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Коротко опиши контекст оценки, задачу руководителя или риски, которые важно проверить."
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="rounded-[28px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-4 shadow-[0_10px_25px_rgba(98,73,41,0.06)] sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xl font-semibold text-[#3d3124]">Шаг 2. Что проверяем</div>
+                      <div className="mt-1 text-sm leading-6 text-[#6b5843]">
+                        Можно идти от текущих целей оценки или от конкретных компетенций. Набор тестов система подберёт сама.
+                      </div>
+                    </div>
+                    <InfoHint label="Как выбирать режим?">
+                      Если нужен привычный сценарий — выбери цель. Если нужна точечная проверка, выбери одну или несколько компетенций, а система соберёт общий набор тестов.
+                    </InfoHint>
+                  </div>
+
+                  <div className="mt-5 inline-flex rounded-full border border-[#dcc8ab] bg-[#fff8ee] p-1.5 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setSelectionMode("goal")}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        selectionMode === "goal" ? "bg-[#f0dcc1] text-[#4e3b25] shadow-sm" : "text-[#7b6650]"
+                      }`}
+                    >
+                      По текущей цели
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectionMode("competency")}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        selectionMode === "competency" ? "bg-[#f0dcc1] text-[#4e3b25] shadow-sm" : "text-[#7b6650]"
+                      }`}
+                    >
+                      По компетенциям
+                    </button>
+                  </div>
+
+                  {selectionMode === "goal" ? (
+                    <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                      {COMMERCIAL_GOALS.map((item) => (
+                        <ChoiceCard
+                          key={item.key}
+                          active={item.key === goal}
+                          title={item.shortTitle}
+                          description={item.description}
+                          onClick={() => setGoal(item.key)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-5 grid gap-4">
+                      <div className="rounded-[26px] border border-[#e7d8c0] bg-[#fff7eb] p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-base font-semibold text-[#3d3124]">Выбери одну или несколько компетенций</div>
+                            <div className="mt-1 text-sm leading-6 text-[#6b5843]">
+                              Система объединит маршруты и предложит стандартный набор тестов по выбранным компетенциям.
+                            </div>
+                          </div>
+                          <input
+                            className="h-11 min-w-[240px] max-w-[320px] rounded-[18px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                            value={competencyQuery}
+                            onChange={(e) => setCompetencyQuery(e.target.value)}
+                            placeholder="Найти компетенцию"
+                          />
+                        </div>
+                      </div>
+
+                      {selectedCompetencyIds.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedCompetencyIds.map((id) => {
+                            const groups = getCompetencyGroups();
+                            const match = groups.flatMap((group) => group.items).find((item) => item.id === id);
+                            if (!match) return null;
+                            return (
+                              <span
+                                key={id}
+                                className="rounded-full border border-[#9ac09d] bg-[#edf6ea] px-3 py-1 text-xs font-medium text-[#2f4c32]"
+                              >
+                                {match.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+
+                      <div className="grid gap-3">
+                        {competencyGroups.map((group) => {
+                          const selectedCount = group.items.filter((item) => selectedCompetencySet.has(item.id)).length;
+                          return (
+                            <details
+                              key={group.cluster}
+                              className="rounded-[26px] border border-[#e7d8c0] bg-[#fffdf8] p-4"
+                              open={selectedCount > 0 || Boolean(competencyQuery)}
+                            >
+                              <summary className="cursor-pointer list-none text-sm font-semibold text-[#3d3124]">
+                                <div className="flex items-center justify-between gap-3">
+                                  <span>{group.cluster}</span>
+                                  <span className="rounded-full border border-[#e6d8c4] bg-[#fff7eb] px-2.5 py-1 text-[11px] font-semibold text-[#7b6650]">
+                                    {selectedCount ? `${selectedCount} выбрано` : `${group.items.length} вариантов`}
+                                  </span>
+                                </div>
+                              </summary>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {group.items.map((item) => (
+                                  <CompetencyToggle
+                                    key={item.id}
+                                    title={item.name}
+                                    active={selectedCompetencySet.has(item.id)}
+                                    onToggle={() => toggleCompetency(item.id)}
+                                  />
+                                ))}
+                              </div>
+                            </details>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+                    <div className="rounded-[26px] border border-[#a8d1a7] bg-[#edf6ea] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-base font-semibold text-[#2f4c32]">Набор тестов подобран автоматически</div>
+                          <div className="mt-1 text-sm leading-6 text-[#507154]">
+                            {selectionMode === "goal"
+                              ? "Это рекомендуемый набор под выбранную цель."
+                              : "Это стандартный маршрут по выбранным компетенциям. При необходимости его можно скорректировать вручную."}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {hasCustomTestSelection ? (
+                            <span className="rounded-full border border-[#ebcf93] bg-[#fff6dc] px-3 py-1 text-[11px] font-semibold text-[#886428]">
+                              Набор изменён вручную
+                            </span>
+                          ) : null}
+                          <span className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-[11px] font-semibold text-[#2f4c32]">
+                            {testsLabel(selectedTestCards.length)}
                           </span>
                         </div>
-                      </summary>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {group.items.map((item) => (
-                          <CompetencyToggle
-                            key={item.id}
-                            title={item.name}
-                            active={selectedCompetencySet.has(item.id)}
-                            onToggle={() => toggleCompetency(item.id)}
-                          />
-                        ))}
                       </div>
-                    </details>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
-          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-            <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">Набор тестов подобран автоматически</div>
-                  <div className="mt-1 text-xs leading-5 text-slate-500">
-                    {selectionMode === "goal"
-                      ? "Это рекомендуемый набор под выбранную цель."
-                      : "Это стандартный маршрут по выбранным компетенциям. При необходимости его можно скорректировать вручную."}
+                      {selectionMode === "competency" && selectedCompetencyIds.length === 0 ? (
+                        <div className="mt-4 rounded-[20px] border border-dashed border-[#c9c0b1] bg-[#fffdf8] px-4 py-4 text-sm text-[#7b6650]">
+                          Сначала выбери хотя бы одну компетенцию — после этого система сразу соберёт набор тестов.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {autoSelectedTestCards.map((test) => (
+                              <span
+                                key={test.slug}
+                                className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-xs font-medium text-[#2f4c32]"
+                              >
+                                {test.title}
+                              </span>
+                            ))}
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditorOpen((prev) => !prev)}
+                              className="inline-flex min-h-[40px] items-center rounded-full border border-[#d6bea0] bg-[#fff8ec] px-4 py-2 text-sm font-medium text-[#5d4830] shadow-sm transition hover:bg-[#fff2df]"
+                            >
+                              {editorOpen ? "Скрыть редактор набора" : "Редактировать набор тестов"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={restoreAutoSelected}
+                              className="inline-flex min-h-[40px] items-center rounded-full border border-[#d6bea0] bg-[#fff8ec] px-4 py-2 text-sm font-medium text-[#5d4830] shadow-sm transition hover:bg-[#fff2df] disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={!autoSelectedTests.length}
+                            >
+                              Вернуть автоподбор
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {editorOpen ? (
+                        <div className="mt-4 grid gap-2 md:grid-cols-2">
+                          {tests.map((test) => (
+                            <TestToggleRow
+                              key={test.slug}
+                              title={test.title}
+                              active={selectedTests.includes(test.slug)}
+                              note={testNote(test.slug)}
+                              onToggle={() => toggleTest(test.slug)}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <aside className="rounded-[26px] border border-[#e7d8c0] bg-[#fffdf8] p-4 xl:sticky xl:top-4">
+                      <div className="text-base font-semibold text-[#3d3124]">Краткая сводка проекта</div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-[#e6d8c4] bg-[#fff7eb] px-3 py-1 text-xs font-medium text-[#6a5640]">
+                          {selectionMode === "goal" ? "Режим: цель" : "Режим: компетенции"}
+                        </span>
+                        <span className="rounded-full border border-[#e6d8c4] bg-[#fff7eb] px-3 py-1 text-xs font-medium text-[#6a5640]">
+                          {testsLabel(selectedTestCards.length)}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 rounded-[20px] border border-[#eadcc8] bg-[#fff8ef] p-3 text-sm leading-6 text-[#6a5640]">
+                        <div>
+                          <span className="font-medium text-[#3d3124]">Клиент:</span> {personName.trim() || "ещё не заполнен"}
+                        </div>
+                        <div className="mt-1">
+                          <span className="font-medium text-[#3d3124]">Роль:</span> {targetRole.trim() || currentPosition.trim() || "не указана"}
+                        </div>
+                        <div className="mt-1">
+                          <span className="font-medium text-[#3d3124]">Логика подбора:</span> {selectedCriteriaLabel}
+                        </div>
+                        {selectionMode === "competency" ? (
+                          <div className="mt-2 text-xs leading-5 text-[#8a7662]">
+                            Внутри системы проект будет опираться на цель «{effectiveGoalDefinition?.shortTitle || effectiveGoal}».
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {selectedTests.length === 0 ? (
+                        <div className="mt-3 rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-3 py-3 text-sm text-[#9a4d31]">
+                          Выбери хотя бы один тест.
+                        </div>
+                      ) : null}
+                    </aside>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {hasCustomTestSelection ? (
-                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800">
-                      Набор изменён вручную
-                    </span>
-                  ) : null}
-                  <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-800">
-                    {testsLabel(selectedTestCards.length)}
-                  </span>
-                </div>
-              </div>
+                </section>
 
-              {selectionMode === "competency" && selectedCompetencyIds.length === 0 ? (
-                <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white/85 px-4 py-4 text-sm text-slate-500">
-                  Сначала выбери хотя бы одну компетенцию — после этого система сразу соберёт набор тестов.
-                </div>
-              ) : (
-                <>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {autoSelectedTestCards.map((test) => (
-                      <span key={test.slug} className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-900">
-                        {test.title}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => setEditorOpen((prev) => !prev)} className="btn btn-secondary btn-sm">
-                      {editorOpen ? "Скрыть редактор набора" : "Редактировать набор тестов"}
+                <section className="rounded-[28px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-4 shadow-[0_10px_25px_rgba(98,73,41,0.06)] sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {error ? (
+                      <div className="rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{error}</div>
+                    ) : (
+                      <div className="max-w-2xl text-sm leading-6 text-[#6b5843]">
+                        После создания сразу появится ссылка и QR-код для клиента. Если нужно, состав тестов можно подправить перед созданием проекта.
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={loading || !selectedTests.length || (selectionMode === "competency" && selectedCompetencyIds.length === 0)}
+                      className="inline-flex min-h-[52px] min-w-[240px] items-center justify-center rounded-[18px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-6 py-3 text-base font-semibold text-[#2f4c32] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_18px_rgba(76,128,82,0.18)] transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loading ? "Создаём проект…" : "Создать проект"}
                     </button>
-                    <button type="button" onClick={restoreAutoSelected} className="btn btn-secondary btn-sm" disabled={!autoSelectedTests.length}>
-                      Вернуть автоподбор
-                    </button>
                   </div>
-                </>
-              )}
-
-              {editorOpen ? (
-                <div className="mt-4 grid gap-2 md:grid-cols-2">
-                  {tests.map((test) => (
-                    <TestToggleRow
-                      key={test.slug}
-                      title={test.title}
-                      active={selectedTests.includes(test.slug)}
-                      note={testNote(test.slug)}
-                      onToggle={() => toggleTest(test.slug)}
-                    />
-                  ))}
-                </div>
-              ) : null}
+                </section>
+              </form>
             </div>
-
-            <aside className="rounded-3xl border border-slate-200 bg-white p-4 xl:sticky xl:top-4">
-              <div className="text-sm font-semibold text-slate-900">Краткая сводка проекта</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
-                  {selectionMode === "goal" ? "Режим: цель" : "Режим: компетенции"}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
-                  {testsLabel(selectedTestCards.length)}
-                </span>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 text-sm leading-6 text-slate-700">
-                <div><span className="font-medium text-slate-900">Клиент:</span> {personName.trim() || "ещё не заполнен"}</div>
-                <div className="mt-1"><span className="font-medium text-slate-900">Роль:</span> {targetRole.trim() || currentPosition.trim() || "не указана"}</div>
-                <div className="mt-1"><span className="font-medium text-slate-900">Логика подбора:</span> {selectedCriteriaLabel}</div>
-                {selectionMode === "competency" ? (
-                  <div className="mt-2 text-xs leading-5 text-slate-500">
-                    Внутри системы проект будет опираться на цель «{effectiveGoalDefinition?.shortTitle || effectiveGoal}».
-                  </div>
-                ) : null}
-              </div>
-
-              {selectedTests.length === 0 ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
-                  Выбери хотя бы один тест.
-                </div>
-              ) : null}
-            </aside>
           </div>
-        </section>
-
-        <section className="card">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {error ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-            ) : (
-              <div className="text-xs leading-5 text-slate-500">
-                После создания сразу появится ссылка и QR-код для клиента. Если нужно, состав тестов можно подправить перед созданием проекта.
-              </div>
-            )}
-            <button
-              type="submit"
-              disabled={loading || !selectedTests.length || (selectionMode === "competency" && selectedCompetencyIds.length === 0)}
-              className="btn btn-primary min-w-[220px]"
-            >
-              {loading ? "Создаём проект…" : "Создать проект"}
-            </button>
-          </div>
-        </section>
-      </form>
+        </div>
+      </div>
     </Layout>
   );
 }
