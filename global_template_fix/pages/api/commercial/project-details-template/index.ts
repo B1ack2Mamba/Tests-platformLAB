@@ -6,21 +6,26 @@ const SETTING_KEY = "project_details_template";
 const OWNER_EMAIL = "storyguild9@gmail.com";
 
 type TemplateShape = {
-  stripX?: number;
-  stripY?: number;
-  stripScale?: number;
   mainX?: number;
   mainY?: number;
   mainScale?: number;
+  mainContentX?: number;
+  mainContentY?: number;
   profileX?: number;
   profileY?: number;
   profileScale?: number;
+  profileContentX?: number;
+  profileContentY?: number;
   qrX?: number;
   qrY?: number;
   qrScale?: number;
+  qrContentX?: number;
+  qrContentY?: number;
   testsX?: number;
   testsY?: number;
   testsScale?: number;
+  testsContentX?: number;
+  testsContentY?: number;
 };
 
 function clamp(value: unknown, min: number, max: number, fallback: number) {
@@ -32,21 +37,26 @@ function clamp(value: unknown, min: number, max: number, fallback: number) {
 function normalizeTemplate(value: unknown): Required<TemplateShape> {
   const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   return {
-    stripX: clamp(source.stripX, -400, 500, 188),
-    stripY: clamp(source.stripY, -120, 240, 0),
-    stripScale: clamp(source.stripScale, 0.6, 1.6, 1),
-    mainX: clamp(source.mainX, -300, 300, 0),
-    mainY: clamp(source.mainY, 0, 300, 88),
-    mainScale: clamp(source.mainScale, 0.7, 1.4, 1),
-    profileX: clamp(source.profileX, 620, 1100, 865),
-    profileY: clamp(source.profileY, 0, 500, 92),
-    profileScale: clamp(source.profileScale, 0.7, 1.3, 0.92),
-    qrX: clamp(source.qrX, 620, 1100, 888),
-    qrY: clamp(source.qrY, 400, 1300, 674),
-    qrScale: clamp(source.qrScale, 0.7, 1.3, 0.94),
-    testsX: clamp(source.testsX, -80, 300, 8),
-    testsY: clamp(source.testsY, 950, 1700, 1228),
-    testsScale: clamp(source.testsScale, 0.7, 1.25, 0.95),
+    mainX: clamp(source.mainX, -300, 300, 8),
+    mainY: clamp(source.mainY, 0, 300, 92),
+    mainScale: clamp(source.mainScale, 0.6, 1.4, 0.686),
+    mainContentX: clamp(source.mainContentX, -220, 220, 0),
+    mainContentY: clamp(source.mainContentY, -220, 220, 0),
+    profileX: clamp(source.profileX, 620, 1100, 855),
+    profileY: clamp(source.profileY, 0, 500, 120),
+    profileScale: clamp(source.profileScale, 0.3, 1.2, 0.39),
+    profileContentX: clamp(source.profileContentX, -160, 160, 0),
+    profileContentY: clamp(source.profileContentY, -160, 160, 0),
+    qrX: clamp(source.qrX, 620, 1100, 880),
+    qrY: clamp(source.qrY, 200, 1300, 360),
+    qrScale: clamp(source.qrScale, 0.3, 1.2, 0.385),
+    qrContentX: clamp(source.qrContentX, -180, 180, 0),
+    qrContentY: clamp(source.qrContentY, -220, 220, 0),
+    testsX: clamp(source.testsX, -80, 300, 24),
+    testsY: clamp(source.testsY, 700, 1700, 1018),
+    testsScale: clamp(source.testsScale, 0.6, 1.3, 1),
+    testsContentX: clamp(source.testsContentX, -220, 220, 0),
+    testsContentY: clamp(source.testsContentY, -160, 160, 0),
   };
 }
 
