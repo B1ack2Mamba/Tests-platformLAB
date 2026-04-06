@@ -339,13 +339,15 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   return (
     <Layout title="Новый проект оценки">
-      <div className="mx-auto max-w-[1100px] px-2 pb-10 pt-2 sm:px-4">
-        <div className="relative rounded-[42px] bg-[linear-gradient(145deg,#bf8a55_0%,#d9ab73_18%,#ba8450_34%,#d8a36d_52%,#be8450_72%,#9f6a3c_100%)] p-3 shadow-[0_30px_80px_rgba(61,42,18,0.18)] sm:p-5 md:p-6">
-          <div className="pointer-events-none absolute left-1/2 top-0 z-10 h-20 w-44 -translate-x-1/2 -translate-y-1/3 rounded-b-[36px] rounded-t-[24px] bg-[linear-gradient(180deg,#efd08e_0%,#d0a357_48%,#ae7b31_100%)] shadow-[0_18px_30px_rgba(87,55,13,0.24)] before:absolute before:left-1/2 before:top-0 before:h-9 before:w-9 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:border-[6px] before:border-[#b17d34] before:bg-transparent before:content-[''] after:absolute after:inset-x-3 after:bottom-2 after:h-1.5 after:rounded-full after:bg-[rgba(255,255,255,0.18)] after:content-['']" />
-
-          <div className="relative overflow-hidden rounded-[34px] border border-[rgba(153,109,61,0.28)] bg-[linear-gradient(180deg,#fffdf8_0%,#fff9ef_100%)] px-4 pb-5 pt-10 sm:px-7 sm:pb-7 sm:pt-12 md:px-10 md:pb-10 md:pt-14">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(255,255,255,0)_32%),linear-gradient(90deg,rgba(180,142,101,0.06)_1px,transparent_1px),linear-gradient(rgba(180,142,101,0.06)_1px,transparent_1px)] [background-size:auto,100%_100%,100%_42px] opacity-60" />
-            <div className="relative">
+      <div className="mx-auto max-w-[1180px] px-2 pb-10 pt-2 sm:px-4">
+        <div
+          className="relative mx-auto max-w-[1100px] bg-no-repeat bg-top bg-contain"
+          style={{ backgroundImage: "url('/project-create-clipboard-photo.png')" }}
+        >
+          <div className="relative px-[10%] pb-[8%] pt-[17%] sm:px-[11%] sm:pb-[7%] sm:pt-[16%] md:px-[12%] md:pt-[15%]">
+            <div className="relative overflow-hidden rounded-[34px] border border-[rgba(172,140,101,0.28)] bg-[rgba(255,251,245,0.78)] px-4 pb-5 pt-8 shadow-[0_24px_50px_rgba(92,67,38,0.08)] backdrop-blur-[1.5px] sm:px-7 sm:pb-7 sm:pt-10 md:px-10 md:pb-10 md:pt-12">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(255,255,255,0)_34%),linear-gradient(90deg,rgba(180,142,101,0.05)_1px,transparent_1px),linear-gradient(rgba(180,142,101,0.05)_1px,transparent_1px)] [background-size:auto,100%_100%,100%_42px] opacity-60" />
+              <div className="relative">
               <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#8a6a46]">Лист проекта</div>
@@ -544,7 +546,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </div>
                   )}
 
-                  <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+                  <div className="mt-6">
                     <div className="rounded-[26px] border border-[#a8d1a7] bg-[#edf6ea] p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -618,57 +620,22 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                         </div>
                       ) : null}
                     </div>
-
-                    <aside className="rounded-[26px] border border-[#e7d8c0] bg-[#fffdf8] p-4 xl:sticky xl:top-4">
-                      <div className="text-base font-semibold text-[#3d3124]">Краткая сводка проекта</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-[#e6d8c4] bg-[#fff7eb] px-3 py-1 text-xs font-medium text-[#6a5640]">
-                          {selectionMode === "goal" ? "Режим: цель" : "Режим: компетенции"}
-                        </span>
-                        <span className="rounded-full border border-[#e6d8c4] bg-[#fff7eb] px-3 py-1 text-xs font-medium text-[#6a5640]">
-                          {testsLabel(selectedTestCards.length)}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 rounded-[20px] border border-[#eadcc8] bg-[#fff8ef] p-3 text-sm leading-6 text-[#6a5640]">
-                        <div>
-                          <span className="font-medium text-[#3d3124]">Клиент:</span> {personName.trim() || "ещё не заполнен"}
-                        </div>
-                        <div className="mt-1">
-                          <span className="font-medium text-[#3d3124]">Роль:</span> {targetRole.trim() || currentPosition.trim() || "не указана"}
-                        </div>
-                        <div className="mt-1">
-                          <span className="font-medium text-[#3d3124]">Логика подбора:</span> {selectedCriteriaLabel}
-                        </div>
-                        {selectionMode === "competency" ? (
-                          <div className="mt-2 text-xs leading-5 text-[#8a7662]">
-                            Внутри системы проект будет опираться на цель «{effectiveGoalDefinition?.shortTitle || effectiveGoal}».
-                          </div>
-                        ) : null}
-                      </div>
-
-                      {selectedTests.length === 0 ? (
-                        <div className="mt-3 rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-3 py-3 text-sm text-[#9a4d31]">
-                          Выбери хотя бы один тест.
-                        </div>
-                      ) : null}
-                    </aside>
                   </div>
                 </section>
 
                 <section className="rounded-[28px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-4 shadow-[0_10px_25px_rgba(98,73,41,0.06)] sm:p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-col items-center gap-4 text-center">
                     {error ? (
-                      <div className="rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{error}</div>
+                      <div className="w-full max-w-3xl rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{error}</div>
                     ) : (
-                      <div className="max-w-2xl text-sm leading-6 text-[#6b5843]">
+                      <div className="max-w-3xl text-sm leading-6 text-[#6b5843]">
                         После создания сразу появится ссылка и QR-код для клиента. Если нужно, состав тестов можно подправить перед созданием проекта.
                       </div>
                     )}
                     <button
                       type="submit"
                       disabled={loading || !selectedTests.length || (selectionMode === "competency" && selectedCompetencyIds.length === 0)}
-                      className="inline-flex min-h-[52px] min-w-[240px] items-center justify-center rounded-[18px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-6 py-3 text-base font-semibold text-[#2f4c32] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_18px_rgba(76,128,82,0.18)] transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex min-h-[52px] min-w-[260px] items-center justify-center rounded-[18px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-8 py-3 text-base font-semibold text-[#2f4c32] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_18px_rgba(76,128,82,0.18)] transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {loading ? "Создаём проект…" : "Создать проект"}
                     </button>
