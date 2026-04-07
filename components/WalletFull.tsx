@@ -40,6 +40,10 @@ type SubscriptionStatusResp = {
 };
 
 const QUICK_AMOUNTS = [1000, 3000, 5000, 10000, 50000];
+
+const FRAME_CARD = "card border-[#d9c3a0] bg-[linear-gradient(180deg,#fffdf9_0%,#f7f1e8_100%)] shadow-[0_14px_34px_rgba(137,109,64,0.08)]";
+const FRAME_SOFT = "rounded-[28px] border border-[#e5d6bd] bg-white/70";
+
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
@@ -60,6 +64,7 @@ function readAndClearPromoFlash(key: string) {
   if (value) window.localStorage.removeItem(key);
   return value;
 }
+
 
 function reasonLabel(reason: string): string {
   switch (reason) {
@@ -121,23 +126,6 @@ export default function WalletPage() {
     return Math.floor(n);
   }, [amountRub]);
 
-  const walletBalance = Number(wallet?.balance_kopeks ?? 0);
-  const balanceLabel = wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—";
-  const activePlanTitle = activeSubscription?.plan_title || "Без активного тарифа";
-  const remainingProjectsLabel = activeSubscription
-    ? `${activeSubscription.projects_remaining} из ${activeSubscription.projects_limit}`
-    : "—";
-  const expiryLabel = activeSubscription ? formatMonthlySubscriptionPeriod(activeSubscription.expires_at) : "—";
-  const usagePercent = activeSubscription && activeSubscription.projects_limit > 0
-    ? Math.max(0, Math.min(100, Math.round(((activeSubscription.projects_limit - activeSubscription.projects_remaining) / activeSubscription.projects_limit) * 100)))
-    : 0;
-  const suggestedPlan = useMemo(() => {
-    if (!activeSubscription) return MONTHLY_SUBSCRIPTION_PLANS[0];
-    const current = MONTHLY_SUBSCRIPTION_PLANS.find((plan) => plan.key === activeSubscription.plan_key);
-    const idx = current ? MONTHLY_SUBSCRIPTION_PLANS.findIndex((plan) => plan.key === current.key) : -1;
-    return MONTHLY_SUBSCRIPTION_PLANS[Math.min(MONTHLY_SUBSCRIPTION_PLANS.length - 1, Math.max(0, idx + 1))];
-  }, [activeSubscription]);
-
   useEffect(() => {
     if (!user || !session?.access_token) {
       setActiveSubscription(null);
@@ -165,6 +153,7 @@ export default function WalletPage() {
 
     return () => { cancelled = true; };
   }, [user?.id, session?.access_token, refresh]);
+
 
   async function redeemPromo(code: string) {
     const normalizedCode = code.trim().toUpperCase();
@@ -207,6 +196,7 @@ export default function WalletPage() {
       setPromoBusy(false);
     }
   }
+
 
   async function loadSubscriptionStatus() {
     if (!session?.access_token) {
@@ -310,6 +300,7 @@ export default function WalletPage() {
         throw new Error(data.error || "Не удалось создать оплату");
       }
 
+      // Redirect to YooKassa confirmation page (SBP QR / bank selection)
       window.location.href = data.confirmation_url;
     } catch (e: any) {
       setTopupError(e?.message || "Ошибка пополнения");
@@ -318,309 +309,265 @@ export default function WalletPage() {
     }
   }
 
+
   return (
     <Layout title="Кошелёк">
       {!user ? (
-        <div className="card bg-white">
+        <div className={FRAME_CARD}>
           <div className="text-sm text-slate-700">Чтобы пользоваться кошельком — нужно войти.</div>
           <Link href="/auth?next=/wallet" className="mt-3 inline-block btn btn-primary">Вход</Link>
         </div>
       ) : (
-        <div className="grid gap-5">
-          <section className="card relative overflow-hidden border-[#d8c3a0] bg-[linear-gradient(180deg,#fffaf2_0%,#f5efe6_100%)]">
-            <div className="absolute inset-y-0 right-0 hidden w-[42%] bg-[radial-gradient(circle_at_top_right,rgba(212,190,153,0.26),transparent_58%)] lg:block" />
-            <div className="relative grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.28em] text-[#8d6b43]">Кошелёк и пакеты доступа</div>
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#2f5d3a] sm:text-4xl">Ресурсы, лимиты и апгрейд — в одном месте</h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6f6557] sm:text-[15px]">
-                  Здесь видно баланс, активный тариф, остаток проектов и ближайшее действие. Без бухгалтерского тумана: минимум шума, максимум смысла.
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2">
+        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="grid gap-4">
+            <div className={FRAME_CARD + " relative overflow-hidden"}>
+              <div className="pointer-events-none absolute -right-6 -top-10 text-[180px] font-light leading-none text-slate-200/35 select-none">☿</div>
+              <div className="relative flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Кошелёк</div>
+                  <div className="mt-2 text-3xl font-semibold text-slate-950">
+                    {wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}
+                  </div>
+                  <div className="mt-2 max-w-xl text-sm text-slate-600">
+                    Баланс используется для открытия уровней результата, AI-интерпретаций и расширенных функций. Тарифы ниже можно купить онлайн или сразу с внутреннего баланса кошелька.
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                    {isUnlimited ? <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-900">Тестовый безлимит</span> : null}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   {!isUnlimited && PAYMENTS_UI_ENABLED ? (
-                    <button type="button" onClick={() => setTopupOpen(true)} className="btn btn-primary">
-                      Пополнить баланс
+                    <button
+                      onClick={() => setTopupOpen(true)}
+                      className="btn btn-primary"
+                    >
+                      Пополнить
                     </button>
                   ) : null}
-                  <button type="button" onClick={refresh} className="btn btn-secondary">
-                    Обновить статус
-                  </button>
-                  <Link href="#wallet-plans" className="btn btn-secondary">Открыть тарифы</Link>
-                </div>
-                <div className="mt-5 flex flex-wrap gap-2 text-xs text-[#6f6557]">
-                  {isUnlimited ? <span className="rounded-full border border-[#d8c3a0] bg-white/80 px-3 py-1">Тестовый безлимит</span> : null}
-                  {activeSubscription ? (
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
-                      Активен {activeSubscription.plan_title} до {expiryLabel}
-                    </span>
-                  ) : (
-                    <span className="rounded-full border border-[#d8c3a0] bg-white/80 px-3 py-1">Тариф пока не подключён</span>
-                  )}
-                </div>
-                {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
-                {loading ? <div className="mt-2 text-xs text-slate-500">⏳ Загружаю…</div> : null}
-              </div>
-
-              <div className="relative min-h-[320px] lg:min-h-[360px]">
-                <div className="relative mx-auto max-w-[620px]">
-                  <img
-                    src="/wallet-hermes-guide.png"
-                    alt="Гермес с табличкой для кошелька"
-                    className="w-full max-w-[620px] object-contain drop-shadow-[0_22px_32px_rgba(122,94,53,0.18)]"
-                  />
-                  <div className="absolute right-[7%] top-[28%] w-[35%] min-w-[180px] rounded-[26px] border border-[#d8c3a0] bg-white/92 p-4 shadow-[0_16px_30px_rgba(122,94,53,0.12)] backdrop-blur">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-[#9a7a4b]">Кратко</div>
-                    <div className="mt-2 text-xl font-semibold text-[#2f5d3a]">{activeSubscription ? activeSubscription.plan_title : "Выбери пакет"}</div>
-                    <div className="mt-2 text-sm text-[#6f6557]">
-                      {activeSubscription
-                        ? `Осталось ${activeSubscription.projects_remaining} проектов до ${expiryLabel}.`
-                        : `Сейчас можно пополнить баланс и выбрать удобный пакет без лишнего меню.`}
-                    </div>
-                    <div className="mt-3 rounded-2xl border border-[#eadcc6] bg-[#fffaf2] px-3 py-2 text-xs text-[#6f6557]">
-                      {activeSubscription
-                        ? usagePercent >= 80
-                          ? "Лимит уже поджимает — логично смотреть апгрейд."
-                          : "Запас по лимиту есть, но тарифы ниже можно сравнить по цене за проект."
-                        : `Стартовый ориентир: ${suggestedPlan.projectsLimit} проектов за ${suggestedPlan.monthlyPriceRub.toLocaleString("ru-RU")} ₽.`}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: "Баланс", value: balanceLabel, note: isUnlimited ? "Без ограничений" : "Готов к списаниям и покупкам" },
-              { label: "Активный пакет", value: activePlanTitle, note: activeSubscription ? `До ${expiryLabel}` : "Можно выбрать ниже" },
-              { label: "Остаток проектов", value: remainingProjectsLabel, note: activeSubscription ? `${usagePercent}% уже использовано` : "Появится после покупки" },
-              { label: "Следующее действие", value: activeSubscription ? (usagePercent >= 80 ? "Продлить / улучшить" : "Работать дальше") : "Пополнить / выбрать", note: activeSubscription ? "Тариф и лимиты под рукой" : "Кошелёк уже готов" },
-            ].map((item) => (
-              <div key={item.label} className="card border-[#e2d2b7] bg-white">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">{item.label}</div>
-                <div className="mt-3 text-2xl font-semibold leading-tight text-[#2f2a24]">{item.value}</div>
-                <div className="mt-2 text-sm text-[#766c5f]">{item.note}</div>
-              </div>
-            ))}
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="grid gap-4">
-              <div className="card border-[#e2d2b7] bg-white">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-[#2f5d3a]">Промокод</div>
-                    <div className="mt-2 text-sm text-[#6f6557]">Если код не применился раньше, можно спокойно добить его здесь без повторной регистрации.</div>
-                  </div>
-                  {getStoredPromoCode() ? <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-800">Сохранён: {getStoredPromoCode()}</span> : null}
-                </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <input
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                    placeholder="Например: START-500"
-                    className="input"
-                  />
                   <button
-                    type="button"
-                    onClick={() => redeemPromo(promoCode)}
-                    disabled={promoBusy || !promoCode.trim()}
-                    className="btn btn-primary whitespace-nowrap"
+                    onClick={refresh}
+                    className="btn btn-secondary"
                   >
-                    {promoBusy ? "Активирую…" : "Активировать"}
+                    Обновить
                   </button>
                 </div>
-                {promoError ? <div className="mt-2 text-sm text-red-600">{promoError}</div> : null}
-                {promoInfo ? <div className="mt-2 text-sm text-emerald-700">{promoInfo}</div> : null}
               </div>
 
-              <div className="card border-[#e2d2b7] bg-white">
-                <div className="text-sm font-semibold text-[#2f5d3a]">Лимиты и логика работы</div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-[#ece2d1] bg-[#fffaf2] p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-[#9a7a4b]">Списания</div>
-                    <div className="mt-2 text-sm text-[#6f6557]">Один проект списывается один раз. Дальше внутри проекта можно открывать уровни результата без повторной оплаты проекта.</div>
-                  </div>
-                  <div className="rounded-2xl border border-[#ece2d1] bg-[#fffaf2] p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-[#9a7a4b]">Тариф</div>
-                    <div className="mt-2 text-sm text-[#6f6557]">Месячный пакет действует 30 дней и показывает понятный остаток по проектам, а не абстрактную магию в вакууме.</div>
-                  </div>
-                </div>
-              </div>
+              {error ? <div className="relative mt-3 text-sm text-red-600">{error}</div> : null}
+              {loading ? <div className="relative mt-2 text-xs text-slate-500">⏳ Загружаю…</div> : null}
             </div>
 
-            <div className="card border-[#e2d2b7] bg-white">
+            <div className={FRAME_CARD}>
+              <div className="text-sm font-semibold text-emerald-900">Промокод</div>
+              <div className="mt-2 text-sm text-slate-600">Здесь можно безопасно повторить активацию. Если код не применился при регистрации или первом входе, он останется сохранён.</div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="Например: START-500"
+                  className="input"
+                />
+                <button
+                  type="button"
+                  onClick={() => redeemPromo(promoCode)}
+                  disabled={promoBusy || !promoCode.trim()}
+                  className="btn btn-primary whitespace-nowrap"
+                >
+                  {promoBusy ? "Активирую…" : "Активировать"}
+                </button>
+              </div>
+              {promoError ? <div className="mt-2 text-sm text-red-600">{promoError}</div> : null}
+              {promoInfo ? <div className="mt-2 text-sm text-emerald-700">{promoInfo}</div> : null}
+              {getStoredPromoCode() ? <div className="mt-2 text-xs text-amber-700">Сохранённый код: {getStoredPromoCode()}</div> : null}
+            </div>
+
+            <div id="wallet-plans" className={FRAME_CARD}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[#2f5d3a]">Быстрое действие</div>
-                  <div className="mt-2 text-sm text-[#6f6557]">
-                    {PAYMENTS_UI_ENABLED
-                      ? "Выбери сумму и сразу переходи к оплате. Если баланс уже есть, тарифы ниже можно купить прямо с него."
-                      : "Онлайн-оплата пока выключена, но страница уже готова под тарифы и лимиты."}
-                  </div>
+                  <div className="text-sm font-semibold text-emerald-900">Ежемесячные тарифы</div>
+                  <div className="mt-2 text-sm text-slate-600">Тариф действует 30 дней. Один проект списывается только один раз, дальше внутри него можно открывать весь результат без доплаты. Тариф можно оплатить онлайн или купить сразу с баланса кошелька.</div>
                 </div>
                 {activeSubscription ? (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                  <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
                     <div className="font-medium">Активен: {activeSubscription.plan_title}</div>
-                    <div className="mt-1 text-xs">Осталось {activeSubscription.projects_remaining} из {activeSubscription.projects_limit}</div>
+                    <div className="mt-1 text-xs">Осталось: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div>
                   </div>
                 ) : null}
               </div>
-              {PAYMENTS_UI_ENABLED ? (
-                <>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                    {QUICK_AMOUNTS.map((a) => (
-                      <button
-                        key={a}
-                        type="button"
-                        onClick={() => setAmountRub(String(a))}
-                        className="btn btn-secondary btn-pill"
-                      >
-                        {a.toLocaleString("ru-RU")} ₽
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                    <input
-                      value={amountRub}
-                      onChange={(e) => setAmountRub(e.target.value)}
-                      inputMode="numeric"
-                      placeholder="3000"
-                      className="input"
-                    />
-                    <button
-                      type="button"
-                      disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
-                      onClick={() => startTopup(parsedRub || 0)}
-                      className="btn btn-primary whitespace-nowrap"
-                    >
-                      {isUnlimited ? "∞" : topupBusy ? "Создаю…" : "Пополнить"}
-                    </button>
-                  </div>
-                  <div className="mt-3 text-[11px] text-[#8a806f]">Минимум 1 ₽. Для тестового безлимита оплата не нужна.</div>
-                  {topupError ? <div className="mt-2 text-sm text-red-600">{topupError}</div> : null}
-                </>
-              ) : (
-                <div className="mt-4 rounded-2xl border border-[#ece2d1] bg-[#fffaf2] p-4 text-sm text-[#6f6557]">
-                  Как только ЮKassa будет подключена, сюда без боли встанут быстрые суммы и кнопка оплаты.
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
+                  const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
+                  return (
+                    <div key={plan.key} className={`rounded-[28px] border p-4 shadow-sm ${isActive ? "border-emerald-300 bg-emerald-50/60" : "border-[#e5d6bd] bg-white/80"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-base font-semibold text-slate-950">{plan.projectsLimit} проектов / месяц</div>
+                          <div className="mt-1 text-sm text-slate-500">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽ / месяц</div>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-white text-slate-600"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
+                      </div>
+                      <div className="mt-3 text-sm leading-6 text-slate-600">{plan.description}</div>
+                      <div className="mt-4 grid gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-primary w-full"
+                          disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
+                          onClick={() => buyMonthlyPlanFromWallet(plan.key)}
+                        >
+                          {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю с баланса…" : `Купить с баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
+                        </button>
+                        {PAYMENTS_UI_ENABLED ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary w-full"
+                            disabled={!!subscriptionBusyKey}
+                            onClick={() => startMonthlyPlanPurchase(plan.key)}
+                          >
+                            {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : isActive ? "Продлить онлайн" : "Оплатить онлайн"}
+                          </button>
+                        ) : (
+                          <div className="rounded-[20px] border border-[#e5d6bd] bg-[#fffaf2] px-3 py-2 text-xs text-slate-600">
+                            Онлайн-оплата сейчас выключена, но тариф можно купить прямо с баланса кошелька.
+                          </div>
+                        )}
+                        {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100 ? (
+                          <div className="text-xs text-amber-700">На балансе пока меньше стоимости тарифа.</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {subscriptionError ? <div className="mt-3 text-sm text-red-600">{subscriptionError}</div> : null}
+              {subscriptionInfo ? <div className="mt-3 text-sm text-emerald-700">{subscriptionInfo}</div> : null}
+            </div>
+
+            <div className={FRAME_CARD}>
+              <div className="text-sm font-semibold text-emerald-900">Как это работает</div>
+              <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
+                  <div className="font-medium">1. Пополнение</div>
+                  <div className="mt-1 text-xs text-slate-500">{PAYMENTS_UI_ENABLED ? "Через СБП и ЮKassa." : "Онлайн-оплата подключается отдельно."}</div>
+                </div>
+                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
+                  <div className="font-medium">2. Открытие уровней</div>
+                  <div className="mt-1 text-xs text-slate-500">База, Премиум AI, Премиум AI+ и месячные лимиты по проектам.</div>
+                </div>
+                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
+                  <div className="font-medium">3. История</div>
+                  <div className="mt-1 text-xs text-slate-500">Все операции сохраняются ниже.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <div className={FRAME_CARD + " overflow-hidden p-0"}>
+              <div className="bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]">
+                <img
+                  src="/wallet-hermes-guide.png"
+                  alt="Гермес с табличкой"
+                  className="w-full object-contain"
+                />
+              </div>
+              <div className="border-t border-[#e5d6bd] px-5 py-4">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Навигация по кошельку</div>
+                <div className="mt-2 text-sm text-slate-700">
+                  Оставил удобную старую логику страницы, а Гермеса добавил как визуальный якорь для тарифов, лимитов и действий.
+                </div>
+              </div>
+            </div>
+
+            <div className={FRAME_CARD}>
+              <div className="text-sm font-semibold text-emerald-900">{PAYMENTS_UI_ENABLED ? "Быстрое пополнение" : "Пополнение временно отключено"}</div>
+              {activeSubscription ? <div className="mt-2 text-xs text-emerald-700">Активный тариф: {activeSubscription.plan_title} · осталось {activeSubscription.projects_remaining} проектов.</div> : null}
+              <div className="mt-2 text-sm text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и сразу перейди к оплате." : "Онлайн-оплата выключена. Пополнение недоступно, но тарифы всё равно можно покупать с уже существующего баланса."}</div>
+              {PAYMENTS_UI_ENABLED ? (<>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                {QUICK_AMOUNTS.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setAmountRub(String(a))}
+                    className="btn btn-secondary btn-pill"
+                  >
+                    {a} ₽
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  value={amountRub}
+                  onChange={(e) => setAmountRub(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="3000"
+                  className="input"
+                />
+                <button
+                  type="button"
+                  disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
+                  onClick={() => startTopup(parsedRub || 0)}
+                  className="btn btn-primary whitespace-nowrap"
+                >
+                  {isUnlimited ? "∞" : topupBusy ? "Создаю…" : "Оплатить"}
+                </button>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-500">Минимум 1 ₽. Для тестового безлимита оплата не нужна.</div>
+              {topupError ? <div className="mt-2 text-sm text-red-600">{topupError}</div> : null}
+              </>) : (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                  Как только ЮKassa будет подключена, здесь появится онлайн-оплата и быстрые суммы.
                 </div>
               )}
             </div>
-          </section>
 
-          <section id="wallet-plans" className="card border-[#d8c3a0] bg-white">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-[#2f5d3a]">Пакеты оценки</div>
-                <div className="mt-2 max-w-3xl text-sm text-[#6f6557]">Пакет живёт 30 дней. Ниже — нормальное сравнение по лимиту, цене и следующему действию. Без пряток в кошельке, как и должно быть.</div>
-              </div>
-              {activeSubscription ? (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                  <div className="font-medium">Активен: {activeSubscription.plan_title}</div>
-                  <div className="mt-1 text-xs">До {expiryLabel} · остаток {activeSubscription.projects_remaining} из {activeSubscription.projects_limit}</div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
-                const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
-                const canAfford = isUnlimited || walletBalance >= plan.monthlyPriceRub * 100;
-                return (
-                  <div key={plan.key} className={`rounded-[28px] border p-5 shadow-sm ${isActive ? "border-emerald-300 bg-emerald-50/60" : "border-[#e4d4b9] bg-[#fffaf2]"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a7a4b]">Пакет</div>
-                        <div className="mt-2 text-xl font-semibold text-[#2f2a24]">{plan.projectsLimit} проектов / месяц</div>
-                        <div className="mt-1 text-sm text-[#7d7264]">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽ / месяц</div>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-white text-slate-600"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
-                    </div>
-                    <div className="mt-4 text-sm leading-6 text-[#6f6557]">{plan.description}</div>
-                    <div className="mt-4 rounded-2xl border border-[#eadcc6] bg-white/80 px-3 py-2 text-xs text-[#6f6557]">
-                      {isActive ? "Этот пакет уже активен. Можно продлить или перескочить выше." : `Если работаешь стабильно, этот пакет уже выглядит честнее по цене за проект.`}
-                    </div>
-                    <div className="mt-4 grid gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-primary w-full"
-                        disabled={!!subscriptionBusyKey || !canAfford}
-                        onClick={() => buyMonthlyPlanFromWallet(plan.key)}
-                      >
-                        {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю с баланса…" : `Купить с баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
-                      </button>
-                      {PAYMENTS_UI_ENABLED ? (
-                        <button
-                          type="button"
-                          className="btn btn-secondary w-full"
-                          disabled={!!subscriptionBusyKey}
-                          onClick={() => startMonthlyPlanPurchase(plan.key)}
-                        >
-                          {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : isActive ? "Продлить онлайн" : "Оплатить онлайн"}
-                        </button>
-                      ) : (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                          Онлайн-оплата сейчас выключена, но покупка с баланса уже работает.
-                        </div>
-                      )}
-                      {!canAfford ? <div className="text-xs text-amber-700">На балансе пока меньше стоимости пакета.</div> : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {subscriptionError ? <div className="mt-3 text-sm text-red-600">{subscriptionError}</div> : null}
-            {subscriptionInfo ? <div className="mt-3 text-sm text-emerald-700">{subscriptionInfo}</div> : null}
-          </section>
-
-          <section className="card border-[#e2d2b7] bg-white">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-[#2f5d3a]">История операций</div>
-                <div className="mt-2 text-sm text-[#6f6557]">Все пополнения, покупки и списания — в одном списке. Без квеста с поиском, куда делись деньги.</div>
-              </div>
-              <div className="rounded-2xl border border-[#ece2d1] bg-[#fffaf2] px-4 py-3 text-xs text-[#6f6557]">
-                Записей: {ledger.length}
-              </div>
-            </div>
-            <div className="mt-4 max-h-[460px] overflow-auto rounded-3xl border border-[#efe6d8]">
-              <table className="w-full text-sm">
-                <thead className="bg-[#fffaf2] text-left text-xs uppercase tracking-[0.14em] text-[#9a7a4b]">
-                  <tr>
-                    <th className="px-4 py-3">Дата</th>
-                    <th className="px-4 py-3">Сумма</th>
-                    <th className="px-4 py-3">Причина</th>
-                    <th className="px-4 py-3">Ссылка</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.map((row) => (
-                    <tr key={row.id} className="border-t border-[#f1e8db] text-[#51483c]">
-                      <td className="px-4 py-3 text-xs text-[#7b7265]">{new Date(row.created_at).toLocaleString()}</td>
-                      <td className="px-4 py-3 font-medium">{formatRub(row.amount_kopeks)}</td>
-                      <td className="px-4 py-3">{reasonLabel(row.reason)}</td>
-                      <td className="px-4 py-3 text-xs text-[#7b7265]">{row.ref ?? "—"}</td>
+            <div className={FRAME_CARD}>
+              <div className="text-sm font-medium">История операций</div>
+              <div className="mt-2 max-h-[420px] overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500">
+                      <th className="py-2">Дата</th>
+                      <th className="py-2">Сумма</th>
+                      <th className="py-2">Причина</th>
+                      <th className="py-2">Ссылка</th>
                     </tr>
-                  ))}
-                  {ledger.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-sm text-[#8a806f]">Пока пусто</td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {ledger.map((row) => (
+                      <tr key={row.id} className="border-t border-slate-100">
+                        <td className="py-2 text-xs text-slate-600">
+                          {new Date(row.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-2">{formatRub(row.amount_kopeks)}</td>
+                        <td className="py-2">{reasonLabel(row.reason)}</td>
+                        <td className="py-2 text-xs text-slate-600">{row.ref ?? "—"}</td>
+                      </tr>
+                    ))}
+                    {ledger.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-4 text-center text-xs text-slate-500">
+                          Пока пусто
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </section>
+          </div>
 
           {isUnlimited || !PAYMENTS_UI_ENABLED ? null : topupOpen ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-              <div className="w-full max-w-md card shadow-lg">
+              <div className={FRAME_CARD + " w-full max-w-md shadow-lg"}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold">Пополнить баланс</div>
                     <div className="mt-1 text-xs text-slate-500">
-                      Откроем страницу ЮKassa для СБП (QR). После оплаты вернёшься назад, а баланс обновится автоматически.
+                      Откроем страницу ЮKassa для СБП (QR). После оплаты вернёшься назад,
+                      а баланс обновится автоматически.
                     </div>
                   </div>
                   <button
@@ -659,7 +606,9 @@ export default function WalletPage() {
                     ))}
                   </div>
 
-                  {topupError ? <div className="mt-3 text-sm text-red-600">{topupError}</div> : null}
+                  {topupError ? (
+                    <div className="mt-3 text-sm text-red-600">{topupError}</div>
+                  ) : null}
 
                   <div className="mt-4 flex items-center justify-end gap-2">
                     <button
@@ -683,7 +632,9 @@ export default function WalletPage() {
                     </button>
                   </div>
 
-                  <div className="mt-3 text-[11px] text-slate-500">Минимум 1 ₽. Комиссии и чек — по настройкам ЮKassa.</div>
+                  <div className="mt-3 text-[11px] text-slate-500">
+                    Минимум 1 ₽. Комиссии и чек — по настройкам ЮKassa.
+                  </div>
                 </div>
               </div>
             </div>
