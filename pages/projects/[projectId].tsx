@@ -211,34 +211,34 @@ const DEFAULT_DETAILS_TEMPLATE_STATE: DetailsTemplateState = {
   builderOpen: false,
   mainX: 18,
   mainY: 88,
-  mainScale: 0.66,
+  mainScale: 0.62,
   mainWidthScale: 1,
   mainHeightScale: 1,
   mainTextScale: 1.08,
   mainContentX: 0,
   mainContentY: 0,
-  profileX: 470,
-  profileY: 122,
-  profileScale: 0.42,
-  profileWidthScale: 1.06,
-  profileHeightScale: 1.08,
-  profileTextScale: 1.08,
+  profileX: 34,
+  profileY: 182,
+  profileScale: 1,
+  profileWidthScale: 0.34,
+  profileHeightScale: 0.88,
+  profileTextScale: 0.96,
   profileContentX: 0,
   profileContentY: 0,
-  qrX: 540,
-  qrY: 308,
-  qrScale: 0.4,
-  qrWidthScale: 1,
-  qrHeightScale: 1.08,
-  qrTextScale: 1.02,
+  qrX: 465,
+  qrY: 72,
+  qrScale: 1,
+  qrWidthScale: 0.54,
+  qrHeightScale: 0.64,
+  qrTextScale: 0.82,
   qrContentX: 0,
   qrContentY: 0,
-  testsX: 585,
-  testsY: 70,
-  testsScale: 0.72,
-  testsWidthScale: 0.48,
+  testsX: 36,
+  testsY: 565,
+  testsScale: 1,
+  testsWidthScale: 0.62,
   testsHeightScale: 1,
-  testsTextScale: 0.96,
+  testsTextScale: 0.9,
   testsContentX: 0,
   testsContentY: 0,
   resultsX: 255,
@@ -249,12 +249,12 @@ const DEFAULT_DETAILS_TEMPLATE_STATE: DetailsTemplateState = {
   resultsTextScale: 1,
   resultsContentX: 0,
   resultsContentY: 0,
-  counterX: 365,
-  counterY: 90,
-  counterScale: 1,
+  counterX: 336,
+  counterY: 180,
+  counterScale: 0.9,
   counterWidthScale: 1,
   counterHeightScale: 1,
-  counterTextScale: 1,
+  counterTextScale: 0.94,
   counterContentX: 0,
   counterContentY: 0,
 };
@@ -635,8 +635,6 @@ export default function ProjectDetailsPage() {
   const testsWidth = 870 * detailsTemplate.testsWidthScale;
   const testsAutoHeight = estimateTestsContentHeight(data?.project.tests?.length || 0, detailsTemplate.testsTextScale);
   const testsHeight = Math.max(400 * detailsTemplate.testsHeightScale, testsAutoHeight);
-  const resultsWidth = 300 * detailsTemplate.resultsWidthScale;
-  const resultsHeight = 220 * detailsTemplate.resultsHeightScale;
   const counterWidth = 120 * detailsTemplate.counterWidthScale;
   const counterHeight = 88 * detailsTemplate.counterHeightScale;
   const detailsCanvasHeight = Math.max(
@@ -644,9 +642,9 @@ export default function ProjectDetailsPage() {
     detailsTemplate.mainY + mainHeight + 80,
     detailsTemplate.qrY + qrHeight + 80,
     detailsTemplate.testsY + testsHeight + 80,
-    detailsTemplate.resultsY + resultsHeight + 80,
     detailsTemplate.counterY + counterHeight + 80
   );
+  const detailsViewportScale = 0.8;
 
   function renderTemplateHandles(target: DetailsTemplateBlock, label: string, contentTarget?: DetailsTemplateContentTarget) {
     if (!canEditProjectDetailsTemplate || !detailsTemplate.builderOpen) return null;
@@ -783,11 +781,6 @@ export default function ProjectDetailsPage() {
     : [];
   const overviewSections = activeSections.filter((section) => section.kind !== "test");
   const testSections = activeSections.filter((section) => section.kind === "test");
-  const resultsPreviewSections = overviewSections.slice(0, 3).map((section) => ({
-    title: section.title,
-    body: splitSectionBody(section.body).preview,
-  }));
-
   if (!session || !user) {
     return (
       <Layout title="Проект оценки">
@@ -823,7 +816,8 @@ export default function ProjectDetailsPage() {
           </div>
         ) : null}
 
-        <div className="relative mx-auto w-full max-w-[1220px]" style={{ height: detailsCanvasHeight }}>
+        <div className="relative mx-auto w-full max-w-[1220px]" style={{ height: detailsCanvasHeight * detailsViewportScale }}>
+          <div className="absolute left-1/2 top-0 origin-top" style={{ width: 1220, height: detailsCanvasHeight, transform: `translateX(-50%) scale(${detailsViewportScale})` }}>
           <div className="absolute inset-0 rounded-[36px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.72))]" />
 
 
@@ -841,7 +835,7 @@ export default function ProjectDetailsPage() {
                   <div className="mt-3 text-[1.12rem] font-medium leading-tight text-[#4d4338]">{data?.project.person?.full_name || "Имя участника"}</div>
                 </div>
 
-                <div className="mt-6 grid max-w-[430px] gap-4">
+                <div className="mt-8 grid max-w-[500px] gap-4">
                   <div className="rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.88)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Профиль</div>
@@ -890,28 +884,7 @@ export default function ProjectDetailsPage() {
             </div>
           </div>
 
-          <div className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
-            {renderTemplateHandles("results", "результаты", "resultsContent")}
-            <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
-              <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
-                <div className="h-full rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.9)] p-5 shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Результаты</div>
-                  <div className="mt-3 grid gap-3">
-                    {fullyDone ? resultsPreviewSections.length ? resultsPreviewSections.map((section) => (
-                      <div key={section.title} className="rounded-[18px] border border-[#e1d3bf] bg-white/60 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-[#9d7a4b]">{section.title}</div>
-                        <div className="mt-2 text-sm leading-6 text-[#5f5548] line-clamp-3">{section.body}</div>
-                      </div>
-                    )) : (
-                      <div className="rounded-[18px] border border-[#e1d3bf] bg-white/60 px-4 py-3 text-sm leading-6 text-[#5f5548]">Открой уровень результата ниже, чтобы показать сюда готовый анализ.</div>
-                    ) : (
-                      <div className="rounded-[18px] border border-[#e1d3bf] bg-white/60 px-4 py-3 text-sm leading-6 text-[#5f5548]">Результаты появятся здесь после завершения всех назначенных тестов.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+
 
           <div className="absolute left-0 top-0" style={{ width: qrWidth, height: qrHeight, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px)` }}>
             <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: qrWidth, height: qrHeight, transform: `scale(${detailsTemplate.qrScale})` }}>
@@ -948,7 +921,7 @@ export default function ProjectDetailsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-2xl font-semibold">Назначенные тесты</div>
-                    <div className="mt-1 text-sm text-[#8d7860]">Только список и статус прохождения.</div>
+                    <div className="mt-1 text-sm text-[#8d7860]">Только список и статус.</div>
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3">
@@ -963,6 +936,7 @@ export default function ProjectDetailsPage() {
                   })}
                 </div>
               </div></div></div>
+          </div>
           </div>
         </div>
 
