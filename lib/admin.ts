@@ -19,3 +19,11 @@ export function isAdminEmail(email?: string | null) {
   const normalized = (email ?? "").trim().toLowerCase();
   return Boolean(normalized) && ADMIN_EMAILS.includes(normalized);
 }
+
+
+export const GLOBAL_TEMPLATE_OWNER_EMAIL = (process.env.NEXT_PUBLIC_GLOBAL_TEMPLATE_OWNER_EMAIL || "storyguild9@gmail.com").trim().toLowerCase();
+
+export function isGlobalTemplateOwnerEmail(email?: string | null) {
+  const normalized = (email ?? "").trim().toLowerCase();
+  return Boolean(normalized) && normalized == GLOBAL_TEMPLATE_OWNER_EMAIL;
+}
