@@ -511,7 +511,6 @@ export default function WalletPage() {
 
             <div className={FRAME_CARD}>
               <div className="text-sm font-semibold text-emerald-900">Контакты и реквизиты</div>
-              <div className="mt-2 text-sm text-slate-600">Блок для проверки сайта и платежной интеграции.</div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
                   <div className="text-[11px] uppercase tracking-[0.16em] text-[#9a7a4b]">Реквизиты</div>
@@ -523,27 +522,9 @@ export default function WalletPage() {
                 <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
                   <div className="text-[11px] uppercase tracking-[0.16em] text-[#9a7a4b]">Контакты</div>
                   <div className="mt-2 space-y-1 text-slate-600">
-                    <div>Email поддержки: укажи рабочий адрес</div>
-                    <div>Телефон: укажи номер для связи</div>
+                    <div>Email: jdanova_2002@mail.ru</div>
+                    <div>Телефон: 89037827400</div>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            <div className={FRAME_CARD}>
-              <div className="text-sm font-semibold text-emerald-900">Как это работает</div>
-              <div className="mt-2 grid gap-3 sm:grid-cols-3">
-                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
-                  <div className="font-medium">1. Пополнение</div>
-                  <div className="mt-1 text-xs text-slate-500">{PAYMENTS_UI_ENABLED ? "Через СБП и ЮKassa." : "Онлайн-оплата подключается отдельно."}</div>
-                </div>
-                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
-                  <div className="font-medium">2. Открытие уровней</div>
-                  <div className="mt-1 text-xs text-slate-500">База, Премиум AI, Премиум AI+ и месячные лимиты по проектам.</div>
-                </div>
-                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
-                  <div className="font-medium">3. История</div>
-                  <div className="mt-1 text-xs text-slate-500">Все операции сохраняются ниже.</div>
                 </div>
               </div>
             </div>
@@ -554,8 +535,7 @@ export default function WalletPage() {
               <div className="border-b border-[#e5d6bd] px-5 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Гермес в кошельке</div>
-                    <div className="mt-1 text-sm text-slate-700">Можно подогнать размер и посадку картинки под твой макет.</div>
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Иллюстрация</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button type="button" className="btn btn-secondary" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
@@ -607,12 +587,6 @@ export default function WalletPage() {
                     transform: `translate(${walletHermesLayout.offsetX}px, ${walletHermesLayout.offsetY}px)`,
                   }}
                 />
-              </div>
-              <div className="border-t border-[#e5d6bd] px-5 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Подсказка</div>
-                <div className="mt-2 text-sm text-slate-700">
-                  Прозрачный PNG уже подключён. В конструкторе можно растянуть блок, увеличить картинку и сместить её внутри рамки.
-                </div>
               </div>
             </div>
 
