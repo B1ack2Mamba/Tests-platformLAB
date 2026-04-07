@@ -148,9 +148,9 @@ function getPackageButtonLabel(
 }
 
 const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
-const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v2";
+const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v3";
 
-type DetailsTemplateBlock = "main" | "profile" | "qr" | "tests";
+type DetailsTemplateBlock = "main" | "profile" | "qr" | "tests" | "results" | "counter";
 type DetailsTemplateContentTarget = `${DetailsTemplateBlock}Content`;
 type DetailsTemplateTarget = DetailsTemplateBlock | DetailsTemplateContentTarget;
 type DetailsGestureMode = "move" | "scale" | "resizeX" | "resizeY" | "text";
@@ -189,6 +189,22 @@ type DetailsTemplateState = {
   testsTextScale: number;
   testsContentX: number;
   testsContentY: number;
+  resultsX: number;
+  resultsY: number;
+  resultsScale: number;
+  resultsWidthScale: number;
+  resultsHeightScale: number;
+  resultsTextScale: number;
+  resultsContentX: number;
+  resultsContentY: number;
+  counterX: number;
+  counterY: number;
+  counterScale: number;
+  counterWidthScale: number;
+  counterHeightScale: number;
+  counterTextScale: number;
+  counterContentX: number;
+  counterContentY: number;
 };
 
 const DEFAULT_DETAILS_TEMPLATE_STATE: DetailsTemplateState = {
@@ -217,14 +233,30 @@ const DEFAULT_DETAILS_TEMPLATE_STATE: DetailsTemplateState = {
   qrTextScale: 1.02,
   qrContentX: 0,
   qrContentY: 0,
-  testsX: 24,
-  testsY: 1000,
-  testsScale: 0.94,
-  testsWidthScale: 0.94,
+  testsX: 585,
+  testsY: 70,
+  testsScale: 0.72,
+  testsWidthScale: 0.48,
   testsHeightScale: 1,
-  testsTextScale: 1.02,
+  testsTextScale: 0.96,
   testsContentX: 0,
   testsContentY: 0,
+  resultsX: 255,
+  resultsY: 236,
+  resultsScale: 1,
+  resultsWidthScale: 1,
+  resultsHeightScale: 1,
+  resultsTextScale: 1,
+  resultsContentX: 0,
+  resultsContentY: 0,
+  counterX: 365,
+  counterY: 90,
+  counterScale: 1,
+  counterWidthScale: 1,
+  counterHeightScale: 1,
+  counterTextScale: 1,
+  counterContentX: 0,
+  counterContentY: 0,
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -541,6 +573,22 @@ export default function ProjectDetailsPage() {
           testsTextScale: detailsTemplate.testsTextScale,
           testsContentX: detailsTemplate.testsContentX,
           testsContentY: detailsTemplate.testsContentY,
+          resultsX: detailsTemplate.resultsX,
+          resultsY: detailsTemplate.resultsY,
+          resultsScale: detailsTemplate.resultsScale,
+          resultsWidthScale: detailsTemplate.resultsWidthScale,
+          resultsHeightScale: detailsTemplate.resultsHeightScale,
+          resultsTextScale: detailsTemplate.resultsTextScale,
+          resultsContentX: detailsTemplate.resultsContentX,
+          resultsContentY: detailsTemplate.resultsContentY,
+          counterX: detailsTemplate.counterX,
+          counterY: detailsTemplate.counterY,
+          counterScale: detailsTemplate.counterScale,
+          counterWidthScale: detailsTemplate.counterWidthScale,
+          counterHeightScale: detailsTemplate.counterHeightScale,
+          counterTextScale: detailsTemplate.counterTextScale,
+          counterContentX: detailsTemplate.counterContentX,
+          counterContentY: detailsTemplate.counterContentY,
         },
       };
       const resp = await fetch("/api/commercial/project-details-template", {
@@ -582,19 +630,22 @@ export default function ProjectDetailsPage() {
   const shareCompactUrl = shareUrl ? shareUrl.replace(/^https?:\/\//, "") : "";
   const mainWidth = 760 * detailsTemplate.mainWidthScale;
   const mainHeight = 1066 * detailsTemplate.mainHeightScale;
-  const profileWidth = 360 * detailsTemplate.profileWidthScale;
-  const profileHeight = 217 * detailsTemplate.profileHeightScale;
   const qrWidth = 300 * detailsTemplate.qrWidthScale;
   const qrHeight = 532 * detailsTemplate.qrHeightScale;
   const testsWidth = 870 * detailsTemplate.testsWidthScale;
   const testsAutoHeight = estimateTestsContentHeight(data?.project.tests?.length || 0, detailsTemplate.testsTextScale);
   const testsHeight = Math.max(400 * detailsTemplate.testsHeightScale, testsAutoHeight);
+  const resultsWidth = 300 * detailsTemplate.resultsWidthScale;
+  const resultsHeight = 220 * detailsTemplate.resultsHeightScale;
+  const counterWidth = 120 * detailsTemplate.counterWidthScale;
+  const counterHeight = 88 * detailsTemplate.counterHeightScale;
   const detailsCanvasHeight = Math.max(
     1560,
     detailsTemplate.mainY + mainHeight + 80,
-    detailsTemplate.profileY + profileHeight + 80,
     detailsTemplate.qrY + qrHeight + 80,
-    detailsTemplate.testsY + testsHeight + 80
+    detailsTemplate.testsY + testsHeight + 80,
+    detailsTemplate.resultsY + resultsHeight + 80,
+    detailsTemplate.counterY + counterHeight + 80
   );
 
   function renderTemplateHandles(target: DetailsTemplateBlock, label: string, contentTarget?: DetailsTemplateContentTarget) {
@@ -732,6 +783,10 @@ export default function ProjectDetailsPage() {
     : [];
   const overviewSections = activeSections.filter((section) => section.kind !== "test");
   const testSections = activeSections.filter((section) => section.kind === "test");
+  const resultsPreviewSections = overviewSections.slice(0, 3).map((section) => ({
+    title: section.title,
+    body: splitSectionBody(section.body).preview,
+  }));
 
   if (!session || !user) {
     return (
@@ -780,19 +835,13 @@ export default function ProjectDetailsPage() {
             <div className="absolute inset-0 text-[#7d6548]" style={{ transform: `translate(${detailsTemplate.mainContentX}px, ${detailsTemplate.mainContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.mainTextScale})` }}>
             <div className="absolute inset-x-[48px] top-[58px]">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Проект оценки</div>
-                    <h1 className="mt-3 max-w-[520px] text-[2.25rem] font-semibold leading-[1.04] text-[#2f5031]">{data?.project.title || "Без названия"}</h1>
-                    <div className="mt-3 text-[1.12rem] font-medium leading-tight text-[#4d4338]">{data?.project.person?.full_name || "Имя участника"}</div>
-                  </div>
-                  <div className="shrink-0 rounded-[20px] border border-[#ddcbb0] bg-[#fff9ee]/95 px-5 py-4 text-right shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Готово тестов</div>
-                    <div className="mt-2 text-[2.35rem] font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
-                  </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Проект оценки</div>
+                  <h1 className="mt-3 max-w-[520px] text-[2.18rem] font-semibold leading-[1.06] text-[#2f5031]">{data?.project.title || "Без названия"}</h1>
+                  <div className="mt-3 text-[1.12rem] font-medium leading-tight text-[#4d4338]">{data?.project.person?.full_name || "Имя участника"}</div>
                 </div>
 
-                <div className="mt-6 grid gap-4 md:grid-cols-[1.08fr_0.92fr]">
+                <div className="mt-6 grid max-w-[430px] gap-4">
                   <div className="rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.88)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Профиль</div>
@@ -801,9 +850,8 @@ export default function ProjectDetailsPage() {
                     {editing ? (
                       <div className="mt-4 grid gap-3">
                         <input className="input" value={form.full_name} onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Имя участника" />
-                        <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Должность" />
-                        <input className="input" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
-                        <textarea className="input min-h-[108px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
+                        <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Профиль / должность" />
+                        <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
                         <div className="flex flex-wrap gap-2">
                           <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
                           <button type="button" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]" onClick={() => setEditing(false)}>Отменить</button>
@@ -813,12 +861,11 @@ export default function ProjectDetailsPage() {
                       <div className="mt-4 grid gap-3 text-[#2d2a22]">
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Имя</div>
-                          <div className="mt-2 text-[1.35rem] font-semibold leading-tight">{data?.project.person?.full_name || "Имя участника"}</div>
+                          <div className="mt-2 text-[1.3rem] font-semibold leading-tight">{data?.project.person?.full_name || "Имя участника"}</div>
                         </div>
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Профиль</div>
                           <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.person?.current_position || data?.project.target_role || goal?.shortTitle || "Профиль уточняется"}</div>
-                          {data?.project.person?.email ? <div className="mt-2 text-sm text-[#7b6a57]">{data.project.person.email}</div> : null}
                         </div>
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий</div>
@@ -827,50 +874,43 @@ export default function ProjectDetailsPage() {
                       </div>
                     )}
                   </div>
+                </div>
+              </div></div></div>
+          </div>
 
-                  <div className="rounded-[24px] border border-[#ddcbb0] bg-[#f8f1e5] p-5 shadow-[0_12px_24px_rgba(93,71,39,0.06)]">
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Результаты</div>
-                    {fullyDone ? (
-                      <div className="mt-4 grid gap-3">
-                        {EVALUATION_PACKAGES.map((item) => {
-                          const unlocked = isPackageAccessible(unlockedMode, item.key);
-                          const active = activeEvaluationMode === item.key;
-                          return (
-                            <button
-                              key={item.key}
-                              type="button"
-                              onClick={() => unlocked ? setActiveEvaluationMode(item.key) : undefined}
-                              className={`rounded-[20px] border px-4 py-3 text-left ${active ? "border-[#8eb48d] bg-[#eef8e8]" : unlocked ? "border-[#d8c7aa] bg-[#fffaf1]" : "border-[#e4d7c4] bg-[rgba(255,255,255,0.58)]"}`}
-                            >
-                              <div className="text-base font-semibold text-[#2d2a22]">{item.title}</div>
-                              <div className="mt-1 text-sm leading-5 text-[#6f6454]">{unlocked ? "Открыт" : "Откроется после оплаты или тарифа"}</div>
-                            </button>
-                          );
-                        })}
+          <div className="absolute left-0 top-0" style={{ width: counterWidth, height: counterHeight, transform: `translate(${detailsTemplate.counterX}px, ${detailsTemplate.counterY}px)` }}>
+            {renderTemplateHandles("counter", "готово", "counterContent")}
+            <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.counterContentX}px, ${detailsTemplate.counterContentY}px)` }}>
+              <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.counterTextScale})` }}>
+                <div className="h-full rounded-[20px] border border-[#ddcbb0] bg-[#fff9ee]/95 px-5 py-4 text-right shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Готово тестов</div>
+                  <div className="mt-2 text-[2.1rem] font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
+            {renderTemplateHandles("results", "результаты", "resultsContent")}
+            <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
+              <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
+                <div className="h-full rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.9)] p-5 shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Результаты</div>
+                  <div className="mt-3 grid gap-3">
+                    {fullyDone ? resultsPreviewSections.length ? resultsPreviewSections.map((section) => (
+                      <div key={section.title} className="rounded-[18px] border border-[#e1d3bf] bg-white/60 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-[#9d7a4b]">{section.title}</div>
+                        <div className="mt-2 text-sm leading-6 text-[#5f5548] line-clamp-3">{section.body}</div>
                       </div>
+                    )) : (
+                      <div className="rounded-[18px] border border-[#e1d3bf] bg-white/60 px-4 py-3 text-sm leading-6 text-[#5f5548]">Открой уровень результата ниже, чтобы показать сюда готовый анализ.</div>
                     ) : (
-                      <div className="mt-4 rounded-[20px] border border-[#e1d3bf] bg-white/60 px-4 py-4 text-sm leading-6 text-[#685742]">Результаты откроются после завершения всех назначенных тестов.</div>
+                      <div className="rounded-[18px] border border-[#e1d3bf] bg-white/60 px-4 py-3 text-sm leading-6 text-[#5f5548]">Результаты появятся здесь после завершения всех назначенных тестов.</div>
                     )}
                   </div>
                 </div>
-            </div></div></div>
-          </div>
-
-          <div className="absolute left-0 top-0" style={{ width: profileWidth, height: profileHeight, transform: `translate(${detailsTemplate.profileX}px, ${detailsTemplate.profileY}px)` }}>
-            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: profileWidth, height: profileHeight, transform: `scale(${detailsTemplate.profileScale})` }}>
-              <div className="relative h-full w-full bg-no-repeat" style={{ backgroundImage: "url('/project-details-profile-template.png')", backgroundSize: "100% 100%" }} />
+              </div>
             </div>
-            {renderTemplateHandles("profile", "профиль", "profileContent")}
-            <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.profileContentX}px, ${detailsTemplate.profileContentY}px)` }}>
-              <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.profileTextScale})` }}>
-            <div className="absolute inset-x-[24px] top-[24px]">
-                <div className="rounded-[22px] border border-[#e1d3bf] bg-white/62 px-4 py-4">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Кратко</div>
-                  <div className="mt-2 text-[1.1rem] font-semibold leading-tight text-[#2f5031]">{data?.project.person?.full_name || data?.project.title || "Проект"}</div>
-                  <div className="mt-2 text-sm leading-5 text-[#6f6454]">{data?.project.person?.current_position || data?.project.target_role || "Профиль уточняется"}</div>
-                  <div className="mt-3 text-xs leading-5 text-[#8d7860]">Редактирование профиля перенесено в левый основной блок.</div>
-                </div>
-            </div></div></div>
           </div>
 
           <div className="absolute left-0 top-0" style={{ width: qrWidth, height: qrHeight, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px)` }}>
@@ -893,20 +933,7 @@ export default function ProjectDetailsPage() {
                   <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">QR</div>
                   <div className="mt-2 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={120} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
                 </div>
-                <div className="mt-3 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Назначено</div>
-                  <div className="mt-2 grid gap-2">
-                    {(data?.project.tests || []).map((test) => {
-                      const done = completedSet.has(test.test_slug);
-                      return (
-                        <div key={test.test_slug} className="flex items-center justify-between gap-2 rounded-[14px] border border-[#e7dac6] bg-[#fffaf1] px-3 py-2 text-sm">
-                          <span className="min-w-0 truncate text-left font-medium text-[#3c3125]">{test.test_title}</span>
-                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Готово" : "В работе"}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+
             </div></div></div>
           </div>
 
@@ -921,7 +948,7 @@ export default function ProjectDetailsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-2xl font-semibold">Назначенные тесты</div>
-                    <div className="mt-1 text-sm text-[#8d7860]">Минимум текста, только список и статус.</div>
+                    <div className="mt-1 text-sm text-[#8d7860]">Только список и статус прохождения.</div>
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3">
