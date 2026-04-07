@@ -47,6 +47,21 @@ const FRAME_SOFT = "rounded-[28px] border border-[#e5d6bd] bg-white/70";
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
+const WALLET_HERMES_LAYOUT_KEY = "wallet_hermes_layout_v1";
+
+type WalletHermesLayout = {
+  widthPercent: number;
+  heightPx: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
+  widthPercent: 100,
+  heightPx: 440,
+  offsetX: 0,
+  offsetY: 0,
+};
 
 function getStoredPromoCode() {
   if (typeof window === "undefined") return "";
@@ -65,6 +80,33 @@ function readAndClearPromoFlash(key: string) {
   return value;
 }
 
+
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function readWalletHermesLayout(): WalletHermesLayout {
+  if (typeof window === "undefined") return DEFAULT_WALLET_HERMES_LAYOUT;
+  try {
+    const raw = window.localStorage.getItem(WALLET_HERMES_LAYOUT_KEY);
+    if (!raw) return DEFAULT_WALLET_HERMES_LAYOUT;
+    const parsed = JSON.parse(raw) as Partial<WalletHermesLayout>;
+    return {
+      widthPercent: clamp(Number(parsed.widthPercent ?? DEFAULT_WALLET_HERMES_LAYOUT.widthPercent), 70, 150),
+      heightPx: clamp(Number(parsed.heightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.heightPx), 280, 760),
+      offsetX: clamp(Number(parsed.offsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetX), -220, 220),
+      offsetY: clamp(Number(parsed.offsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetY), -220, 220),
+    };
+  } catch {
+    return DEFAULT_WALLET_HERMES_LAYOUT;
+  }
+}
+
+function storeWalletHermesLayout(layout: WalletHermesLayout) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(WALLET_HERMES_LAYOUT_KEY, JSON.stringify(layout));
+}
 
 function reasonLabel(reason: string): string {
   switch (reason) {
@@ -101,6 +143,8 @@ export default function WalletPage() {
   const [subscriptionBusyKey, setSubscriptionBusyKey] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [subscriptionInfo, setSubscriptionInfo] = useState<string | null>(null);
+  const [walletHermesLayout, setWalletHermesLayout] = useState<WalletHermesLayout>(DEFAULT_WALLET_HERMES_LAYOUT);
+  const [walletHermesConstructorOpen, setWalletHermesConstructorOpen] = useState(false);
 
   useEffect(() => {
     setPromoCode(getStoredPromoCode());
@@ -110,6 +154,7 @@ export default function WalletPage() {
     if (promoErrorText) setPromoError(promoErrorText);
 
     if (typeof window !== "undefined") {
+      setWalletHermesLayout(readWalletHermesLayout());
       const url = new URL(window.location.href);
       if (url.searchParams.get("plan_paid") === "1") {
         setSubscriptionInfo("Оплата тарифа принята. Проверяем активацию и обновляем лимит проектов…");
@@ -189,6 +234,7 @@ export default function WalletPage() {
       await loadSubscriptionStatus();
     } catch (e: any) {
       if (typeof window !== "undefined") {
+      setWalletHermesLayout(readWalletHermesLayout());
         window.localStorage.setItem(PENDING_PROMO_CODE_KEY, normalizedCode);
       }
       setPromoError(e?.message || "Не удалось активировать промокод");
@@ -310,6 +356,25 @@ export default function WalletPage() {
   }
 
 
+  function updateWalletHermesLayout(patch: Partial<WalletHermesLayout>) {
+    setWalletHermesLayout((current) => {
+      const next = {
+        widthPercent: clamp(Number(patch.widthPercent ?? current.widthPercent), 70, 150),
+        heightPx: clamp(Number(patch.heightPx ?? current.heightPx), 280, 760),
+        offsetX: clamp(Number(patch.offsetX ?? current.offsetX), -220, 220),
+        offsetY: clamp(Number(patch.offsetY ?? current.offsetY), -220, 220),
+      };
+      storeWalletHermesLayout(next);
+      return next;
+    });
+  }
+
+  function resetWalletHermesLayout() {
+    setWalletHermesLayout(DEFAULT_WALLET_HERMES_LAYOUT);
+    storeWalletHermesLayout(DEFAULT_WALLET_HERMES_LAYOUT);
+  }
+
+
   return (
     <Layout title="Кошелёк">
       {!user ? (
@@ -415,7 +480,7 @@ export default function WalletPage() {
                           disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
                           onClick={() => buyMonthlyPlanFromWallet(plan.key)}
                         >
-                          {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю с баланса…" : `Купить с баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
+                          {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю…" : `С баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
                         </button>
                         {PAYMENTS_UI_ENABLED ? (
                           <button
@@ -428,7 +493,7 @@ export default function WalletPage() {
                           </button>
                         ) : (
                           <div className="rounded-[20px] border border-[#e5d6bd] bg-[#fffaf2] px-3 py-2 text-xs text-slate-600">
-                            Онлайн-оплата сейчас выключена, но тариф можно купить прямо с баланса кошелька.
+                            Онлайн-оплата выключена. Тариф можно взять с баланса.
                           </div>
                         )}
                         {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100 ? (
@@ -465,17 +530,67 @@ export default function WalletPage() {
 
           <div className="grid gap-4">
             <div className={FRAME_CARD + " overflow-hidden p-0"}>
-              <div className="bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]">
+              <div className="border-b border-[#e5d6bd] px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Гермес в кошельке</div>
+                    <div className="mt-1 text-sm text-slate-700">Можно подогнать размер и посадку картинки под твой макет.</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn btn-secondary" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
+                      {walletHermesConstructorOpen ? "Скрыть конструктор" : "Конструктор"}
+                    </button>
+                    <button type="button" className="btn btn-secondary" onClick={resetWalletHermesLayout}>
+                      Сбросить
+                    </button>
+                  </div>
+                </div>
+                {walletHermesConstructorOpen ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className={FRAME_SOFT + " p-3"}>
+                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Размер</div>
+                      <div className="mt-3 space-y-3 text-sm text-slate-700">
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Ширина</span><span>{walletHermesLayout.widthPercent}%</span></div>
+                          <input type="range" min="70" max="150" step="1" value={walletHermesLayout.widthPercent} onChange={(e) => updateWalletHermesLayout({ widthPercent: Number(e.target.value) })} className="w-full" />
+                        </label>
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Высота блока</span><span>{walletHermesLayout.heightPx}px</span></div>
+                          <input type="range" min="280" max="760" step="10" value={walletHermesLayout.heightPx} onChange={(e) => updateWalletHermesLayout({ heightPx: Number(e.target.value) })} className="w-full" />
+                        </label>
+                      </div>
+                    </div>
+                    <div className={FRAME_SOFT + " p-3"}>
+                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Положение</div>
+                      <div className="mt-3 space-y-3 text-sm text-slate-700">
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Сдвиг по X</span><span>{walletHermesLayout.offsetX}px</span></div>
+                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.offsetX} onChange={(e) => updateWalletHermesLayout({ offsetX: Number(e.target.value) })} className="w-full" />
+                        </label>
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Сдвиг по Y</span><span>{walletHermesLayout.offsetY}px</span></div>
+                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.offsetY} onChange={(e) => updateWalletHermesLayout({ offsetY: Number(e.target.value) })} className="w-full" />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]" style={{ height: `${walletHermesLayout.heightPx}px` }}>
                 <img
                   src="/wallet-hermes-guide.png"
                   alt="Гермес с табличкой"
-                  className="w-full object-contain"
+                  className="absolute left-0 top-0 max-w-none select-none"
+                  style={{
+                    width: `${walletHermesLayout.widthPercent}%`,
+                    transform: `translate(${walletHermesLayout.offsetX}px, ${walletHermesLayout.offsetY}px)`,
+                  }}
                 />
               </div>
               <div className="border-t border-[#e5d6bd] px-5 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Навигация по кошельку</div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Подсказка</div>
                 <div className="mt-2 text-sm text-slate-700">
-                  Оставил удобную старую логику страницы, а Гермеса добавил как визуальный якорь для тарифов, лимитов и действий.
+                  Прозрачный PNG уже подключён. В конструкторе можно растянуть блок, увеличить картинку и сместить её внутри рамки.
                 </div>
               </div>
             </div>
