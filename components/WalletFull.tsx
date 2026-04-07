@@ -510,6 +510,27 @@ export default function WalletPage() {
             </div>
 
             <div className={FRAME_CARD}>
+              <div className="text-sm font-semibold text-emerald-900">Контакты и реквизиты</div>
+              <div className="mt-2 text-sm text-slate-600">Блок для проверки сайта и платежной интеграции.</div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-[#9a7a4b]">Реквизиты</div>
+                  <div className="mt-2 space-y-1">
+                    <div><span className="font-medium text-slate-900">ИНН:</span> 027803490580</div>
+                    <div><span className="font-medium text-slate-900">Формат:</span> услуги оценки и аналитики</div>
+                  </div>
+                </div>
+                <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-[#9a7a4b]">Контакты</div>
+                  <div className="mt-2 space-y-1 text-slate-600">
+                    <div>Email поддержки: укажи рабочий адрес</div>
+                    <div>Телефон: укажи номер для связи</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className={FRAME_CARD}>
               <div className="text-sm font-semibold text-emerald-900">Как это работает</div>
               <div className="mt-2 grid gap-3 sm:grid-cols-3">
                 <div className={FRAME_SOFT + " p-3 text-sm text-slate-700"}>
