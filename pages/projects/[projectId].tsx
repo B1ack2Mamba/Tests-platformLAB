@@ -193,36 +193,36 @@ type DetailsTemplateState = {
 
 const DEFAULT_DETAILS_TEMPLATE_STATE: DetailsTemplateState = {
   builderOpen: false,
-  mainX: 8,
-  mainY: 92,
-  mainScale: 0.686,
+  mainX: 18,
+  mainY: 88,
+  mainScale: 0.66,
   mainWidthScale: 1,
   mainHeightScale: 1,
-  mainTextScale: 1,
+  mainTextScale: 1.08,
   mainContentX: 0,
   mainContentY: 0,
-  profileX: 612,
-  profileY: 118,
-  profileScale: 0.39,
-  profileWidthScale: 1,
-  profileHeightScale: 1,
-  profileTextScale: 1,
+  profileX: 470,
+  profileY: 122,
+  profileScale: 0.42,
+  profileWidthScale: 1.06,
+  profileHeightScale: 1.08,
+  profileTextScale: 1.08,
   profileContentX: 0,
   profileContentY: 0,
   qrX: 540,
-  qrY: 352,
-  qrScale: 0.385,
+  qrY: 308,
+  qrScale: 0.4,
   qrWidthScale: 1,
-  qrHeightScale: 1,
-  qrTextScale: 1,
+  qrHeightScale: 1.08,
+  qrTextScale: 1.02,
   qrContentX: 0,
   qrContentY: 0,
   testsX: 24,
-  testsY: 1002,
-  testsScale: 0.96,
+  testsY: 1000,
+  testsScale: 0.94,
   testsWidthScale: 0.94,
   testsHeightScale: 1,
-  testsTextScale: 1,
+  testsTextScale: 1.02,
   testsContentX: 0,
   testsContentY: 0,
 };
@@ -779,42 +779,80 @@ export default function ProjectDetailsPage() {
             {renderTemplateHandles("main", "лист", "mainContent")}
             <div className="absolute inset-0 text-[#7d6548]" style={{ transform: `translate(${detailsTemplate.mainContentX}px, ${detailsTemplate.mainContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.mainTextScale})` }}>
-            <div className="absolute inset-x-[52px] top-[64px]">
-                <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Проект #{data?.project.id ? data.project.id.slice(0, 5) : "—"}</div>
-                <div className="mt-2 text-sm text-[#958066]">{data?.workspace.name || "Рабочее пространство"} / {data?.project.created_at ? new Date(data.project.created_at).toLocaleDateString("ru-RU") : "—"}</div>
-                <div className="mt-5 text-sm font-semibold uppercase tracking-[0.22em] text-[#7d6548]">Проект оценки</div>
-                <h1 className="mt-3 max-w-[560px] text-[2.15rem] font-semibold leading-[1.08] text-[#2f5031]">{data?.project.title || "—"}</h1>
-
-                <div className="mt-5 flex items-start justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full border border-[#d8c4a2] bg-[#fff9ef] px-4 py-1.5 text-sm font-medium text-[#6d573d]">{goal?.shortTitle || data?.project.goal || "—"}</span>
-                    <span className="rounded-full border border-[#e3d7c4] bg-[#f5efe4] px-4 py-1.5 text-sm font-medium text-[#6f6454]">{formatStatus(data?.project.status)}</span>
+            <div className="absolute inset-x-[48px] top-[58px]">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Проект оценки</div>
+                    <h1 className="mt-3 max-w-[520px] text-[2.25rem] font-semibold leading-[1.04] text-[#2f5031]">{data?.project.title || "Без названия"}</h1>
+                    <div className="mt-3 text-[1.12rem] font-medium leading-tight text-[#4d4338]">{data?.project.person?.full_name || "Имя участника"}</div>
                   </div>
-                  <div className="rounded-[18px] border border-[#ddcbb0] bg-[#fff9ee]/95 px-4 py-3 text-right shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
+                  <div className="shrink-0 rounded-[20px] border border-[#ddcbb0] bg-[#fff9ee]/95 px-5 py-4 text-right shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Готово тестов</div>
-                    <div className="mt-2 text-[2.1rem] font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
+                    <div className="mt-2 text-[2.35rem] font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
                   </div>
                 </div>
 
-                <div className="mt-7 rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.86)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Режим проекта</div>
-                      <div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{routingMeta?.mode === "competency" ? "Оценка по компетенциям" : "Оценка по текущей цели"}</div>
+                <div className="mt-6 grid gap-4 md:grid-cols-[1.08fr_0.92fr]">
+                  <div className="rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.88)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Профиль</div>
+                      <button type="button" onClick={() => setEditing((prev) => !prev)} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">{editing ? "Отменить" : "Редактировать"}</button>
                     </div>
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Фокус оценки</div>
-                      <div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{competencyLabel || data?.project.target_role || goal?.title || "Не задан"}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Аналитическая опора</div>
-                      <div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{goal?.title || "Общая оценка"}</div>
-                    </div>
-                    {data?.project.target_role ? <div><div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Целевая роль</div><div className="mt-2 rounded-2xl border border-[#e5d9c7] bg-[#fcf7ef] px-4 py-3 text-sm font-medium text-[#5f4b35]">{data.project.target_role}</div></div> : null}
+                    {editing ? (
+                      <div className="mt-4 grid gap-3">
+                        <input className="input" value={form.full_name} onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Имя участника" />
+                        <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Должность" />
+                        <input className="input" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
+                        <textarea className="input min-h-[108px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
+                          <button type="button" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]" onClick={() => setEditing(false)}>Отменить</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid gap-3 text-[#2d2a22]">
+                        <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Имя</div>
+                          <div className="mt-2 text-[1.35rem] font-semibold leading-tight">{data?.project.person?.full_name || "Имя участника"}</div>
+                        </div>
+                        <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Профиль</div>
+                          <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.person?.current_position || data?.project.target_role || goal?.shortTitle || "Профиль уточняется"}</div>
+                          {data?.project.person?.email ? <div className="mt-2 text-sm text-[#7b6a57]">{data.project.person.email}</div> : null}
+                        </div>
+                        <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий</div>
+                          <div className="mt-2 text-sm leading-6 text-[#6f6454]">{data?.project.person?.notes || "Комментарий пока не добавлен."}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-[24px] border border-[#ddcbb0] bg-[#f8f1e5] p-5 shadow-[0_12px_24px_rgba(93,71,39,0.06)]">
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Результаты</div>
+                    {fullyDone ? (
+                      <div className="mt-4 grid gap-3">
+                        {EVALUATION_PACKAGES.map((item) => {
+                          const unlocked = isPackageAccessible(unlockedMode, item.key);
+                          const active = activeEvaluationMode === item.key;
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => unlocked ? setActiveEvaluationMode(item.key) : undefined}
+                              className={`rounded-[20px] border px-4 py-3 text-left ${active ? "border-[#8eb48d] bg-[#eef8e8]" : unlocked ? "border-[#d8c7aa] bg-[#fffaf1]" : "border-[#e4d7c4] bg-[rgba(255,255,255,0.58)]"}`}
+                            >
+                              <div className="text-base font-semibold text-[#2d2a22]">{item.title}</div>
+                              <div className="mt-1 text-sm leading-5 text-[#6f6454]">{unlocked ? "Открыт" : "Откроется после оплаты или тарифа"}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-[20px] border border-[#e1d3bf] bg-white/60 px-4 py-4 text-sm leading-6 text-[#685742]">Результаты откроются после завершения всех назначенных тестов.</div>
+                    )}
                   </div>
                 </div>
-
-                <div className="mt-5 rounded-[24px] border border-[#ddcbb0] bg-[#f8f1e5] px-5 py-4 text-sm leading-7 text-[#685742] shadow-[0_12px_24px_rgba(93,71,39,0.06)]"><span className="font-semibold text-[#4d4338]">Примечание специалисту:</span> результаты откроются после того, как участник завершит назначенные тесты.</div>
             </div></div></div>
           </div>
 
@@ -825,35 +863,13 @@ export default function ProjectDetailsPage() {
             {renderTemplateHandles("profile", "профиль", "profileContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.profileContentX}px, ${detailsTemplate.profileContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.profileTextScale})` }}>
-            <div className="absolute inset-x-[26px] top-[28px]">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[2rem] font-semibold text-[#2f5031]">Профиль участника</div>
-                    <div className="mt-2 text-sm leading-6 text-[#8d7860]">Профиль, должность и комментарий специалиста.</div>
-                  </div>
-                  <button type="button" onClick={() => setEditing((prev) => !prev)} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">{editing ? "Отменить" : "Редактировать"}</button>
+            <div className="absolute inset-x-[24px] top-[24px]">
+                <div className="rounded-[22px] border border-[#e1d3bf] bg-white/62 px-4 py-4">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Кратко</div>
+                  <div className="mt-2 text-[1.1rem] font-semibold leading-tight text-[#2f5031]">{data?.project.person?.full_name || data?.project.title || "Проект"}</div>
+                  <div className="mt-2 text-sm leading-5 text-[#6f6454]">{data?.project.person?.current_position || data?.project.target_role || "Профиль уточняется"}</div>
+                  <div className="mt-3 text-xs leading-5 text-[#8d7860]">Редактирование профиля перенесено в левый основной блок.</div>
                 </div>
-                <div className="mt-8 rounded-[22px] border border-[#e1d3bf] bg-white/55 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Участник</div>
-                  {editing ? (
-                    <div className="mt-3 grid gap-3">
-                      <input className="input" value={form.full_name} onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Имя участника" />
-                      <input className="input" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
-                      <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Должность" />
-                    </div>
-                  ) : (
-                    <div className="mt-3 grid gap-2 text-[#2d2a22]">
-                      <div className="text-2xl font-semibold">{data?.project.person?.full_name || "Имя участника"}</div>
-                      <div className="text-sm text-[#6f6454]">{data?.project.person?.current_position || "Должность не указана"}</div>
-                      {data?.project.person?.email ? <div className="text-sm text-[#6f6454]">{data.project.person.email}</div> : null}
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 rounded-[20px] border border-[#e1d3bf] bg-white/60 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий специалиста</div>
-                  {editing ? <textarea className="input mt-3 min-h-[118px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" /> : <div className="mt-3 text-sm leading-7 text-[#6f6454]">{data?.project.person?.notes || "Комментарий пока не добавлен."}</div>}
-                </div>
-                {editing ? <div className="mt-4 flex flex-wrap gap-2"><button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button><button type="button" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]" onClick={() => setEditing(false)}>Отменить</button></div> : null}
             </div></div></div>
           </div>
 
@@ -864,19 +880,32 @@ export default function ProjectDetailsPage() {
             {renderTemplateHandles("qr", "QR", "qrContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.qrContentX}px, ${detailsTemplate.qrContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.qrTextScale})` }}>
-            <div className="absolute inset-x-[34px] top-[202px]">
-                <div className="text-[1.1rem] font-semibold text-center">Доступ участника</div>
-                <div className="mt-4 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
+            <div className="absolute inset-x-[28px] top-[194px]">
+                <div className="text-[1.12rem] font-semibold text-center">Доступ участника</div>
+                <div className="mt-3 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Ссылка</div>
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-2 flex gap-2">
                     <input className="input flex-1" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
                     <button type="button" onClick={copyShareUrl} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">{copied ? "Скопировано" : "Копировать"}</button>
                   </div>
                 </div>
-                <div className="mt-4 text-center">
-                  <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">QR для прохождения</div>
-                  <div className="mt-3 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={124} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
-                  <div className="mt-3 text-sm leading-6 text-[#8d7860]">Открой ссылку на телефоне или отсканируй QR.</div>
+                <div className="mt-3 text-center">
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">QR</div>
+                  <div className="mt-2 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={120} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
+                </div>
+                <div className="mt-3 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Назначено</div>
+                  <div className="mt-2 grid gap-2">
+                    {(data?.project.tests || []).map((test) => {
+                      const done = completedSet.has(test.test_slug);
+                      return (
+                        <div key={test.test_slug} className="flex items-center justify-between gap-2 rounded-[14px] border border-[#e7dac6] bg-[#fffaf1] px-3 py-2 text-sm">
+                          <span className="min-w-0 truncate text-left font-medium text-[#3c3125]">{test.test_title}</span>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Готово" : "В работе"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
             </div></div></div>
           </div>
@@ -888,20 +917,20 @@ export default function ProjectDetailsPage() {
             {renderTemplateHandles("tests", "тесты", "testsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.testsContentX}px, ${detailsTemplate.testsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.testsTextScale})` }}>
-            <div className="absolute inset-x-[36px] top-[34px]">
+            <div className="absolute inset-x-[34px] top-[30px]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-2xl font-semibold">Назначенные тесты</div>
-                    <div className="mt-1 text-sm text-[#8d7860]">Список назначенных методик и статус прохождения.</div>
+                    <div className="mt-1 text-sm text-[#8d7860]">Минимум текста, только список и статус.</div>
                   </div>
                 </div>
-                <div className="mt-5 grid gap-3">
+                <div className="mt-4 grid gap-3">
                   {(data?.project.tests || []).map((test) => {
                     const done = completedSet.has(test.test_slug);
                     return (
                       <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[20px] border border-[#dfcfb5] bg-[#fffaf1] px-5 py-3.5">
-                        <div className="text-xl font-semibold text-[#2d2a22]">{test.test_title}</div>
-                        <span className={`rounded-full px-4 py-2 text-sm font-medium ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Завершён" : "Не пройден"}</span>
+                        <div className="text-[1.05rem] font-semibold leading-6 text-[#2d2a22]">{test.test_title}</div>
+                        <span className={`rounded-full px-4 py-2 text-sm font-medium ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Готово" : "Не пройден"}</span>
                       </div>
                     );
                   })}

@@ -42,12 +42,12 @@ type PageBuilderState = {
 
 const DEFAULT_PAGE_BUILDER_STATE: PageBuilderState = {
   builderOpen: false,
-  tabletX: 0,
-  tabletY: 0,
-  tabletScale: 1,
-  pageX: 0,
-  pageY: 0,
-  pageScale: 1,
+  tabletX: -34,
+  tabletY: 8,
+  tabletScale: 0.92,
+  pageX: 4,
+  pageY: 10,
+  pageScale: 1.08,
 };
 
 const PAGE_BUILDER_STORAGE_KEY = "project-create-page-builder-v1";
@@ -672,8 +672,8 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
                   {pageBuilder.builderOpen ? (
                     <div className="mb-4 rounded-[20px] border border-[#eadbc4] bg-[rgba(255,252,246,0.92)] p-3 shadow-[0_8px_18px_rgba(98,73,41,0.04)]">
-                      <div className="text-sm font-medium text-[#5d4830]">Тяни метки на самом планшете: «Тянуть планшет», «Тянуть лист» и круглый маркер ↘ для изменения размера.</div>
-                      <div className="mt-2 text-xs text-[#7a6750]">Черновик посадки сохраняется локально у тебя в браузере. После нажатия «Сохранить как шаблон для всех» этот шаблон увидят остальные.</div>
+                      <div className="text-[15px] font-medium leading-6 text-[#5d4830]">Тяни планшет и лист. Маркер ↘ меняет размер.</div>
+                      <div className="mt-2 text-[13px] leading-5 text-[#7a6750]">Шаблон сохраняется локально, а после сохранения станет общим.</div>
                       {templateMessage ? <div className="mt-3 text-sm font-medium text-[#315437]">{templateMessage}</div> : null}
                     </div>
                   ) : null}
