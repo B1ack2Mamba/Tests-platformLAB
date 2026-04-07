@@ -618,6 +618,7 @@ export default function DashboardPage() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const { wallet, ledger, loading: walletLoading, isUnlimited } = useWallet();
   const isAdmin = isAdminEmail(user?.email);
+  const canManageGlobalTemplates = isGlobalTemplateOwnerEmail(user?.email);
   const [mechanicPulse, setMechanicPulse] = useState(0);
   const [deskPositions, setDeskPositions] = useState<DeskPositions>({});
   const [deskLayer, setDeskLayer] = useState(300);
