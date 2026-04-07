@@ -831,11 +831,10 @@ export default function ProjectDetailsPage() {
             <div className="absolute inset-x-[48px] top-[58px]">
                 <div className="min-w-0">
                   <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Проект оценки</div>
-                  <h1 className="mt-3 max-w-[520px] text-[2.18rem] font-semibold leading-[1.06] text-[#2f5031]">{data?.project.title || "Без названия"}</h1>
-                  <div className="mt-3 text-[1.12rem] font-medium leading-tight text-[#4d4338]">{data?.project.person?.full_name || "Имя участника"}</div>
+                  <h1 className="mt-3 max-w-[620px] text-[2.18rem] font-semibold leading-[1.06] text-[#2f5031]">{data?.project.title || "Без названия"}</h1>
                 </div>
 
-                <div className="mt-8 grid max-w-[500px] gap-4">
+                <div className="mt-8 grid max-w-[640px] gap-4">
                   <div className="rounded-[24px] border border-[#ddcbb0] bg-[rgba(255,251,242,0.88)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7d6548]">Профиль</div>
@@ -843,8 +842,11 @@ export default function ProjectDetailsPage() {
                     </div>
                     {editing ? (
                       <div className="mt-4 grid gap-3">
-                        <input className="input" value={form.full_name} onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Имя участника" />
-                        <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Профиль / должность" />
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <input className="input" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
+                          <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Текущая должность" />
+                        </div>
+                        <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Целевая роль" />
                         <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
                         <div className="flex flex-wrap gap-2">
                           <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
@@ -853,13 +855,19 @@ export default function ProjectDetailsPage() {
                       </div>
                     ) : (
                       <div className="mt-4 grid gap-3 text-[#2d2a22]">
-                        <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Имя</div>
-                          <div className="mt-2 text-[1.3rem] font-semibold leading-tight">{data?.project.person?.full_name || "Имя участника"}</div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Email</div>
+                            <div className="mt-2 text-base font-medium leading-6 text-[#5b4731] break-words">{data?.project.person?.email || "Email не указан"}</div>
+                          </div>
+                          <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Должность</div>
+                            <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.person?.current_position || "Должность не указана"}</div>
+                          </div>
                         </div>
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Профиль</div>
-                          <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.person?.current_position || data?.project.target_role || goal?.shortTitle || "Профиль уточняется"}</div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Целевая роль</div>
+                          <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.target_role || goal?.shortTitle || "Роль не указана"}</div>
                         </div>
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий</div>
