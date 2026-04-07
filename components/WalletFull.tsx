@@ -48,6 +48,7 @@ const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
 const WALLET_HERMES_LAYOUT_KEY = "wallet_hermes_layout_v1";
+const WALLET_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 
 type WalletHermesLayout = {
   widthPercent: number;
@@ -145,6 +146,14 @@ export default function WalletPage() {
   const [subscriptionInfo, setSubscriptionInfo] = useState<string | null>(null);
   const [walletHermesLayout, setWalletHermesLayout] = useState<WalletHermesLayout>(DEFAULT_WALLET_HERMES_LAYOUT);
   const [walletHermesConstructorOpen, setWalletHermesConstructorOpen] = useState(false);
+
+  const canManageWalletHermesLayout = (user?.email || "").trim().toLowerCase() === WALLET_TEMPLATE_OWNER_EMAIL;
+
+  useEffect(() => {
+    if (!canManageWalletHermesLayout && walletHermesConstructorOpen) {
+      setWalletHermesConstructorOpen(false);
+    }
+  }, [canManageWalletHermesLayout, walletHermesConstructorOpen]);
 
   useEffect(() => {
     setPromoCode(getStoredPromoCode());
@@ -537,14 +546,16 @@ export default function WalletPage() {
                   <div>
                     <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Иллюстрация</div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
-                      {walletHermesConstructorOpen ? "Скрыть конструктор" : "Конструктор"}
-                    </button>
-                    <button type="button" className="btn btn-secondary" onClick={resetWalletHermesLayout}>
-                      Сбросить
-                    </button>
-                  </div>
+                  {canManageWalletHermesLayout ? (
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="btn btn-secondary" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
+                        {walletHermesConstructorOpen ? "Скрыть конструктор" : "Конструктор"}
+                      </button>
+                      <button type="button" className="btn btn-secondary" onClick={resetWalletHermesLayout}>
+                        Сбросить
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 {walletHermesConstructorOpen ? (
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
