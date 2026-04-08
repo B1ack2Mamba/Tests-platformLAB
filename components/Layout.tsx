@@ -55,8 +55,15 @@ export function Layout({
       <DeveloperSupportWidgetNoSSR />
 
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-3 py-4 text-xs text-slate-500 sm:px-4 sm:py-5">
-          Лаборатория кадров · коммерческий кабинет оценки
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-4 text-xs text-slate-500 sm:px-4 sm:py-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            Лаборатория кадров · коммерческий кабинет оценки · ИНН 027803490580
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link href="/legal/offer" className="underline underline-offset-2">Оферта · возврат · контакты</Link>
+            <Link href="/legal/privacy" className="underline underline-offset-2">Политика данных</Link>
+            <Link href="/legal/personal-data-consent" className="underline underline-offset-2">Согласие ПДн</Link>
+          </div>
         </div>
       </footer>
     </div>
