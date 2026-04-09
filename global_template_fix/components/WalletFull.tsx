@@ -3,7 +3,7 @@ import { useSession } from "@/lib/useSession";
 import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PAYMENTS_UI_ENABLED } from "@/lib/payments";
+import { PAYMENTS_UI_ENABLED, YOOKASSA_TEST_UI_ENABLED } from "@/lib/payments";
 
 type CreateTopupResp = {
   ok: boolean;
@@ -44,6 +44,7 @@ function reasonLabel(reason: string): string {
 export default function WalletPage() {
   const { user, session } = useSession();
   const { wallet, ledger, loading, error, refresh, isUnlimited } = useWallet();
+  const SHOW_YOOKASSA_TEST_BUTTONS = YOOKASSA_TEST_UI_ENABLED && !PAYMENTS_UI_ENABLED;
 
   const [topupOpen, setTopupOpen] = useState(false);
   const [amountRub, setAmountRub] = useState("3000");
@@ -158,9 +159,9 @@ export default function WalletPage() {
 
           <div className="grid gap-4">
             <div className="card bg-white">
-              <div className="text-sm font-semibold text-emerald-900">{PAYMENTS_UI_ENABLED ? "Быстрое пополнение" : "Пополнение временно отключено"}</div>
+              <div className="text-sm font-semibold text-emerald-900">{PAYMENTS_UI_ENABLED ? "Быстрое пополнение" : SHOW_YOOKASSA_TEST_BUTTONS ? "Тестовое пополнение" : "Пополнение временно отключено"}</div>
               <div className="mt-2 text-sm text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и сразу перейди к оплате." : "ЮKassa пока не подключена. Кошелёк работает без онлайн-оплаты."}</div>
-              {PAYMENTS_UI_ENABLED ? (<>
+              {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (<>
               <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 {QUICK_AMOUNTS.map((a) => (
                   <button
@@ -190,11 +191,11 @@ export default function WalletPage() {
                   {isUnlimited ? "∞" : topupBusy ? "Создаю…" : "Оплатить"}
                 </button>
               </div>
-              <div className="mt-2 text-[11px] text-slate-500">Минимум 1 ₽. Для тестового безлимита оплата не нужна.</div>
+              <div className="mt-2 text-[11px] text-slate-500">{SHOW_YOOKASSA_TEST_BUTTONS && !PAYMENTS_UI_ENABLED ? "Тестовый redirect в ЮKassa. После оплаты вернёшься в кошелёк, где проверим статус платежа." : "Минимум 1 ₽. Для тестового безлимита оплата не нужна."}</div>
               {topupError ? <div className="mt-2 text-sm text-red-600">{topupError}</div> : null}
               </>) : (
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                  Как только ЮKassa будет подключена, здесь появится онлайн-оплата и быстрые суммы.
+                  Чтобы показать тестовые кнопки, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1. Боевой UI включается через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
                 </div>
               )}
             </div>

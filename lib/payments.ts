@@ -11,6 +11,7 @@ function flag(value: string | undefined) {
 }
 
 export const PAYMENTS_UI_ENABLED = flag(process.env.NEXT_PUBLIC_PAYMENTS_ENABLED);
+export const YOOKASSA_TEST_UI_ENABLED = flag(process.env.NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED);
 
 // Server-side flags (API routes).
 // Fallback to NEXT_PUBLIC_* as a safety net so the UI and the actual debit logic
