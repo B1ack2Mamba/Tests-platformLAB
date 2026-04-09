@@ -765,9 +765,9 @@ export default function WalletPage() {
                       bottom: `calc(6% + ${walletHermesLayout.cardOffsetY}px)`,
                     }}
                   >
-                    <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">{PAYMENTS_UI_ENABLED ? "Оплата"}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">{"Оплата"}</div>
                     {activeSubscription ? <div className="mt-2 text-xs leading-5 font-medium text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div> : null}
-                    <div className="mt-2 text-sm leading-6 text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и перейди к оплате прямо из окна."}</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-600">{"Выбери сумму и перейди к оплате прямо из окна."}</div>
                     {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (
                       <>
                         <div className="mt-3 grid grid-cols-3 gap-2">
