@@ -158,46 +158,58 @@ export default function WalletPage() {
           </div>
 
           <div className="grid gap-4">
-            <div className="card bg-white">
-              <div className="text-sm font-semibold text-emerald-900">{PAYMENTS_UI_ENABLED ? "Быстрое пополнение" : SHOW_YOOKASSA_TEST_BUTTONS ? "Тестовое пополнение" : "Пополнение временно отключено"}</div>
-              <div className="mt-2 text-sm text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и сразу перейди к оплате." : "ЮKassa пока не подключена. Кошелёк работает без онлайн-оплаты."}</div>
-              {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (<>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                {QUICK_AMOUNTS.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => setAmountRub(String(a))}
-                    className="btn btn-secondary btn-pill"
-                  >
-                    {a} ₽
-                  </button>
-                ))}
+            <div className="card overflow-hidden border-[#d9c3a0] bg-[linear-gradient(180deg,#fffdf9_0%,#f7f1e8_100%)] p-0 shadow-[0_14px_34px_rgba(137,109,64,0.08)]">
+              <div className="border-b border-[#e5d6bd] px-5 py-4">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Иллюстрация</div>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <input
-                  value={amountRub}
-                  onChange={(e) => setAmountRub(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="3000"
-                  className="input"
-                />
-                <button
-                  type="button"
-                  disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
-                  onClick={() => startTopup(parsedRub || 0)}
-                  className="btn btn-primary whitespace-nowrap"
-                >
-                  {isUnlimited ? "∞" : topupBusy ? "Создаю…" : "Оплатить"}
-                </button>
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500">{SHOW_YOOKASSA_TEST_BUTTONS && !PAYMENTS_UI_ENABLED ? "Тестовый redirect в ЮKassa. После оплаты вернёшься в кошелёк, где проверим статус платежа." : "Минимум 1 ₽. Для тестового безлимита оплата не нужна."}</div>
-              {topupError ? <div className="mt-2 text-sm text-red-600">{topupError}</div> : null}
-              </>) : (
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                  Чтобы показать тестовые кнопки, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1. Боевой UI включается через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
+              <div className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]" style={{ minHeight: 420 }}>
+                <img src="/wallet-hermes-guide.png" alt="Гермес с табличкой" className="block w-full max-w-none select-none" />
+                <div className="absolute inset-x-0 bottom-0 top-0 pointer-events-none">
+                  <div className="absolute bottom-[7%] right-[5%] w-[39%] min-w-[250px] max-w-[320px] rounded-[26px] border border-[#d8ccb9] bg-[rgba(255,252,246,0.94)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-[#9a7a4b]">{PAYMENTS_UI_ENABLED ? "Оплата" : SHOW_YOOKASSA_TEST_BUTTONS ? "Тестовая оплата" : "Пополнение"}</div>
+                    <div className="mt-2 text-xs leading-5 text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и перейди к оплате прямо из окна Гермеса." : SHOW_YOOKASSA_TEST_BUTTONS ? "Кнопки ниже запускают тестовый redirect в ЮKassa." : "Онлайн-оплата пока отключена."}</div>
+                    {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (
+                      <>
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {QUICK_AMOUNTS.map((a) => (
+                            <button
+                              key={a}
+                              type="button"
+                              onClick={() => setAmountRub(String(a))}
+                              className="rounded-full border border-[#dccfb9] bg-white px-2 py-2 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                            >
+                              {a} ₽
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          <input
+                            value={amountRub}
+                            onChange={(e) => setAmountRub(e.target.value)}
+                            inputMode="numeric"
+                            placeholder="3000"
+                            className="input h-11"
+                          />
+                          <button
+                            type="button"
+                            disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
+                            onClick={() => startTopup(parsedRub || 0)}
+                            className="btn btn-primary w-full justify-center"
+                          >
+                            {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : SHOW_YOOKASSA_TEST_BUTTONS && !PAYMENTS_UI_ENABLED ? "Тестовая оплата" : "Оплатить"}
+                          </button>
+                        </div>
+                        <div className="mt-2 text-[11px] leading-4 text-slate-500">{SHOW_YOOKASSA_TEST_BUTTONS && !PAYMENTS_UI_ENABLED ? "После оплаты вернёшься в кошелёк, где проверим статус платежа." : "Минимум 1 ₽. Для безлимита оплата не нужна."}</div>
+                        {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
+                      </>
+                    ) : (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
+                        Чтобы показать кнопки оплаты, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1. Боевой UI включается через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
 
             <div className="card bg-white">
