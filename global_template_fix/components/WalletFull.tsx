@@ -4,6 +4,7 @@ import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED, YOOKASSA_TEST_UI_ENABLED } from "@/lib/payments";
+import { isGlobalTemplateOwnerEmail } from "@/lib/admin";
 
 type CreateTopupResp = {
   ok: boolean;
@@ -51,6 +52,59 @@ export default function WalletPage() {
   const [topupBusy, setTopupBusy] = useState(false);
   const [topupError, setTopupError] = useState<string | null>(null);
 
+
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || !session?.access_token) return;
+    (async () => {
+      try {
+        const resp = await fetch("/api/commercial/wallet-hermes-template", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.ok || !data?.template) return;
+        if (cancelled) return;
+        const next = {
+          widthPercent: clamp(Number(data.template.widthPercent ?? DEFAULT_WALLET_HERMES_LAYOUT.widthPercent), 70, 150),
+          heightPx: clamp(Number(data.template.heightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.heightPx), 280, 760),
+          offsetX: clamp(Number(data.template.offsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetX), -220, 220),
+          offsetY: clamp(Number(data.template.offsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetY), -220, 220),
+          cardWidthPx: clamp(Number(data.template.cardWidthPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardWidthPx), 240, 420),
+          cardHeightPx: clamp(Number(data.template.cardHeightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardHeightPx), 200, 420),
+          cardOffsetX: clamp(Number(data.template.cardOffsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetX), -220, 220),
+          cardOffsetY: clamp(Number(data.template.cardOffsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetY), -220, 220),
+        };
+        setWalletHermesLayout(next);
+        storeWalletHermesLayout(next);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, session?.access_token]);
+
+  async function saveWalletHermesTemplateForAll() {
+    if (!canManageWalletHermesLayout || !session?.access_token) return;
+    setWalletHermesTemplateBusy(true);
+    setWalletHermesTemplateError(null);
+    setWalletHermesTemplateInfo(null);
+    try {
+      const resp = await fetch("/api/commercial/wallet-hermes-template", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ template: walletHermesLayout }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.ok) throw new Error(data?.error || "Не удалось сохранить шаблон для всех");
+      setWalletHermesTemplateInfo("Шаблон окна Гермеса сохранен для всех.");
+    } catch (e: any) {
+      setWalletHermesTemplateError(e?.message || "Не удалось сохранить шаблон для всех");
+    } finally {
+      setWalletHermesTemplateBusy(false);
+    }
+  }
   const parsedRub = useMemo(() => {
     const n = Number(String(amountRub).replace(",", "."));
     if (!Number.isFinite(n)) return null;
@@ -160,7 +214,7 @@ export default function WalletPage() {
           <div className="grid gap-4">
             <div className="card overflow-hidden border-[#d9c3a0] bg-[linear-gradient(180deg,#fffdf9_0%,#f7f1e8_100%)] p-0 shadow-[0_14px_34px_rgba(137,109,64,0.08)]">
               <div className="border-b border-[#e5d6bd] px-5 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Иллюстрация</div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Гермес</div>
               </div>
               <div className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]" style={{ minHeight: 420 }}>
                 <img src="/wallet-hermes-guide.png" alt="Гермес с табличкой" className="block w-full max-w-none select-none" />

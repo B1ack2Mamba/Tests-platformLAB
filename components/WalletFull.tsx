@@ -4,6 +4,7 @@ import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED, YOOKASSA_TEST_UI_ENABLED } from "@/lib/payments";
+import { isGlobalTemplateOwnerEmail } from "@/lib/admin";
 import {
   MONTHLY_SUBSCRIPTION_PLANS,
   formatMonthlySubscriptionPeriod,
@@ -48,7 +49,6 @@ const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
 const WALLET_HERMES_LAYOUT_KEY = "wallet_hermes_layout_v1";
-const WALLET_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const YOOKASSA_PENDING_TOPUP_KEY = "yookassa_pending_topup_payment_id";
 const YOOKASSA_PENDING_PLAN_KEY = "yookassa_pending_plan_payment_id";
 
@@ -178,7 +178,10 @@ export default function WalletPage() {
   const [walletHermesLayout, setWalletHermesLayout] = useState<WalletHermesLayout>(DEFAULT_WALLET_HERMES_LAYOUT);
   const [walletHermesConstructorOpen, setWalletHermesConstructorOpen] = useState(false);
 
-  const canManageWalletHermesLayout = (user?.email || "").trim().toLowerCase() === WALLET_TEMPLATE_OWNER_EMAIL;
+  const canManageWalletHermesLayout = isGlobalTemplateOwnerEmail(user?.email);
+  const [walletHermesTemplateBusy, setWalletHermesTemplateBusy] = useState(false);
+  const [walletHermesTemplateInfo, setWalletHermesTemplateInfo] = useState<string | null>(null);
+  const [walletHermesTemplateError, setWalletHermesTemplateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!canManageWalletHermesLayout && walletHermesConstructorOpen) {
@@ -205,6 +208,59 @@ export default function WalletPage() {
     }
   }, []);
 
+
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || !session?.access_token) return;
+    (async () => {
+      try {
+        const resp = await fetch("/api/commercial/wallet-hermes-template", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.ok || !data?.template) return;
+        if (cancelled) return;
+        const next = {
+          widthPercent: clamp(Number(data.template.widthPercent ?? DEFAULT_WALLET_HERMES_LAYOUT.widthPercent), 70, 150),
+          heightPx: clamp(Number(data.template.heightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.heightPx), 280, 760),
+          offsetX: clamp(Number(data.template.offsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetX), -220, 220),
+          offsetY: clamp(Number(data.template.offsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetY), -220, 220),
+          cardWidthPx: clamp(Number(data.template.cardWidthPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardWidthPx), 240, 420),
+          cardHeightPx: clamp(Number(data.template.cardHeightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardHeightPx), 200, 420),
+          cardOffsetX: clamp(Number(data.template.cardOffsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetX), -220, 220),
+          cardOffsetY: clamp(Number(data.template.cardOffsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetY), -220, 220),
+        };
+        setWalletHermesLayout(next);
+        storeWalletHermesLayout(next);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, session?.access_token]);
+
+  async function saveWalletHermesTemplateForAll() {
+    if (!canManageWalletHermesLayout || !session?.access_token) return;
+    setWalletHermesTemplateBusy(true);
+    setWalletHermesTemplateError(null);
+    setWalletHermesTemplateInfo(null);
+    try {
+      const resp = await fetch("/api/commercial/wallet-hermes-template", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ template: walletHermesLayout }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.ok) throw new Error(data?.error || "Не удалось сохранить шаблон для всех");
+      setWalletHermesTemplateInfo("Шаблон окна Гермеса сохранен для всех.");
+    } catch (e: any) {
+      setWalletHermesTemplateError(e?.message || "Не удалось сохранить шаблон для всех");
+    } finally {
+      setWalletHermesTemplateBusy(false);
+    }
+  }
   const parsedRub = useMemo(() => {
     const n = Number(String(amountRub).replace(",", "."));
     if (!Number.isFinite(n)) return null;
@@ -614,7 +670,7 @@ export default function WalletPage() {
               <div className="border-b border-[#e5d6bd] px-5 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Иллюстрация</div>
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Гермес</div>
                   </div>
                   {canManageWalletHermesLayout ? (
                     <div className="flex flex-wrap gap-2">
@@ -624,9 +680,19 @@ export default function WalletPage() {
                       <button type="button" className="btn btn-secondary" onClick={resetWalletHermesLayout}>
                         Сбросить
                       </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={walletHermesTemplateBusy}
+                        onClick={saveWalletHermesTemplateForAll}
+                      >
+                        {walletHermesTemplateBusy ? "Сохранение..." : "Сохранить шаблон для всех"}
+                      </button>
                     </div>
                   ) : null}
                 </div>
+                {walletHermesTemplateInfo ? <div className="mt-3 text-[12px] text-[#5f7a4a]">{walletHermesTemplateInfo}</div> : null}
+                {walletHermesTemplateError ? <div className="mt-3 text-[12px] text-[#9b4c3d]">{walletHermesTemplateError}</div> : null}
                 {walletHermesConstructorOpen ? (
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <div className={FRAME_SOFT + " p-3"}>
