@@ -65,11 +65,11 @@ type WalletHermesLayout = {
 
 const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   widthPercent: 100,
-  heightPx: 440,
+  heightPx: 400,
   offsetX: 0,
   offsetY: 0,
   cardWidthPx: 320,
-  cardHeightPx: 260,
+  cardHeightPx: 236,
   cardOffsetX: 0,
   cardOffsetY: 0,
 };
@@ -254,7 +254,7 @@ export default function WalletPage() {
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data?.ok) throw new Error(data?.error || "Не удалось сохранить шаблон для всех");
-      setWalletHermesTemplateInfo("Шаблон окна оплаты сохранен для всех.");
+      setWalletHermesTemplateInfo("Шаблон окна Гермеса сохранен для всех.");
     } catch (e: any) {
       setWalletHermesTemplateError(e?.message || "Не удалось сохранить шаблон для всех");
     } finally {
@@ -621,7 +621,7 @@ export default function WalletPage() {
                         {PAYMENTS_UI_ENABLED ? (
                           <button
                             type="button"
-                            className="btn btn-secondary w-full text-sm"
+                            className="btn btn-secondary w-full"
                             disabled={!!subscriptionBusyKey}
                             onClick={() => startMonthlyPlanPurchase(plan.key)}
                           >
@@ -630,11 +630,11 @@ export default function WalletPage() {
                         ) : SHOW_YOOKASSA_TEST_BUTTONS ? (
                           <button
                             type="button"
-                            className="btn btn-secondary w-full text-sm"
+                            className="btn btn-secondary w-full"
                             disabled={!!subscriptionBusyKey}
                             onClick={() => startMonthlyPlanPurchase(plan.key)}
                           >
-                            {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : "Оплатить онлайн"}
+                            {subscriptionBusyKey === `online:${plan.key}` ? "Создаю тестовую оплату…" : "Тест ЮKassa"}
                           </button>
                         ) : (
                           <div className="rounded-[20px] border border-[#e5d6bd] bg-[#fffaf2] px-3 py-2 text-xs text-slate-600">
@@ -670,7 +670,7 @@ export default function WalletPage() {
               <div className="border-b border-[#e5d6bd] px-5 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Окно оплаты</div>
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Гермес</div>
                   </div>
                   {canManageWalletHermesLayout ? (
                     <div className="flex flex-wrap gap-2">
@@ -748,7 +748,7 @@ export default function WalletPage() {
               <div className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]" style={{ height: `${walletHermesLayout.heightPx}px` }}>
                 <img
                   src="/wallet-hermes-guide.png"
-                  alt="Фигура с табличкой"
+                  alt="Гермес с табличкой"
                   className="absolute left-0 top-0 max-w-none select-none"
                   style={{
                     width: `${walletHermesLayout.widthPercent}%`,
@@ -765,9 +765,9 @@ export default function WalletPage() {
                       bottom: `calc(6% + ${walletHermesLayout.cardOffsetY}px)`,
                     }}
                   >
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-[#9a7a4b]">{PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? "Оплата" : "Пополнение"}</div>
-                    {activeSubscription ? <div className="mt-2 text-[11px] leading-4 text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div> : null}
-                    <div className="mt-2 text-sm leading-6 text-slate-600">{PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? "Выбери сумму и перейди к оплате прямо из окна." : "Онлайн-оплата пока отключена."}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">{PAYMENTS_UI_ENABLED ? "Оплата"}</div>
+                    {activeSubscription ? <div className="mt-2 text-xs leading-5 font-medium text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div> : null}
+                    <div className="mt-2 text-sm leading-6 text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и перейди к оплате прямо из окна."}</div>
                     {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (
                       <>
                         <div className="mt-3 grid grid-cols-3 gap-2">
@@ -776,19 +776,19 @@ export default function WalletPage() {
                               key={a}
                               type="button"
                               onClick={() => setAmountRub(String(a))}
-                              className="rounded-full border border-[#dccfb9] bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                              className="rounded-full border border-[#dccfb9] bg-white px-2 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
                             >
                               {a} ₽
                             </button>
                           ))}
                         </div>
-                        <div className="mt-3 space-y-3">
+                        <div className="mt-3 space-y-2">
                           <input
                             value={amountRub}
                             onChange={(e) => setAmountRub(e.target.value)}
                             inputMode="numeric"
                             placeholder="3000"
-                            className="w-full rounded-[16px] border border-[#d9ccb7] bg-white px-4 py-3 text-base text-slate-800 outline-none transition focus:border-emerald-400"
+                            className="input h-12 text-lg font-semibold"
                           />
                           <button
                             type="button"
@@ -799,12 +799,12 @@ export default function WalletPage() {
                             {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
                           </button>
                         </div>
-                        <div className="mt-2 text-[11px] leading-4 text-slate-500">"Минимум 1 ₽. Для безлимита оплата не нужна."</div>
+                        <div className="mt-2 text-[11px] leading-4 text-slate-500">{"Минимум 1 ₽. Для безлимита оплата не нужна."}</div>
                         {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
                       </>
                     ) : (
                       <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
-                        Чтобы показать кнопки оплаты, включи платежный интерфейс в настройках окружения.
+                        Чтобы показать кнопки оплаты, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1 или включи боевой UI через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
                       </div>
                     )}
                   </div>
