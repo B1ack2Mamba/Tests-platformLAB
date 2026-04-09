@@ -2,7 +2,7 @@ import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED, YOOKASSA_TEST_UI_ENABLED } from "@/lib/payments";
 import { isGlobalTemplateOwnerEmail } from "@/lib/admin";
 
