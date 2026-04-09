@@ -14,6 +14,14 @@ type CreateTopupResp = {
 
 const QUICK_AMOUNTS = [1000, 3000, 5000, 10000, 50000];
 
+const YOOKASSA_PENDING_TOPUP_KEY = "yookassa_pending_topup_payment_id";
+
+function setPendingYooKassaPaymentId(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  if (value) window.localStorage.setItem(key, value);
+}
+
+
 function reasonLabel(reason: string): string {
   switch (reason) {
     case "topup":
