@@ -434,11 +434,15 @@ export default function WalletPage() {
 
   function updateWalletHermesLayout(patch: Partial<WalletHermesLayout>) {
     setWalletHermesLayout((current) => {
-      const next = {
+      const next: WalletHermesLayout = {
         widthPercent: clamp(Number(patch.widthPercent ?? current.widthPercent), 70, 150),
         heightPx: clamp(Number(patch.heightPx ?? current.heightPx), 280, 760),
         offsetX: clamp(Number(patch.offsetX ?? current.offsetX), -220, 220),
         offsetY: clamp(Number(patch.offsetY ?? current.offsetY), -220, 220),
+        cardWidthPx: clamp(Number(patch.cardWidthPx ?? current.cardWidthPx), 220, 520),
+        cardHeightPx: clamp(Number(patch.cardHeightPx ?? current.cardHeightPx), 160, 420),
+        cardOffsetX: clamp(Number(patch.cardOffsetX ?? current.cardOffsetX), -180, 180),
+        cardOffsetY: clamp(Number(patch.cardOffsetY ?? current.cardOffsetY), -180, 180),
       };
       storeWalletHermesLayout(next);
       return next;
