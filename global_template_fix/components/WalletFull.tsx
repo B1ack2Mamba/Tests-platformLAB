@@ -100,7 +100,7 @@ export default function WalletPage() {
                     {wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}
                   </div>
                   <div className="mt-2 max-w-xl text-sm text-slate-600">
-                    Баланс используется для открытия уровней результата, AI-интерпретаций и расширенных функций.
+                    Баланс используется для оплаты пакетов услуг и открытия расширенного функционала сайта.
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                     {isUnlimited ? <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-900">Тестовый безлимит</span> : null}
