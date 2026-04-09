@@ -57,6 +57,10 @@ type WalletHermesLayout = {
   heightPx: number;
   offsetX: number;
   offsetY: number;
+  cardWidthPx: number;
+  cardHeightPx: number;
+  cardOffsetX: number;
+  cardOffsetY: number;
 };
 
 const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
@@ -64,6 +68,10 @@ const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   heightPx: 440,
   offsetX: 0,
   offsetY: 0,
+  cardWidthPx: 320,
+  cardHeightPx: 260,
+  cardOffsetX: 0,
+  cardOffsetY: 0,
 };
 
 function getStoredPromoCode() {
@@ -116,6 +124,10 @@ function readWalletHermesLayout(): WalletHermesLayout {
       heightPx: clamp(Number(parsed.heightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.heightPx), 280, 760),
       offsetX: clamp(Number(parsed.offsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetX), -220, 220),
       offsetY: clamp(Number(parsed.offsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetY), -220, 220),
+      cardWidthPx: clamp(Number(parsed.cardWidthPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardWidthPx), 240, 420),
+      cardHeightPx: clamp(Number(parsed.cardHeightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardHeightPx), 200, 420),
+      cardOffsetX: clamp(Number(parsed.cardOffsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetX), -220, 220),
+      cardOffsetY: clamp(Number(parsed.cardOffsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetY), -220, 220),
     };
   } catch {
     return DEFAULT_WALLET_HERMES_LAYOUT;
@@ -639,6 +651,27 @@ export default function WalletPage() {
                         </label>
                       </div>
                     </div>
+                    <div className={FRAME_SOFT + " p-3 md:col-span-2"}>
+                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Окно оплаты</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2 text-sm text-slate-700">
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Ширина окна</span><span>{walletHermesLayout.cardWidthPx}px</span></div>
+                          <input type="range" min="240" max="420" step="4" value={walletHermesLayout.cardWidthPx} onChange={(e) => updateWalletHermesLayout({ cardWidthPx: Number(e.target.value) })} className="w-full" />
+                        </label>
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Высота окна</span><span>{walletHermesLayout.cardHeightPx}px</span></div>
+                          <input type="range" min="200" max="420" step="4" value={walletHermesLayout.cardHeightPx} onChange={(e) => updateWalletHermesLayout({ cardHeightPx: Number(e.target.value) })} className="w-full" />
+                        </label>
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Окно по X</span><span>{walletHermesLayout.cardOffsetX}px</span></div>
+                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.cardOffsetX} onChange={(e) => updateWalletHermesLayout({ cardOffsetX: Number(e.target.value) })} className="w-full" />
+                        </label>
+                        <label className="block">
+                          <div className="mb-1 flex items-center justify-between"><span>Окно по Y</span><span>{walletHermesLayout.cardOffsetY}px</span></div>
+                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.cardOffsetY} onChange={(e) => updateWalletHermesLayout({ cardOffsetY: Number(e.target.value) })} className="w-full" />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -653,7 +686,15 @@ export default function WalletPage() {
                   }}
                 />
                 <div className="absolute inset-x-0 bottom-0 top-0 pointer-events-none">
-                  <div className="absolute bottom-[6%] right-[4%] w-[38%] min-w-[250px] max-w-[320px] rounded-[26px] border border-[#d8ccb9] bg-[rgba(255,252,246,0.94)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]">
+                  <div
+                    className="absolute rounded-[26px] border border-[#d8ccb9] bg-[rgba(255,252,246,0.94)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]"
+                    style={{
+                      width: `${walletHermesLayout.cardWidthPx}px`,
+                      minHeight: `${walletHermesLayout.cardHeightPx}px`,
+                      right: `calc(4% + ${walletHermesLayout.cardOffsetX}px)`,
+                      bottom: `calc(6% + ${walletHermesLayout.cardOffsetY}px)`,
+                    }}
+                  >
                     <div className="text-[10px] uppercase tracking-[0.22em] text-[#9a7a4b]">{PAYMENTS_UI_ENABLED ? "Оплата" : SHOW_YOOKASSA_TEST_BUTTONS ? "Тестовая оплата" : "Пополнение"}</div>
                     {activeSubscription ? <div className="mt-2 text-[11px] leading-4 text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div> : null}
                     <div className="mt-2 text-xs leading-5 text-slate-600">{PAYMENTS_UI_ENABLED ? "Выбери сумму и перейди к оплате прямо из окна Гермеса." : SHOW_YOOKASSA_TEST_BUTTONS ? "Кнопки ниже запускают тестовый redirect в ЮKassa." : "Онлайн-оплата пока отключена."}</div>
