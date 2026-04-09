@@ -149,8 +149,8 @@ export default function OfferPage() {
                   <div><span className="font-medium text-[#263d2d]">Исполнитель:</span> Жданов Александр Андреевич</div>
                   <div><span className="font-medium text-[#263d2d]">Статус:</span> самозанятый</div>
                   <div><span className="font-medium text-[#263d2d]">ИНН:</span> 027803490580</div>
-                  <div><span className="font-medium text-[#263d2d]">Email:</span> jdanova_2002@mail.ru</div>
-                  <div><span className="font-medium text-[#263d2d]">Телефон:</span> 89037827400</div>
+                  <div><span className="font-medium text-[#263d2d]">Email:</span> san.real96@gmail.com</div>
+                  <div><span className="font-medium text-[#263d2d]">Телефон:</span> 89272345176</div>
                 </div>
               </Section>
 
