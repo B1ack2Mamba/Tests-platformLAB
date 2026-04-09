@@ -6,7 +6,7 @@ import { useSession } from "@/lib/useSession";
 import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
-import { isAdminEmail } from "@/lib/admin";
+import { isAdminEmail, isGlobalTemplateOwnerEmail } from "@/lib/admin";
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
 
 type DashboardPayload = {
@@ -479,6 +479,7 @@ export default function DashboardPage() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const { wallet, ledger, loading: walletLoading, isUnlimited } = useWallet();
   const isAdmin = isAdminEmail(user?.email);
+  const canManageGlobalTemplates = isGlobalTemplateOwnerEmail(user?.email);
   const [mechanicPulse, setMechanicPulse] = useState(0);
   const [deskPositions, setDeskPositions] = useState<DeskPositions>({});
   const [deskLayer, setDeskLayer] = useState(300);
@@ -1580,6 +1581,8 @@ export default function DashboardPage() {
                   </div>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
+                {canManageGlobalTemplates ? (
+                <>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -1594,8 +1597,10 @@ export default function DashboardPage() {
                 >
                   Применить стандарт ко всем {selectedDeskItem.kind === "folder" ? "папкам" : "листам"}
                 </button>
+                </>
+                ) : null}
                 </div>
-                <div className="mt-2 text-xs text-[#8a6a47]">Стандарт хранится на сервере и подхватывается у новых пользователей и на других устройствах.</div>
+                {canManageGlobalTemplates ? <div className="mt-2 text-xs text-[#8a6a47]">Стандарт хранится на сервере и подхватывается у новых пользователей и на других устройствах.</div> : null}
               </div>
             ) : null}
           </div>
