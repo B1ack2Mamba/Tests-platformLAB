@@ -23,9 +23,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const shopId = process.env.YOOKASSA_SHOP_ID;
   const secretKey = process.env.YOOKASSA_SECRET_KEY;
-  const appBaseUrl = process.env.APP_BASE_URL;
+  const appBaseUrl = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
   if (!shopId || !secretKey || !appBaseUrl) {
-    return res.status(500).json({ ok: false, error: "YooKassa is not configured" });
+    return res.status(500).json({ ok: false, error: "YooKassa is not configured: set YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY and APP_BASE_URL (or NEXT_PUBLIC_APP_URL)" });
   }
 
   const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);

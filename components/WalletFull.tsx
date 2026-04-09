@@ -49,6 +49,8 @@ const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
 const WALLET_HERMES_LAYOUT_KEY = "wallet_hermes_layout_v1";
 const WALLET_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
+const YOOKASSA_PENDING_TOPUP_KEY = "yookassa_pending_topup_payment_id";
+const YOOKASSA_PENDING_PLAN_KEY = "yookassa_pending_plan_payment_id";
 
 type WalletHermesLayout = {
   widthPercent: number;
@@ -81,6 +83,22 @@ function readAndClearPromoFlash(key: string) {
   return value;
 }
 
+
+
+function getPendingYooKassaPaymentId(key: string) {
+  if (typeof window === "undefined") return "";
+  return (window.localStorage.getItem(key) || "").trim();
+}
+
+function setPendingYooKassaPaymentId(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  if (value) window.localStorage.setItem(key, value);
+}
+
+function clearPendingYooKassaPaymentId(key: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(key);
+}
 
 
 function clamp(value: number, min: number, max: number) {
@@ -195,11 +213,28 @@ export default function WalletPage() {
     const needsWalletPolling = url.searchParams.get("paid") === "1";
     if (!needsPlanPolling && !needsWalletPolling) return;
 
+    const planPaymentId = needsPlanPolling ? getPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY) : "";
+    const walletPaymentId = needsWalletPolling ? getPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY) : "";
+
     let cancelled = false;
     const ticks = [0, 2500, 6000, 12000];
     ticks.forEach((delay) => {
       window.setTimeout(async () => {
         if (cancelled) return;
+        try {
+          if (needsWalletPolling && walletPaymentId) {
+            const result = await syncReturnedYooKassaPayment(walletPaymentId);
+            if (result?.status === "succeeded") {
+              clearPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY);
+            }
+          }
+          if (needsPlanPolling && planPaymentId) {
+            const result = await syncReturnedYooKassaPayment(planPaymentId);
+            if (result?.status === "succeeded") {
+              clearPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY);
+            }
+          }
+        } catch {}
         if (needsWalletPolling) await refresh();
         if (needsPlanPolling) await loadSubscriptionStatus();
       }, delay);
@@ -270,6 +305,23 @@ export default function WalletPage() {
     }
   }
 
+  async function syncReturnedYooKassaPayment(paymentId: string) {
+    if (!session?.access_token || !paymentId) return;
+    const resp = await fetch("/api/yookassa/sync", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ force: true, payment_id: paymentId }),
+    });
+    const json = await resp.json().catch(() => ({} as any));
+    if (!resp.ok || !json?.ok) {
+      throw new Error(json?.error || "Не удалось подтвердить оплату");
+    }
+    return json;
+  }
+
   async function startMonthlyPlanPurchase(planKey: MonthlyPlanKey) {
     if (!session?.access_token) {
       setSubscriptionError("Нужно войти, чтобы оформить тариф.");
@@ -289,9 +341,10 @@ export default function WalletPage() {
         body: JSON.stringify({ plan_key: planKey }),
       });
       const data = (await resp.json().catch(() => ({}))) as CreateSubscriptionResp;
-      if (!resp.ok || !data.ok || !data.confirmation_url) {
+      if (!resp.ok || !data.ok || !data.confirmation_url || !data.payment_id) {
         throw new Error(data.error || "Не удалось создать оплату тарифа");
       }
+      setPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY, data.payment_id);
       window.location.href = data.confirmation_url;
     } catch (err: any) {
       setSubscriptionError(err?.message || "Не удалось создать оплату тарифа");
@@ -351,10 +404,11 @@ export default function WalletPage() {
       });
 
       const data = (await r.json()) as CreateTopupResp;
-      if (!r.ok || !data.ok || !data.confirmation_url) {
+      if (!r.ok || !data.ok || !data.confirmation_url || !data.payment_id) {
         throw new Error(data.error || "Не удалось создать оплату");
       }
 
+      setPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY, data.payment_id);
       // Redirect to YooKassa confirmation page (SBP QR / bank selection)
       window.location.href = data.confirmation_url;
     } catch (e: any) {

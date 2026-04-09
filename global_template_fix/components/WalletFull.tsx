@@ -67,10 +67,11 @@ export default function WalletPage() {
       });
 
       const data = (await r.json()) as CreateTopupResp;
-      if (!r.ok || !data.ok || !data.confirmation_url) {
+      if (!r.ok || !data.ok || !data.confirmation_url || !data.payment_id) {
         throw new Error(data.error || "Не удалось создать оплату");
       }
 
+      setPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY, data.payment_id);
       // Redirect to YooKassa confirmation page (SBP QR / bank selection)
       window.location.href = data.confirmation_url;
     } catch (e: any) {
