@@ -782,6 +782,11 @@ export default function DashboardPage() {
       <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={(e) => { e.stopPropagation(); setSceneEditMode((prev) => !prev); }}>
         {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
       </button>
+      {sceneEditMode && canManageGlobalTemplates ? (
+        <button type="button" className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); saveSceneStandardForAll(); }}>
+          Сохранить шаблон стола для всех
+        </button>
+      ) : null}
       {sceneEditMode ? (
         <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); resetSceneWidgets(); }}>
           Сбросить сцену
@@ -1204,6 +1209,71 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const buildCurrentSceneStandard = useCallback(() => ({
+    positions: {
+      ...sharedDeskPositions,
+      ...pickGlobalDeskTemplates(deskPositions),
+      ...(deskPositions[TRAY_GUIDE_ID] ? { [TRAY_GUIDE_ID]: deskPositions[TRAY_GUIDE_ID] } : {}),
+      ...(deskPositions[TRASH_GUIDE_ID] ? { [TRASH_GUIDE_ID]: deskPositions[TRASH_GUIDE_ID] } : {}),
+      ...(deskPositions[ROOM_SWITCH_STANDARD_ID] ? { [ROOM_SWITCH_STANDARD_ID]: deskPositions[ROOM_SWITCH_STANDARD_ID] } : {}),
+      ...(deskPositions[LAPTOP_DEVICE_ID] ? { [LAPTOP_DEVICE_ID]: deskPositions[LAPTOP_DEVICE_ID] } : {}),
+      ...(deskPositions[LAPTOP_PANEL_ID] ? { [LAPTOP_PANEL_ID]: deskPositions[LAPTOP_PANEL_ID] } : {}),
+    },
+    widgets: sceneWidgets.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      text: item.text,
+      src: item.src,
+      action: item.action,
+      tone: item.tone,
+      x: item.x,
+      y: item.y,
+      width: item.width,
+      height: item.height,
+      rotation: item.rotation,
+      fontSize: item.fontSize,
+      z: item.z,
+    })),
+    trayGuideText,
+  }), [deskPositions, sceneWidgets, sharedDeskPositions, trayGuideText]);
+
+  const saveSceneStandardForAll = useCallback(async () => {
+    if (!session?.access_token || !canManageGlobalTemplates) {
+      showTemplateFeedback("error", "Недостаточно прав для сохранения общего шаблона сцены");
+      return;
+    }
+
+    const standardPayload = buildCurrentSceneStandard();
+    try {
+      const resp = await fetch("/api/commercial/scene-template", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          standard: standardPayload,
+          positions: standardPayload.positions,
+          widgets: standardPayload.widgets,
+          trayGuideText: standardPayload.trayGuideText,
+          templates: pickGlobalDeskTemplates(deskPositions),
+        }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить общий шаблон сцены");
+      const parsedStandard = pickSceneStandard(json?.standard || json || {});
+      const sharedPositions = (parsedStandard.positions || {}) as DeskPositions;
+      const sharedWidgets = (parsedStandard.widgets || []) as SceneWidget[];
+      setSharedDeskPositions(sharedPositions);
+      setSharedSceneWidgets(sharedWidgets);
+      setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      writeGlobalDeskTemplates(sharedPositions);
+      showTemplateFeedback("success", "Сохранён общий шаблон рабочего стола");
+    } catch (e: any) {
+      showTemplateFeedback("error", e?.message || "Не удалось сохранить общий шаблон сцены");
+    }
+  }, [buildCurrentSceneStandard, canManageGlobalTemplates, deskPositions, session?.access_token, showTemplateFeedback]);
+
   const saveDeskItemAsTemplate = useCallback(async (itemId: string, kind: "folder" | "project") => {
     const source = deskPositions[itemId];
     if (!source) {
@@ -1242,32 +1312,22 @@ export default function DashboardPage() {
     setDeskPositions(nextDeskPositions);
     writeGlobalDeskTemplates(nextDeskPositions);
 
-    if (!session?.access_token || !isAdmin) {
+    if (!session?.access_token || !canManageGlobalTemplates) {
       showTemplateFeedback("success", `Шаблон ${kind === "folder" ? "папок" : "листов"} сохранён локально`);
       return;
     }
 
     const standardPayload = {
+      ...buildCurrentSceneStandard(),
       positions: {
+        ...buildCurrentSceneStandard().positions,
         ...pickGlobalDeskTemplates(nextDeskPositions),
         ...(nextDeskPositions[TRAY_GUIDE_ID] ? { [TRAY_GUIDE_ID]: nextDeskPositions[TRAY_GUIDE_ID] } : {}),
         ...(nextDeskPositions[TRASH_GUIDE_ID] ? { [TRASH_GUIDE_ID]: nextDeskPositions[TRASH_GUIDE_ID] } : {}),
+        ...(nextDeskPositions[ROOM_SWITCH_STANDARD_ID] ? { [ROOM_SWITCH_STANDARD_ID]: nextDeskPositions[ROOM_SWITCH_STANDARD_ID] } : {}),
+        ...(nextDeskPositions[LAPTOP_DEVICE_ID] ? { [LAPTOP_DEVICE_ID]: nextDeskPositions[LAPTOP_DEVICE_ID] } : {}),
+        ...(nextDeskPositions[LAPTOP_PANEL_ID] ? { [LAPTOP_PANEL_ID]: nextDeskPositions[LAPTOP_PANEL_ID] } : {}),
       },
-      widgets: sceneWidgets.map((item) => ({
-        id: item.id,
-        kind: item.kind,
-        text: item.text,
-        action: item.action,
-        tone: item.tone,
-        x: item.x,
-        y: item.y,
-        width: item.width,
-        height: item.height,
-        rotation: item.rotation,
-        fontSize: item.fontSize,
-        z: item.z,
-      })),
-      trayGuideText,
     };
 
     try {
@@ -1300,7 +1360,7 @@ export default function DashboardPage() {
     } catch (e: any) {
       showTemplateFeedback("error", e?.message || "Не удалось сохранить общий стандарт");
     }
-  }, [deskPositions, isAdmin, sceneWidgets, session?.access_token, showTemplateFeedback, trayGuideText]);
+  }, [buildCurrentSceneStandard, canManageGlobalTemplates, deskPositions, sceneWidgets, session?.access_token, showTemplateFeedback, trayGuideText]);
 
   const applyDeskTemplateToExistingItems = useCallback((kind: "folder" | "project") => {
     const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
