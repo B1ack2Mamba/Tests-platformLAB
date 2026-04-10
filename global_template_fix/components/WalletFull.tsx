@@ -847,37 +847,36 @@ export default function WalletPage() {
             transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
           }}
         >
-          <div className="mx-auto flex h-full w-full max-w-[196px] flex-col">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-[#987b4e]">Оплата</div>
-            <div className="mt-1 text-[12px] leading-5 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
+          <div className="mx-auto flex h-full w-full max-w-[204px] flex-col">
+            <div className="text-[11px] uppercase tracking-[0.2em] text-[#987b4e]">Оплата</div>
+            <div className="mt-1 text-[13px] leading-6 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
             {canShowInlinePayment ? (
               <>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                 {QUICK_AMOUNTS.map((a) => (
                   <button
                     key={a}
                     type="button"
                     onClick={() => setAmountRub(String(a))}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d9ccb7] bg-white/90 px-1 py-1.5 text-[11px] font-semibold leading-none tracking-[-0.01em] text-[#4f6057] shadow-[0_6px_14px_rgba(132,104,62,0.08)] transition duration-150 hover:border-[#8fd0aa] hover:text-[#1f4d36] disabled:cursor-not-allowed disabled:opacity-55"
+                    className="inline-flex min-h-[46px] items-center justify-center rounded-[16px] border border-[#d9ccb7] bg-white/90 px-2 py-1.5 text-[10px] font-semibold leading-none tracking-[-0.01em] text-[#4f6057] shadow-[0_6px_14px_rgba(132,104,62,0.08)] transition duration-150 hover:border-[#8fd0aa] hover:text-[#1f4d36] disabled:cursor-not-allowed disabled:opacity-55 sm:text-[11px]"
                   >
                     <span className="whitespace-nowrap">{a} ₽</span>
                   </button>
                 ))}
               </div>
-                <div className="mt-2 space-y-2">
+                <div className="mt-3 space-y-3">
                   <input
                     value={amountRub}
                     onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
                     inputMode="numeric"
                     placeholder="3000"
-                    className={INPUT_CLASS + " mx-auto h-9 max-w-[162px] text-center text-[15px] font-semibold"}
+                    className={INPUT_CLASS + " mx-auto h-8 max-w-[148px] text-center text-[14px] font-semibold"}
                   />
-                  <div className="mx-auto max-w-[162px] rounded-2xl border border-[#e8decd] bg-white/80 px-2.5 py-1.5 text-center text-[12px] font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
                   <button
                   type="button"
                   disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
                   onClick={() => startTopup(parsedRub || 0)}
-                  className={ACTION_PRIMARY + " w-full py-2 text-[15px]"}
+                  className={ACTION_PRIMARY + " w-full py-2 text-[14px]"}
                 >
                   {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
                 </button>
