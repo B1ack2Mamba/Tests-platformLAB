@@ -40,7 +40,7 @@ type SubscriptionStatusResp = {
   active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
-const QUICK_AMOUNTS = [1000, 3000, 5000, 10000, 50000];
+const QUICK_AMOUNTS = [3000, 15000, 30000] as const;
 
 const FRAME_CARD = "card border-[#d9c3a0] bg-[linear-gradient(180deg,#fffdf9_0%,#f7f1e8_100%)] shadow-[0_14px_34px_rgba(137,109,64,0.08)]";
 const FRAME_SOFT = "rounded-[28px] border border-[#e5d6bd] bg-white/70";
@@ -593,8 +593,7 @@ export default function WalletPage() {
                     <div className="font-medium">Активен: {activeSubscription.plan_title}</div>
                     <div className="mt-1 text-xs">Осталось: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
 
               <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
