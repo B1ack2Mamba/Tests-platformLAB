@@ -870,7 +870,7 @@ export default function WalletPage() {
                     onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
                     inputMode="numeric"
                     placeholder="3000"
-                    className={INPUT_CLASS + " mx-auto h-8 max-w-[136px] text-center text-[14px] font-semibold"}
+                    className={INPUT_CLASS + " mx-auto !h-7 !w-[112px] !max-w-[112px] !min-w-0 px-3 text-center text-[14px] font-semibold"}
                   />
                   <button
                   type="button"
