@@ -864,20 +864,19 @@ export default function WalletPage() {
                   </button>
                 ))}
               </div>
-                <div className="mt-2 space-y-2">
+                <div className="mt-2 space-y-1.5">
                   <input
                     value={amountRub}
                     onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
                     inputMode="numeric"
                     placeholder="3000"
-                    className={INPUT_CLASS + " mx-auto h-9 max-w-[162px] text-center text-[15px] font-semibold"}
+                    className={INPUT_CLASS + " mx-auto h-8 max-w-[136px] text-center text-[14px] font-semibold"}
                   />
-                  <div className="mx-auto max-w-[162px] rounded-2xl border border-[#e8decd] bg-white/80 px-2.5 py-1.5 text-center text-[12px] font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
                   <button
                   type="button"
                   disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
                   onClick={() => startTopup(parsedRub || 0)}
-                  className={ACTION_PRIMARY + " w-full py-2 text-[15px]"}
+                  className={ACTION_PRIMARY + " w-full py-2 text-[15px] mt-1"}
                 >
                   {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
                 </button>
