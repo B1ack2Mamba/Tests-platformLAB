@@ -302,6 +302,7 @@ export default function ProjectDetailsPage() {
   const [detailsTemplateSaving, setDetailsTemplateSaving] = useState(false);
   const [detailsTemplateMessage, setDetailsTemplateMessage] = useState("");
   const [detailsViewReady, setDetailsViewReady] = useState(false);
+  const [projectPaintReady, setProjectPaintReady] = useState(false);
   const [detailsGesture, setDetailsGesture] = useState<null | {
     target: DetailsTemplateTarget;
     mode: DetailsGestureMode;
@@ -484,6 +485,27 @@ export default function ProjectDetailsPage() {
       window.cancelAnimationFrame(rafTwo);
     };
   }, [canEditProjectDetailsTemplate, data?.project?.id, detailsTemplateLoaded, loading, sessionLoading]);
+
+  useEffect(() => {
+    const projectStillBooting = sessionLoading || loading || !data?.project?.id || !detailsViewReady;
+    if (projectStillBooting) {
+      setProjectPaintReady(false);
+      return;
+    }
+    let rafOne = 0;
+    let rafTwo = 0;
+    let timer = 0;
+    rafOne = window.requestAnimationFrame(() => {
+      rafTwo = window.requestAnimationFrame(() => {
+        timer = window.setTimeout(() => setProjectPaintReady(true), 120);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(rafOne);
+      window.cancelAnimationFrame(rafTwo);
+      window.clearTimeout(timer);
+    };
+  }, [data?.project?.id, detailsViewReady, loading, sessionLoading]);
 
   useEffect(() => {
     if (!detailsGesture) return;
@@ -807,7 +829,7 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  const projectBootPending = sessionLoading || loading || !data?.project?.id || !detailsViewReady;
+  const projectBootPending = sessionLoading || loading || !data?.project?.id || !detailsViewReady || !projectPaintReady;
 
   if (projectBootPending) {
     return (
