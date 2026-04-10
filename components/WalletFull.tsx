@@ -115,7 +115,7 @@ const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   offsetX: 0,
   offsetY: 0,
   cardWidthPx: 330,
-  cardHeightPx: 250,
+  cardHeightPx: 236,
   cardOffsetX: 0,
   cardOffsetY: -18,
 };
@@ -660,7 +660,7 @@ export default function WalletPage() {
   <div className="mt-5 grid gap-2">
                             <button
                               type="button"
-                              className={ACTION_PRIMARY + " w-full"}
+                              className={ACTION_PRIMARY + " w-full py-2.5 text-[15px]"}
                               disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
                               onClick={() => buyMonthlyPlanFromWallet(plan.key)}
                             >
@@ -808,7 +808,7 @@ export default function WalletPage() {
               </label>
               <label className="block">
                 <div className="mb-1 flex items-center justify-between"><span>Высота окна</span><span>{walletHermesLayout.cardHeightPx}px</span></div>
-                <input type="range" min="200" max="420" step="4" value={walletHermesLayout.cardHeightPx} onChange={(e) => updateWalletHermesLayout({ cardHeightPx: Number(e.target.value) })} className="w-full" />
+                <input type="range" min="180" max="360" step="4" value={walletHermesLayout.cardHeightPx} onChange={(e) => updateWalletHermesLayout({ cardHeightPx: Number(e.target.value) })} className="w-full" />
               </label>
               <label className="block">
                 <div className="mb-1 flex items-center justify-between"><span>Окно по X</span><span>{walletHermesLayout.cardOffsetX}px</span></div>
@@ -839,49 +839,49 @@ export default function WalletPage() {
 
       <div className="relative flex min-h-full items-end justify-end px-4 py-4 pointer-events-none sm:px-5 sm:py-5" style={{ minHeight: `${walletHermesLayout.heightPx}px` }}>
         <div
-          className="pointer-events-auto rounded-[28px] border border-[#d8ccb8] bg-[rgba(255,252,246,0.95)] px-4 py-5 shadow-[0_18px_34px_rgba(120,92,44,0.12)] backdrop-blur-[1px] sm:px-5"
+          className="pointer-events-auto rounded-[28px] border border-[#d8ccb8] bg-[rgba(255,252,246,0.95)] px-4 py-4 shadow-[0_18px_34px_rgba(120,92,44,0.12)] backdrop-blur-[1px] sm:px-4"
           style={{
-            width: `${Math.max(248, walletHermesLayout.cardWidthPx - 22)}px`,
-            minHeight: `${walletHermesLayout.cardHeightPx}px`,
+            width: `${Math.max(258, walletHermesLayout.cardWidthPx - 34)}px`,
+            minHeight: `${Math.max(214, walletHermesLayout.cardHeightPx - 20)}px`,
             transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
           }}
         >
-          <div className="mx-auto w-full max-w-[228px]">
+          <div className="mx-auto w-full max-w-[210px]">
             <div className="text-xs uppercase tracking-[0.24em] text-[#987b4e]">Оплата</div>
-            <div className="mt-2 text-sm leading-6 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
+            <div className="mt-2 text-[13px] leading-5 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
             {canShowInlinePayment ? (
               <>
-                <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                 {QUICK_AMOUNTS.map((a) => (
                   <button
                     key={a}
                     type="button"
                     onClick={() => setAmountRub(String(a))}
-                    className={ACTION_CHIP}
+                    className="inline-flex items-center justify-center rounded-[14px] border border-[#d9ccb7] bg-white/90 px-2 py-2 text-base font-semibold text-[#4f6057] shadow-[0_6px_14px_rgba(132,104,62,0.08)] transition duration-150 hover:border-[#8fd0aa] hover:text-[#1f4d36] disabled:cursor-not-allowed disabled:opacity-55"
                   >
                     {a} ₽
                   </button>
                 ))}
               </div>
-                <div className="mt-3 space-y-3">
+                <div className="mt-3 space-y-2.5">
                   <input
                     value={amountRub}
                     onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
                     inputMode="numeric"
                     placeholder="3000"
-                    className={INPUT_CLASS + " mx-auto h-11 max-w-[196px] text-center text-base font-semibold"}
+                    className={INPUT_CLASS + " mx-auto h-10 max-w-[176px] text-center text-base font-semibold"}
                   />
-                  <div className="mx-auto max-w-[196px] rounded-2xl border border-[#e8decd] bg-white/80 px-3 py-2 text-center text-sm font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
+                  <div className="mx-auto max-w-[176px] rounded-2xl border border-[#e8decd] bg-white/80 px-3 py-2 text-center text-[13px] font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
                   <button
                   type="button"
                   disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
                   onClick={() => startTopup(parsedRub || 0)}
-                  className={ACTION_PRIMARY + " w-full"}
+                  className={ACTION_PRIMARY + " w-full py-2.5 text-[15px]"}
                 >
                   {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
                 </button>
                 </div>
-                <div className="mt-3 text-center text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
+                <div className="mt-2 text-center text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
                 {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
               </>
             ) : (
@@ -967,7 +967,7 @@ export default function WalletPage() {
                         key={a}
                         type="button"
                         onClick={() => setAmountRub(String(a))}
-                        className={ACTION_CHIP}
+                        className="inline-flex items-center justify-center rounded-[14px] border border-[#d9ccb7] bg-white/90 px-2 py-2 text-base font-semibold text-[#4f6057] shadow-[0_6px_14px_rgba(132,104,62,0.08)] transition duration-150 hover:border-[#8fd0aa] hover:text-[#1f4d36] disabled:cursor-not-allowed disabled:opacity-55"
                       >
                         {a} ₽
                       </button>

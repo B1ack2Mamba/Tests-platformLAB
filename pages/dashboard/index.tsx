@@ -1070,7 +1070,30 @@ export default function DashboardPage() {
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
 
     let sourceWidgets: SceneWidget[] = [];
-    if (desktopVariant === "classic") {
+    if (dashboardBootPending) {
+    return (
+      <Layout title="Кабинет специалиста">
+        <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="h-10 w-[150px] animate-pulse rounded-2xl bg-[#ede6da]" />
+            <div className="h-10 w-[190px] animate-pulse rounded-2xl bg-[#ede6da]" />
+          </div>
+          <div className="rounded-[28px] border border-white/75 bg-white/70 p-4 shadow-[0_24px_44px_-30px_rgba(54,35,19,0.22)] backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-[28px] border border-[#eadfce] bg-[linear-gradient(180deg,#f7f1e8_0%,#f2ebe2_100%)]" style={{ minHeight: 760 }}>
+              <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.55))]" />
+              <div className="absolute left-[18px] top-[18px] h-14 w-40 rounded-[18px] bg-white/80" />
+              <div className="absolute right-[26px] top-[26px] h-14 w-52 rounded-[18px] bg-white/80" />
+              <div className="absolute inset-x-[14px] top-[70px] bottom-[18px] rounded-[26px] border border-white/70 bg-white/45" />
+              <div className="absolute left-[55px] bottom-[42px] h-20 w-[72%] rounded-[22px] bg-white/78" />
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (desktopVariant === "classic") {
       sourceWidgets = saved.length ? saved : defaultSceneWidgets;
     } else {
       const legacyWidgetIds = new Set([
@@ -2136,6 +2159,10 @@ export default function DashboardPage() {
     );
   }
 
+  const deskPositionsReady = Object.keys(deskPositions).length > 0;
+  const sceneWidgetsReady = sceneWidgets.length > 0;
+  const dashboardBootPending = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || !sceneWidgetsReady || !deskPositionsReady;
+
   const trayFolders = folderBuckets.byFolder.filter(({ folder }, index) => {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return isInsideGuideRect(pos.x, pos.y);
@@ -2144,6 +2171,29 @@ export default function DashboardPage() {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return !isInsideGuideRect(pos.x, pos.y);
   });
+
+  if (dashboardBootPending) {
+    return (
+      <Layout title="Кабинет специалиста">
+        <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="h-10 w-[150px] animate-pulse rounded-2xl bg-[#ede6da]" />
+            <div className="h-10 w-[190px] animate-pulse rounded-2xl bg-[#ede6da]" />
+          </div>
+          <div className="rounded-[28px] border border-white/75 bg-white/70 p-4 shadow-[0_24px_44px_-30px_rgba(54,35,19,0.22)] backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-[28px] border border-[#eadfce] bg-[linear-gradient(180deg,#f7f1e8_0%,#f2ebe2_100%)]" style={{ minHeight: 760 }}>
+              <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.55))]" />
+              <div className="absolute left-[18px] top-[18px] h-14 w-40 rounded-[18px] bg-white/80" />
+              <div className="absolute right-[26px] top-[26px] h-14 w-52 rounded-[18px] bg-white/80" />
+              <div className="absolute inset-x-[14px] top-[70px] bottom-[18px] rounded-[26px] border border-white/70 bg-white/45" />
+              <div className="absolute left-[55px] bottom-[42px] h-20 w-[72%] rounded-[22px] bg-white/78" />
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   if (desktopVariant === "classic") {
     return (

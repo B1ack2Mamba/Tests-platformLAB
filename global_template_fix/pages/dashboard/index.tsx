@@ -7,7 +7,8 @@ import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail, isGlobalTemplateOwnerEmail } from "@/lib/admin";
-import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
+import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
+import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 
 type DashboardPayload = {
   profile: {
@@ -50,6 +51,12 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
+type SubscriptionStatusResp = {
+  ok: boolean;
+  error?: string;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
+};
+
 type DeskPosition = {
   x: number;
   y: number;
@@ -69,7 +76,7 @@ type DeskPosition = {
   clipBly?: number;
 };
 type DeskPositions = Record<string, DeskPosition>;
-type DeskItemKind = "folder" | "project" | "guide";
+type DeskItemKind = "folder" | "project" | "guide" | "device" | "panel";
 type DeskItemInteractionMode = "drag" | "resize" | "rotate";
 type DeskItemInteractionState = {
   id: string;
@@ -80,9 +87,11 @@ type DeskItemInteractionState = {
   position: DeskPosition;
 };
 
-type SceneWidgetKind = "text" | "button";
+type SceneWidgetKind = "text" | "button" | "image";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
-type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary";
+type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
+type DesktopVariant = "scheme" | "classic";
+type ClassicViewMode = "desktop" | "sheet";
 type TrashItemKind = "folder" | "project";
 
 type TrashEntry = {
@@ -97,6 +106,7 @@ type SceneWidget = {
   id: string;
   kind: SceneWidgetKind;
   text: string;
+  src?: string;
   action?: SceneWidgetAction;
   tone?: SceneWidgetTone;
   x: number;
@@ -125,7 +135,11 @@ const DESK_SHEET_WIDTH = 184;
 const DESK_SHEET_HEIGHT = 132;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const GLOBAL_DESK_TEMPLATE_STORAGE_KEY = "commercialGlobalDeskTemplate:v1839";
-const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1836:";
+const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1840:";
+const DESKTOP_VARIANT_STORAGE_PREFIX = "commercialDesktopVariant:v1841:";
+const ROOM_LIGHT_STORAGE_PREFIX = "commercialRoomLight:v1842:";
+const ROOM_SWITCH_STORAGE_PREFIX = "commercialRoomSwitch:v1843:";
+const CLASSIC_VIEW_MODE_STORAGE_PREFIX = "commercialClassicViewMode:v1844:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
@@ -134,8 +148,67 @@ const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
 const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
 const SHEET_ZONE = { x: 110, y: 618, width: 760, height: 110 };
 const TRASH_ZONE = { x: 16, y: 434, width: 160, height: 180 };
+const DEFAULT_ROOM_SWITCH_ZONE = { x: 48, y: 248, width: 136, height: 116 };
+const ROOM_DIM_HOTSPOT = { x: 42, y: 386, width: 188, height: 94 };
+const ROOM_SWITCH_STANDARD_ID = "scene:roomSwitch";
+const LAPTOP_DEVICE_ID = "scene:deskLaptop";
+const LAPTOP_PANEL_ID = "scene:deskLaptopPanel";
+const SHARED_SCENE_POSITION_IDS = new Set([ROOM_SWITCH_STANDARD_ID, LAPTOP_DEVICE_ID, LAPTOP_PANEL_ID]);
 const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
+const DEFAULT_LAPTOP_POSITION: DeskPosition = { x: 936, y: 432, width: 372, height: 248, z: 24, rotation: -5.4, tiltX: 0, tiltY: 0 };
+const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 226, height: 132, z: 26, rotation: -5.4, tiltX: 0, tiltY: 0 };
+
+
+type DeskRect = { left: number; top: number; right: number; bottom: number };
+
+function getDeskRect(position: Partial<DeskPosition>, fallbackWidth: number, fallbackHeight: number, inset = 0): DeskRect {
+  const width = Math.max(0, Number(position.width ?? fallbackWidth));
+  const height = Math.max(0, Number(position.height ?? fallbackHeight));
+  const left = Number(position.x ?? 0) + inset;
+  const top = Number(position.y ?? 0) + inset;
+  const right = left + Math.max(0, width - inset * 2);
+  const bottom = top + Math.max(0, height - inset * 2);
+  return { left, top, right, bottom };
+}
+
+function rectsOverlap(a: DeskRect, b: DeskRect) {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function keepRectOutOfBlockedZone(itemRect: DeskRect, blockedRect: DeskRect, bounds: { minX: number; minY: number; maxX: number; maxY: number }) {
+  if (!rectsOverlap(itemRect, blockedRect)) {
+    return { x: itemRect.left, y: itemRect.top };
+  }
+
+  const width = itemRect.right - itemRect.left;
+  const height = itemRect.bottom - itemRect.top;
+  const candidates = [
+    { x: blockedRect.left - width - 12, y: itemRect.top },
+    { x: blockedRect.right + 12, y: itemRect.top },
+    { x: itemRect.left, y: blockedRect.top - height - 12 },
+    { x: itemRect.left, y: blockedRect.bottom + 12 },
+  ].map((candidate) => ({
+    x: clampDesk(candidate.x, bounds.minX, bounds.maxX),
+    y: clampDesk(candidate.y, bounds.minY, bounds.maxY),
+  }));
+
+  const valid = candidates.find((candidate) => !rectsOverlap({ left: candidate.x, top: candidate.y, right: candidate.x + width, bottom: candidate.y + height }, blockedRect));
+  if (valid) return valid;
+
+  return {
+    x: clampDesk(itemRect.left, bounds.minX, bounds.maxX),
+    y: clampDesk(blockedRect.bottom + 12, bounds.minY, bounds.maxY),
+  };
+}
+
+function getSubscriptionDaysLeft(expiresAt: string | null | undefined) {
+  if (!expiresAt) return null;
+  const target = new Date(expiresAt).getTime();
+  if (!Number.isFinite(target)) return null;
+  const diff = target - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
 
 const GOAL_ORDER = Object.fromEntries(COMMERCIAL_GOALS.map((item, index) => [item.key, index + 1])) as Record<AssessmentGoal, number>;
 
@@ -295,8 +368,10 @@ function getGuideClipPath(position?: DeskPosition) {
   return `polygon(${tlx}px ${tly}px, ${trx}px ${trY}px, ${brx}px ${bry}px, ${blx}px ${bly}px)`;
 }
 
-function getDeskStorageKey(workspaceId: string) {
-  return `${DESK_STORAGE_PREFIX}${workspaceId}`;
+function getDeskStorageKey(workspaceId: string, variant: DesktopVariant = "scheme") {
+  return variant === "scheme"
+    ? `${DESK_STORAGE_PREFIX}${workspaceId}`
+    : `${DESK_STORAGE_PREFIX}${workspaceId}:${variant}`;
 }
 
 function readGlobalDeskTemplates(): DeskPositions {
@@ -317,8 +392,26 @@ function writeGlobalDeskTemplates(source: DeskPositions) {
   } catch {}
 }
 
-function getSceneWidgetsStorageKey(workspaceId: string) {
-  return `${SCENE_WIDGETS_STORAGE_PREFIX}${workspaceId}`;
+function getSceneWidgetsStorageKey(workspaceId: string, variant: DesktopVariant = "scheme") {
+  return variant === "scheme"
+    ? `${SCENE_WIDGETS_STORAGE_PREFIX}${workspaceId}`
+    : `${SCENE_WIDGETS_STORAGE_PREFIX}${workspaceId}:${variant}`;
+}
+
+function getDesktopVariantStorageKey(workspaceId: string) {
+  return `${DESKTOP_VARIANT_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function getRoomLightStorageKey(workspaceId: string) {
+  return `${ROOM_LIGHT_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function getRoomSwitchStorageKey(workspaceId: string) {
+  return `${ROOM_SWITCH_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function getClassicViewModeStorageKey(workspaceId: string) {
+  return `${CLASSIC_VIEW_MODE_STORAGE_PREFIX}${workspaceId}`;
 }
 
 function getTrayGuideTextStorageKey(workspaceId: string) {
@@ -329,7 +422,7 @@ function getTrashStorageKey(workspaceId: string) {
   return `${TRASH_STORAGE_PREFIX}${workspaceId}`;
 }
 
-function buildDefaultSceneWidgets(params: {
+function buildSchemeSceneWidgets(params: {
   displayName: string;
   workspaceName: string;
   email: string;
@@ -338,9 +431,42 @@ function buildDefaultSceneWidgets(params: {
   greeneryLabel: string;
 }): SceneWidget[] {
   return [
-    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 430, y: 452, width: 280, height: 84, rotation: -1.3, fontSize: 22, z: 30 },
-    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 792, y: 452, width: 280, height: 84, rotation: -1.1, fontSize: 22, z: 31 },
+    { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
+    { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
+    { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
   ];
+}
+
+function buildClassicSceneWidgets(params: {
+  displayName: string;
+  workspaceName: string;
+  email: string;
+  balanceText: string;
+  investedText: string;
+  greeneryLabel: string;
+}): SceneWidget[] {
+  return [];
+}
+
+
+function getClassicFolderPosition(index: number): DeskPosition {
+  const col = Math.floor(index / 6);
+  const row = index % 6;
+  return {
+    x: 58 + col * 156,
+    y: 88 + row * 124,
+    z: 80 + index,
+  };
+}
+
+function getClassicProjectPosition(index: number): DeskPosition {
+  const col = Math.floor(index / 6);
+  const row = index % 6;
+  return {
+    x: 232 + col * 156,
+    y: 88 + row * 124,
+    z: 180 + index,
+  };
 }
 
 function getDefaultFolderPosition(index: number): DeskPosition {
@@ -401,11 +527,22 @@ function getDefaultTrashGuidePosition(): DeskPosition {
   };
 }
 
+function stripSharedScenePositions(source: DeskPositions): DeskPositions {
+  const next: DeskPositions = {};
+  for (const [key, value] of Object.entries(source || {})) {
+    if (SHARED_SCENE_POSITION_IDS.has(key)) continue;
+    next[key] = value;
+  }
+  return next;
+}
+
 function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved: DeskPositions): DeskPositions {
   const next: DeskPositions = {};
 
   next[TRAY_GUIDE_ID] = saved[TRAY_GUIDE_ID] || getDefaultTrayGuidePosition();
   next[TRASH_GUIDE_ID] = saved[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
+  next[LAPTOP_DEVICE_ID] = saved[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION;
+  next[LAPTOP_PANEL_ID] = saved[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION;
 
   const folderTemplate = saved[FOLDER_TEMPLATE_ID] || {};
   const projectTemplate = saved[PROJECT_TEMPLATE_ID] || {};
@@ -455,6 +592,8 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
 
   if (saved[FOLDER_TEMPLATE_ID]) next[FOLDER_TEMPLATE_ID] = saved[FOLDER_TEMPLATE_ID];
   if (saved[PROJECT_TEMPLATE_ID]) next[PROJECT_TEMPLATE_ID] = saved[PROJECT_TEMPLATE_ID];
+  if (saved[LAPTOP_DEVICE_ID]) next[LAPTOP_DEVICE_ID] = saved[LAPTOP_DEVICE_ID];
+  if (saved[LAPTOP_PANEL_ID]) next[LAPTOP_PANEL_ID] = saved[LAPTOP_PANEL_ID];
 
   return next;
 }
@@ -489,9 +628,11 @@ export default function DashboardPage() {
   const trashHoverTimer = useRef<number | null>(null);
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [trashOpen, setTrashOpen] = useState(false);
-  const canEditScene = user?.email === "storyguild9@gmail.com" || isAdmin;
+  const canEditScene = isAdmin;
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
+  const [desktopVariant, setDesktopVariant] = useState<DesktopVariant>("scheme");
+  const [classicViewMode, setClassicViewMode] = useState<ClassicViewMode>("desktop");
   const [trayGuideText, setTrayGuideText] = useState("Создать новую папку проектов");
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
@@ -500,7 +641,17 @@ export default function DashboardPage() {
   const pendingCreatedFolderRef = useRef<{ id: string } | null>(null);
   const templateFeedbackTimerRef = useRef<number | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
-  const [sharedDeskTemplates, setSharedDeskTemplates] = useState<DeskPositions>({});
+  const [sharedDeskPositions, setSharedDeskPositions] = useState<DeskPositions>({});
+  const [sharedSceneWidgets, setSharedSceneWidgets] = useState<SceneWidget[]>([]);
+  const [sharedTrayGuideText, setSharedTrayGuideText] = useState("");
+  const [sharedSceneReady, setSharedSceneReady] = useState(false);
+  const [isRoomLightDimmed, setIsRoomLightDimmed] = useState(false);
+  const [roomSwitchPosition, setRoomSwitchPosition] = useState(DEFAULT_ROOM_SWITCH_ZONE);
+  const roomSwitchInteractionRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
+  const suppressRoomSwitchClickRef = useRef(false);
+  const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -536,6 +687,7 @@ export default function DashboardPage() {
     if (!session) return;
     setLoading(true);
     setError("");
+    setSharedSceneReady(false);
     try {
       const [profileResp, workspaceResp, sharedTemplatesResp] = await Promise.all([
         fetch("/api/commercial/profile/me", {
@@ -555,16 +707,27 @@ export default function DashboardPage() {
       if (!profileResp.ok || !profileJson?.ok) throw new Error(profileJson?.error || "Не удалось загрузить кабинет");
       if (!workspaceResp.ok || !workspaceJson?.ok) throw new Error(workspaceJson?.error || "Не удалось загрузить проекты");
       if (sharedTemplatesResp.ok && sharedTemplatesJson?.ok) {
-        const nextSharedTemplates = pickGlobalDeskTemplates(sharedTemplatesJson?.templates || {}) as DeskPositions;
-        setSharedDeskTemplates(nextSharedTemplates);
-        writeGlobalDeskTemplates(nextSharedTemplates);
+        const parsedStandard = pickSceneStandard(sharedTemplatesJson?.standard || sharedTemplatesJson || {});
+        const nextSharedPositions = (parsedStandard.positions || {}) as DeskPositions;
+        const nextSharedWidgets = (parsedStandard.widgets || []) as SceneWidget[];
+        setSharedDeskPositions(nextSharedPositions);
+        setSharedSceneWidgets(nextSharedWidgets);
+        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+        writeGlobalDeskTemplates(nextSharedPositions);
       } else {
-        setSharedDeskTemplates({});
+        setSharedDeskPositions({});
+        setSharedSceneWidgets([]);
+        setSharedTrayGuideText("");
       }
+      setSharedSceneReady(true);
 
       setData(profileJson as DashboardPayload & { ok: true });
       setWorkspace(workspaceJson as WorkspacePayload);
     } catch (e: any) {
+      setSharedDeskPositions({});
+      setSharedSceneWidgets([]);
+      setSharedTrayGuideText("");
+      setSharedSceneReady(true);
       setError(e?.message || "Ошибка");
     } finally {
       setLoading(false);
@@ -580,10 +743,59 @@ export default function DashboardPage() {
     loadDashboard();
   }, [router, session, sessionLoading, user, loadDashboard]);
 
+  const loadSubscriptionStatus = useCallback(async () => {
+    if (!session?.access_token) {
+      setActiveSubscription(null);
+      return;
+    }
+    setSubscriptionLoading(true);
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/status", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = (await resp.json().catch(() => ({}))) as SubscriptionStatusResp;
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить тариф");
+      setActiveSubscription(json.active_subscription || null);
+      setSubscriptionError(null);
+    } catch (err: any) {
+      setSubscriptionError(err?.message || "Не удалось загрузить тариф");
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    loadSubscriptionStatus();
+  }, [loadSubscriptionStatus, session?.access_token]);
+
   const displayName = data?.profile?.full_name || (user?.user_metadata as any)?.full_name || user?.email || "Пользователь";
   const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user?.user_metadata as any)?.company_name || "Рабочее пространство";
+  const toggleRoomLight = useCallback(() => {
+    setIsRoomLightDimmed((current) => !current);
+  }, []);
+  const laptopPosition = deskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION;
+  const laptopPanelPosition = deskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION;
+
+  const sceneEditControls = canEditScene ? (
+    <div className="pointer-events-auto absolute right-4 top-4 z-[90] flex flex-wrap items-center justify-end gap-2 rounded-[18px] border border-white/70 bg-white/88 px-3 py-2 shadow-[0_16px_30px_-24px_rgba(54,35,19,0.24)] backdrop-blur-xl">
+      <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={(e) => { e.stopPropagation(); setSceneEditMode((prev) => !prev); }}>
+        {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
+      </button>
+      {sceneEditMode && canManageGlobalTemplates ? (
+        <button type="button" className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); saveSceneStandardForAll(); }}>
+          Сохранить шаблон стола для всех
+        </button>
+      ) : null}
+      {sceneEditMode ? (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); resetSceneWidgets(); }}>
+          Сбросить сцену
+        </button>
+      ) : null}
+    </div>
+  ) : null;
   const defaultSceneWidgets = useMemo(
-    () => buildDefaultSceneWidgets({
+    () => (desktopVariant === "classic" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
       displayName,
       workspaceName,
       email: data?.profile?.email || user?.email || "email не указан",
@@ -591,36 +803,316 @@ export default function DashboardPage() {
       investedText,
       greeneryLabel,
     }),
-    [balanceText, data?.profile?.email, displayName, greeneryLabel, investedText, user?.email, workspaceName]
+    [balanceText, data?.profile?.email, desktopVariant, displayName, greeneryLabel, investedText, user?.email, workspaceName]
   );
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id) return;
-    const key = getSceneWidgetsStorageKey(workspace.workspace.workspace_id);
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id));
+      if (raw === "classic" || raw === "scheme") setDesktopVariant(raw);
+    } catch {}
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id), desktopVariant);
+    } catch {}
+  }, [desktopVariant, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getClassicViewModeStorageKey(workspace.workspace.workspace_id));
+      if (raw === "desktop" || raw === "sheet") setClassicViewMode(raw);
+    } catch {}
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getClassicViewModeStorageKey(workspace.workspace.workspace_id), classicViewMode);
+    } catch {}
+  }, [classicViewMode, workspace?.workspace?.workspace_id]);
+
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(getRoomLightStorageKey(workspace.workspace.workspace_id));
+      setIsRoomLightDimmed(raw === "dimmed");
+    } catch {
+      setIsRoomLightDimmed(false);
+    }
+  }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
+    try {
+      const sharedPosition = sharedDeskPositions[ROOM_SWITCH_STANDARD_ID] as DeskPosition | undefined;
+      if (sharedPosition && Number.isFinite(Number(sharedPosition.x)) && Number.isFinite(Number(sharedPosition.y))) {
+        setRoomSwitchPosition({
+          x: clampDesk(Number(sharedPosition.x), 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
+          y: clampDesk(Number(sharedPosition.y), 0, DESK_HEIGHT - DEFAULT_ROOM_SWITCH_ZONE.height),
+          width: DEFAULT_ROOM_SWITCH_ZONE.width,
+          height: DEFAULT_ROOM_SWITCH_ZONE.height,
+        });
+        return;
+      }
+
+      const raw = window.localStorage.getItem(getRoomSwitchStorageKey(workspace.workspace.workspace_id));
+      if (!raw) {
+        setRoomSwitchPosition(DEFAULT_ROOM_SWITCH_ZONE);
+        return;
+      }
+      const parsed = JSON.parse(raw) as Partial<typeof DEFAULT_ROOM_SWITCH_ZONE>;
+      setRoomSwitchPosition({
+        x: clampDesk(Number(parsed?.x ?? DEFAULT_ROOM_SWITCH_ZONE.x), 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
+        y: clampDesk(Number(parsed?.y ?? DEFAULT_ROOM_SWITCH_ZONE.y), 0, DESK_HEIGHT - DEFAULT_ROOM_SWITCH_ZONE.height),
+        width: DEFAULT_ROOM_SWITCH_ZONE.width,
+        height: DEFAULT_ROOM_SWITCH_ZONE.height,
+      });
+    } catch {
+      setRoomSwitchPosition(DEFAULT_ROOM_SWITCH_ZONE);
+    }
+  }, [sharedDeskPositions, sharedSceneReady, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getRoomLightStorageKey(workspace.workspace.workspace_id), isRoomLightDimmed ? "dimmed" : "normal");
+    } catch {}
+  }, [isRoomLightDimmed, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getRoomSwitchStorageKey(workspace.workspace.workspace_id), JSON.stringify({
+        x: Math.round(roomSwitchPosition.x),
+        y: Math.round(roomSwitchPosition.y),
+      }));
+    } catch {}
+  }, [roomSwitchPosition, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
+    const sharedPosition = sharedDeskPositions[ROOM_SWITCH_STANDARD_ID] as DeskPosition | undefined;
+    const currentX = Math.round(roomSwitchPosition.x);
+    const currentY = Math.round(roomSwitchPosition.y);
+    const sharedX = Math.round(Number(sharedPosition?.x ?? DEFAULT_ROOM_SWITCH_ZONE.x));
+    const sharedY = Math.round(Number(sharedPosition?.y ?? DEFAULT_ROOM_SWITCH_ZONE.y));
+    if (currentX === sharedX && currentY === sharedY) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const standardPayload = {
+          positions: {
+            ...sharedDeskPositions,
+            [ROOM_SWITCH_STANDARD_ID]: {
+              x: currentX,
+              y: currentY,
+              width: DEFAULT_ROOM_SWITCH_ZONE.width,
+              height: DEFAULT_ROOM_SWITCH_ZONE.height,
+              z: Number(sharedPosition?.z ?? 182),
+            },
+          },
+          widgets: sceneWidgets.map((item) => ({
+            id: item.id,
+            kind: item.kind,
+            text: item.text,
+            action: item.action,
+            tone: item.tone,
+            src: item.src,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height: item.height,
+            rotation: item.rotation,
+            fontSize: item.fontSize,
+            z: item.z,
+          })),
+          trayGuideText,
+        };
+
+        const resp = await fetch("/api/commercial/scene-template", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            standard: standardPayload,
+            positions: standardPayload.positions,
+            widgets: standardPayload.widgets,
+            trayGuideText: standardPayload.trayGuideText,
+          }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить положение выключателя");
+        const parsedStandard = pickSceneStandard(json?.standard || json || {});
+        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
+        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
+        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      } catch (err) {
+        console.error(err);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [canEditScene, roomSwitchPosition.x, roomSwitchPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+
+  useEffect(() => {
+    if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
+    const sharedLaptop = (sharedDeskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION) as DeskPosition;
+    const sharedPanel = (sharedDeskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION) as DeskPosition;
+    const currentLaptop = laptopPosition;
+    const currentPanel = laptopPanelPosition;
+
+    const sameLaptop = Math.round(currentLaptop.x || 0) === Math.round(sharedLaptop.x || 0)
+      && Math.round(currentLaptop.y || 0) === Math.round(sharedLaptop.y || 0)
+      && Math.round(currentLaptop.width || 0) === Math.round(sharedLaptop.width || 0)
+      && Math.round(currentLaptop.height || 0) === Math.round(sharedLaptop.height || 0)
+      && Number((currentLaptop.rotation || 0).toFixed(1)) === Number((sharedLaptop.rotation || 0).toFixed(1));
+    const samePanel = Math.round(currentPanel.x || 0) === Math.round(sharedPanel.x || 0)
+      && Math.round(currentPanel.y || 0) === Math.round(sharedPanel.y || 0)
+      && Math.round(currentPanel.width || 0) === Math.round(sharedPanel.width || 0)
+      && Math.round(currentPanel.height || 0) === Math.round(sharedPanel.height || 0)
+      && Number((currentPanel.rotation || 0).toFixed(1)) === Number((sharedPanel.rotation || 0).toFixed(1));
+
+    if (sameLaptop && samePanel) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const standardPayload = {
+          positions: {
+            ...sharedDeskPositions,
+            [LAPTOP_DEVICE_ID]: {
+              x: Math.round(currentLaptop.x || 0),
+              y: Math.round(currentLaptop.y || 0),
+              width: Math.round(currentLaptop.width || DEFAULT_LAPTOP_POSITION.width || 0),
+              height: Math.round(currentLaptop.height || DEFAULT_LAPTOP_POSITION.height || 0),
+              rotation: Number((currentLaptop.rotation || 0).toFixed(1)),
+              z: Number(currentLaptop.z ?? sharedLaptop.z ?? DEFAULT_LAPTOP_POSITION.z ?? 24),
+            },
+            [LAPTOP_PANEL_ID]: {
+              x: Math.round(currentPanel.x || 0),
+              y: Math.round(currentPanel.y || 0),
+              width: Math.round(currentPanel.width || DEFAULT_LAPTOP_PANEL_POSITION.width || 0),
+              height: Math.round(currentPanel.height || DEFAULT_LAPTOP_PANEL_POSITION.height || 0),
+              rotation: Number((currentPanel.rotation || 0).toFixed(1)),
+              z: Number(currentPanel.z ?? sharedPanel.z ?? DEFAULT_LAPTOP_PANEL_POSITION.z ?? 26),
+            },
+          },
+          widgets: sceneWidgets.map((item) => ({
+            id: item.id,
+            kind: item.kind,
+            text: item.text,
+            action: item.action,
+            tone: item.tone,
+            src: item.src,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height: item.height,
+            rotation: item.rotation,
+            fontSize: item.fontSize,
+            z: item.z,
+          })),
+          trayGuideText,
+        };
+
+        const resp = await fetch("/api/commercial/scene-template", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            standard: standardPayload,
+            positions: standardPayload.positions,
+            widgets: standardPayload.widgets,
+            trayGuideText: standardPayload.trayGuideText,
+          }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить ноутбук на сцене");
+        const parsedStandard = pickSceneStandard(json?.standard || json || {});
+        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
+        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
+        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      } catch (err) {
+        console.error(err);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [canEditScene, laptopPanelPosition.height, laptopPanelPosition.rotation, laptopPanelPosition.width, laptopPanelPosition.x, laptopPanelPosition.y, laptopPosition.height, laptopPosition.rotation, laptopPosition.width, laptopPosition.x, laptopPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+
+  useEffect(() => {
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
+    const key = getSceneWidgetsStorageKey(workspace.workspace.workspace_id, desktopVariant);
     let saved: SceneWidget[] = [];
     if (typeof window !== "undefined") {
       try {
         const raw = window.localStorage.getItem(key);
         if (raw) saved = JSON.parse(raw) as SceneWidget[];
+        if (!raw && desktopVariant === "scheme") {
+          const legacyRaw = window.localStorage.getItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id));
+          if (legacyRaw) saved = JSON.parse(legacyRaw) as SceneWidget[];
+        }
       } catch {
         saved = [];
       }
     }
 
-    const legacyWidgetIds = new Set([
-      "wallet-title",
-      "wallet-value",
-      "wallet-note",
-      "profile-title",
-      "profile-name",
-      "profile-role",
-      "profile-email",
-      "create-folder",
-    ]);
-    const hasLegacyBoardLayout = saved.some((item) => legacyWidgetIds.has(item.id));
     const allowedIds = new Set(defaultSceneWidgets.map((item) => item.id));
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
-    const sourceWidgets = hasLegacyBoardLayout ? defaultSceneWidgets : (saved.length ? saved : defaultSceneWidgets);
+
+    let sourceWidgets: SceneWidget[] = [];
+    if (dashboardBootPending) {
+    return (
+      <Layout title="Кабинет специалиста">
+        <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="h-10 w-[150px] animate-pulse rounded-2xl bg-[#ede6da]" />
+            <div className="h-10 w-[190px] animate-pulse rounded-2xl bg-[#ede6da]" />
+          </div>
+          <div className="rounded-[28px] border border-white/75 bg-white/70 p-4 shadow-[0_24px_44px_-30px_rgba(54,35,19,0.22)] backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-[28px] border border-[#eadfce] bg-[linear-gradient(180deg,#f7f1e8_0%,#f2ebe2_100%)]" style={{ minHeight: 760 }}>
+              <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.55))]" />
+              <div className="absolute left-[18px] top-[18px] h-14 w-40 rounded-[18px] bg-white/80" />
+              <div className="absolute right-[26px] top-[26px] h-14 w-52 rounded-[18px] bg-white/80" />
+              <div className="absolute inset-x-[14px] top-[70px] bottom-[18px] rounded-[26px] border border-white/70 bg-white/45" />
+              <div className="absolute left-[55px] bottom-[42px] h-20 w-[72%] rounded-[22px] bg-white/78" />
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (desktopVariant === "classic") {
+      sourceWidgets = saved.length ? saved : defaultSceneWidgets;
+    } else {
+      const legacyWidgetIds = new Set([
+        "wallet-title",
+        "wallet-value",
+        "wallet-note",
+        "profile-title",
+        "profile-name",
+        "profile-role",
+        "profile-email",
+        "create-folder",
+      ]);
+      const hasLegacyBoardLayout = saved.some((item) => legacyWidgetIds.has(item.id));
+      const hasMarkerScheme = saved.some((item) => item.id === "board-scheme") || sharedSceneWidgets.some((item) => item.id === "board-scheme");
+      const needsMarkerSceneUpgrade = !hasLegacyBoardLayout && !hasMarkerScheme;
+      sourceWidgets = hasLegacyBoardLayout || needsMarkerSceneUpgrade
+        ? (sharedSceneWidgets.some((item) => item.id === "board-scheme") ? sharedSceneWidgets : defaultSceneWidgets)
+        : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
+    }
 
     const normalizedWidgets = sourceWidgets
       .filter((item) => allowedIds.has(item.id))
@@ -633,34 +1125,41 @@ export default function DashboardPage() {
           action: defaults.action,
           kind: defaults.kind,
           tone: defaults.tone,
+          src: (item as SceneWidget).src || defaults.src,
         };
-      })
-      .sort((a, b) => a.z - b.z);
+      });
+
+    for (const defaults of defaultSceneWidgets) {
+      if (!normalizedWidgets.some((item) => item.id === defaults.id)) normalizedWidgets.push({ ...defaults });
+    }
+
+    normalizedWidgets.sort((a, b) => a.z - b.z);
 
     setSceneWidgets(normalizedWidgets.length ? normalizedWidgets : defaultSceneWidgets);
-  }, [defaultSceneWidgets, workspace?.workspace?.workspace_id]);
+  }, [defaultSceneWidgets, desktopVariant, sharedSceneReady, sharedSceneWidgets, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined" || !sceneWidgets.length) return;
-    window.localStorage.setItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id), JSON.stringify(sceneWidgets));
-  }, [sceneWidgets, workspace?.workspace?.workspace_id]);
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined" || !sceneWidgets.length) return;
+    window.localStorage.setItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id, desktopVariant), JSON.stringify(sceneWidgets));
+  }, [desktopVariant, sceneWidgets, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(getTrayGuideTextStorageKey(workspace.workspace.workspace_id));
       if (raw && raw.trim()) setTrayGuideText(raw);
+      else if (sharedTrayGuideText) setTrayGuideText(sharedTrayGuideText);
       else setTrayGuideText("Создать новую папку проектов");
     } catch {
-      setTrayGuideText("Создать новую папку проектов");
+      setTrayGuideText(sharedTrayGuideText || "Создать новую папку проектов");
     }
-  }, [workspace?.workspace?.workspace_id]);
+  }, [sharedSceneReady, sharedTrayGuideText, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
     window.localStorage.setItem(getTrayGuideTextStorageKey(workspace.workspace.workspace_id), trayGuideText);
-  }, [trayGuideText, workspace?.workspace?.workspace_id]);
+  }, [sharedSceneReady, trayGuideText, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -686,13 +1185,37 @@ export default function DashboardPage() {
   }, []);
 
   const updateDeskItem = useCallback((id: string, patch: Partial<DeskPosition>) => {
-    setDeskPositions((prev) => ({
-      ...prev,
-      [id]: {
+    setDeskPositions((prev) => {
+      const current = {
         ...(prev[id] || { x: 48, y: 48, z: deskLayer + 1 }),
         ...patch,
-      },
-    }));
+      } as DeskPosition;
+
+      if (id.startsWith("project:")) {
+        const itemWidth = current.width || DESK_SHEET_WIDTH;
+        const itemHeight = current.height || DESK_SHEET_HEIGHT;
+        const minX = -itemWidth * 0.5;
+        const minY = -itemHeight * 0.5;
+        const maxX = DESK_WIDTH - itemWidth * 0.5;
+        const maxY = DESK_HEIGHT - itemHeight * 0.5;
+        const panelPosition = (prev[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION) as DeskPosition;
+        const blockedRect = getDeskRect(
+          panelPosition,
+          panelPosition.width || DEFAULT_LAPTOP_PANEL_POSITION.width || 226,
+          panelPosition.height || DEFAULT_LAPTOP_PANEL_POSITION.height || 132,
+          6,
+        );
+        const nextRect = { left: current.x ?? 0, top: current.y ?? 0, right: (current.x ?? 0) + itemWidth, bottom: (current.y ?? 0) + itemHeight };
+        const safe = keepRectOutOfBlockedZone(nextRect, blockedRect, { minX, minY, maxX, maxY });
+        current.x = safe.x;
+        current.y = safe.y;
+      }
+
+      return {
+        ...prev,
+        [id]: current,
+      };
+    });
   }, [deskLayer]);
 
   const showTemplateFeedback = useCallback((kind: "success" | "error", text: string) => {
@@ -709,6 +1232,71 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const buildCurrentSceneStandard = useCallback(() => ({
+    positions: {
+      ...sharedDeskPositions,
+      ...pickGlobalDeskTemplates(deskPositions),
+      ...(deskPositions[TRAY_GUIDE_ID] ? { [TRAY_GUIDE_ID]: deskPositions[TRAY_GUIDE_ID] } : {}),
+      ...(deskPositions[TRASH_GUIDE_ID] ? { [TRASH_GUIDE_ID]: deskPositions[TRASH_GUIDE_ID] } : {}),
+      ...(deskPositions[ROOM_SWITCH_STANDARD_ID] ? { [ROOM_SWITCH_STANDARD_ID]: deskPositions[ROOM_SWITCH_STANDARD_ID] } : {}),
+      ...(deskPositions[LAPTOP_DEVICE_ID] ? { [LAPTOP_DEVICE_ID]: deskPositions[LAPTOP_DEVICE_ID] } : {}),
+      ...(deskPositions[LAPTOP_PANEL_ID] ? { [LAPTOP_PANEL_ID]: deskPositions[LAPTOP_PANEL_ID] } : {}),
+    },
+    widgets: sceneWidgets.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      text: item.text,
+      src: item.src,
+      action: item.action,
+      tone: item.tone,
+      x: item.x,
+      y: item.y,
+      width: item.width,
+      height: item.height,
+      rotation: item.rotation,
+      fontSize: item.fontSize,
+      z: item.z,
+    })),
+    trayGuideText,
+  }), [deskPositions, sceneWidgets, sharedDeskPositions, trayGuideText]);
+
+  const saveSceneStandardForAll = useCallback(async () => {
+    if (!session?.access_token || !canManageGlobalTemplates) {
+      showTemplateFeedback("error", "Недостаточно прав для сохранения общего шаблона сцены");
+      return;
+    }
+
+    const standardPayload = buildCurrentSceneStandard();
+    try {
+      const resp = await fetch("/api/commercial/scene-template", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          standard: standardPayload,
+          positions: standardPayload.positions,
+          widgets: standardPayload.widgets,
+          trayGuideText: standardPayload.trayGuideText,
+          templates: pickGlobalDeskTemplates(deskPositions),
+        }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить общий шаблон сцены");
+      const parsedStandard = pickSceneStandard(json?.standard || json || {});
+      const sharedPositions = (parsedStandard.positions || {}) as DeskPositions;
+      const sharedWidgets = (parsedStandard.widgets || []) as SceneWidget[];
+      setSharedDeskPositions(sharedPositions);
+      setSharedSceneWidgets(sharedWidgets);
+      setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      writeGlobalDeskTemplates(sharedPositions);
+      showTemplateFeedback("success", "Сохранён общий шаблон рабочего стола");
+    } catch (e: any) {
+      showTemplateFeedback("error", e?.message || "Не удалось сохранить общий шаблон сцены");
+    }
+  }, [buildCurrentSceneStandard, canManageGlobalTemplates, deskPositions, session?.access_token, showTemplateFeedback]);
+
   const saveDeskItemAsTemplate = useCallback(async (itemId: string, kind: "folder" | "project") => {
     const source = deskPositions[itemId];
     if (!source) {
@@ -718,9 +1306,9 @@ export default function DashboardPage() {
 
     const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
     const templatePatch: DeskPosition = {
-      x: deskPositions[templateId]?.x ?? source.x ?? 0,
-      y: deskPositions[templateId]?.y ?? source.y ?? 0,
-      z: deskPositions[templateId]?.z ?? source.z ?? 0,
+      x: (deskPositions[templateId]?.x ?? source.x ?? 0),
+      y: (deskPositions[templateId]?.y ?? source.y ?? 0),
+      z: (deskPositions[templateId]?.z ?? source.z ?? 0),
       ...(source.width !== undefined ? { width: source.width } : {}),
       ...(source.height !== undefined ? { height: source.height } : {}),
       ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
@@ -747,10 +1335,23 @@ export default function DashboardPage() {
     setDeskPositions(nextDeskPositions);
     writeGlobalDeskTemplates(nextDeskPositions);
 
-    if (!session?.access_token || !isAdmin) {
+    if (!session?.access_token || !canManageGlobalTemplates) {
       showTemplateFeedback("success", `Шаблон ${kind === "folder" ? "папок" : "листов"} сохранён локально`);
       return;
     }
+
+    const standardPayload = {
+      ...buildCurrentSceneStandard(),
+      positions: {
+        ...buildCurrentSceneStandard().positions,
+        ...pickGlobalDeskTemplates(nextDeskPositions),
+        ...(nextDeskPositions[TRAY_GUIDE_ID] ? { [TRAY_GUIDE_ID]: nextDeskPositions[TRAY_GUIDE_ID] } : {}),
+        ...(nextDeskPositions[TRASH_GUIDE_ID] ? { [TRASH_GUIDE_ID]: nextDeskPositions[TRASH_GUIDE_ID] } : {}),
+        ...(nextDeskPositions[ROOM_SWITCH_STANDARD_ID] ? { [ROOM_SWITCH_STANDARD_ID]: nextDeskPositions[ROOM_SWITCH_STANDARD_ID] } : {}),
+        ...(nextDeskPositions[LAPTOP_DEVICE_ID] ? { [LAPTOP_DEVICE_ID]: nextDeskPositions[LAPTOP_DEVICE_ID] } : {}),
+        ...(nextDeskPositions[LAPTOP_PANEL_ID] ? { [LAPTOP_PANEL_ID]: nextDeskPositions[LAPTOP_PANEL_ID] } : {}),
+      },
+    };
 
     try {
       const resp = await fetch("/api/commercial/scene-template", {
@@ -759,20 +1360,30 @@ export default function DashboardPage() {
           "content-type": "application/json",
           authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ templates: pickGlobalDeskTemplates(nextDeskPositions) }),
+        body: JSON.stringify({
+          standard: standardPayload,
+          positions: standardPayload.positions,
+          widgets: standardPayload.widgets,
+          trayGuideText: standardPayload.trayGuideText,
+          templates: pickGlobalDeskTemplates(nextDeskPositions),
+        }),
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) {
         throw new Error(json?.error || "Не удалось сохранить общий стандарт");
       }
-      const shared = pickGlobalDeskTemplates(json?.templates || nextDeskPositions) as DeskPositions;
-      setSharedDeskTemplates(shared);
-      writeGlobalDeskTemplates(shared);
-      showTemplateFeedback("success", `Стандарт ${kind === "folder" ? "папок" : "листов"} сохранён для всех пользователей`);
+      const parsedStandard = pickSceneStandard(json?.standard || json || {});
+      const sharedPositions = (parsedStandard.positions || {}) as DeskPositions;
+      const sharedWidgets = (parsedStandard.widgets || []) as SceneWidget[];
+      setSharedDeskPositions(sharedPositions);
+      setSharedSceneWidgets(sharedWidgets);
+      setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      writeGlobalDeskTemplates(sharedPositions);
+      showTemplateFeedback("success", `Сохранён общий стандарт сцены: ${kind === "folder" ? "папки" : "листы"}, стойка и кнопки`);
     } catch (e: any) {
       showTemplateFeedback("error", e?.message || "Не удалось сохранить общий стандарт");
     }
-  }, [deskPositions, isAdmin, session?.access_token, showTemplateFeedback]);
+  }, [buildCurrentSceneStandard, canManageGlobalTemplates, deskPositions, sceneWidgets, session?.access_token, showTemplateFeedback, trayGuideText]);
 
   const applyDeskTemplateToExistingItems = useCallback((kind: "folder" | "project") => {
     const templateId = kind === "folder" ? FOLDER_TEMPLATE_ID : PROJECT_TEMPLATE_ID;
@@ -875,9 +1486,10 @@ export default function DashboardPage() {
         return;
       }
       if (current.mode === "resize") {
+        const isImageWidget = current.widget.kind === "image";
         updateSceneWidget(current.id, {
-          width: clampDesk(current.widget.width + dx, 110, 520),
-          height: clampDesk(current.widget.height + dy, 30, 180),
+          width: clampDesk(current.widget.width + dx, isImageWidget ? 280 : 110, isImageWidget ? DESK_WIDTH - 20 : 520),
+          height: clampDesk(current.widget.height + dy, isImageWidget ? 180 : 30, isImageWidget ? DESK_HEIGHT - 10 : 180),
         });
         return;
       }
@@ -905,21 +1517,52 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!sceneEditMode) return;
     const handleMove = (e: MouseEvent) => {
+      const currentSwitch = roomSwitchInteractionRef.current;
+      if (currentSwitch) {
+        const dx = e.clientX - currentSwitch.startX;
+        const dy = e.clientY - currentSwitch.startY;
+        if (!currentSwitch.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) currentSwitch.moved = true;
+        setRoomSwitchPosition({
+          x: clampDesk(currentSwitch.startLeft + dx, 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
+          y: clampDesk(currentSwitch.startTop + dy, 0, DESK_HEIGHT - DEFAULT_ROOM_SWITCH_ZONE.height),
+          width: DEFAULT_ROOM_SWITCH_ZONE.width,
+          height: DEFAULT_ROOM_SWITCH_ZONE.height,
+        });
+        return;
+      }
       const current = deskInteractionRef.current;
       if (!current) return;
       const dx = e.clientX - current.startX;
       const dy = e.clientY - current.startY;
       const isFolder = current.kind === "folder";
       const isGuide = current.kind === "guide";
-      const defaultWidth = isGuide ? (current.position.width ?? 228) : isFolder ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH;
-      const defaultHeight = isGuide ? (current.position.height ?? 104) : isFolder ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT;
+      const isDevice = current.kind === "device";
+      const isPanel = current.kind === "panel";
+      const defaultWidth = isPanel
+        ? (current.position.width ?? DEFAULT_LAPTOP_PANEL_POSITION.width ?? 226)
+        : isDevice
+          ? (current.position.width ?? DEFAULT_LAPTOP_POSITION.width ?? 372)
+          : isGuide
+            ? (current.position.width ?? 228)
+            : isFolder
+              ? DESK_FOLDER_WIDTH
+              : DESK_SHEET_WIDTH;
+      const defaultHeight = isPanel
+        ? (current.position.height ?? DEFAULT_LAPTOP_PANEL_POSITION.height ?? 132)
+        : isDevice
+          ? (current.position.height ?? DEFAULT_LAPTOP_POSITION.height ?? 248)
+          : isGuide
+            ? (current.position.height ?? 104)
+            : isFolder
+              ? DESK_FOLDER_HEIGHT
+              : DESK_SHEET_HEIGHT;
       const baseWidth = current.position.width ?? defaultWidth;
       const baseHeight = current.position.height ?? defaultHeight;
       if (current.mode === "drag") {
-        const minX = current.kind === "project" ? -baseWidth * 0.5 : 0;
-        const minY = current.kind === "project" ? -baseHeight * 0.5 : 0;
-        const maxX = current.kind === "project" ? DESK_WIDTH - baseWidth * 0.5 : DESK_WIDTH - baseWidth;
-        const maxY = current.kind === "project" ? DESK_HEIGHT - baseHeight * 0.5 : DESK_HEIGHT - baseHeight;
+        const minX = current.kind === "project" ? -baseWidth * 0.5 : isDevice ? -baseWidth * 0.2 : 0;
+        const minY = current.kind === "project" ? -baseHeight * 0.5 : isDevice ? -baseHeight * 0.12 : 0;
+        const maxX = current.kind === "project" ? DESK_WIDTH - baseWidth * 0.5 : isDevice ? DESK_WIDTH - baseWidth * 0.8 : DESK_WIDTH - baseWidth;
+        const maxY = current.kind === "project" ? DESK_HEIGHT - baseHeight * 0.5 : isDevice ? DESK_HEIGHT - baseHeight * 0.8 : DESK_HEIGHT - baseHeight;
         updateDeskItem(current.id, {
           x: clampDesk((current.position.x ?? 0) + dx, minX, maxX),
           y: clampDesk((current.position.y ?? 0) + dy, minY, maxY),
@@ -928,14 +1571,16 @@ export default function DashboardPage() {
       }
       if (current.mode === "resize") {
         updateDeskItem(current.id, {
-          width: clampDesk(baseWidth + dx, isGuide ? 120 : isFolder ? 120 : 140, isGuide ? 420 : isFolder ? 280 : 320),
-          height: clampDesk(baseHeight + dy, isGuide ? 48 : isFolder ? 100 : 110, isGuide ? 220 : isFolder ? 260 : 320),
+          width: clampDesk(baseWidth + dx, isPanel ? 180 : isDevice ? 260 : isGuide ? 120 : isFolder ? 120 : 140, isPanel ? 420 : isDevice ? 560 : isGuide ? 420 : isFolder ? 280 : 320),
+          height: clampDesk(baseHeight + dy, isPanel ? 110 : isDevice ? 160 : isGuide ? 48 : isFolder ? 100 : 110, isPanel ? 260 : isDevice ? 360 : isGuide ? 220 : isFolder ? 260 : 320),
         });
         return;
       }
       updateDeskItem(current.id, { rotation: (current.position.rotation ?? 0) + dx * 0.18 });
     };
     const handleUp = () => {
+      if (roomSwitchInteractionRef.current?.moved) suppressRoomSwitchClickRef.current = true;
+      roomSwitchInteractionRef.current = null;
       deskInteractionRef.current = null;
     };
     window.addEventListener('mousemove', handleMove);
@@ -945,11 +1590,6 @@ export default function DashboardPage() {
       window.removeEventListener('mouseup', handleUp);
     };
   }, [sceneEditMode, updateDeskItem]);
-
-  const resetSceneWidgets = useCallback(() => {
-    setSceneWidgets(defaultSceneWidgets);
-    setSelectedWidgetId(null);
-  }, [defaultSceneWidgets]);
 
   const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
   const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
@@ -972,6 +1612,63 @@ export default function DashboardPage() {
     };
   }, [folders, projects]);
 
+  const classicSheetRows = useMemo(() => {
+    const folderRows = folderBuckets.byFolder.map(({ folder, projects: folderProjects }) => ({
+      rowId: `folder:${folder.id}`,
+      kind: "folder" as const,
+      id: folder.id,
+      name: folder.name,
+      goal: `Папка · ${folderProjects.length} ${folderProjects.length === 1 ? "проект" : folderProjects.length >= 2 && folderProjects.length <= 4 ? "проекта" : "проектов"}`,
+      status: "Готова к работе",
+      place: "Рабочий стол",
+      createdAt: folder.created_at,
+    }));
+    const projectRows = projects.map((project) => ({
+      rowId: `project:${project.id}`,
+      kind: "project" as const,
+      id: project.id,
+      name: project.person?.full_name || project.title || "Проект",
+      goal: getGoalDefinition(project.goal)?.title || "Цель не указана",
+      status: project.status === "completed" ? "Оценка собрана" : project.status === "in_progress" ? "В работе" : "Ещё не собрана",
+      place: project.folder_id ? (folders.find((folder) => folder.id === project.folder_id)?.name || "Папка") : "На рабочем столе",
+      createdAt: project.created_at,
+    }));
+    return [...folderRows, ...projectRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [folderBuckets.byFolder, folders, projects]);
+
+  const resetSceneWidgets = useCallback(() => {
+    const workspaceId = workspace?.workspace?.workspace_id;
+    if (workspaceId && typeof window !== "undefined") {
+      window.localStorage.removeItem(getSceneWidgetsStorageKey(workspaceId, desktopVariant));
+      window.localStorage.removeItem(getTrayGuideTextStorageKey(workspaceId));
+      window.localStorage.removeItem(getDeskStorageKey(workspaceId, desktopVariant));
+    }
+
+    const allowedIds = new Set(defaultSceneWidgets.map((item) => item.id));
+    const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
+    const baseWidgets = desktopVariant === "scheme" && sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets;
+    const normalizedWidgets = baseWidgets
+      .filter((item) => allowedIds.has(item.id))
+      .map((item) => {
+        const defaults = defaultsById.get(item.id);
+        if (!defaults) return item;
+        return {
+          ...item,
+          text: defaults.text,
+          action: defaults.action,
+          kind: defaults.kind,
+          tone: defaults.tone,
+        };
+      })
+      .sort((a, b) => a.z - b.z);
+
+    setSceneWidgets(normalizedWidgets.length ? normalizedWidgets : defaultSceneWidgets);
+    setTrayGuideText(sharedTrayGuideText || "Создать новую папку проектов");
+    setDeskPositions(mergeDeskPositions(folders, folderBuckets.uncategorized, { ...sharedDeskPositions, ...readGlobalDeskTemplates() }));
+    setSelectedWidgetId(null);
+    setSelectedDeskItemId(null);
+  }, [defaultSceneWidgets, desktopVariant, folderBuckets.uncategorized, folders, sharedDeskPositions, sharedSceneWidgets, sharedTrayGuideText, workspace?.workspace?.workspace_id]);
+
   const activeFolder = useMemo(
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,
     [activeFolderId, folderBuckets.byFolder]
@@ -987,6 +1684,12 @@ export default function DashboardPage() {
     }
     if (selectedDeskItemId === TRASH_GUIDE_ID) {
       return { kind: "guide" as const, id: selectedDeskItemId, title: "Виртуальная зона корзины", position: deskPositions[selectedDeskItemId] || getDefaultTrashGuidePosition() };
+    }
+    if (selectedDeskItemId === LAPTOP_DEVICE_ID) {
+      return { kind: "device" as const, id: selectedDeskItemId, title: "Ноутбук на столе", position: deskPositions[selectedDeskItemId] || DEFAULT_LAPTOP_POSITION };
+    }
+    if (selectedDeskItemId === LAPTOP_PANEL_ID) {
+      return { kind: "panel" as const, id: selectedDeskItemId, title: "Панель ноутбука", position: deskPositions[selectedDeskItemId] || DEFAULT_LAPTOP_PANEL_POSITION };
     }
     if (selectedDeskItemId.startsWith("folder:")) {
       const id = selectedDeskItemId.replace("folder:", "");
@@ -1016,12 +1719,13 @@ export default function DashboardPage() {
   }, [previewProject, projects]);
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id) return;
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
     const saved = typeof window !== "undefined"
       ? (() => {
           try {
-            const raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id));
-            return raw ? (JSON.parse(raw) as DeskPositions) : {};
+            const raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant));
+            const parsed = raw ? (JSON.parse(raw) as DeskPositions) : {};
+            return stripSharedScenePositions(parsed);
           } catch {
             return {} as DeskPositions;
           }
@@ -1029,17 +1733,18 @@ export default function DashboardPage() {
       : ({} as DeskPositions);
     const globalTemplates = readGlobalDeskTemplates();
 
-    setDeskPositions((current) => {
-      const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...globalTemplates, ...saved, ...current, ...sharedDeskTemplates });
-      setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
-      return merged;
-    });
-  }, [workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, sharedDeskTemplates]);
+    const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...sharedDeskPositions, ...globalTemplates, ...saved });
+    setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
+    setDeskPositions(merged);
+  }, [desktopVariant, workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, sharedDeskPositions]);
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
-    window.localStorage.setItem(getDeskStorageKey(workspace.workspace.workspace_id), JSON.stringify(deskPositions));
-  }, [deskPositions, workspace?.workspace?.workspace_id]);
+    if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
+    window.localStorage.setItem(
+      getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant),
+      JSON.stringify(stripSharedScenePositions(deskPositions))
+    );
+  }, [deskPositions, desktopVariant, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
   function getNextFolderSpawnPosition(folderId: string): DeskPosition {
     const guideRect = getGuideClipRect(deskPositions[TRAY_GUIDE_ID]);
@@ -1119,8 +1824,20 @@ export default function DashboardPage() {
     const minY = kind === "project" ? -itemHeight * 0.5 : 24;
     const maxX = kind === "project" ? DESK_WIDTH - itemWidth * 0.5 : DESK_WIDTH - itemWidth - 24;
     const maxY = kind === "project" ? DESK_HEIGHT - itemHeight * 0.5 : DESK_HEIGHT - itemHeight - 24;
-    const nextX = clampDesk(x, minX, maxX);
-    const nextY = clampDesk(y, minY, maxY);
+    let nextX = clampDesk(x, minX, maxX);
+    let nextY = clampDesk(y, minY, maxY);
+
+    if (kind === "project") {
+      const blockedRect = getDeskRect(
+        laptopPanelPosition,
+        laptopPanelPosition.width || DEFAULT_LAPTOP_PANEL_POSITION.width || 226,
+        laptopPanelPosition.height || DEFAULT_LAPTOP_PANEL_POSITION.height || 132,
+        6,
+      );
+      const safe = keepRectOutOfBlockedZone({ left: nextX, top: nextY, right: nextX + itemWidth, bottom: nextY + itemHeight }, blockedRect, { minX, minY, maxX, maxY });
+      nextX = safe.x;
+      nextY = safe.y;
+    }
 
     if (kind === "folder") {
       const folderId = itemId.replace("folder:", "");
@@ -1156,7 +1873,7 @@ export default function DashboardPage() {
         rotation: current.rotation,
       },
     }));
-  }, [deskLayer, deskPositions, folders, isInsideGuideRect]);
+  }, [deskLayer, deskPositions, folders, isInsideGuideRect, laptopPanelPosition]);
 
   const handleDeskDrop = useCallback((e: any) => {
     e.preventDefault();
@@ -1442,6 +2159,10 @@ export default function DashboardPage() {
     );
   }
 
+  const deskPositionsReady = Object.keys(deskPositions).length > 0;
+  const sceneWidgetsReady = sceneWidgets.length > 0;
+  const dashboardBootPending = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || !sceneWidgetsReady || !deskPositionsReady;
+
   const trayFolders = folderBuckets.byFolder.filter(({ folder }, index) => {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return isInsideGuideRect(pos.x, pos.y);
@@ -1451,35 +2172,220 @@ export default function DashboardPage() {
     return !isInsideGuideRect(pos.x, pos.y);
   });
 
+  if (dashboardBootPending) {
+    return (
+      <Layout title="Кабинет специалиста">
+        <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="h-10 w-[150px] animate-pulse rounded-2xl bg-[#ede6da]" />
+            <div className="h-10 w-[190px] animate-pulse rounded-2xl bg-[#ede6da]" />
+          </div>
+          <div className="rounded-[28px] border border-white/75 bg-white/70 p-4 shadow-[0_24px_44px_-30px_rgba(54,35,19,0.22)] backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-[28px] border border-[#eadfce] bg-[linear-gradient(180deg,#f7f1e8_0%,#f2ebe2_100%)]" style={{ minHeight: 760 }}>
+              <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.55))]" />
+              <div className="absolute left-[18px] top-[18px] h-14 w-40 rounded-[18px] bg-white/80" />
+              <div className="absolute right-[26px] top-[26px] h-14 w-52 rounded-[18px] bg-white/80" />
+              <div className="absolute inset-x-[14px] top-[70px] bottom-[18px] rounded-[26px] border border-white/70 bg-white/45" />
+              <div className="absolute left-[55px] bottom-[42px] h-20 w-[72%] rounded-[22px] bg-white/78" />
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (desktopVariant === "classic") {
+    return (
+      <Layout title="Кабинет специалиста">
+        <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
+              <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Рабочий стол</button>
+              <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
+          </div>
+
+          {canEditScene && sceneEditMode && selectedDeskItem ? (
+            <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">
+              <div className="mb-3 text-sm font-semibold text-[#55361f]">Объект · {selectedDeskItem.title}</div>
+              <div className="grid gap-3 md:grid-cols-7">
+                <label className="text-xs text-[#7b5b3b]">X
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.x || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { x: Number(e.target.value || 0) })} />
+                </label>
+                <label className="text-xs text-[#7b5b3b]">Y
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.y || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { y: Number(e.target.value || 0) })} />
+                </label>
+                <label className="text-xs text-[#7b5b3b]">Ширина
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "folder" ? 96 : 92))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
+                </label>
+                <label className="text-xs text-[#7b5b3b]">Высота
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "folder" ? 96 : 104))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
+                </label>
+                <label className="text-xs text-[#7b5b3b]">Поворот Z
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.rotation || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { rotation: Number(e.target.value || 0) })} />
+                </label>
+                <label className="text-xs text-[#7b5b3b]">Поворот X
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.tiltX || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { tiltX: Number(e.target.value || 0) })} />
+                </label>
+                <label className="text-xs text-[#7b5b3b]">Поворот Y
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.tiltY || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { tiltY: Number(e.target.value || 0) })} />
+                </label>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="dashboard-classic-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#d4d9e4] bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.14)]" onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+            <div className="dashboard-classic-surface absolute inset-0" />
+            {classicViewMode === "sheet" ? (
+              <div className="absolute inset-0 z-[2] p-5">
+                <div className="h-full overflow-auto rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                  <div className="sticky top-0 z-[3] grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] border-b border-[#d5deea] bg-[linear-gradient(180deg,#eff4fa_0%,#dde7f3_100%)] text-[11px] font-semibold uppercase tracking-[0.22em] text-[#5f7992]">
+                    <div className="px-4 py-3">Тип</div>
+                    <div className="px-4 py-3">Название</div>
+                    <div className="px-4 py-3">Цель / состав</div>
+                    <div className="px-4 py-3">Статус</div>
+                    <div className="px-4 py-3">Расположение</div>
+                    <div className="px-4 py-3 text-right">Действие</div>
+                  </div>
+                  <div className="divide-y divide-[#dde6f0]">
+                    {classicSheetRows.map((row, index) => (
+                      <div key={row.rowId} className={`grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] text-[13px] text-[#24384b] ${index % 2 === 0 ? "bg-white/82" : "bg-[#f5f9fd]/90"}`}>
+                        <div className="px-4 py-3 font-semibold text-[#5d7691]">{row.kind === "folder" ? "Папка" : "Проект"}</div>
+                        <div className="px-4 py-3">
+                          <div className="font-semibold leading-[1.25] text-[#1f3142]">{row.name}</div>
+                        </div>
+                        <div className="px-4 py-3 text-[#516679]">{row.goal}</div>
+                        <div className="px-4 py-3 text-[#516679]">{row.status}</div>
+                        <div className="px-4 py-3 text-[#516679]">{row.place}</div>
+                        <div className="flex items-center justify-end gap-2 px-4 py-3">
+                          {row.kind === "folder" ? (
+                            <>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveFolderId(row.id)}>Открыть</button>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const folder = folders.find((item) => item.id === row.id); if (folder) setFolderActionTarget(folder); }}>...</button>
+                            </>
+                          ) : (
+                            <>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const project = projects.find((item) => item.id === row.id); if (project) setPreviewProject(project); }}>Открыть</button>
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void deleteProject(row.id)}>Удалить</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+            {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
+              const itemId = `folder:${folder.id}`;
+              const position = deskPositions[itemId] || getClassicFolderPosition(folderIndex);
+              const width = position.width || 104;
+              const height = position.height || 108;
+              const isSelected = selectedDeskItemId === itemId;
+              return (
+                <div key={folder.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px` }}>
+                  <FolderDesktopIcon
+                    variant="classic"
+                    folder={folder}
+                    projects={folderProjects}
+                    busy={busyFolderId === folder.id}
+                    onOpen={() => setActiveFolderId(folder.id)}
+                    onManage={() => setFolderActionTarget(folder)}
+                    onDropProject={(projectId) => moveProject(projectId, folder.id)}
+                    draggingProjectId={draggingProjectId}
+                    sceneEditMode={sceneEditMode}
+                    selected={isSelected}
+                    onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
+                    onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "resize", position)}
+                    onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "rotate", position)}
+                    onDragMoveStart={(e) => startDeskItemInteraction(e, itemId, "folder", "drag", position)}
+                    onDragStart={() => { setDraggingFolderId(folder.id); bringDeskItemToFront(itemId); }}
+                    onDragEnd={() => setDraggingFolderId(null)}
+                  />
+                </div>
+              );
+            })}
+
+            {folderBuckets.uncategorized.map((project, projectIndex) => {
+              const itemId = `project:${project.id}`;
+              const position = deskPositions[itemId] || getClassicProjectPosition(projectIndex);
+              const width = position.width || 96;
+              const height = position.height || 112;
+              const isSelected = selectedDeskItemId === itemId;
+              return (
+                <div key={project.id} className="absolute" style={{ left: position.x, top: position.y, zIndex: position.z, width: `${width}px`, height: `${height}px` }}>
+                  <ProjectDesktopIcon
+                    variant="classic"
+                    project={project}
+                    busy={busyFolderId === `delete:${project.id}`}
+                    sceneEditMode={sceneEditMode}
+                    selected={isSelected}
+                    onSelect={() => { setSelectedDeskItemId(itemId); setSelectedWidgetId(null); }}
+                    onResizeHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "project", "resize", position)}
+                    onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "project", "rotate", position)}
+                    onDragMoveStart={(e) => startDeskItemInteraction(e, itemId, "project", "drag", position)}
+                    onOpen={() => setPreviewProject(project)}
+                    onDragStart={() => { setDraggingProjectId(project.id); bringDeskItemToFront(itemId); }}
+                    onDragEnd={() => { setDraggingProjectId(null); clearTrashHover(); }}
+                    onDelete={() => deleteProject(project.id)}
+                  />
+                </div>
+              );
+            })}
+              </>
+            )}
+          </div>
+
+          {activeFolder ? (
+            <FolderModal
+              folder={activeFolder.folder}
+              projects={activeFolder.projects}
+              busy={busyFolderId === activeFolder.folder.id}
+              onClose={() => setActiveFolderId(null)}
+              onManage={() => setFolderActionTarget(activeFolder.folder)}
+              onOpenProject={(projectId) => {
+                const project = activeFolder.projects.find((item) => item.id === projectId);
+                if (project) setPreviewProject(project);
+              }}
+              onMoveToDesktop={(projectId) => moveProject(projectId, null)}
+              onDeleteProject={deleteProject}
+            />
+          ) : null}
+
+          {previewProject ? (
+            <ProjectSheetPreviewModal
+              project={previewProject}
+              onClose={() => setPreviewProject(null)}
+              onOpenFull={() => router.push(`/projects/${previewProject.id}`)}
+            />
+          ) : null}
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout title="Кабинет специалиста">
       <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
         {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7a5b37]">Кабинет специалиста</div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-xl font-semibold text-[#2c1b10]">{displayName}</span>
-              <span className="text-sm text-[#6a4b31]">{workspaceName}</span>
-              <span className="text-sm text-[#8b6a48]">{data?.profile?.email || user.email || "email не указан"}</span>
-            </div>
-          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="dashboard-desk-meta-pill">Баланс: {balanceText}</span>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => router.push('/assessments')}>Каталог тестов</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>Новая папка</button>
-            {canEditScene ? (
-              <>
-                <button type="button" className={`btn btn-sm ${sceneEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setSceneEditMode((prev) => !prev)}>
-                  {sceneEditMode ? "Выйти из конструктора" : "Режим конструктора"}
-                </button>
-                {sceneEditMode ? (
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={resetSceneWidgets}>Сбросить сцену</button>
-                ) : null}
-              </>
-            ) : null}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
+            >
+              {desktopVariant === "scheme" ? "Рабочий стол" : "Схема на доске"}
+            </button>
           </div>
+          <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
         </div>
 
         {canEditScene && sceneEditMode && selectedWidget ? (
@@ -1501,12 +2407,20 @@ export default function DashboardPage() {
               <label className="text-xs text-[#7b5b3b] md:col-span-1">Поворот
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={selectedWidget.rotation} onChange={(e) => updateSceneWidget(selectedWidget.id, { rotation: Number(e.target.value || 0) })} />
               </label>
-              <label className="text-xs text-[#7b5b3b] md:col-span-1">Шрифт
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={selectedWidget.fontSize} onChange={(e) => updateSceneWidget(selectedWidget.id, { fontSize: Number(e.target.value || 0) })} />
-              </label>
-              <label className="text-xs text-[#7b5b3b] md:col-span-2">Текст
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={selectedWidget.text} onChange={(e) => updateSceneWidget(selectedWidget.id, { text: e.target.value })} />
-              </label>
+              {selectedWidget.kind !== "image" ? (
+                <>
+                  <label className="text-xs text-[#7b5b3b] md:col-span-1">Шрифт
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={selectedWidget.fontSize} onChange={(e) => updateSceneWidget(selectedWidget.id, { fontSize: Number(e.target.value || 0) })} />
+                  </label>
+                  <label className="text-xs text-[#7b5b3b] md:col-span-2">Текст
+                    <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="text" value={selectedWidget.text} onChange={(e) => updateSceneWidget(selectedWidget.id, { text: e.target.value })} />
+                  </label>
+                </>
+              ) : (
+                <label className="text-xs text-[#7b5b3b] md:col-span-3">Изображение
+                  <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] bg-[#f8f3ea] px-3 py-2 text-sm text-[#7b5b3b]" type="text" value={selectedWidget.src || ""} readOnly />
+                </label>
+              )}
             </div>
           </div>
         ) : null}
@@ -1522,10 +2436,10 @@ export default function DashboardPage() {
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.y || 0)} onChange={(e) => updateDeskItem(selectedDeskItem.id, { y: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Ширина
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "guide" ? 228 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.width || (selectedDeskItem.kind === "panel" ? (DEFAULT_LAPTOP_PANEL_POSITION.width || 226) : selectedDeskItem.kind === "device" ? (DEFAULT_LAPTOP_POSITION.width || 372) : selectedDeskItem.kind === "guide" ? 228 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_WIDTH : DESK_SHEET_WIDTH))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { width: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Высота
-                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "guide" ? 104 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
+                <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={Math.round(selectedDeskItem.position.height || (selectedDeskItem.kind === "panel" ? (DEFAULT_LAPTOP_PANEL_POSITION.height || 132) : selectedDeskItem.kind === "device" ? (DEFAULT_LAPTOP_POSITION.height || 248) : selectedDeskItem.kind === "guide" ? 104 : selectedDeskItem.kind === "folder" ? DESK_FOLDER_HEIGHT : DESK_SHEET_HEIGHT))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { height: Number(e.target.value || 0) })} />
               </label>
               <label className="text-xs text-[#7b5b3b]">Поворот Z
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={Number((selectedDeskItem.position.rotation || 0).toFixed(1))} onChange={(e) => updateDeskItem(selectedDeskItem.id, { rotation: Number(e.target.value || 0) })} />
@@ -1570,7 +2484,7 @@ export default function DashboardPage() {
                 </>
               ) : null}
             </div>
-            {selectedDeskItem.kind !== "guide" ? (
+            {selectedDeskItem.kind === "folder" || selectedDeskItem.kind === "project" ? (
               <div className="mt-3 border-t border-[#ead9c2] pt-3">
                 {templateFeedback ? (
                   <div
@@ -1588,7 +2502,7 @@ export default function DashboardPage() {
                   className="btn btn-secondary btn-sm"
                   onClick={() => saveDeskItemAsTemplate(selectedDeskItem.id, selectedDeskItem.kind)}
                 >
-                  {isAdmin ? "Сохранить стандарт для всех " : "Сохранить шаблон для всех "}{selectedDeskItem.kind === "folder" ? "папок" : "листов"}
+                  Сохранить шаблон для всех {selectedDeskItem.kind === "folder" ? "папок" : "листов"}
                 </button>
                 <button
                   type="button"
@@ -1609,8 +2523,121 @@ export default function DashboardPage() {
         <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
           <div className="dashboard-office-scene-backdrop absolute inset-0" />
           <div className="dashboard-office-scene-vignette absolute inset-0" />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-[160] transition-opacity duration-300"
+            style={{
+              opacity: isRoomLightDimmed ? 1 : 0,
+              background: "radial-gradient(circle at 50% 14%, rgba(26, 23, 18, 0.2) 0%, rgba(10, 10, 14, 0.84) 56%, rgba(3, 4, 7, 0.94) 100%)",
+            }}
+          />
 
-          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden" onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+          <button
+            type="button"
+            className="absolute z-[182] flex items-start justify-start transition-[transform,opacity] duration-200"
+            style={{
+              left: `${roomSwitchPosition.x}px`,
+              top: `${roomSwitchPosition.y}px`,
+              width: `${roomSwitchPosition.width}px`,
+              height: `${roomSwitchPosition.height}px`,
+              cursor: sceneEditMode ? "grab" : "pointer",
+              opacity: isRoomLightDimmed ? 0.9 : 0.98,
+              transform: sceneEditMode ? "translateZ(0)" : "none",
+            }}
+            onMouseDown={(e) => {
+              if (!sceneEditMode || !canEditScene) return;
+              e.preventDefault();
+              e.stopPropagation();
+              suppressRoomSwitchClickRef.current = false;
+              setSelectedWidgetId(null);
+              setSelectedDeskItemId(null);
+              roomSwitchInteractionRef.current = {
+                startX: e.clientX,
+                startY: e.clientY,
+                startLeft: roomSwitchPosition.x,
+                startTop: roomSwitchPosition.y,
+                moved: false,
+              };
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (suppressRoomSwitchClickRef.current) {
+                suppressRoomSwitchClickRef.current = false;
+                return;
+              }
+              toggleRoomLight();
+            }}
+            aria-label={isRoomLightDimmed ? "Включить основной свет" : "Приглушить основной свет"}
+            aria-pressed={isRoomLightDimmed}
+            title={sceneEditMode ? "Перетащи выключатель или кликни, чтобы переключить свет" : isRoomLightDimmed ? "Включить основной свет" : "Приглушить основной свет"}
+          >
+            <span
+              className="pointer-events-none relative block transition-all duration-300"
+              style={{
+                width: "118px",
+                height: "78px",
+                filter: isRoomLightDimmed
+                  ? "brightness(0.58) saturate(0.84) contrast(0.96)"
+                  : "brightness(1) saturate(1.02) contrast(1)",
+                transform: isRoomLightDimmed ? "translateY(2px) scale(0.992)" : "translateY(0) scale(1)",
+              }}
+            >
+              <img
+                src="/room-light-switch-office.png"
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="h-full w-full object-contain"
+                style={{
+                  filter: isRoomLightDimmed
+                    ? "drop-shadow(0 6px 16px rgba(6, 6, 10, 0.34)) drop-shadow(0 0 6px rgba(255, 213, 145, 0.08))"
+                    : "drop-shadow(0 10px 18px rgba(24, 17, 11, 0.24))",
+                }}
+              />
+              {sceneEditMode ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-[18px] border border-dashed border-white/28"
+                  style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)" }}
+                />
+              ) : null}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className="absolute z-[181] transition-all duration-200"
+            style={{
+              left: `${ROOM_DIM_HOTSPOT.x}px`,
+              top: `${ROOM_DIM_HOTSPOT.y}px`,
+              width: `${ROOM_DIM_HOTSPOT.width}px`,
+              minHeight: `${ROOM_DIM_HOTSPOT.height}px`,
+              borderRadius: sceneEditMode ? "28px" : "32px",
+              border: sceneEditMode ? `1.5px dashed ${isRoomLightDimmed ? "rgba(245, 208, 147, 0.52)" : "rgba(255,255,255,0.36)"}` : "none",
+              background: sceneEditMode ? (isRoomLightDimmed ? "rgba(73, 53, 31, 0.2)" : "rgba(255,255,255,0.05)") : "transparent",
+              boxShadow: sceneEditMode ? "inset 0 0 0 1px rgba(255,255,255,0.06)" : "none",
+              opacity: sceneEditMode ? 1 : 0,
+              pointerEvents: sceneEditMode ? "auto" : "none",
+              backdropFilter: sceneEditMode ? "blur(2px)" : "none",
+              WebkitBackdropFilter: sceneEditMode ? "blur(2px)" : "none",
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleRoomLight();
+            }}
+            aria-label={isRoomLightDimmed ? "Вернуть обычное освещение" : "Приглушить свет на 90%"}
+            title={isRoomLightDimmed ? "Вернуть обычное освещение" : "Приглушить свет на 90%"}
+            tabIndex={sceneEditMode ? 0 : -1}
+          >
+            {sceneEditMode ? (
+              <span className="pointer-events-none absolute inset-0 flex flex-col justify-between rounded-[28px] px-4 py-3 text-left">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/55">Виртуальная зона</span>
+                <span className="text-sm font-semibold text-white/82">{isRoomLightDimmed ? "Вернуть свет" : "Клик — приглушить на 90%"}</span>
+              </span>
+            ) : null}
+          </button>
+
+          <div className="dashboard-office-workzone absolute inset-0 overflow-hidden transition-[filter] duration-300" style={{ filter: isRoomLightDimmed ? "brightness(0.16) saturate(0.7)" : "brightness(1)", willChange: "filter" }} onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
             <div className="absolute inset-0 z-[8]">
               {sceneWidgets.map((widget) => {
                 const isSelected = widget.id === selectedWidgetId;
@@ -1626,10 +2653,12 @@ export default function DashboardPage() {
                       transform: `rotate(${widget.rotation}deg)`,
                       zIndex: widget.z,
                       fontSize: `${widget.fontSize}px`,
+                      pointerEvents: widget.kind === "image" && !sceneEditMode ? "none" : "auto",
                     }}
                     onMouseDown={(e) => startWidgetInteraction(e, widget, "drag")}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (widget.kind === "image" && !sceneEditMode) return;
                       setSelectedWidgetId(widget.id);
                       setSelectedDeskItemId(null);
                       if (!sceneEditMode && widget.kind === "button") handleSceneWidgetAction(widget.action);
@@ -1639,7 +2668,11 @@ export default function DashboardPage() {
                       if (widget.kind === "button") handleSceneWidgetAction(widget.action);
                     }}
                   >
-                    <span className="dashboard-scene-widget-label">{widget.text}</span>
+                    {widget.kind === "image" ? (
+                      <img className="dashboard-scene-widget-image-el" src={widget.src} alt="Схема на доске" draggable={false} />
+                    ) : (
+                      <span className="dashboard-scene-widget-label">{widget.text}</span>
+                    )}
                     {sceneEditMode && isSelected ? (
                       <>
                         <button type="button" className="dashboard-scene-widget-rotate" onMouseDown={(e) => startWidgetInteraction(e, widget, "rotate")} aria-label="Повернуть элемент">↻</button>
@@ -1650,6 +2683,124 @@ export default function DashboardPage() {
                 );
               })}
             </div>
+
+            <div
+              className={`absolute ${selectedDeskItemId === LAPTOP_DEVICE_ID ? "dashboard-desk-entity-selected" : ""}`}
+              style={{
+                left: `${laptopPosition.x}px`,
+                top: `${laptopPosition.y}px`,
+                width: `${laptopPosition.width || DEFAULT_LAPTOP_POSITION.width}px`,
+                height: `${laptopPosition.height || DEFAULT_LAPTOP_POSITION.height}px`,
+                zIndex: laptopPosition.z || DEFAULT_LAPTOP_POSITION.z || 24,
+                transform: `rotate(${laptopPosition.rotation || 0}deg)`,
+                transformOrigin: "center center",
+              }}
+              onMouseDown={(e) => {
+                if (!sceneEditMode) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_DEVICE_ID);
+                setSelectedWidgetId(null);
+                startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "drag", laptopPosition);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_DEVICE_ID);
+                setSelectedWidgetId(null);
+              }}
+            >
+              <img
+                src="/dashboard-laptop-transparent.png"
+                alt="Ноутбук на столе"
+                draggable={false}
+                className="pointer-events-none h-full w-full object-contain"
+                style={{ filter: "drop-shadow(0 26px 28px rgba(5,10,24,0.34))" }}
+              />
+              {sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? (
+                <>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "rotate", laptopPosition)} aria-label="Повернуть ноутбук">↻</button>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "resize", laptopPosition)} aria-label="Изменить размер ноутбука">↘</button>
+                </>
+              ) : null}
+            </div>
+
+            <div
+              className={`absolute ${selectedDeskItemId === LAPTOP_PANEL_ID ? "dashboard-desk-entity-selected" : ""}`}
+              style={{
+                left: `${laptopPanelPosition.x}px`,
+                top: `${laptopPanelPosition.y}px`,
+                width: `${laptopPanelPosition.width || DEFAULT_LAPTOP_PANEL_POSITION.width}px`,
+                height: `${laptopPanelPosition.height || DEFAULT_LAPTOP_PANEL_POSITION.height}px`,
+                zIndex: laptopPanelPosition.z || DEFAULT_LAPTOP_PANEL_POSITION.z || 26,
+                transform: `rotate(${laptopPanelPosition.rotation || 0}deg)`,
+                transformOrigin: "center center",
+              }}
+              onMouseDown={(e) => {
+                if (!sceneEditMode) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_PANEL_ID);
+                setSelectedWidgetId(null);
+                startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "drag", laptopPanelPosition);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedDeskItemId(LAPTOP_PANEL_ID);
+                setSelectedWidgetId(null);
+              }}
+            >
+              <div className="relative h-full w-full overflow-hidden border border-[#8ea8bb] bg-[linear-gradient(180deg,#f3f8fc_0%,#dfe9f2_100%)] text-slate-900 shadow-[0_14px_28px_-18px_rgba(47,76,105,0.28)]">
+                <div className="absolute inset-x-0 top-0 h-[20px] border-b border-[#9eb8cc] bg-[linear-gradient(180deg,#d7ecfd_0%,#9fc2e3_100%)]" />
+                <div className="absolute left-2 top-[5px] flex items-center gap-1.5">
+                  <span className="h-[8px] w-[8px] rounded-[2px] border border-white/70 bg-white/75" />
+                  <span className="h-[8px] w-[22px] rounded-[2px] bg-white/35" />
+                </div>
+                <div className="absolute right-2 top-[4px] flex items-center gap-1">
+                  <span className="h-[10px] w-[10px] border border-white/55 bg-white/25" />
+                  <span className="h-[10px] w-[10px] border border-white/55 bg-white/25" />
+                  <span className="h-[10px] w-[10px] border border-white/55 bg-white/25" />
+                </div>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_48%)]" />
+                <div className="relative z-[1] grid h-full grid-cols-[0.95fr_1.05fr] gap-2 px-2 pb-2 pt-6">
+                  <div className="flex h-full min-h-0 flex-col rounded-[4px] border border-[#b8cad8] bg-[linear-gradient(180deg,#ffffff_0%,#eef4f8_100%)] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                    <div className="text-[8px] uppercase tracking-[0.14em] text-slate-500">Баланс</div>
+                    <div className="mt-1 text-[18px] font-semibold leading-none text-slate-900">{balanceText}</div>
+                    <Link
+                      href="/wallet"
+                      onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }}
+                      className={`mt-2 inline-flex h-7 w-full items-center justify-center border px-2 text-[10px] font-semibold transition ${sceneEditMode ? "pointer-events-none border-slate-300 bg-slate-200/70 text-slate-500" : "border-[#7f97ab] bg-[linear-gradient(180deg,#ffffff_0%,#dbe7f0_100%)] text-[#29435b] shadow-[inset_0_1px_0_rgba(255,255,255,0.96)] hover:bg-[linear-gradient(180deg,#ffffff_0%,#d2e0eb_100%)]"}`}
+                    >
+                      Кошелёк
+                    </Link>
+                  </div>
+                  <div className="flex h-full min-h-0 flex-col rounded-[4px] border border-[#b8cad8] bg-[linear-gradient(180deg,#ffffff_0%,#eef4f8_100%)] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                    <div className="text-[8px] uppercase tracking-[0.14em] text-slate-500">Тариф</div>
+                    <div className="mt-1 line-clamp-2 text-[10px] font-semibold leading-[1.15] text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
+                    {activeSubscription ? (
+                      <div className="mt-1.5 space-y-1 text-[9px] leading-[1.25] text-slate-700">
+                        <div className="rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1">
+                          До завершения: <span className="font-semibold text-slate-900">{getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.</span>
+                        </div>
+                        <div className="rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1">
+                          Осталось: <span className="font-semibold text-slate-900">{activeSubscription.projects_remaining}</span> / {activeSubscription.projects_limit}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1 text-[9px] leading-[1.25] text-slate-600">
+                        Тариф не подключён.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {sceneEditMode && selectedDeskItemId === LAPTOP_PANEL_ID ? (
+                <>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "rotate", laptopPanelPosition)} aria-label="Повернуть панель ноутбука">↻</button>
+                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "resize", laptopPanelPosition)} aria-label="Изменить размер панели ноутбука">↘</button>
+                </>
+              ) : null}
+            </div>
+
             {(() => {
               const trashPosition = deskPositions[TRASH_GUIDE_ID] || getDefaultTrashGuidePosition();
               const width = trashPosition.width || TRASH_ZONE.width;
@@ -2164,7 +3315,10 @@ function EdgeVine({ side, growthLevel }: { side: "top" | "right" | "bottom"; gro
   );
 }
 
+type FolderDesktopIconVariant = "scheme" | "classic";
+
 type FolderDesktopIconProps = {
+  variant?: FolderDesktopIconVariant;
   folder: FolderRow;
   projects: ProjectRow[];
   busy?: boolean;
@@ -2182,8 +3336,48 @@ type FolderDesktopIconProps = {
   onDragMoveStart?: (e: any) => void;
 };
 
-function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: FolderDesktopIconProps) {
+function FolderDesktopIcon({ variant = "scheme", folder, projects, busy, onOpen, onManage, onDropProject, draggingProjectId, onDragStart, onDragEnd, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: FolderDesktopIconProps) {
   const preview = projects.slice(0, 3);
+
+  if (variant === "classic") {
+    return (
+      <div className={`group relative flex h-full w-full flex-col items-center ${selected ? "dashboard-desk-entity-selected" : ""}`}>
+        <button
+          type="button"
+          draggable={!sceneEditMode && !busy}
+          onMouseDownCapture={() => { onSelect?.(); }}
+          disabled={busy}
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/folder-id", folder.id);
+            e.dataTransfer.effectAllowed = "move";
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
+          onMouseDown={(e) => { if (sceneEditMode) onDragMoveStart?.(e); }}
+          onClick={() => { onSelect?.(); if (!sceneEditMode) onOpen(); }}
+          className={`dashboard-classic-folder ${busy ? "opacity-70" : ""}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const draggedId = e.dataTransfer.getData("text/project-id") || draggingProjectId;
+            if (draggedId) onDropProject(draggedId);
+          }}
+        >
+          <span className="dashboard-classic-folder-tab" />
+          <span className="dashboard-classic-folder-body" />
+          <span className="dashboard-classic-folder-count">{projects.length}</span>
+        </button>
+        <div className="dashboard-classic-icon-label">{folder.name}</div>
+        {sceneEditMode && selected ? (
+          <>
+            <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={onRotateHandleMouseDown} aria-label="Повернуть папку">↻</button>
+            <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={onResizeHandleMouseDown} aria-label="Изменить размер папки">↘</button>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className={`group relative flex h-full w-full flex-col items-center gap-2 ${selected ? "dashboard-desk-entity-selected" : ""}`}>
       <button
@@ -2269,6 +3463,7 @@ function FolderDesktopIcon({ folder, projects, busy, onOpen, onManage, onDropPro
 }
 
 type ProjectDesktopIconProps = {
+  variant?: FolderDesktopIconVariant;
   project: ProjectRow;
   onOpen: () => void;
   onDragStart: () => void;
@@ -2284,7 +3479,7 @@ type ProjectDesktopIconProps = {
   onDragMoveStart?: (e: any) => void;
 };
 
-function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: ProjectDesktopIconProps) {
+function ProjectDesktopIcon({ variant = "scheme", project, onOpen, onDragStart, onDragEnd, onDelete, busy = false, compact = false, sceneEditMode = false, selected = false, onSelect, onResizeHandleMouseDown, onRotateHandleMouseDown, onDragMoveStart }: ProjectDesktopIconProps) {
   const displayName = project.person?.full_name || project.title || "Проект";
   const titleLine = project.title || displayName;
   const roleLine = project.target_role || project.person?.current_position || "Роль не указана";
@@ -2293,6 +3488,39 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
   const completed = Math.min(project.attempts_count || 0, total || 0);
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "сформирована" : completed > 0 ? "в процессе" : "ещё не собрана";
+
+  if (variant === "classic") {
+    return (
+      <div className={`group relative h-full w-full ${selected ? "dashboard-desk-entity-selected" : ""}`}>
+        <button
+          type="button"
+          draggable={!sceneEditMode && !busy}
+          disabled={busy}
+          onMouseDownCapture={() => { onSelect?.(); }}
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/project-id", project.id);
+            e.dataTransfer.effectAllowed = "move";
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
+          onMouseDown={(e) => { if (sceneEditMode) onDragMoveStart?.(e); }}
+          onClick={() => { onSelect?.(); if (!sceneEditMode) onOpen(); }}
+          className={`dashboard-classic-file ${busy ? "opacity-60" : ""}`}
+        >
+          <span className="dashboard-classic-file-paper" />
+          <span className="dashboard-classic-file-corner" />
+          <span className={`dashboard-classic-file-dot ${isDone ? "dashboard-classic-file-dot-done" : "dashboard-classic-file-dot-pending"}`}></span>
+        </button>
+        <div className="dashboard-classic-icon-label">{titleLine}</div>
+        {sceneEditMode && selected ? (
+          <>
+            <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={onRotateHandleMouseDown} aria-label="Повернуть файл">↻</button>
+            <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={onResizeHandleMouseDown} aria-label="Изменить размер файла">↘</button>
+          </>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className={`group relative h-full w-full dashboard-desk-sheet-wrap ${selected ? "dashboard-desk-entity-selected" : ""}`}>

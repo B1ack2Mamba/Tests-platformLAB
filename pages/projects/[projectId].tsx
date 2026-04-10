@@ -301,6 +301,7 @@ export default function ProjectDetailsPage() {
   const [detailsTemplateLoaded, setDetailsTemplateLoaded] = useState(false);
   const [detailsTemplateSaving, setDetailsTemplateSaving] = useState(false);
   const [detailsTemplateMessage, setDetailsTemplateMessage] = useState("");
+  const [detailsViewReady, setDetailsViewReady] = useState(false);
   const [detailsGesture, setDetailsGesture] = useState<null | {
     target: DetailsTemplateTarget;
     mode: DetailsGestureMode;
@@ -466,6 +467,23 @@ export default function ProjectDetailsPage() {
     if (!canEditProjectDetailsTemplate || !detailsTemplateLoaded || typeof window === "undefined") return;
     window.localStorage.setItem(PROJECT_DETAILS_TEMPLATE_STORAGE_KEY, JSON.stringify(detailsTemplate));
   }, [canEditProjectDetailsTemplate, detailsTemplate, detailsTemplateLoaded]);
+
+  useEffect(() => {
+    const needsTemplateLoad = canEditProjectDetailsTemplate && !detailsTemplateLoaded;
+    if (sessionLoading || loading || !data?.project?.id || needsTemplateLoad) {
+      setDetailsViewReady(false);
+      return;
+    }
+    let rafOne = 0;
+    let rafTwo = 0;
+    rafOne = window.requestAnimationFrame(() => {
+      rafTwo = window.requestAnimationFrame(() => setDetailsViewReady(true));
+    });
+    return () => {
+      window.cancelAnimationFrame(rafOne);
+      window.cancelAnimationFrame(rafTwo);
+    };
+  }, [canEditProjectDetailsTemplate, data?.project?.id, detailsTemplateLoaded, loading, sessionLoading]);
 
   useEffect(() => {
     if (!detailsGesture) return;
@@ -785,6 +803,30 @@ export default function ProjectDetailsPage() {
     return (
       <Layout title="Проект оценки">
         <div className="card text-sm text-slate-700">Переадресация на вход…</div>
+      </Layout>
+    );
+  }
+
+  const projectBootPending = sessionLoading || loading || !data?.project?.id || !detailsViewReady;
+
+  if (projectBootPending) {
+    return (
+      <Layout title={data?.project?.title || "Проект оценки"}>
+        <div className="mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4">
+          <div className="mx-auto mb-4 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
+            <div>
+              <div className="h-4 w-48 animate-pulse rounded bg-[#eadfc8]" />
+              <div className="mt-2 h-4 w-72 animate-pulse rounded bg-[#f0e7d7]" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-11 w-48 animate-pulse rounded-2xl bg-[#eadfc8]" />
+              <div className="h-11 w-28 animate-pulse rounded-2xl bg-[#eadfc8]" />
+            </div>
+          </div>
+          <div className="mx-auto max-w-[1220px] overflow-hidden rounded-[36px] border border-[#e8dcc8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe4_100%)] shadow-[0_22px_44px_rgba(90,68,33,0.08)]">
+            <div className="h-[920px] animate-pulse bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(248,241,230,0.86))]" />
+          </div>
+        </div>
       </Layout>
     );
   }
