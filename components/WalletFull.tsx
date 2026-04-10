@@ -839,21 +839,19 @@ export default function WalletPage() {
 
       <div className="relative flex min-h-full items-end justify-end px-4 py-4 pointer-events-none sm:px-5 sm:py-5" style={{ minHeight: `${walletHermesLayout.heightPx}px` }}>
         <div
-          className="pointer-events-auto rounded-[28px] border border-[#d8ccb8] bg-[rgba(255,252,246,0.95)] px-5 py-5 shadow-[0_18px_34px_rgba(120,92,44,0.12)] backdrop-blur-[1px]"
+          className="pointer-events-auto rounded-[28px] border border-[#d8ccb8] bg-[rgba(255,252,246,0.95)] px-4 py-5 shadow-[0_18px_34px_rgba(120,92,44,0.12)] backdrop-blur-[1px] sm:px-5"
           style={{
-            width: `${walletHermesLayout.cardWidthPx}px`,
+            width: `${Math.max(248, walletHermesLayout.cardWidthPx - 22)}px`,
             minHeight: `${walletHermesLayout.cardHeightPx}px`,
             transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
           }}
         >
-          <div className="text-xs uppercase tracking-[0.24em] text-[#987b4e]">Оплата</div>
-          {activeSubscription ? (
-            <div className="mt-2 text-xs leading-5 font-medium text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div>
-          ) : null}
-          <div className="mt-2 text-sm leading-6 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
-          {canShowInlinePayment ? (
-            <>
-              <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mx-auto w-full max-w-[228px]">
+            <div className="text-xs uppercase tracking-[0.24em] text-[#987b4e]">Оплата</div>
+            <div className="mt-2 text-sm leading-6 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
+            {canShowInlinePayment ? (
+              <>
+                <div className="mt-4 grid grid-cols-3 gap-2">
                 {QUICK_AMOUNTS.map((a) => (
                   <button
                     key={a}
@@ -865,16 +863,16 @@ export default function WalletPage() {
                   </button>
                 ))}
               </div>
-              <div className="mt-3 space-y-3">
-                <input
-                  value={amountRub}
-                  onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
-                  inputMode="numeric"
-                  placeholder="3000"
-                  className={INPUT_CLASS + " h-12 text-lg font-semibold"}
-                />
-                <div className="text-sm font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
-                <button
+                <div className="mt-3 space-y-3">
+                  <input
+                    value={amountRub}
+                    onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="3000"
+                    className={INPUT_CLASS + " mx-auto h-11 max-w-[196px] text-center text-base font-semibold"}
+                  />
+                  <div className="mx-auto max-w-[196px] rounded-2xl border border-[#e8decd] bg-white/80 px-3 py-2 text-center text-sm font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
+                  <button
                   type="button"
                   disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
                   onClick={() => startTopup(parsedRub || 0)}
@@ -882,15 +880,16 @@ export default function WalletPage() {
                 >
                   {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
                 </button>
+                </div>
+                <div className="mt-3 text-center text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
+                {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
+              </>
+            ) : (
+              <div className="mt-4 rounded-[18px] border border-[#e5d6bd] bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
+                Чтобы показать кнопки оплаты, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1 или включи боевой UI через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
               </div>
-              <div className="mt-3 text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
-              {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
-            </>
-          ) : (
-            <div className="mt-4 rounded-[18px] border border-[#e5d6bd] bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
-              Чтобы показать кнопки оплаты, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1 или включи боевой UI через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
