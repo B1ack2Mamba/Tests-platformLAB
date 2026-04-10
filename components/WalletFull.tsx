@@ -514,10 +514,12 @@ export default function WalletPage() {
   return (
     <Layout title="Кошелёк">
       {!user ? (
-        <div className={FRAME_CARD}>
-          <div className="text-sm text-slate-700">Чтобы пользоваться кошельком — нужно войти.</div>
-          <Link href="/auth?next=/wallet" className="mt-3 inline-block btn btn-primary">Вход</Link>
-        </div>
+        <>
+          <div className={FRAME_CARD}>
+            <div className="text-sm text-slate-700">Чтобы пользоваться кошельком — нужно войти.</div>
+          </div>
+          <Link href="/auth?next=/wallet" className="inline-block btn btn-primary">Вход</Link>
+        </>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="grid gap-4">
