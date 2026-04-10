@@ -65,13 +65,13 @@ type WalletHermesLayout = {
 
 const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   widthPercent: 100,
-  heightPx: 330,
+  heightPx: 420,
   offsetX: 0,
   offsetY: 0,
   cardWidthPx: 330,
-  cardHeightPx: 220,
+  cardHeightPx: 250,
   cardOffsetX: 0,
-  cardOffsetY: 14,
+  cardOffsetY: -18,
 };
 
 function getStoredPromoCode() {
