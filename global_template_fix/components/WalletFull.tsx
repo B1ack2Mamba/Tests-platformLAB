@@ -254,7 +254,7 @@ export default function WalletPage() {
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data?.ok) throw new Error(data?.error || "Не удалось сохранить шаблон для всех");
-      setWalletHermesTemplateInfo("Шаблон окна Гермеса сохранен для всех.");
+      setWalletHermesTemplateInfo("Шаблон окна оплаты сохранен для всех.");
     } catch (e: any) {
       setWalletHermesTemplateError(e?.message || "Не удалось сохранить шаблон для всех");
     } finally {
@@ -593,8 +593,8 @@ export default function WalletPage() {
                     <div className="font-medium">Активен: {activeSubscription.plan_title}</div>
                     <div className="mt-1 text-xs">Осталось: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div>
                   </div>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
 
               <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
@@ -667,11 +667,8 @@ export default function WalletPage() {
 
           <div className="grid gap-4">
             <div className={FRAME_CARD + " overflow-hidden p-0"}>
-              <div className="border-b border-[#e5d6bd] px-5 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-[#9a7a4b]">Гермес</div>
-                  </div>
+              <div className="border-b border-[#e5d6bd] px-5 py-3">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {canManageWalletHermesLayout ? (
                     <div className="flex flex-wrap gap-2">
                       <button type="button" className="btn btn-secondary" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
