@@ -1,7 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { activateWorkspaceSubscription } from "@/lib/serverCommercialSubscriptions";
+import {
+  getProviderAmountKopeksFromPayment,
+  isYooKassaAmountMismatch,
+  parseRequestedAmountKopeksFromMetadata,
+  upsertYooKassaTopupSafe,
+} from "@/lib/yookassaGuard";
 
 type ErrResp = { ok: false; error: string };
+
+function toPositiveInt(value: unknown, fallback: number) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -30,92 +42,117 @@ export default async function handler(
   const obj = req.body?.object;
   const paymentId: string | undefined = obj?.id;
   if (!paymentId) {
-    // Acknowledge malformed payloads to avoid endless retries.
     return res.status(200).json({ ok: true });
   }
 
-  // Verify payment status by fetching it from YooKassa API (simple safety check).
   const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
   const checkResp = await fetch(`https://api.yookassa.ru/v3/payments/${paymentId}`, {
     method: "GET",
-    headers: {
-      authorization: `Basic ${auth}`,
-    },
+    headers: { authorization: `Basic ${auth}` },
   });
 
   const raw = await checkResp.text();
   let payment: any = null;
   try {
     payment = JSON.parse(raw);
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   if (!checkResp.ok || !payment) {
-    // Let YooKassa retry later.
     return res
       .status(500)
       .json({ ok: false, error: payment?.description || raw || "Failed to verify payment" });
   }
 
   const status: string | undefined = payment?.status;
-  const userId: string | undefined = payment?.metadata?.user_id;
-  const amountStr: string | undefined = payment?.amount?.value;
+  const metadata = payment?.metadata || {};
+  const kind: string = String(metadata?.kind || "wallet_topup");
+  const userId: string | undefined = metadata?.user_id;
+  const providerAmountKopeks = getProviderAmountKopeksFromPayment(payment);
+  const requestedAmountKopeks = parseRequestedAmountKopeksFromMetadata(metadata);
+  const mismatchDetected = isYooKassaAmountMismatch(requestedAmountKopeks, providerAmountKopeks);
+  const supabaseAdmin = createClient(url, serviceKey);
 
-  // Only credit on succeeded.
+  if (kind === "wallet_topup" && userId) {
+    await upsertYooKassaTopupSafe(supabaseAdmin, {
+      payment_id: paymentId,
+      user_id: userId,
+      amount_kopeks: providerAmountKopeks || requestedAmountKopeks || 0,
+      requested_amount_kopeks: requestedAmountKopeks,
+      provider_amount_kopeks: providerAmountKopeks || null,
+      mismatch_detected: mismatchDetected,
+      status: status || "unknown",
+      paid_at: status === "succeeded" && providerAmountKopeks > 0 ? new Date().toISOString() : null,
+      metadata: {
+        kind,
+        requested_amount_kopeks: requestedAmountKopeks ? String(requestedAmountKopeks) : "",
+        provider_amount_kopeks: providerAmountKopeks ? String(providerAmountKopeks) : "",
+      },
+      last_error: mismatchDetected ? "provider amount does not match requested amount" : null,
+    });
+  }
+
   if (status !== "succeeded") {
-    if (userId && amountStr) {
-      const supabaseAdmin = createClient(url, serviceKey);
-      await supabaseAdmin.from("yookassa_topups").upsert({
-        payment_id: paymentId,
-        user_id: userId,
-        amount_kopeks: Math.round(Number(amountStr) * 100),
-        status: status || "unknown",
-      });
-    }
-
     return res.status(200).json({ ok: true, ignored: true, status });
   }
 
-  if (!userId || !amountStr) {
-    return res
-      .status(200)
-      .json({ ok: true, ignored: true, reason: "missing metadata.user_id or amount" });
-  }
-
-  const amountRub = Number(amountStr);
-  if (!Number.isFinite(amountRub) || amountRub <= 0) {
+  if (providerAmountKopeks <= 0) {
     return res.status(200).json({ ok: true, ignored: true, reason: "bad amount" });
   }
 
-  const amountKopeks = Math.round(amountRub * 100);
+  if (mismatchDetected) {
+    return res.status(200).json({
+      ok: true,
+      ignored: true,
+      reason: "amount_mismatch",
+      expected_amount_kopeks: requestedAmountKopeks,
+      actual_amount_kopeks: providerAmountKopeks,
+    });
+  }
 
-  const supabaseAdmin = createClient(url, serviceKey);
+  if (kind === "commercial_subscription") {
+    const workspaceId = String(metadata?.workspace_id || "").trim();
+    const planKey = String(metadata?.plan_key || "").trim();
+    const planTitle = String(metadata?.plan_title || planKey || "Месячный тариф").trim();
+    const projectsLimit = toPositiveInt(metadata?.projects_limit, 0);
+    const durationDays = toPositiveInt(metadata?.duration_days, 30);
+    if (!workspaceId || !planKey || !projectsLimit) {
+      return res.status(200).json({ ok: true, ignored: true, reason: "missing subscription metadata" });
+    }
 
-  // Mark payment paid (for visibility)
-  await supabaseAdmin.from("yookassa_topups").upsert({
-    payment_id: paymentId,
-    user_id: userId,
-    amount_kopeks: amountKopeks,
-    status: "paid",
-    paid_at: new Date().toISOString(),
-  });
+    try {
+      await activateWorkspaceSubscription(supabaseAdmin, {
+        workspaceId,
+        userId: userId || null,
+        paymentId,
+        planKey,
+        planTitle,
+        amountKopeks: providerAmountKopeks,
+        projectsLimit,
+        durationDays,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ ok: false, error: error?.message || "Failed to activate subscription" });
+    }
 
-  // Credit wallet idempotently using unique (user_id, ref) in wallet_ledger.
-  const { data: creditResult, error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
+    return res.status(200).json({ ok: true, activated: true, kind });
+  }
+
+  if (!userId) {
+    return res.status(200).json({ ok: true, ignored: true, reason: "missing metadata.user_id" });
+  }
+
+  const { error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
     p_user_id: userId,
-    p_amount_kopeks: amountKopeks,
+    p_amount_kopeks: providerAmountKopeks,
     p_reason: "topup",
     p_ref: `yookassa:${paymentId}`,
   });
 
   if (error) {
     const msg = error.message || "credit_wallet error";
-    // If it's a duplicate credit (replayed webhook), treat as OK.
     if (/duplicate key|unique constraint/i.test(msg)) {
       return res.status(200).json({ ok: true, already: true });
     }
-    // Let YooKassa retry.
     return res.status(500).json({ ok: false, error: msg });
   }
 

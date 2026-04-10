@@ -1,9 +1,2 @@
-YooKassa duplicate-credit fix
-
-Apply SQL first:
-- supabase/yookassa_idempotency_fix.sql
-
-Then deploy code changes:
-- pages/api/yookassa/webhook.ts
-- pages/api/yookassa/sync.ts
-(and same files under global_template_fix/)
+This package includes hotfixes for YooKassa amount validation.
+Run supabase/yookassa_amount_guard_hotfix.sql in Supabase before deploying if public.yookassa_topups is missing.

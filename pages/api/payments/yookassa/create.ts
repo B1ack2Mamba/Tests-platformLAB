@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { parseRequestedRubInput, upsertYooKassaTopupSafe } from "@/lib/yookassaGuard";
 
 type Body = {
-  amount_rub?: number;
+  amount_rub?: number | string;
 };
 
 type OkResp = {
@@ -53,18 +54,18 @@ export default async function handler(
   }
 
   const body = (req.body ?? {}) as Body;
-  const rub = Math.floor(Number(body.amount_rub ?? 0));
-  if (!Number.isFinite(rub) || rub < 1) {
-    return res.status(400).json({ ok: false, error: "amount_rub must be >= 1" });
+  const rub = parseRequestedRubInput(body.amount_rub);
+  if (rub === null) {
+    return res.status(400).json({ ok: false, error: "amount_rub must be a whole number >= 1" });
   }
   if (rub > 500000) {
     return res.status(400).json({ ok: false, error: "amount_rub is too large" });
   }
 
   const amountValue = rub.toFixed(2);
+  const requestedAmountKopeks = rub * 100;
   const idempotenceKey = crypto.randomUUID();
 
-  // Validate user via Supabase
   const supabaseAdmin = createClient(url, serviceKey);
   const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
   if (userErr || !userData?.user) {
@@ -78,10 +79,8 @@ export default async function handler(
       .json({ ok: false, error: "User email is missing in auth profile (needed for receipt)" });
   }
 
-  // Если в ЮKassa включены чеки 54‑ФЗ, обязательно нужно передавать receipt,
-  // иначе будет ошибка: "Receipt is missing or illegal".
   const taxSystemCodeStr = process.env.YOOKASSA_TAX_SYSTEM_CODE || "1";
-  const vatCodeStr = process.env.YOOKASSA_VAT_CODE || "1"; // 1 = без НДС
+  const vatCodeStr = process.env.YOOKASSA_VAT_CODE || "1";
   const paymentSubject = (process.env.YOOKASSA_PAYMENT_SUBJECT || "service").trim();
   const paymentMode = (process.env.YOOKASSA_PAYMENT_MODE || "full_payment").trim();
 
@@ -94,16 +93,16 @@ export default async function handler(
     return res.status(500).json({ ok: false, error: "Invalid YOOKASSA_VAT_CODE (must be 1..12)" });
   }
 
-  // Create YooKassa payment (SBP)
   const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
   const returnUrl = `${appBaseUrl.replace(/\/$/, "")}/wallet?paid=1`;
+  const amountLabel = `${rub} ₽`;
 
   const receipt = {
     customer: { email: userEmail },
     tax_system_code: taxSystemCode,
     items: [
       {
-        description: "Пополнение внутреннего баланса",
+        description: `Пополнение внутреннего баланса на ${amountLabel}`,
         quantity: "1.00",
         amount: { value: amountValue, currency: "RUB" },
         vat_code: vatCode,
@@ -126,11 +125,13 @@ export default async function handler(
       capture: true,
       confirmation: { type: "redirect", return_url: returnUrl },
       payment_method_data: { type: "sbp" },
-      description: "Пополнение внутреннего баланса",
+      description: `Пополнение внутреннего баланса на ${amountLabel}`,
       receipt,
       metadata: {
         user_id: userId,
         kind: "wallet_topup",
+        requested_amount_rub: String(rub),
+        requested_amount_kopeks: String(requestedAmountKopeks),
       },
     }),
   });
@@ -154,12 +155,19 @@ export default async function handler(
     return res.status(502).json({ ok: false, error: "YooKassa response missing id/confirmation_url" });
   }
 
-  // Persist pending topup (optional)
-  await supabaseAdmin.from("yookassa_topups").upsert({
+  await upsertYooKassaTopupSafe(supabaseAdmin, {
     payment_id: paymentId,
     user_id: userId,
-    amount_kopeks: rub * 100,
+    amount_kopeks: requestedAmountKopeks,
+    requested_amount_kopeks: requestedAmountKopeks,
+    provider_amount_kopeks: null,
+    mismatch_detected: false,
     status: "pending",
+    metadata: {
+      kind: "wallet_topup",
+      requested_amount_rub: String(rub),
+      requested_amount_kopeks: String(requestedAmountKopeks),
+    },
   });
 
   return res.status(200).json({ ok: true, payment_id: paymentId, confirmation_url: confirmationUrl });

@@ -1,9 +1,25 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { activateWorkspaceSubscription } from "@/lib/serverCommercialSubscriptions";
+import {
+  getProviderAmountKopeksFromPayment,
+  isYooKassaAmountMismatch,
+  parseRequestedAmountKopeksFromMetadata,
+  upsertYooKassaTopupSafe,
+} from "@/lib/yookassaGuard";
 
 type Resp =
-  | { ok: true; checked: number; credited: number; updated: number; skipped?: boolean; status?: string }
+  | {
+      ok: true;
+      checked: number;
+      credited: number;
+      updated: number;
+      skipped?: boolean;
+      status?: string;
+      reason?: string;
+      expected_amount_kopeks?: number | null;
+      actual_amount_kopeks?: number;
+    }
   | { ok: false; error: string };
 
 type Body = { payment_id?: string };
@@ -75,22 +91,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(403).json({ ok: false, error: "Payment does not belong to current user" });
   }
 
-  const amountStr = String(payment?.amount?.value || "").trim();
-  const amountRub = Number(amountStr);
-  const amountKopeks = Number.isFinite(amountRub) && amountRub > 0 ? Math.round(amountRub * 100) : 0;
+  const providerAmountKopeks = getProviderAmountKopeksFromPayment(payment);
+  const requestedAmountKopeks = parseRequestedAmountKopeksFromMetadata(metadata);
+  const mismatchDetected = isYooKassaAmountMismatch(requestedAmountKopeks, providerAmountKopeks);
 
-  if (kind === "wallet_topup" && amountKopeks > 0) {
-    await supabaseAdmin.from("yookassa_topups").upsert({
+  if (kind === "wallet_topup") {
+    await upsertYooKassaTopupSafe(supabaseAdmin, {
       payment_id: paymentId,
       user_id: userId,
-      amount_kopeks: amountKopeks,
+      amount_kopeks: providerAmountKopeks || requestedAmountKopeks || 0,
+      requested_amount_kopeks: requestedAmountKopeks,
+      provider_amount_kopeks: providerAmountKopeks || null,
+      mismatch_detected: mismatchDetected,
       status: status || "unknown",
-      paid_at: status === "succeeded" ? new Date().toISOString() : null,
+      paid_at: status === "succeeded" && providerAmountKopeks > 0 ? new Date().toISOString() : null,
+      metadata: {
+        kind,
+        requested_amount_kopeks: requestedAmountKopeks ? String(requestedAmountKopeks) : "",
+        provider_amount_kopeks: providerAmountKopeks ? String(providerAmountKopeks) : "",
+      },
+      last_error: mismatchDetected ? "provider amount does not match requested amount" : null,
     });
   }
 
   if (status !== "succeeded") {
     return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, status, skipped: true });
+  }
+
+  if (providerAmountKopeks <= 0) {
+    return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status, reason: "bad_amount" });
+  }
+
+  if (mismatchDetected) {
+    return res.status(200).json({
+      ok: true,
+      checked: 1,
+      credited: 0,
+      updated: 1,
+      skipped: true,
+      status,
+      reason: "amount_mismatch",
+      expected_amount_kopeks: requestedAmountKopeks,
+      actual_amount_kopeks: providerAmountKopeks,
+    });
   }
 
   if (kind === "commercial_subscription") {
@@ -99,7 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const planTitle = String(metadata?.plan_title || planKey || "Месячный тариф").trim();
     const projectsLimit = toPositiveInt(metadata?.projects_limit, 0);
     const durationDays = toPositiveInt(metadata?.duration_days, 30);
-    if (!workspaceId || !planKey || !projectsLimit || amountKopeks <= 0) {
+    if (!workspaceId || !planKey || !projectsLimit || providerAmountKopeks <= 0) {
       return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status });
     }
 
@@ -110,7 +153,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         paymentId,
         planKey,
         planTitle,
-        amountKopeks,
+        amountKopeks: providerAmountKopeks,
         projectsLimit,
         durationDays,
       });
@@ -125,13 +168,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   if (kind === "wallet_topup") {
-    if (amountKopeks <= 0) {
-      return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status });
-    }
-
-    const { data: creditResult, error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
+    const { error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
       p_user_id: userId,
-      p_amount_kopeks: amountKopeks,
+      p_amount_kopeks: providerAmountKopeks,
       p_reason: "topup",
       p_ref: `yookassa:${paymentId}`,
     });

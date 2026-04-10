@@ -1,6 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { activateWorkspaceSubscription } from "@/lib/serverCommercialSubscriptions";
+import {
+  getProviderAmountKopeksFromPayment,
+  isYooKassaAmountMismatch,
+  parseRequestedAmountKopeksFromMetadata,
+  upsertYooKassaTopupSafe,
+} from "@/lib/yookassaGuard";
 
 type ErrResp = { ok: false; error: string };
 
@@ -61,33 +67,47 @@ export default async function handler(
   const metadata = payment?.metadata || {};
   const kind: string = String(metadata?.kind || "wallet_topup");
   const userId: string | undefined = metadata?.user_id;
-  const amountStr: string | undefined = payment?.amount?.value;
+  const providerAmountKopeks = getProviderAmountKopeksFromPayment(payment);
+  const requestedAmountKopeks = parseRequestedAmountKopeksFromMetadata(metadata);
+  const mismatchDetected = isYooKassaAmountMismatch(requestedAmountKopeks, providerAmountKopeks);
+  const supabaseAdmin = createClient(url, serviceKey);
+
+  if (kind === "wallet_topup" && userId) {
+    await upsertYooKassaTopupSafe(supabaseAdmin, {
+      payment_id: paymentId,
+      user_id: userId,
+      amount_kopeks: providerAmountKopeks || requestedAmountKopeks || 0,
+      requested_amount_kopeks: requestedAmountKopeks,
+      provider_amount_kopeks: providerAmountKopeks || null,
+      mismatch_detected: mismatchDetected,
+      status: status || "unknown",
+      paid_at: status === "succeeded" && providerAmountKopeks > 0 ? new Date().toISOString() : null,
+      metadata: {
+        kind,
+        requested_amount_kopeks: requestedAmountKopeks ? String(requestedAmountKopeks) : "",
+        provider_amount_kopeks: providerAmountKopeks ? String(providerAmountKopeks) : "",
+      },
+      last_error: mismatchDetected ? "provider amount does not match requested amount" : null,
+    });
+  }
 
   if (status !== "succeeded") {
-    if (kind === "wallet_topup" && userId && amountStr) {
-      const supabaseAdmin = createClient(url, serviceKey);
-      await supabaseAdmin.from("yookassa_topups").upsert({
-        payment_id: paymentId,
-        user_id: userId,
-        amount_kopeks: Math.round(Number(amountStr) * 100),
-        status: status || "unknown",
-      });
-    }
-
     return res.status(200).json({ ok: true, ignored: true, status });
   }
 
-  if (!amountStr) {
-    return res.status(200).json({ ok: true, ignored: true, reason: "missing amount" });
-  }
-
-  const amountRub = Number(amountStr);
-  if (!Number.isFinite(amountRub) || amountRub <= 0) {
+  if (providerAmountKopeks <= 0) {
     return res.status(200).json({ ok: true, ignored: true, reason: "bad amount" });
   }
 
-  const amountKopeks = Math.round(amountRub * 100);
-  const supabaseAdmin = createClient(url, serviceKey);
+  if (mismatchDetected) {
+    return res.status(200).json({
+      ok: true,
+      ignored: true,
+      reason: "amount_mismatch",
+      expected_amount_kopeks: requestedAmountKopeks,
+      actual_amount_kopeks: providerAmountKopeks,
+    });
+  }
 
   if (kind === "commercial_subscription") {
     const workspaceId = String(metadata?.workspace_id || "").trim();
@@ -106,7 +126,7 @@ export default async function handler(
         paymentId,
         planKey,
         planTitle,
-        amountKopeks,
+        amountKopeks: providerAmountKopeks,
         projectsLimit,
         durationDays,
       });
@@ -121,17 +141,9 @@ export default async function handler(
     return res.status(200).json({ ok: true, ignored: true, reason: "missing metadata.user_id" });
   }
 
-  await supabaseAdmin.from("yookassa_topups").upsert({
-    payment_id: paymentId,
-    user_id: userId,
-    amount_kopeks: amountKopeks,
-    status: "paid",
-    paid_at: new Date().toISOString(),
-  });
-
-  const { data: creditResult, error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
+  const { error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
     p_user_id: userId,
-    p_amount_kopeks: amountKopeks,
+    p_amount_kopeks: providerAmountKopeks,
     p_reason: "topup",
     p_ref: `yookassa:${paymentId}`,
   });

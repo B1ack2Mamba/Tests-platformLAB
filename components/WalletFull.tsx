@@ -73,6 +73,18 @@ const WALLET_HERMES_LAYOUT_KEY = "wallet_hermes_layout_v1";
 const YOOKASSA_PENDING_TOPUP_KEY = "yookassa_pending_topup_payment_id";
 const YOOKASSA_PENDING_PLAN_KEY = "yookassa_pending_plan_payment_id";
 
+function sanitizeRubInput(value: string) {
+  const digits = String(value || "").replace(/[^\d]/g, "");
+  return digits.replace(/^0+(?=\d)/, "");
+}
+
+function parseRubInput(value: string): number | null {
+  const cleaned = sanitizeRubInput(value);
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+}
+
 type WalletHermesLayout = {
   widthPercent: number;
   heightPx: number;
@@ -282,11 +294,8 @@ export default function WalletPage() {
       setWalletHermesTemplateBusy(false);
     }
   }
-  const parsedRub = useMemo(() => {
-    const n = Number(String(amountRub).replace(",", "."));
-    if (!Number.isFinite(n)) return null;
-    return Math.floor(n);
-  }, [amountRub]);
+  const parsedRub = useMemo(() => parseRubInput(amountRub), [amountRub]);
+  const paymentPreviewText = parsedRub ? formatRub(parsedRub * 100) : "—";
 
   useEffect(() => {
     if (!user || !session?.access_token) {
@@ -314,7 +323,10 @@ export default function WalletPage() {
         try {
           if (needsWalletPolling && walletPaymentId) {
             const result = await syncReturnedYooKassaPayment(walletPaymentId);
-            if (result?.status === "succeeded") {
+            if (result?.reason === "amount_mismatch") {
+              setTopupError("Сумма в YooKassa не совпала с тем, что была запрошена. Автозачисление остановлено — проверь платёж вручную.");
+              clearPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY);
+            } else if (result?.status === "succeeded") {
               clearPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY);
             }
           }
@@ -830,18 +842,19 @@ export default function WalletPage() {
               <div className="mt-3 space-y-3">
                 <input
                   value={amountRub}
-                  onChange={(e) => setAmountRub(e.target.value)}
+                  onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
                   inputMode="numeric"
                   placeholder="3000"
                   className={INPUT_CLASS + " h-12 text-lg font-semibold"}
                 />
+                <div className="text-sm font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
                 <button
                   type="button"
                   disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
                   onClick={() => startTopup(parsedRub || 0)}
                   className={ACTION_PRIMARY + " w-full"}
                 >
-                  {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
+                  {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
                 </button>
               </div>
               <div className="mt-3 text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
@@ -916,11 +929,12 @@ export default function WalletPage() {
                   <div className="text-xs text-slate-500">Сумма (₽)</div>
                   <input
                     value={amountRub}
-                    onChange={(e) => setAmountRub(e.target.value)}
+                    onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
                     inputMode="numeric"
                     placeholder="3000"
                     className={INPUT_CLASS + " mt-1"}
                   />
+                  <div className="mt-2 text-sm font-medium text-slate-700">К оплате: <span className="text-[#1f4d36]">{paymentPreviewText}</span></div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     {QUICK_AMOUNTS.map((a) => (
@@ -957,7 +971,7 @@ export default function WalletPage() {
                       onClick={() => startTopup(parsedRub || 0)}
                       className={ACTION_PRIMARY}
                     >
-                      {topupBusy ? "Создаю оплату…" : "Перейти к оплате"}
+                      {topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
                     </button>
                   </div>
 
