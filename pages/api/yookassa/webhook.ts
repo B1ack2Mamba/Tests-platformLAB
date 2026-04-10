@@ -129,7 +129,7 @@ export default async function handler(
     paid_at: new Date().toISOString(),
   });
 
-  const { error } = await supabaseAdmin.rpc("credit_wallet", {
+  const { error } = const { data: creditResult, error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
     p_user_id: userId,
     p_amount_kopeks: amountKopeks,
     p_reason: "topup",

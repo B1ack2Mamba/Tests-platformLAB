@@ -102,7 +102,7 @@ export default async function handler(
   });
 
   // Credit wallet idempotently using unique (user_id, ref) in wallet_ledger.
-  const { error } = await supabaseAdmin.rpc("credit_wallet", {
+  const { error } = const { data: creditResult, error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
     p_user_id: userId,
     p_amount_kopeks: amountKopeks,
     p_reason: "topup",

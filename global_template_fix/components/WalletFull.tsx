@@ -65,13 +65,13 @@ type WalletHermesLayout = {
 
 const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   widthPercent: 100,
-  heightPx: 360,
+  heightPx: 420,
   offsetX: 0,
   offsetY: 0,
   cardWidthPx: 330,
-  cardHeightPx: 220,
+  cardHeightPx: 250,
   cardOffsetX: 0,
-  cardOffsetY: 0,
+  cardOffsetY: -18,
 };
 
 function getStoredPromoCode() {
@@ -524,35 +524,48 @@ export default function WalletPage() {
         <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="grid gap-4">
             <div className={FRAME_CARD + " relative overflow-hidden"}>
-              <div className="pointer-events-none absolute -right-6 -top-10 text-[180px] font-light leading-none text-slate-200/35 select-none">☿</div>
+              <div className="pointer-events-none absolute -right-6 -top-10 text-[160px] font-light leading-none text-slate-200/30 select-none">☿</div>
               <div className="relative flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Кошелёк</div>
                   <div className="mt-2 text-3xl font-semibold text-slate-950">
                     {wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}
                   </div>
-                  <div className="mt-2 max-w-xl text-sm text-slate-600">
-                    Баланс используется для оплаты пакетов услуг и открытия расширенного функционала сайта. Пакеты ниже можно оплатить онлайн или сразу с внутреннего баланса кошелька.
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                    {isUnlimited ? <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-900">Тестовый безлимит</span> : null}
+                  <div className="mt-2 text-sm text-slate-600">
+                    Баланс, активный пакет и быстрые действия в одном месте.
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {!isUnlimited && PAYMENTS_UI_ENABLED ? (
-                    <button
-                      onClick={() => setTopupOpen(true)}
-                      className="btn btn-primary"
-                    >
+                    <button onClick={() => setTopupOpen(true)} className="btn btn-primary">
                       Пополнить
                     </button>
                   ) : null}
-                  <button
-                    onClick={refresh}
-                    className="btn btn-secondary"
-                  >
+                  <button onClick={refresh} className="btn btn-secondary">
                     Обновить
                   </button>
+                </div>
+              </div>
+
+              <div className="relative mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className={FRAME_SOFT + " p-4"}>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Баланс</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-950">{wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}</div>
+                </div>
+                <div className={FRAME_SOFT + " p-4"}>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Активный пакет</div>
+                  <div className="mt-2 text-base font-semibold text-slate-950">{activeSubscription ? activeSubscription.plan_title : "Не подключен"}</div>
+                  <div className="mt-1 text-xs text-slate-600">{activeSubscription ? `До ${formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}` : "Выбери пакет ниже"}</div>
+                </div>
+                <div className={FRAME_SOFT + " p-4"}>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Остаток</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-950">{activeSubscription ? activeSubscription.projects_remaining : "—"}</div>
+                  <div className="mt-1 text-xs text-slate-600">{activeSubscription ? `из ${activeSubscription.projects_limit} проектов` : "Лимит появится после оплаты"}</div>
+                </div>
+                <div className={FRAME_SOFT + " p-4"}>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Статус</div>
+                  <div className="mt-2 text-base font-semibold text-slate-950">{isUnlimited ? "Безлимит" : activeSubscription ? "Активен" : "Ожидает оплаты"}</div>
+                  <div className="mt-1 text-xs text-slate-600">{isUnlimited ? "Внутренний режим" : "Пакеты и пополнение ниже"}</div>
                 </div>
               </div>
 
@@ -561,8 +574,13 @@ export default function WalletPage() {
             </div>
 
             <div className={FRAME_CARD}>
-              <div className="text-sm font-semibold text-emerald-900">Промокод</div>
-              <div className="mt-2 text-sm text-slate-600">Здесь можно безопасно повторить активацию. Если код не применился при регистрации или первом входе, он останется сохранён.</div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-emerald-900">Промокод</div>
+                  <div className="mt-1 text-sm text-slate-600">Если код не применился сразу, здесь можно повторить активацию.</div>
+                </div>
+                <Link href="/legal/offer" className="text-sm text-emerald-800 hover:underline">Условия оплаты и реквизиты</Link>
+              </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <input
                   value={promoCode}
@@ -588,7 +606,7 @@ export default function WalletPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-emerald-900">Пакеты услуг</div>
-                  <div className="mt-2 text-sm text-slate-600">Каждый пакет услуг действует 30 дней. Один проект списывается только один раз, дальше внутри него можно использовать доступный функционал без доплаты. Пакет можно оплатить онлайн или купить сразу с баланса кошелька.</div>
+                  <div className="mt-2 text-sm text-slate-600">Выбери пакет и оплати его онлайн или с внутреннего баланса. Один проект списывается только один раз.</div>
                 </div>
                 {activeSubscription ? (
                   <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
@@ -605,8 +623,8 @@ export default function WalletPage() {
                     <div key={plan.key} className={`rounded-[28px] border p-4 shadow-sm ${isActive ? "border-emerald-300 bg-emerald-50/60" : "border-[#e5d6bd] bg-white/80"}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-base font-semibold text-slate-950">Пакет до {plan.projectsLimit} проектов / месяц</div>
-                          <div className="mt-1 text-sm text-slate-500">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽ / месяц</div>
+                          <div className="text-base font-semibold text-slate-950">До {plan.projectsLimit} проектов / месяц</div>
+                          <div className="mt-1 text-sm text-slate-500">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽</div>
                         </div>
                         <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-white text-slate-600"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
                       </div>
@@ -656,14 +674,8 @@ export default function WalletPage() {
               {subscriptionInfo ? <div className="mt-3 text-sm text-emerald-700">{subscriptionInfo}</div> : null}
             </div>
 
-            <div className={FRAME_CARD}>
-              <div className="text-sm font-semibold text-emerald-900">Оферта и контакты</div>
-              <div className="mt-3 text-sm leading-6 text-slate-600">
-                Все реквизиты, условия возврата и контакты вынесены на одну отдельную страницу.
-              </div>
-              <div className="mt-4">
-                <Link href="/legal/offer" className="btn btn-secondary">Открыть страницу условий</Link>
-              </div>
+            <div className={FRAME_SOFT + " p-4 text-sm text-slate-600"}>
+              Условия оплаты, возврата и реквизиты доступны на странице <Link href="/legal/offer" className="text-emerald-800 hover:underline">оферты</Link>.
             </div>
           </div>
 
@@ -744,9 +756,9 @@ export default function WalletPage() {
                   </div>
                 ) : null}
               </div>
-              <div className="bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)] px-0 pt-0 pb-0">
+              <div className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]">
                 <div className="relative">
-                  <div className="flex justify-center">
+                  <div className="px-0 pt-4">
                     <img
                       src="/wallet-hermes-guide-cropped.png"
                       alt="Персонаж с табличкой"
@@ -758,9 +770,9 @@ export default function WalletPage() {
                     />
                   </div>
                   <div
-                    className="absolute right-4 bottom-4 z-10 pointer-events-none"
+                    className="relative z-10 flex justify-end px-4 pb-4 pointer-events-none"
                     style={{
-                      transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
+                      marginTop: `-${Math.round(walletHermesLayout.cardHeightPx * 0.72)}px`,
                     }}
                   >
                     <div
@@ -768,6 +780,7 @@ export default function WalletPage() {
                       style={{
                         width: `${walletHermesLayout.cardWidthPx}px`,
                         minHeight: `${walletHermesLayout.cardHeightPx}px`,
+                        transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
                       }}
                     >
                       <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">Оплата</div>
@@ -804,6 +817,7 @@ export default function WalletPage() {
                               {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
                             </button>
                           </div>
+                          <div className="mt-2 text-[11px] leading-4 text-slate-500">Минимум 1 ₽. Для безлимита оплата не нужна.</div>
                           {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
                         </>
                       ) : (
@@ -818,7 +832,7 @@ export default function WalletPage() {
             </div>
 
             <div className={FRAME_CARD}>
-              <div className="text-sm font-medium">История операций</div>
+              <div className="flex items-center justify-between gap-3"><div className="text-sm font-medium">Последние операции</div><div className="text-xs text-slate-500">Показываем свежие записи</div></div>
               <div className="mt-2 max-h-[420px] overflow-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -830,7 +844,7 @@ export default function WalletPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {ledger.map((row) => (
+                    {ledger.slice(0, 6).map((row) => (
                       <tr key={row.id} className="border-t border-slate-100">
                         <td className="py-2 text-xs text-slate-600">
                           {new Date(row.created_at).toLocaleString()}
