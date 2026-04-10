@@ -65,13 +65,13 @@ type WalletHermesLayout = {
 
 const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   widthPercent: 100,
-  heightPx: 400,
+  heightPx: 330,
   offsetX: 0,
   offsetY: 0,
   cardWidthPx: 320,
-  cardHeightPx: 236,
+  cardHeightPx: 228,
   cardOffsetX: 0,
-  cardOffsetY: 0,
+  cardOffsetY: 10,
 };
 
 function getStoredPromoCode() {
@@ -759,7 +759,7 @@ export default function WalletPage() {
                       width: `${walletHermesLayout.cardWidthPx}px`,
                       minHeight: `${walletHermesLayout.cardHeightPx}px`,
                       right: `calc(4% + ${walletHermesLayout.cardOffsetX}px)`,
-                      bottom: `calc(6% + ${walletHermesLayout.cardOffsetY}px)`,
+                      bottom: `calc(2% + ${walletHermesLayout.cardOffsetY}px)`,
                     }}
                   >
                     <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">{"Оплата"}</div>
