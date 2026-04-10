@@ -742,71 +742,79 @@ export default function WalletPage() {
                   </div>
                 ) : null}
               </div>
-              <div className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]" style={{ height: `${walletHermesLayout.heightPx}px` }}>
-                <img
-                  src="/wallet-hermes-guide.png"
-                  alt="Персонаж с табличкой"
-                  className="absolute left-0 top-0 max-w-none select-none"
-                  style={{
-                    width: `${walletHermesLayout.widthPercent}%`,
-                    transform: `translate(${walletHermesLayout.offsetX}px, ${walletHermesLayout.offsetY}px)`,
-                  }}
-                />
-                <div className="absolute inset-x-0 bottom-0 top-0 pointer-events-none">
+              <div className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]">
+                <div className="relative">
+                  <div className="px-0 pt-4">
+                    <img
+                      src="/wallet-hermes-guide-cropped.png"
+                      alt="Персонаж с табличкой"
+                      className="block max-w-none select-none"
+                      style={{
+                        width: `${walletHermesLayout.widthPercent}%`,
+                        transform: `translate(${walletHermesLayout.offsetX}px, ${walletHermesLayout.offsetY}px)`,
+                      }}
+                    />
+                  </div>
                   <div
-                    className="absolute rounded-[26px] border border-[#d8ccb9] bg-[rgba(255,252,246,0.94)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]"
+                    className="relative z-10 flex justify-end px-4 pb-4 pointer-events-none"
                     style={{
-                      width: `${walletHermesLayout.cardWidthPx}px`,
-                      minHeight: `${walletHermesLayout.cardHeightPx}px`,
-                      right: `calc(4% + ${walletHermesLayout.cardOffsetX}px)`,
-                      bottom: `calc(6% + ${walletHermesLayout.cardOffsetY}px)`,
+                      marginTop: `-${Math.round(walletHermesLayout.cardHeightPx * 0.72)}px`,
                     }}
                   >
-                    <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">{"Оплата"}</div>
-                    {activeSubscription ? <div className="mt-2 text-xs leading-5 font-medium text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div> : null}
-                    <div className="mt-2 text-sm leading-6 text-slate-600">{"Выбери сумму и перейди к оплате прямо из окна."}</div>
-                    {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (
-                      <>
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          {QUICK_AMOUNTS.map((a) => (
+                    <div
+                      className="rounded-[26px] border border-[#d8ccb9] bg-[rgba(255,252,246,0.94)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]"
+                      style={{
+                        width: `${walletHermesLayout.cardWidthPx}px`,
+                        minHeight: `${walletHermesLayout.cardHeightPx}px`,
+                        transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
+                      }}
+                    >
+                      <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">Оплата</div>
+                      {activeSubscription ? <div className="mt-2 text-xs leading-5 font-medium text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div> : null}
+                      <div className="mt-2 text-sm leading-6 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
+                      {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (
+                        <>
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            {QUICK_AMOUNTS.map((a) => (
+                              <button
+                                key={a}
+                                type="button"
+                                onClick={() => setAmountRub(String(a))}
+                                className="rounded-full border border-[#dccfb9] bg-white px-2 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                              >
+                                {a} ₽
+                              </button>
+                            ))}
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <input
+                              value={amountRub}
+                              onChange={(e) => setAmountRub(e.target.value)}
+                              inputMode="numeric"
+                              placeholder="3000"
+                              className="input h-12 text-lg font-semibold"
+                            />
                             <button
-                              key={a}
                               type="button"
-                              onClick={() => setAmountRub(String(a))}
-                              className="rounded-full border border-[#dccfb9] bg-white px-2 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                              disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
+                              onClick={() => startTopup(parsedRub || 0)}
+                              className="btn btn-primary w-full justify-center"
                             >
-                              {a} ₽
+                              {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
                             </button>
-                          ))}
+                          </div>
+                          <div className="mt-2 text-[11px] leading-4 text-slate-500">Минимум 1 ₽. Для безлимита оплата не нужна.</div>
+                          {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
+                        </>
+                      ) : (
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
+                          Чтобы показать кнопки оплаты, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1 или включи боевой UI через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
                         </div>
-                        <div className="mt-3 space-y-2">
-                          <input
-                            value={amountRub}
-                            onChange={(e) => setAmountRub(e.target.value)}
-                            inputMode="numeric"
-                            placeholder="3000"
-                            className="input h-12 text-lg font-semibold"
-                          />
-                          <button
-                            type="button"
-                            disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
-                            onClick={() => startTopup(parsedRub || 0)}
-                            className="btn btn-primary w-full justify-center"
-                          >
-                            {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
-                          </button>
-                        </div>
-                        <div className="mt-2 text-[11px] leading-4 text-slate-500">{"Минимум 1 ₽. Для безлимита оплата не нужна."}</div>
-                        {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
-                      </>
-                    ) : (
-                      <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
-                        Чтобы показать кнопки оплаты, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1 или включи боевой UI через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </div></div>
             </div>
 
             <div className={FRAME_CARD}>
