@@ -744,7 +744,7 @@ export default function WalletPage() {
               <div className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]" style={{ height: `${walletHermesLayout.heightPx}px` }}>
                 <img
                   src="/wallet-hermes-guide.png"
-                  alt="Гермес с табличкой"
+                  alt="Персонаж с табличкой"
                   className="absolute left-0 top-0 max-w-none select-none"
                   style={{
                     width: `${walletHermesLayout.widthPercent}%`,
