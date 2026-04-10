@@ -594,6 +594,7 @@ export default function WalletPage() {
                     <div className="mt-1 text-xs">Осталось: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div>
                   </div>
                 ) : null}
+              </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
