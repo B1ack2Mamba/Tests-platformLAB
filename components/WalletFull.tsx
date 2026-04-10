@@ -42,8 +42,29 @@ type SubscriptionStatusResp = {
 
 const QUICK_AMOUNTS = [3000, 15000, 30000] as const;
 
-const FRAME_CARD = "card rounded-[34px] border border-[#d8c9ab] bg-[linear-gradient(180deg,#f8f3e7_0%,#f1eadb_100%)] shadow-[0_18px_44px_rgba(142,122,81,0.10)]";
-const FRAME_SOFT = "rounded-[26px] border border-[#ddcfb2] bg-[rgba(255,252,245,0.78)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]";
+const FRAME_CARD = "card rounded-[32px] border border-[#d9c3a0] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe3_100%)] shadow-[0_18px_42px_rgba(137,109,64,0.10)]";
+const FRAME_SOFT = "rounded-[26px] border border-[#e6d8be] bg-[rgba(255,255,255,0.78)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]";
+const ACTION_PRIMARY = "inline-flex items-center justify-center rounded-[16px] border border-[#8fd0aa] bg-[linear-gradient(180deg,#e3f6e8_0%,#bfe7cc_100%)] px-5 py-3 text-sm font-semibold text-[#1f4d36] shadow-[0_10px_22px_rgba(95,148,116,0.18)] transition duration-150 hover:-translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-55";
+const ACTION_SECONDARY = "inline-flex items-center justify-center rounded-[16px] border border-[#d8ccb7] bg-[linear-gradient(180deg,#fffdfa_0%,#f4ebdf_100%)] px-5 py-3 text-sm font-semibold text-[#59685f] shadow-[0_8px_18px_rgba(132,104,62,0.10)] transition duration-150 hover:-translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-55";
+const ACTION_CHIP = "inline-flex items-center justify-center rounded-[14px] border border-[#d9ccb7] bg-white/90 px-3 py-2 text-sm font-semibold text-[#4f6057] shadow-[0_6px_14px_rgba(132,104,62,0.08)] transition duration-150 hover:border-[#8fd0aa] hover:text-[#1f4d36] disabled:cursor-not-allowed disabled:opacity-55";
+const INPUT_CLASS = "h-14 w-full rounded-[18px] border border-[#d9ccb8] bg-white/90 px-4 text-[15px] text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] outline-none transition placeholder:text-[#b6b8bf] focus:border-[#92d0ab] focus:ring-4 focus:ring-[#d8efe0]/80";
+const PLAN_VISUALS = [
+  {
+    name: "Старт",
+    accent: "30",
+    gradient: "bg-[linear-gradient(135deg,#f7ead7_0%,#f1e8c7_36%,#cae5d2_100%)]",
+  },
+  {
+    name: "Профи",
+    accent: "50",
+    gradient: "bg-[linear-gradient(135deg,#efe3d1_0%,#dfe8d4_40%,#b9dcc7_100%)]",
+  },
+  {
+    name: "Бизнес",
+    accent: "100",
+    gradient: "bg-[linear-gradient(135deg,#e9decf_0%,#d4e1d1_42%,#a8d3bf_100%)]",
+  },
+] as const;
 
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
@@ -510,6 +531,13 @@ export default function WalletPage() {
     storeWalletHermesLayout(DEFAULT_WALLET_HERMES_LAYOUT);
   }
 
+  const visibleLedger = ledger.slice(0, 8);
+  const canShowInlinePayment = PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS;
+  const activePlanTitle = activeSubscription ? activeSubscription.plan_title : "Пакет не подключен";
+  const activePlanMeta = activeSubscription
+    ? `${activeSubscription.projects_remaining} из ${activeSubscription.projects_limit} проектов · до ${formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}`
+    : "Выбери пакет ниже или пополни баланс для оплаты";
+
 
   return (
     <Layout title="Кошелёк">
@@ -518,310 +546,370 @@ export default function WalletPage() {
           <div className={FRAME_CARD}>
             <div className="text-sm text-slate-700">Чтобы пользоваться кошельком — нужно войти.</div>
           </div>
-          <Link href="/auth?next=/wallet" className="inline-block btn btn-primary">Вход</Link>
+          <Link href="/auth?next=/wallet" className={ACTION_PRIMARY}>Вход</Link>
         </>
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
-          <div className="grid gap-4">
-            <div className={FRAME_CARD + " relative overflow-hidden"}>
-              <div className="pointer-events-none absolute -right-6 -top-10 text-[160px] font-light leading-none text-[#d7c9ab]/28 select-none">☿</div>
-              <div className="relative flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-5">
+          <div className={FRAME_CARD + " relative overflow-hidden px-5 py-5 sm:px-7"}>
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-[34%] bg-[radial-gradient(circle_at_right_center,rgba(180,223,198,0.32),rgba(180,223,198,0)_72%)]" />
+            <div className="pointer-events-none absolute -right-6 top-0 text-[170px] font-light leading-none text-[#d8ccb4]/45 select-none">☿</div>
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Кошелёк</div>
-                  <div className="mt-2 text-3xl font-semibold text-slate-950">
+                  <div className="text-sm font-medium text-[#59675f]">Ваш баланс</div>
+                  <div className="mt-1 text-3xl font-semibold tracking-[-0.02em] text-slate-950">
                     {wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}
                   </div>
-                  <div className="mt-2 text-sm text-slate-600">
-                    Баланс, активный пакет и быстрые действия в одном месте.
-                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {!isUnlimited && PAYMENTS_UI_ENABLED ? (
-                    <button onClick={() => setTopupOpen(true)} className="btn btn-primary">
-                      Пополнить
-                    </button>
-                  ) : null}
-                  <button onClick={refresh} className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]">
-                    Обновить
-                  </button>
-                </div>
-              </div>
-
-              <div className="relative mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Баланс</div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-950">{wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}</div>
-                </div>
-                <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Активный пакет</div>
-                  <div className="mt-2 text-base font-semibold text-slate-950">{activeSubscription ? activeSubscription.plan_title : "Не подключен"}</div>
-                  <div className="mt-1 text-xs text-slate-600">{activeSubscription ? `До ${formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}` : "Выбери пакет ниже"}</div>
-                </div>
-                <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Остаток</div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-950">{activeSubscription ? activeSubscription.projects_remaining : "—"}</div>
-                  <div className="mt-1 text-xs text-slate-600">{activeSubscription ? `из ${activeSubscription.projects_limit} проектов` : "Лимит появится после оплаты"}</div>
-                </div>
-                <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Статус</div>
-                  <div className="mt-2 text-base font-semibold text-slate-950">{isUnlimited ? "Безлимит" : activeSubscription ? "Активен" : "Ожидает оплаты"}</div>
-                  <div className="mt-1 text-xs text-slate-600">{isUnlimited ? "Внутренний режим" : "Пакеты и пополнение ниже"}</div>
-                </div>
-              </div>
-
-              {error ? <div className="relative mt-3 text-sm text-red-600">{error}</div> : null}
-              {loading ? <div className="relative mt-2 text-xs text-slate-500">⏳ Загружаю…</div> : null}
-            </div>
-
-            <div className={FRAME_CARD}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="h-10 w-px bg-[#e5dbc8] hidden lg:block" />
                 <div>
-                  <div className="text-sm font-semibold text-emerald-900">Промокод</div>
-                  <div className="mt-1 text-sm text-slate-600">Если код не применился сразу, здесь можно повторить активацию.</div>
+                  <div className="text-sm font-medium text-[#59675f]">Текущий пакет</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{activePlanTitle}</div>
+                  <div className="mt-1 text-sm text-slate-600">{activePlanMeta}</div>
                 </div>
-                <Link href="/legal/offer" className="text-sm text-emerald-800 hover:underline">Условия оплаты и реквизиты</Link>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <input
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                  placeholder="Например: START-500"
-                  className="input"
-                />
-                <button
-                  type="button"
-                  onClick={() => redeemPromo(promoCode)}
-                  disabled={promoBusy || !promoCode.trim()}
-                  className="btn btn-primary whitespace-nowrap"
-                >
-                  {promoBusy ? "Активирую…" : "Активировать"}
+              <div className="relative flex flex-wrap items-center gap-2">
+                {!isUnlimited && PAYMENTS_UI_ENABLED ? (
+                  <button onClick={() => setTopupOpen(true)} className={ACTION_SECONDARY}>
+                    Пополнить
+                  </button>
+                ) : null}
+                <button onClick={refresh} className={ACTION_PRIMARY}>
+                  Обновить
                 </button>
               </div>
-              {promoError ? <div className="mt-2 text-sm text-red-600">{promoError}</div> : null}
-              {promoInfo ? <div className="mt-2 text-sm text-emerald-700">{promoInfo}</div> : null}
-              {getStoredPromoCode() ? <div className="mt-2 text-xs text-amber-700">Сохранённый код: {getStoredPromoCode()}</div> : null}
             </div>
 
-            <div id="wallet-plans" className={FRAME_CARD}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-emerald-900">Пакеты услуг</div>
-                  <div className="mt-2 text-sm text-slate-600">Выбери пакет и оплати его онлайн или с внутреннего баланса. Один проект списывается только один раз.</div>
-                </div>
-                {activeSubscription ? (
-                  <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
-                    <div className="font-medium">Активен: {activeSubscription.plan_title}</div>
-                    <div className="mt-1 text-xs">Осталось: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div>
-                  </div>
-                ) : null}
+            <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className={FRAME_SOFT + " p-4"}>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-[#8e7d5d]">Кошелёк</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">{wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}</div>
+                <div className="mt-2 text-xs leading-5 text-slate-600">Баланс используется для оплаты пакетов и внутренних покупок.</div>
               </div>
-
-              <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
-                  const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
-                  return (
-                    <div key={plan.key} className={`rounded-[30px] border p-5 shadow-[0_12px_28px_rgba(142,122,81,0.08)] ${isActive ? "border-[#8ea15a] bg-[#eef0dd]" : "border-[#dccdb0] bg-[#faf6ec]/90"}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-base font-semibold text-slate-950">До {plan.projectsLimit} проектов / месяц</div>
-                          <div className="mt-1 text-sm text-slate-500">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽</div>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-[#dbe2b8] text-[#61713e]" : "bg-[#fffaf0] text-[#6e6656]"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
-                      </div>
-                      <div className="mt-3 text-sm leading-6 text-slate-600">{plan.description}</div>
-                      <div className="mt-4 grid gap-2">
-                        <button
-                          type="button"
-                          className="btn btn-primary w-full border-[#93a45f] bg-[#98ab62] text-white hover:bg-[#8ca056]"
-                          disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
-                          onClick={() => buyMonthlyPlanFromWallet(plan.key)}
-                        >
-                          {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю…" : `С баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
-                        </button>
-                        {PAYMENTS_UI_ENABLED ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary w-full border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
-                            disabled={!!subscriptionBusyKey}
-                            onClick={() => startMonthlyPlanPurchase(plan.key)}
-                          >
-                            {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : isActive ? "Продлить онлайн" : "Оплатить онлайн"}
-                          </button>
-                        ) : SHOW_YOOKASSA_TEST_BUTTONS ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary w-full border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
-                            disabled={!!subscriptionBusyKey}
-                            onClick={() => startMonthlyPlanPurchase(plan.key)}
-                          >
-                            {subscriptionBusyKey === `online:${plan.key}` ? "Создаю тестовую оплату…" : "Тест ЮKassa"}
-                          </button>
-                        ) : (
-                          <div className="rounded-[20px] border border-[#e5d6bd] bg-[#fffaf2] px-3 py-2 text-xs text-slate-600">
-                            Онлайн-оплата выключена. Пакет услуг можно оплатить с баланса.
-                          </div>
-                        )}
-                        {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100 ? (
-                          <div className="text-xs text-amber-700">На балансе пока меньше стоимости пакета услуг.</div>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className={FRAME_SOFT + " p-4"}>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-[#8e7d5d]">Пакет</div>
+                <div className="mt-2 text-base font-semibold text-slate-950">{activePlanTitle}</div>
+                <div className="mt-2 text-xs leading-5 text-slate-600">{activeSubscription ? `До ${formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}` : "Пока не подключён"}</div>
               </div>
-
-              {subscriptionError ? <div className="mt-3 text-sm text-red-600">{subscriptionError}</div> : null}
-              {subscriptionInfo ? <div className="mt-3 text-sm text-emerald-700">{subscriptionInfo}</div> : null}
+              <div className={FRAME_SOFT + " p-4"}>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-[#8e7d5d]">Остаток</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">{activeSubscription ? activeSubscription.projects_remaining : "—"}</div>
+                <div className="mt-2 text-xs leading-5 text-slate-600">{activeSubscription ? `из ${activeSubscription.projects_limit} проектов` : "Появится после активации тарифа"}</div>
+              </div>
+              <div className={FRAME_SOFT + " p-4"}>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-[#8e7d5d]">Статус</div>
+                <div className="mt-2 text-base font-semibold text-slate-950">{isUnlimited ? "Безлимит" : activeSubscription ? "Активен" : "Ожидает оплаты"}</div>
+                <div className="mt-2 text-xs leading-5 text-slate-600">{isUnlimited ? "Внутренний режим" : "Можно оплатить с баланса или онлайн"}</div>
+              </div>
             </div>
 
-            <div className={FRAME_SOFT + " p-4 text-sm text-slate-600"}>
-              Условия оплаты, возврата и реквизиты доступны на странице <Link href="/legal/offer" className="text-emerald-800 hover:underline">оферты</Link>.
-            </div>
+            {error ? <div className="relative mt-4 text-sm text-red-600">{error}</div> : null}
+            {loading ? <div className="relative mt-2 text-xs text-slate-500">⏳ Загружаю…</div> : null}
           </div>
 
-          <div className="grid gap-4">
-            <div className={FRAME_CARD + " overflow-hidden p-0 bg-[linear-gradient(180deg,#f7f0e3_0%,#efe8d8_100%)]"}>
-              <div className="border-b border-[#dccdb0] px-5 py-3 bg-[rgba(255,250,242,0.65)]">
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {canManageWalletHermesLayout ? (
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
-                        {walletHermesConstructorOpen ? "Скрыть конструктор" : "Конструктор"}
-                      </button>
-                      <button type="button" className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]" onClick={resetWalletHermesLayout}>
-                        Сбросить
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
-                        disabled={walletHermesTemplateBusy}
-                        onClick={saveWalletHermesTemplateForAll}
-                      >
-                        {walletHermesTemplateBusy ? "Сохранение..." : "Сохранить шаблон для всех"}
-                      </button>
+          <div className={FRAME_CARD + " px-5 py-5 sm:px-7"}>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-[#315845]">Промокод</div>
+                <div className="mt-1 text-sm text-slate-600">Здесь можно безопасно повторить активацию. Если код не применился при регистрации или первом входе, он останется сохранён.</div>
+              </div>
+              <Link href="/legal/offer" className="text-sm font-medium text-[#4f775f] hover:underline">Оферта и реквизиты</Link>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+              <input
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                placeholder="Например: START-500"
+                className={INPUT_CLASS}
+              />
+              <button
+                type="button"
+                onClick={() => redeemPromo(promoCode)}
+                disabled={promoBusy || !promoCode.trim()}
+                className={ACTION_PRIMARY + " whitespace-nowrap"}
+              >
+                {promoBusy ? "Активирую…" : "Активировать"}
+              </button>
+            </div>
+            {promoError ? <div className="mt-3 text-sm text-red-600">{promoError}</div> : null}
+            {promoInfo ? <div className="mt-3 text-sm text-emerald-700">{promoInfo}</div> : null}
+            {getStoredPromoCode() ? <div className="mt-2 text-xs text-amber-700">Сохранённый код: {getStoredPromoCode()}</div> : null}
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]">
+            <div className="space-y-5">
+              <div id="wallet-plans" className={FRAME_CARD + " px-5 py-5 sm:px-7"}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-[#315845]">Пакеты услуг</div>
+                    <div className="mt-2 text-sm text-slate-600">Выбери нужный пакет и оплати его онлайн или с внутреннего баланса кошелька.</div>
+                  </div>
+                  {activeSubscription ? (
+                    <div className="rounded-[24px] border border-[#c7e4d2] bg-[linear-gradient(180deg,#edf9f1_0%,#dff2e7_100%)] px-4 py-3 text-sm text-emerald-900 shadow-[0_10px_18px_rgba(95,148,116,0.10)]">
+                      <div className="font-medium">Активен: {activeSubscription.plan_title}</div>
+                      <div className="mt-1 text-xs">Осталось: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit} · до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}</div>
                     </div>
                   ) : null}
                 </div>
-                {walletHermesTemplateInfo ? <div className="mt-3 text-[12px] text-[#5f7a4a]">{walletHermesTemplateInfo}</div> : null}
-                {walletHermesTemplateError ? <div className="mt-3 text-[12px] text-[#9b4c3d]">{walletHermesTemplateError}</div> : null}
-                {walletHermesConstructorOpen ? (
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div className={FRAME_SOFT + " p-3"}>
-                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Размер</div>
-                      <div className="mt-3 space-y-3 text-sm text-slate-700">
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Ширина</span><span>{walletHermesLayout.widthPercent}%</span></div>
-                          <input type="range" min="70" max="150" step="1" value={walletHermesLayout.widthPercent} onChange={(e) => updateWalletHermesLayout({ widthPercent: Number(e.target.value) })} className="w-full" />
-                        </label>
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Высота блока</span><span>{walletHermesLayout.heightPx}px</span></div>
-                          <input type="range" min="280" max="760" step="10" value={walletHermesLayout.heightPx} onChange={(e) => updateWalletHermesLayout({ heightPx: Number(e.target.value) })} className="w-full" />
-                        </label>
+
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  {MONTHLY_SUBSCRIPTION_PLANS.map((plan, index) => {
+                    const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
+                    const visual = PLAN_VISUALS[index % PLAN_VISUALS.length];
+                    return (
+                      <div key={plan.key} className={`overflow-hidden rounded-[30px] border shadow-[0_14px_28px_rgba(126,99,57,0.08)] ${isActive ? "border-[#b8dfc5] bg-[linear-gradient(180deg,#f6fcf8_0%,#edf7f1_100%)]" : "border-[#e4d7c0] bg-white/90"}`}>
+                        <div className={`relative h-36 overflow-hidden px-5 py-5 ${visual.gradient}`}>
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.82),rgba(255,255,255,0)_55%)]" />
+                          <div className="absolute -right-4 -top-5 text-[96px] font-semibold leading-none text-white/55">{visual.accent}</div>
+                          <div className="relative flex h-full flex-col justify-between">
+                            <span className="inline-flex w-fit items-center rounded-full border border-white/70 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#57655b] shadow-[0_4px_10px_rgba(255,255,255,0.25)]">{visual.name}</span>
+                            <div>
+                              <div className="text-sm font-medium text-[#4f5f57]">до {plan.projectsLimit} проектов / месяц</div>
+                              <div className="mt-1 text-xs text-[#6a736f]">Полное открытие оценки на 30 дней</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-2xl font-semibold tracking-[-0.02em] text-slate-950">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽</div>
+                              <div className="mt-1 text-sm text-slate-500">в месяц</div>
+                            </div>
+                            <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-[#dff2e7] text-[#296244]" : "bg-[#f7f2e9] text-[#6e725f]"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
+                          </div>
+                          <div className="mt-4 text-sm leading-6 text-slate-600">{plan.description}</div>
+                          <div className="mt-5 grid gap-2">
+                            <button
+                              type="button"
+                              className={ACTION_PRIMARY + " w-full"}
+                              disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
+                              onClick={() => buyMonthlyPlanFromWallet(plan.key)}
+                            >
+                              {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю…" : `С баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
+                            </button>
+                            {PAYMENTS_UI_ENABLED ? (
+                              <button
+                                type="button"
+                                className={ACTION_SECONDARY + " w-full"}
+                                disabled={!!subscriptionBusyKey}
+                                onClick={() => startMonthlyPlanPurchase(plan.key)}
+                              >
+                                {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : isActive ? "Продлить онлайн" : "Оплатить онлайн"}
+                              </button>
+                            ) : SHOW_YOOKASSA_TEST_BUTTONS ? (
+                              <button
+                                type="button"
+                                className={ACTION_SECONDARY + " w-full"}
+                                disabled={!!subscriptionBusyKey}
+                                onClick={() => startMonthlyPlanPurchase(plan.key)}
+                              >
+                                {subscriptionBusyKey === `online:${plan.key}` ? "Создаю тестовую оплату…" : "Тест ЮKassa"}
+                              </button>
+                            ) : (
+                              <div className="rounded-[18px] border border-[#e5d6bd] bg-[#fffaf2] px-3 py-3 text-xs leading-5 text-slate-600">
+                                Онлайн-оплата выключена. Пакет услуг можно оплатить с баланса.
+                              </div>
+                            )}
+                            {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100 ? (
+                              <div className="text-xs text-amber-700">На балансе пока меньше стоимости пакета услуг.</div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className={FRAME_SOFT + " p-3"}>
-                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Положение</div>
-                      <div className="mt-3 space-y-3 text-sm text-slate-700">
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Сдвиг по X</span><span>{walletHermesLayout.offsetX}px</span></div>
-                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.offsetX} onChange={(e) => updateWalletHermesLayout({ offsetX: Number(e.target.value) })} className="w-full" />
-                        </label>
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Сдвиг по Y</span><span>{walletHermesLayout.offsetY}px</span></div>
-                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.offsetY} onChange={(e) => updateWalletHermesLayout({ offsetY: Number(e.target.value) })} className="w-full" />
-                        </label>
-                      </div>
-                    </div>
-                    <div className={FRAME_SOFT + " p-3 md:col-span-2"}>
-                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Окно оплаты</div>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2 text-sm text-slate-700">
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Ширина окна</span><span>{walletHermesLayout.cardWidthPx}px</span></div>
-                          <input type="range" min="240" max="420" step="4" value={walletHermesLayout.cardWidthPx} onChange={(e) => updateWalletHermesLayout({ cardWidthPx: Number(e.target.value) })} className="w-full" />
-                        </label>
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Высота окна</span><span>{walletHermesLayout.cardHeightPx}px</span></div>
-                          <input type="range" min="200" max="420" step="4" value={walletHermesLayout.cardHeightPx} onChange={(e) => updateWalletHermesLayout({ cardHeightPx: Number(e.target.value) })} className="w-full" />
-                        </label>
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Окно по X</span><span>{walletHermesLayout.cardOffsetX}px</span></div>
-                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.cardOffsetX} onChange={(e) => updateWalletHermesLayout({ cardOffsetX: Number(e.target.value) })} className="w-full" />
-                        </label>
-                        <label className="block">
-                          <div className="mb-1 flex items-center justify-between"><span>Окно по Y</span><span>{walletHermesLayout.cardOffsetY}px</span></div>
-                          <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.cardOffsetY} onChange={(e) => updateWalletHermesLayout({ cardOffsetY: Number(e.target.value) })} className="w-full" />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
+                    );
+                  })}
+                </div>
+
+                {subscriptionError ? <div className="mt-4 text-sm text-red-600">{subscriptionError}</div> : null}
+                {subscriptionInfo ? <div className="mt-4 text-sm text-emerald-700">{subscriptionInfo}</div> : null}
               </div>
-              <div className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]">
-                <div className="relative">
-                  <div className="px-0 pt-4">
-                    <img
-                      src="/wallet-hermes-guide-cropped.png"
-                      alt="Персонаж с табличкой"
-                      className="block max-w-none select-none"
-                      style={{
-                        width: `${walletHermesLayout.widthPercent}%`,
-                        transform: `translate(${walletHermesLayout.offsetX}px, ${walletHermesLayout.offsetY}px)`,
-                      }}
-                    />
+
+              <div className={FRAME_CARD + " overflow-hidden px-5 py-5 sm:px-7"}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-[#42554c]">История операций</div>
+                  <div className="text-xs text-slate-500">Свежие записи по кошельку</div>
+                </div>
+                <div className="mt-4 overflow-hidden rounded-[24px] border border-[#e5d8c4] bg-white/80">
+                  <div className="overflow-auto">
+                    <table className="w-full min-w-[560px] text-sm">
+                      <thead className="bg-[linear-gradient(180deg,#fbf7f1_0%,#f4eddf_100%)] text-left text-xs uppercase tracking-[0.14em] text-[#8a7d66]">
+                        <tr>
+                          <th className="px-4 py-3">Дата</th>
+                          <th className="px-4 py-3">Сумма</th>
+                          <th className="px-4 py-3">Причина</th>
+                          <th className="px-4 py-3">Ссылка</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleLedger.map((row) => {
+                          const positive = row.amount_kopeks > 0;
+                          return (
+                            <tr key={row.id} className="border-t border-[#f0e6d5]">
+                              <td className="px-4 py-3 text-xs text-slate-600">{new Date(row.created_at).toLocaleString()}</td>
+                              <td className={`px-4 py-3 font-semibold ${positive ? "text-emerald-700" : "text-rose-600"}`}>{positive ? "+" : ""}{formatRub(row.amount_kopeks)}</td>
+                              <td className="px-4 py-3 text-slate-700">{reasonLabel(row.reason)}</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">{row.ref ?? "—"}</td>
+                            </tr>
+                          );
+                        })}
+                        {visibleLedger.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-500">Пока пусто</td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
                   </div>
-                  <div
-                    className="relative z-10 flex justify-end px-4 pb-4 pointer-events-none"
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className={FRAME_CARD + " overflow-hidden p-0"}>
+                <div className="border-b border-[#e4d7c0] px-5 py-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-[#315845]">Пополнение баланса</div>
+                      <div className="mt-1 text-sm text-slate-600">Бежево-зелёный экран оплаты с образом Гермеса и быстрым выбором суммы.</div>
+                    </div>
+                    {canManageWalletHermesLayout ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className={ACTION_SECONDARY} onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
+                          {walletHermesConstructorOpen ? "Скрыть конструктор" : "Конструктор"}
+                        </button>
+                        <button type="button" className={ACTION_SECONDARY} onClick={resetWalletHermesLayout}>
+                          Сбросить
+                        </button>
+                        <button
+                          type="button"
+                          className={ACTION_SECONDARY}
+                          disabled={walletHermesTemplateBusy}
+                          onClick={saveWalletHermesTemplateForAll}
+                        >
+                          {walletHermesTemplateBusy ? "Сохранение…" : "Сохранить для всех"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {walletHermesTemplateInfo ? <div className="mt-3 text-[12px] text-[#5f7a4a]">{walletHermesTemplateInfo}</div> : null}
+                  {walletHermesTemplateError ? <div className="mt-3 text-[12px] text-[#9b4c3d]">{walletHermesTemplateError}</div> : null}
+                  {walletHermesConstructorOpen ? (
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className={FRAME_SOFT + " p-3"}>
+                        <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#8d7b59]">Композиция</div>
+                        <div className="mt-3 space-y-3 text-sm text-slate-700">
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Ширина</span><span>{walletHermesLayout.widthPercent}%</span></div>
+                            <input type="range" min="70" max="150" step="1" value={walletHermesLayout.widthPercent} onChange={(e) => updateWalletHermesLayout({ widthPercent: Number(e.target.value) })} className="w-full" />
+                          </label>
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Высота блока</span><span>{walletHermesLayout.heightPx}px</span></div>
+                            <input type="range" min="280" max="760" step="10" value={walletHermesLayout.heightPx} onChange={(e) => updateWalletHermesLayout({ heightPx: Number(e.target.value) })} className="w-full" />
+                          </label>
+                        </div>
+                      </div>
+                      <div className={FRAME_SOFT + " p-3"}>
+                        <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#8d7b59]">Положение</div>
+                        <div className="mt-3 space-y-3 text-sm text-slate-700">
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Сдвиг по X</span><span>{walletHermesLayout.offsetX}px</span></div>
+                            <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.offsetX} onChange={(e) => updateWalletHermesLayout({ offsetX: Number(e.target.value) })} className="w-full" />
+                          </label>
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Сдвиг по Y</span><span>{walletHermesLayout.offsetY}px</span></div>
+                            <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.offsetY} onChange={(e) => updateWalletHermesLayout({ offsetY: Number(e.target.value) })} className="w-full" />
+                          </label>
+                        </div>
+                      </div>
+                      <div className={FRAME_SOFT + " p-3 md:col-span-2"}>
+                        <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#8d7b59]">Окно оплаты</div>
+                        <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Ширина окна</span><span>{walletHermesLayout.cardWidthPx}px</span></div>
+                            <input type="range" min="240" max="420" step="4" value={walletHermesLayout.cardWidthPx} onChange={(e) => updateWalletHermesLayout({ cardWidthPx: Number(e.target.value) })} className="w-full" />
+                          </label>
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Высота окна</span><span>{walletHermesLayout.cardHeightPx}px</span></div>
+                            <input type="range" min="200" max="420" step="4" value={walletHermesLayout.cardHeightPx} onChange={(e) => updateWalletHermesLayout({ cardHeightPx: Number(e.target.value) })} className="w-full" />
+                          </label>
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Окно по X</span><span>{walletHermesLayout.cardOffsetX}px</span></div>
+                            <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.cardOffsetX} onChange={(e) => updateWalletHermesLayout({ cardOffsetX: Number(e.target.value) })} className="w-full" />
+                          </label>
+                          <label className="block">
+                            <div className="mb-1 flex items-center justify-between"><span>Окно по Y</span><span>{walletHermesLayout.cardOffsetY}px</span></div>
+                            <input type="range" min="-220" max="220" step="2" value={walletHermesLayout.cardOffsetY} onChange={(e) => updateWalletHermesLayout({ cardOffsetY: Number(e.target.value) })} className="w-full" />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="relative overflow-hidden bg-[linear-gradient(180deg,#fbf7f0_0%,#f3ecdf_100%)]" style={{ minHeight: `${walletHermesLayout.heightPx}px` }}>
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(179,220,195,0.45),rgba(179,220,195,0)_42%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.88),rgba(255,255,255,0)_45%)]" />
+                  <img
+                    src="/wallet-hermes-guide-cropped.png"
+                    alt="Персонаж с табличкой"
+                    className="absolute left-0 bottom-0 block max-w-none select-none"
                     style={{
-                      marginTop: `-${Math.round(walletHermesLayout.cardHeightPx * 0.72)}px`,
+                      width: `${walletHermesLayout.widthPercent}%`,
+                      transform: `translate(${walletHermesLayout.offsetX}px, ${walletHermesLayout.offsetY}px)`,
                     }}
-                  >
+                  />
+
+                  <div className="relative flex min-h-full items-end justify-end px-4 py-4 pointer-events-none sm:px-5 sm:py-5" style={{ minHeight: `${walletHermesLayout.heightPx}px` }}>
                     <div
-                      className="rounded-[26px] border border-[#d7c7a8] bg-[rgba(252,248,240,0.96)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]"
+                      className="pointer-events-auto rounded-[28px] border border-[#d8ccb8] bg-[rgba(255,252,246,0.95)] px-5 py-5 shadow-[0_18px_34px_rgba(120,92,44,0.12)] backdrop-blur-[1px]"
                       style={{
                         width: `${walletHermesLayout.cardWidthPx}px`,
                         minHeight: `${walletHermesLayout.cardHeightPx}px`,
                         transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
                       }}
                     >
-                      <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">Пополнение</div>
-                      {activeSubscription ? <div className="mt-2 text-xs leading-5 font-medium text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div> : null}
-                      <div className="mt-2 text-sm leading-6 text-slate-600">Выбери сумму и перейди к оплате.</div>
-                      {PAYMENTS_UI_ENABLED || SHOW_YOOKASSA_TEST_BUTTONS ? (
+                      <div className="text-xs uppercase tracking-[0.24em] text-[#987b4e]">Оплата</div>
+                      {activeSubscription ? (
+                        <div className="mt-2 text-xs leading-5 font-medium text-emerald-700">Активный пакет: {activeSubscription.plan_title}. Осталось {activeSubscription.projects_remaining} проектов.</div>
+                      ) : null}
+                      <div className="mt-2 text-sm leading-6 text-slate-600">Выбери сумму и перейди к оплате прямо из окна.</div>
+                      {canShowInlinePayment ? (
                         <>
-                          <div className="mt-3 grid grid-cols-3 gap-2">
+                          <div className="mt-4 grid grid-cols-3 gap-2">
                             {QUICK_AMOUNTS.map((a) => (
                               <button
                                 key={a}
                                 type="button"
                                 onClick={() => setAmountRub(String(a))}
-                                className="rounded-full border border-[#dccfb9] bg-white px-2 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                                className={ACTION_CHIP}
                               >
                                 {a} ₽
                               </button>
                             ))}
                           </div>
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-3 space-y-3">
                             <input
                               value={amountRub}
                               onChange={(e) => setAmountRub(e.target.value)}
                               inputMode="numeric"
                               placeholder="3000"
-                              className="input h-12 text-lg font-semibold"
+                              className={INPUT_CLASS + " h-12 text-lg font-semibold"}
                             />
                             <button
                               type="button"
                               disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
                               onClick={() => startTopup(parsedRub || 0)}
-                              className="btn btn-primary w-full justify-center border-[#93a45f] bg-[#98ab62] text-white hover:bg-[#8ca056]"
+                              className={ACTION_PRIMARY + " w-full"}
                             >
                               {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
                             </button>
                           </div>
-                          <div className="mt-2 text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
+                          <div className="mt-3 text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
                           {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
                         </>
                       ) : (
-                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
+                        <div className="mt-4 rounded-[18px] border border-[#e5d6bd] bg-white/80 px-3 py-3 text-xs leading-5 text-slate-600">
                           Чтобы показать кнопки оплаты, добавь NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED=1 или включи боевой UI через NEXT_PUBLIC_PAYMENTS_ENABLED=1.
                         </div>
                       )}
@@ -829,40 +917,9 @@ export default function WalletPage() {
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className={FRAME_CARD}>
-              <div className="flex items-center justify-between gap-3"><div className="text-sm font-semibold text-emerald-900">Последние операции</div><div className="text-xs text-slate-500">Показываем свежие записи</div></div>
-              <div className="mt-2 max-h-[420px] overflow-auto">
-                <table className="w-full text-sm text-[#5e574a]">
-                  <thead>
-                    <tr className="text-left text-xs text-[#8d816b]">
-                      <th className="py-2">Дата</th>
-                      <th className="py-2">Сумма</th>
-                      <th className="py-2">Причина</th>
-                      <th className="py-2">Ссылка</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledger.slice(0, 6).map((row) => (
-                      <tr key={row.id} className="border-t border-[#e8dcc3]">
-                        <td className="py-2 text-xs text-[#746d60]">
-                          {new Date(row.created_at).toLocaleString()}
-                        </td>
-                        <td className="py-2">{formatRub(row.amount_kopeks)}</td>
-                        <td className="py-2">{reasonLabel(row.reason)}</td>
-                        <td className="py-2 text-xs text-[#746d60]">{row.ref ?? "—"}</td>
-                      </tr>
-                    ))}
-                    {ledger.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-4 text-center text-xs text-slate-500">
-                          Пока пусто
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+              <div className={FRAME_SOFT + " px-5 py-4 text-sm text-slate-600"}>
+                Условия оплаты, возврата и реквизиты доступны на странице <Link href="/legal/offer" className="font-medium text-[#4f775f] hover:underline">оферты</Link>.
               </div>
             </div>
           </div>
@@ -885,7 +942,7 @@ export default function WalletPage() {
                         setTopupError(null);
                       }
                     }}
-                    className="btn btn-secondary btn-sm"
+                    className={ACTION_SECONDARY}
                   >
                     Закрыть
                   </button>
@@ -898,7 +955,7 @@ export default function WalletPage() {
                     onChange={(e) => setAmountRub(e.target.value)}
                     inputMode="numeric"
                     placeholder="3000"
-                    className="mt-1 input"
+                    className={INPUT_CLASS + " mt-1"}
                   />
 
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -907,7 +964,7 @@ export default function WalletPage() {
                         key={a}
                         type="button"
                         onClick={() => setAmountRub(String(a))}
-                        className="btn btn-secondary btn-pill"
+                        className={ACTION_CHIP}
                       >
                         {a} ₽
                       </button>
@@ -926,7 +983,7 @@ export default function WalletPage() {
                         setTopupOpen(false);
                         setTopupError(null);
                       }}
-                      className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
+                      className={ACTION_SECONDARY}
                     >
                       Отмена
                     </button>
@@ -934,7 +991,7 @@ export default function WalletPage() {
                       type="button"
                       disabled={topupBusy || parsedRub === null || parsedRub < 1}
                       onClick={() => startTopup(parsedRub || 0)}
-                      className="btn btn-primary"
+                      className={ACTION_PRIMARY}
                     >
                       {topupBusy ? "Создаю оплату…" : "Перейти к оплате"}
                     </button>
