@@ -552,7 +552,7 @@ export default function WalletPage() {
         <div className="space-y-5">
 <div className={FRAME_CARD + " relative overflow-hidden px-6 py-6 sm:px-7 sm:py-7"}>
   <div className="pointer-events-none absolute inset-y-0 right-0 w-[34%] bg-[radial-gradient(circle_at_right_center,rgba(180,223,198,0.32),rgba(180,223,198,0)_72%)]" />
-  <div className="pointer-events-none absolute -right-6 top-0 text-[170px] font-light leading-none text-[#d8ccb4]/45 select-none">☿</div>
+  <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[124px] font-light leading-none text-[#d8ccb4]/40 select-none">☿</div>
   <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
     <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
       <div>
@@ -635,7 +635,7 @@ export default function WalletPage() {
                                 disabled={!!subscriptionBusyKey}
                                 onClick={() => startMonthlyPlanPurchase(plan.key)}
                               >
-                                {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : isActive ? "Продлить онлайн" : "Оплатить онлайн"}
+                                {subscriptionBusyKey === `online:${plan.key}` ? "Создаю оплату…" : isActive ? "Продлить онлайн" : "Пополнить баланс"}
                               </button>
                             ) : SHOW_YOOKASSA_TEST_BUTTONS ? (
                               <button
@@ -711,7 +711,6 @@ export default function WalletPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="text-sm font-semibold text-[#315845]">Пополнение баланса</div>
-          <div className="mt-1 text-sm text-slate-600">Быстрое пополнение через окно оплаты с Гермесом справа.</div>
         </div>
         {canManageWalletHermesLayout ? (
           <div className="flex flex-wrap gap-2">
