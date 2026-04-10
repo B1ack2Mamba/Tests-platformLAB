@@ -816,7 +816,7 @@ export default function WalletPage() {
                     </div>
                   </div>
                 </div>
-              </div></div>
+              </div>
             </div>
 
             <div className={FRAME_CARD}>
