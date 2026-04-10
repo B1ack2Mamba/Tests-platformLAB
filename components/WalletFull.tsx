@@ -42,8 +42,8 @@ type SubscriptionStatusResp = {
 
 const QUICK_AMOUNTS = [3000, 15000, 30000] as const;
 
-const FRAME_CARD = "card rounded-[32px] border border-[#d9c3a0] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe3_100%)] shadow-[0_18px_42px_rgba(137,109,64,0.10)]";
-const FRAME_SOFT = "rounded-[26px] border border-[#e6d8be] bg-[rgba(255,255,255,0.78)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]";
+const FRAME_CARD = "card rounded-[34px] border border-[#d8c9ab] bg-[linear-gradient(180deg,#f8f3e7_0%,#f1eadb_100%)] shadow-[0_18px_44px_rgba(142,122,81,0.10)]";
+const FRAME_SOFT = "rounded-[26px] border border-[#ddcfb2] bg-[rgba(255,252,245,0.78)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]";
 
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
@@ -521,18 +521,18 @@ export default function WalletPage() {
           <Link href="/auth?next=/wallet" className="inline-block btn btn-primary">Вход</Link>
         </>
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[1.18fr_0.82fr]">
+        <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
           <div className="grid gap-4">
             <div className={FRAME_CARD + " relative overflow-hidden"}>
-              <div className="pointer-events-none absolute -right-8 -top-12 text-[170px] font-light leading-none text-[#d7c7ac]/35 select-none">☿</div>
+              <div className="pointer-events-none absolute -right-6 -top-10 text-[160px] font-light leading-none text-[#d7c9ab]/28 select-none">☿</div>
               <div className="relative flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-[#8d6f47]">Баланс и пакеты</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Кошелёк</div>
                   <div className="mt-2 text-3xl font-semibold text-slate-950">
                     {wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}
                   </div>
                   <div className="mt-2 text-sm text-slate-600">
-                    Все главное по оплате и пакетам — в одном спокойном разделе.
+                    Баланс, активный пакет и быстрые действия в одном месте.
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -541,7 +541,7 @@ export default function WalletPage() {
                       Пополнить
                     </button>
                   ) : null}
-                  <button onClick={refresh} className="btn btn-secondary">
+                  <button onClick={refresh} className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]">
                     Обновить
                   </button>
                 </div>
@@ -549,21 +549,21 @@ export default function WalletPage() {
 
               <div className="relative mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-[#8d6f47]">Баланс</div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Баланс</div>
                   <div className="mt-2 text-2xl font-semibold text-slate-950">{wallet ? (isUnlimited ? "∞" : formatRub(wallet.balance_kopeks)) : "—"}</div>
                 </div>
                 <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-[#8d6f47]">Активный пакет</div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Активный пакет</div>
                   <div className="mt-2 text-base font-semibold text-slate-950">{activeSubscription ? activeSubscription.plan_title : "Не подключен"}</div>
                   <div className="mt-1 text-xs text-slate-600">{activeSubscription ? `До ${formatMonthlySubscriptionPeriod(activeSubscription.expires_at)}` : "Выбери пакет ниже"}</div>
                 </div>
                 <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-[#8d6f47]">Остаток</div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Остаток</div>
                   <div className="mt-2 text-2xl font-semibold text-slate-950">{activeSubscription ? activeSubscription.projects_remaining : "—"}</div>
                   <div className="mt-1 text-xs text-slate-600">{activeSubscription ? `из ${activeSubscription.projects_limit} проектов` : "Лимит появится после оплаты"}</div>
                 </div>
                 <div className={FRAME_SOFT + " p-4"}>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-[#8d6f47]">Статус</div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Статус</div>
                   <div className="mt-2 text-base font-semibold text-slate-950">{isUnlimited ? "Безлимит" : activeSubscription ? "Активен" : "Ожидает оплаты"}</div>
                   <div className="mt-1 text-xs text-slate-600">{isUnlimited ? "Внутренний режим" : "Пакеты и пополнение ниже"}</div>
                 </div>
@@ -574,10 +574,10 @@ export default function WalletPage() {
             </div>
 
             <div className={FRAME_CARD}>
-              <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-emerald-900">Промокод</div>
-                  <div className="mt-1 text-sm text-slate-600">Код можно ввести повторно в любой момент.</div>
+                  <div className="mt-1 text-sm text-slate-600">Если код не применился сразу, здесь можно повторить активацию.</div>
                 </div>
                 <Link href="/legal/offer" className="text-sm text-emerald-800 hover:underline">Условия оплаты и реквизиты</Link>
               </div>
@@ -606,7 +606,7 @@ export default function WalletPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-emerald-900">Пакеты услуг</div>
-                  <div className="mt-2 text-sm text-slate-600">Выбери нужный пакет и оплати его онлайн или с внутреннего баланса.</div>
+                  <div className="mt-2 text-sm text-slate-600">Выбери пакет и оплати его онлайн или с внутреннего баланса. Один проект списывается только один раз.</div>
                 </div>
                 {activeSubscription ? (
                   <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
@@ -620,19 +620,19 @@ export default function WalletPage() {
                 {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
                   const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
                   return (
-                    <div key={plan.key} className={`rounded-[30px] border p-5 shadow-[0_12px_26px_rgba(126,99,57,0.08)] ${isActive ? "border-emerald-300 bg-emerald-50/70" : "border-[#e5d6bd] bg-white/85"}`}>
+                    <div key={plan.key} className={`rounded-[30px] border p-5 shadow-[0_12px_28px_rgba(142,122,81,0.08)] ${isActive ? "border-[#8ea15a] bg-[#eef0dd]" : "border-[#dccdb0] bg-[#faf6ec]/90"}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-base font-semibold text-slate-950">До {plan.projectsLimit} проектов</div>
+                          <div className="text-base font-semibold text-slate-950">До {plan.projectsLimit} проектов / месяц</div>
                           <div className="mt-1 text-sm text-slate-500">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽</div>
                         </div>
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-white text-slate-600"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-[#dbe2b8] text-[#61713e]" : "bg-[#fffaf0] text-[#6e6656]"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
                       </div>
                       <div className="mt-3 text-sm leading-6 text-slate-600">{plan.description}</div>
                       <div className="mt-4 grid gap-2">
                         <button
                           type="button"
-                          className="btn btn-primary w-full"
+                          className="btn btn-primary w-full border-[#93a45f] bg-[#98ab62] text-white hover:bg-[#8ca056]"
                           disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
                           onClick={() => buyMonthlyPlanFromWallet(plan.key)}
                         >
@@ -641,7 +641,7 @@ export default function WalletPage() {
                         {PAYMENTS_UI_ENABLED ? (
                           <button
                             type="button"
-                            className="btn btn-secondary w-full"
+                            className="btn btn-secondary w-full border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
                             disabled={!!subscriptionBusyKey}
                             onClick={() => startMonthlyPlanPurchase(plan.key)}
                           >
@@ -650,7 +650,7 @@ export default function WalletPage() {
                         ) : SHOW_YOOKASSA_TEST_BUTTONS ? (
                           <button
                             type="button"
-                            className="btn btn-secondary w-full"
+                            className="btn btn-secondary w-full border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
                             disabled={!!subscriptionBusyKey}
                             onClick={() => startMonthlyPlanPurchase(plan.key)}
                           >
@@ -680,20 +680,20 @@ export default function WalletPage() {
           </div>
 
           <div className="grid gap-4">
-            <div className={FRAME_CARD + " overflow-hidden p-0"}>
-              <div className="border-b border-[#e5d6bd] px-5 py-3">
+            <div className={FRAME_CARD + " overflow-hidden p-0 bg-[linear-gradient(180deg,#f7f0e3_0%,#efe8d8_100%)]"}>
+              <div className="border-b border-[#dccdb0] px-5 py-3 bg-[rgba(255,250,242,0.65)]">
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {canManageWalletHermesLayout ? (
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" className="btn btn-secondary" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
+                      <button type="button" className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]" onClick={() => setWalletHermesConstructorOpen((v) => !v)}>
                         {walletHermesConstructorOpen ? "Скрыть конструктор" : "Конструктор"}
                       </button>
-                      <button type="button" className="btn btn-secondary" onClick={resetWalletHermesLayout}>
+                      <button type="button" className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]" onClick={resetWalletHermesLayout}>
                         Сбросить
                       </button>
                       <button
                         type="button"
-                        className="btn btn-secondary"
+                        className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
                         disabled={walletHermesTemplateBusy}
                         onClick={saveWalletHermesTemplateForAll}
                       >
@@ -707,7 +707,7 @@ export default function WalletPage() {
                 {walletHermesConstructorOpen ? (
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <div className={FRAME_SOFT + " p-3"}>
-                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Композиция</div>
+                      <div className="text-xs font-medium uppercase tracking-[0.16em] text-[#9a7a4b]">Размер</div>
                       <div className="mt-3 space-y-3 text-sm text-slate-700">
                         <label className="block">
                           <div className="mb-1 flex items-center justify-between"><span>Ширина</span><span>{walletHermesLayout.widthPercent}%</span></div>
@@ -776,7 +776,7 @@ export default function WalletPage() {
                     }}
                   >
                     <div
-                      className="rounded-[26px] border border-[#d8ccb9] bg-[rgba(255,252,246,0.94)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]"
+                      className="rounded-[26px] border border-[#d7c7a8] bg-[rgba(252,248,240,0.96)] px-4 py-4 shadow-[0_16px_30px_rgba(120,92,44,0.12)] pointer-events-auto backdrop-blur-[1px]"
                       style={{
                         width: `${walletHermesLayout.cardWidthPx}px`,
                         minHeight: `${walletHermesLayout.cardHeightPx}px`,
@@ -794,7 +794,7 @@ export default function WalletPage() {
                                 key={a}
                                 type="button"
                                 onClick={() => setAmountRub(String(a))}
-                                className="rounded-full border border-[#dccfb9] bg-white/90 px-2.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                                className="rounded-full border border-[#dccfb9] bg-white px-2 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
                               >
                                 {a} ₽
                               </button>
@@ -806,13 +806,13 @@ export default function WalletPage() {
                               onChange={(e) => setAmountRub(e.target.value)}
                               inputMode="numeric"
                               placeholder="3000"
-                              className="input h-12 rounded-[18px] border-[#dccfb9] bg-white/90 text-lg font-semibold"
+                              className="input h-12 text-lg font-semibold"
                             />
                             <button
                               type="button"
                               disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
                               onClick={() => startTopup(parsedRub || 0)}
-                              className="btn btn-primary w-full justify-center"
+                              className="btn btn-primary w-full justify-center border-[#93a45f] bg-[#98ab62] text-white hover:bg-[#8ca056]"
                             >
                               {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
                             </button>
@@ -832,11 +832,11 @@ export default function WalletPage() {
             </div>
 
             <div className={FRAME_CARD}>
-              <div className="flex items-center justify-between gap-3"><div className="text-sm font-medium">Последние операции</div><div className="text-xs text-slate-500">Показываем свежие записи</div></div>
+              <div className="flex items-center justify-between gap-3"><div className="text-sm font-semibold text-emerald-900">Последние операции</div><div className="text-xs text-slate-500">Показываем свежие записи</div></div>
               <div className="mt-2 max-h-[420px] overflow-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm text-[#5e574a]">
                   <thead>
-                    <tr className="text-left text-xs text-slate-500">
+                    <tr className="text-left text-xs text-[#8d816b]">
                       <th className="py-2">Дата</th>
                       <th className="py-2">Сумма</th>
                       <th className="py-2">Причина</th>
@@ -845,13 +845,13 @@ export default function WalletPage() {
                   </thead>
                   <tbody>
                     {ledger.slice(0, 6).map((row) => (
-                      <tr key={row.id} className="border-t border-slate-100">
-                        <td className="py-2 text-xs text-slate-600">
+                      <tr key={row.id} className="border-t border-[#e8dcc3]">
+                        <td className="py-2 text-xs text-[#746d60]">
                           {new Date(row.created_at).toLocaleString()}
                         </td>
                         <td className="py-2">{formatRub(row.amount_kopeks)}</td>
                         <td className="py-2">{reasonLabel(row.reason)}</td>
-                        <td className="py-2 text-xs text-slate-600">{row.ref ?? "—"}</td>
+                        <td className="py-2 text-xs text-[#746d60]">{row.ref ?? "—"}</td>
                       </tr>
                     ))}
                     {ledger.length === 0 ? (
@@ -926,7 +926,7 @@ export default function WalletPage() {
                         setTopupOpen(false);
                         setTopupError(null);
                       }}
-                      className="btn btn-secondary"
+                      className="btn btn-secondary border-[#d6c7a7] bg-[#fff8eb] text-[#5a5245] hover:bg-[#f5eddb]"
                     >
                       Отмена
                     </button>
