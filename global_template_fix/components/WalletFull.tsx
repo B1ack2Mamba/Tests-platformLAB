@@ -65,11 +65,11 @@ type WalletHermesLayout = {
 
 const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   widthPercent: 100,
-  heightPx: 420,
+  heightPx: 392,
   offsetX: 0,
   offsetY: 0,
   cardWidthPx: 330,
-  cardHeightPx: 250,
+  cardHeightPx: 232,
   cardOffsetX: 0,
   cardOffsetY: -18,
 };
@@ -746,7 +746,7 @@ export default function WalletPage() {
               </div>
               <div className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]">
                 <div className="relative">
-                  <div className="px-0 pt-4">
+                  <div className="px-0 pt-0">
                     <img
                       src="/wallet-hermes-guide-cropped.png"
                       alt="Персонаж с табличкой"
@@ -758,9 +758,9 @@ export default function WalletPage() {
                     />
                   </div>
                   <div
-                    className="relative z-10 flex justify-end px-4 pb-4 pointer-events-none"
+                    className="relative z-10 flex justify-end px-4 pb-0 pointer-events-none"
                     style={{
-                      marginTop: `-${Math.round(walletHermesLayout.cardHeightPx * 0.72)}px`,
+                      marginTop: `-${Math.round(walletHermesLayout.cardHeightPx * 0.78)}px`,
                     }}
                   >
                     <div
@@ -805,7 +805,7 @@ export default function WalletPage() {
                               {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
                             </button>
                           </div>
-                          <div className="mt-2 text-[11px] leading-4 text-slate-500">Минимум 1 ₽. Для безлимита оплата не нужна.</div>
+                          
                           {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
                         </>
                       ) : (
