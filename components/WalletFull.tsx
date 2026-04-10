@@ -65,13 +65,13 @@ type WalletHermesLayout = {
 
 const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   widthPercent: 100,
-  heightPx: 392,
+  heightPx: 360,
   offsetX: 0,
   offsetY: 0,
   cardWidthPx: 330,
-  cardHeightPx: 232,
+  cardHeightPx: 220,
   cardOffsetX: 0,
-  cardOffsetY: -18,
+  cardOffsetY: 0,
 };
 
 function getStoredPromoCode() {
@@ -744,9 +744,9 @@ export default function WalletPage() {
                   </div>
                 ) : null}
               </div>
-              <div className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)]">
+              <div className="bg-[linear-gradient(180deg,rgba(255,250,242,0.98)_0%,rgba(246,238,226,0.98)_100%)] px-0 pt-0 pb-0">
                 <div className="relative">
-                  <div className="px-0 pt-0">
+                  <div className="flex justify-center">
                     <img
                       src="/wallet-hermes-guide-cropped.png"
                       alt="Персонаж с табличкой"
@@ -758,9 +758,9 @@ export default function WalletPage() {
                     />
                   </div>
                   <div
-                    className="relative z-10 flex justify-end px-4 pb-0 pointer-events-none"
+                    className="absolute right-4 bottom-4 z-10 pointer-events-none"
                     style={{
-                      marginTop: `-${Math.round(walletHermesLayout.cardHeightPx * 0.78)}px`,
+                      transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
                     }}
                   >
                     <div
@@ -768,7 +768,6 @@ export default function WalletPage() {
                       style={{
                         width: `${walletHermesLayout.cardWidthPx}px`,
                         minHeight: `${walletHermesLayout.cardHeightPx}px`,
-                        transform: `translate(${walletHermesLayout.cardOffsetX}px, ${walletHermesLayout.cardOffsetY}px)`,
                       }}
                     >
                       <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">Оплата</div>
@@ -805,7 +804,6 @@ export default function WalletPage() {
                               {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Оплатить"}
                             </button>
                           </div>
-                          
                           {topupError ? <div className="mt-2 text-xs text-red-600">{topupError}</div> : null}
                         </>
                       ) : (
