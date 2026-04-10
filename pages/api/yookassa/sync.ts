@@ -129,7 +129,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status });
     }
 
-    const { error } = const { data: creditResult, error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
+    const { data: creditResult, error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
       p_user_id: userId,
       p_amount_kopeks: amountKopeks,
       p_reason: "topup",
