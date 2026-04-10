@@ -2,9 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { activateWorkspaceSubscription } from "@/lib/serverCommercialSubscriptions";
 import {
+  findWalletLedgerByRef,
   getProviderAmountKopeksFromPayment,
+  getYooKassaPaidAt,
   isYooKassaAmountMismatch,
+  normalizeYooKassaTopupStatus,
   parseRequestedAmountKopeksFromMetadata,
+  patchYooKassaTopupSafe,
   upsertYooKassaTopupSafe,
 } from "@/lib/yookassaGuard";
 
@@ -63,13 +67,15 @@ export default async function handler(
       .json({ ok: false, error: payment?.description || raw || "Failed to verify payment" });
   }
 
-  const status: string | undefined = payment?.status;
+  const providerStatus: string | undefined = payment?.status;
   const metadata = payment?.metadata || {};
   const kind: string = String(metadata?.kind || "wallet_topup");
   const userId: string | undefined = metadata?.user_id;
   const providerAmountKopeks = getProviderAmountKopeksFromPayment(payment);
   const requestedAmountKopeks = parseRequestedAmountKopeksFromMetadata(metadata);
   const mismatchDetected = isYooKassaAmountMismatch(requestedAmountKopeks, providerAmountKopeks);
+  const normalizedStatus = normalizeYooKassaTopupStatus(providerStatus);
+  const paidAtIso = normalizedStatus === "paid" ? getYooKassaPaidAt(payment) || new Date().toISOString() : null;
   const supabaseAdmin = createClient(url, serviceKey);
 
   if (kind === "wallet_topup" && userId) {
@@ -80,8 +86,8 @@ export default async function handler(
       requested_amount_kopeks: requestedAmountKopeks,
       provider_amount_kopeks: providerAmountKopeks || null,
       mismatch_detected: mismatchDetected,
-      status: status || "unknown",
-      paid_at: status === "succeeded" && providerAmountKopeks > 0 ? new Date().toISOString() : null,
+      status: normalizedStatus,
+      paid_at: paidAtIso,
       metadata: {
         kind,
         requested_amount_kopeks: requestedAmountKopeks ? String(requestedAmountKopeks) : "",
@@ -91,15 +97,28 @@ export default async function handler(
     });
   }
 
-  if (status !== "succeeded") {
-    return res.status(200).json({ ok: true, ignored: true, status });
+  if (normalizedStatus !== "paid") {
+    return res.status(200).json({ ok: true, ignored: true, status: normalizedStatus });
   }
 
   if (providerAmountKopeks <= 0) {
+    await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+      status: normalizedStatus,
+      paid_at: paidAtIso,
+      last_error: "provider amount is empty or invalid",
+    });
     return res.status(200).json({ ok: true, ignored: true, reason: "bad amount" });
   }
 
   if (mismatchDetected) {
+    await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+      status: normalizedStatus,
+      paid_at: paidAtIso,
+      provider_amount_kopeks: providerAmountKopeks,
+      requested_amount_kopeks: requestedAmountKopeks,
+      mismatch_detected: true,
+      last_error: "provider amount does not match requested amount",
+    });
     return res.status(200).json({
       ok: true,
       ignored: true,
@@ -141,20 +160,67 @@ export default async function handler(
     return res.status(200).json({ ok: true, ignored: true, reason: "missing metadata.user_id" });
   }
 
-  const { error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
-    p_user_id: userId,
-    p_amount_kopeks: providerAmountKopeks,
-    p_reason: "topup",
-    p_ref: `yookassa:${paymentId}`,
-  });
+  const ledgerRef = `yookassa:${paymentId}`;
 
-  if (error) {
-    const msg = error.message || "credit_wallet error";
-    if (/duplicate key|unique constraint/i.test(msg)) {
-      return res.status(200).json({ ok: true, already: true });
+  try {
+    const { error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
+      p_user_id: userId,
+      p_amount_kopeks: providerAmountKopeks,
+      p_reason: "topup",
+      p_ref: ledgerRef,
+    });
+
+    if (error && !/duplicate key|unique constraint/i.test(error.message || "")) {
+      const msg = error.message || "credit_wallet error";
+      console.error("[yookassa:webhook] credit_wallet_idempotent failed", { paymentId, userId, msg });
+      await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+        status: normalizedStatus,
+        paid_at: paidAtIso,
+        provider_amount_kopeks: providerAmountKopeks,
+        requested_amount_kopeks: requestedAmountKopeks,
+        mismatch_detected: false,
+        last_error: msg,
+      });
+      return res.status(500).json({ ok: false, error: msg });
     }
+
+    const ledgerRow = await findWalletLedgerByRef(supabaseAdmin, userId, ledgerRef);
+    if (!ledgerRow) {
+      const msg = "Payment marked as paid but wallet ledger row is missing";
+      console.error("[yookassa:webhook] ledger row missing after credit", { paymentId, userId, providerAmountKopeks });
+      await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+        status: normalizedStatus,
+        paid_at: paidAtIso,
+        provider_amount_kopeks: providerAmountKopeks,
+        requested_amount_kopeks: requestedAmountKopeks,
+        mismatch_detected: false,
+        last_error: msg,
+      });
+      return res.status(500).json({ ok: false, error: msg });
+    }
+
+    await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+      status: normalizedStatus,
+      paid_at: paidAtIso,
+      amount_kopeks: providerAmountKopeks,
+      provider_amount_kopeks: providerAmountKopeks,
+      requested_amount_kopeks: requestedAmountKopeks,
+      mismatch_detected: false,
+      last_error: null,
+    });
+
+    return res.status(200).json({ ok: true, credited: true });
+  } catch (error: any) {
+    const msg = error?.message || "credit_wallet error";
+    console.error("[yookassa:webhook] unexpected reconciliation error", { paymentId, userId, msg });
+    await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+      status: normalizedStatus,
+      paid_at: paidAtIso,
+      provider_amount_kopeks: providerAmountKopeks,
+      requested_amount_kopeks: requestedAmountKopeks,
+      mismatch_detected: false,
+      last_error: msg,
+    });
     return res.status(500).json({ ok: false, error: msg });
   }
-
-  return res.status(200).json({ ok: true, credited: true });
 }

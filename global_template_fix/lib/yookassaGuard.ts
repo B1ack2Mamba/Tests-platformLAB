@@ -35,6 +35,23 @@ export function isYooKassaAmountMismatch(requestedAmountKopeks: number | null, p
   return requestedAmountKopeks !== null && providerAmountKopeks > 0 && requestedAmountKopeks !== providerAmountKopeks;
 }
 
+
+export function normalizeYooKassaTopupStatus(status: unknown): string {
+  const value = String(status ?? "").trim().toLowerCase();
+  if (!value) return "unknown";
+  if (value === "succeeded" || value === "paid") return "paid";
+  if (value === "canceled" || value === "cancelled") return "canceled";
+  return value;
+}
+
+export function getYooKassaPaidAt(payment: any): string | null {
+  const raw = payment?.captured_at || payment?.paid_at || payment?.created_at || null;
+  if (!raw) return null;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 export type YooKassaTopupUpsertRow = {
   payment_id: string;
   user_id: string;
@@ -86,4 +103,58 @@ export async function upsertYooKassaTopupSafe(supabaseAdmin: any, row: YooKassaT
       return;
     }
   }
+}
+
+
+export async function patchYooKassaTopupSafe(
+  supabaseAdmin: any,
+  paymentId: string,
+  patch: Partial<YooKassaTopupUpsertRow>
+) {
+  const fullPatch = {
+    amount_kopeks: patch.amount_kopeks,
+    status: patch.status,
+    paid_at: patch.paid_at,
+    requested_amount_kopeks: patch.requested_amount_kopeks,
+    provider_amount_kopeks: patch.provider_amount_kopeks,
+    mismatch_detected: patch.mismatch_detected,
+    metadata: patch.metadata,
+    last_error: patch.last_error,
+    updated_at: patch.updated_at ?? new Date().toISOString(),
+  };
+
+  let result = await supabaseAdmin.from("yookassa_topups").update(fullPatch).eq("payment_id", paymentId);
+  if (!result?.error) return;
+
+  const message = String(result.error.message || "");
+  if (/relation\s+"?public\.yookassa_topups"?\s+does\s+not\s+exist/i.test(message)) {
+    return;
+  }
+
+  if (/column .* does not exist|schema cache/i.test(message)) {
+    const legacyPatch = {
+      amount_kopeks: patch.amount_kopeks,
+      status: patch.status,
+      paid_at: patch.paid_at,
+    };
+    result = await supabaseAdmin.from("yookassa_topups").update(legacyPatch).eq("payment_id", paymentId);
+    if (!result?.error) return;
+    if (/relation\s+"?public\.yookassa_topups"?\s+does\s+not\s+exist/i.test(String(result.error.message || ""))) {
+      return;
+    }
+  }
+}
+
+export async function findWalletLedgerByRef(supabaseAdmin: any, userId: string, ref: string) {
+  const { data, error } = await supabaseAdmin
+    .from("wallet_ledger")
+    .select("id,user_id,amount_kopeks,reason,ref,created_at")
+    .eq("user_id", userId)
+    .eq("ref", ref)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ?? null;
 }

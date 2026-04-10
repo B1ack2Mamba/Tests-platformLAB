@@ -40,6 +40,19 @@ type SubscriptionStatusResp = {
   active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
+type YooKassaSyncResp = {
+  ok: boolean;
+  checked?: number;
+  credited?: number;
+  updated?: number;
+  skipped?: boolean;
+  status?: string;
+  reason?: string;
+  error?: string;
+  expected_amount_kopeks?: number | null;
+  actual_amount_kopeks?: number;
+};
+
 const QUICK_AMOUNTS = [3000, 15000, 30000] as const;
 
 const FRAME_CARD = "card rounded-[32px] border border-[#d9c3a0] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe3_100%)] shadow-[0_18px_42px_rgba(137,109,64,0.10)]";
@@ -317,6 +330,7 @@ export default function WalletPage() {
 
     let cancelled = false;
     const ticks = [0, 2500, 6000, 12000];
+    const lastDelay = ticks[ticks.length - 1];
     ticks.forEach((delay) => {
       window.setTimeout(async () => {
         if (cancelled) return;
@@ -326,17 +340,29 @@ export default function WalletPage() {
             if (result?.reason === "amount_mismatch") {
               setTopupError("Сумма в YooKassa не совпала с тем, что была запрошена. Автозачисление остановлено — проверь платёж вручную.");
               clearPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY);
-            } else if (result?.status === "succeeded") {
+            } else if (result?.status === "paid") {
               clearPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY);
+              setTopupError(null);
             }
           }
           if (needsPlanPolling && planPaymentId) {
             const result = await syncReturnedYooKassaPayment(planPaymentId);
-            if (result?.status === "succeeded") {
+            if (result?.status === "paid") {
               clearPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY);
+              setSubscriptionError(null);
             }
           }
-        } catch {}
+        } catch (err: any) {
+          if (delay === lastDelay) {
+            const message = err?.message || "Автоматическое подтверждение оплаты задержалось";
+            if (needsWalletPolling && walletPaymentId) {
+              setTopupError(message);
+            }
+            if (needsPlanPolling && planPaymentId) {
+              setSubscriptionError(message);
+            }
+          }
+        }
         if (needsWalletPolling) await refresh();
         if (needsPlanPolling) await loadSubscriptionStatus();
       }, delay);
@@ -408,16 +434,16 @@ export default function WalletPage() {
   }
 
   async function syncReturnedYooKassaPayment(paymentId: string) {
-    if (!session?.access_token || !paymentId) return;
+    if (!session?.access_token || !paymentId) return null;
     const resp = await fetch("/api/yookassa/sync", {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ force: true, payment_id: paymentId }),
+      body: JSON.stringify({ payment_id: paymentId }),
     });
-    const json = await resp.json().catch(() => ({} as any));
+    const json = (await resp.json().catch(() => ({}))) as YooKassaSyncResp;
     if (!resp.ok || !json?.ok) {
       throw new Error(json?.error || "Не удалось подтвердить оплату");
     }

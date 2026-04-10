@@ -2,9 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { activateWorkspaceSubscription } from "@/lib/serverCommercialSubscriptions";
 import {
+  findWalletLedgerByRef,
   getProviderAmountKopeksFromPayment,
+  getYooKassaPaidAt,
   isYooKassaAmountMismatch,
+  normalizeYooKassaTopupStatus,
   parseRequestedAmountKopeksFromMetadata,
+  patchYooKassaTopupSafe,
   upsertYooKassaTopupSafe,
 } from "@/lib/yookassaGuard";
 
@@ -83,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(502).json({ ok: false, error: payment?.description || raw || "Failed to verify payment" });
   }
 
-  const status = String(payment?.status || "").trim();
+  const providerStatus = String(payment?.status || "").trim();
   const metadata = payment?.metadata || {};
   const kind = String(metadata?.kind || "wallet_topup").trim();
   const userId = String(metadata?.user_id || "").trim();
@@ -94,6 +98,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const providerAmountKopeks = getProviderAmountKopeksFromPayment(payment);
   const requestedAmountKopeks = parseRequestedAmountKopeksFromMetadata(metadata);
   const mismatchDetected = isYooKassaAmountMismatch(requestedAmountKopeks, providerAmountKopeks);
+  const normalizedStatus = normalizeYooKassaTopupStatus(providerStatus);
+  const paidAtIso = normalizedStatus === "paid" ? getYooKassaPaidAt(payment) || new Date().toISOString() : null;
 
   if (kind === "wallet_topup") {
     await upsertYooKassaTopupSafe(supabaseAdmin, {
@@ -103,8 +109,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       requested_amount_kopeks: requestedAmountKopeks,
       provider_amount_kopeks: providerAmountKopeks || null,
       mismatch_detected: mismatchDetected,
-      status: status || "unknown",
-      paid_at: status === "succeeded" && providerAmountKopeks > 0 ? new Date().toISOString() : null,
+      status: normalizedStatus,
+      paid_at: paidAtIso,
       metadata: {
         kind,
         requested_amount_kopeks: requestedAmountKopeks ? String(requestedAmountKopeks) : "",
@@ -114,22 +120,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     });
   }
 
-  if (status !== "succeeded") {
-    return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, status, skipped: true });
+  if (normalizedStatus !== "paid") {
+    return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, status: normalizedStatus, skipped: true });
   }
 
   if (providerAmountKopeks <= 0) {
-    return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status, reason: "bad_amount" });
+    await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+      status: normalizedStatus,
+      paid_at: paidAtIso,
+      last_error: "provider amount is empty or invalid",
+    });
+    return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status: normalizedStatus, reason: "bad_amount" });
   }
 
   if (mismatchDetected) {
+    await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+      status: normalizedStatus,
+      paid_at: paidAtIso,
+      provider_amount_kopeks: providerAmountKopeks,
+      requested_amount_kopeks: requestedAmountKopeks,
+      mismatch_detected: true,
+      last_error: "provider amount does not match requested amount",
+    });
     return res.status(200).json({
       ok: true,
       checked: 1,
       credited: 0,
       updated: 1,
       skipped: true,
-      status,
+      status: normalizedStatus,
       reason: "amount_mismatch",
       expected_amount_kopeks: requestedAmountKopeks,
       actual_amount_kopeks: providerAmountKopeks,
@@ -143,7 +162,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const projectsLimit = toPositiveInt(metadata?.projects_limit, 0);
     const durationDays = toPositiveInt(metadata?.duration_days, 30);
     if (!workspaceId || !planKey || !projectsLimit || providerAmountKopeks <= 0) {
-      return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status });
+      return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status: normalizedStatus });
     }
 
     try {
@@ -164,26 +183,74 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       }
     }
 
-    return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 1, status });
+    return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 1, status: normalizedStatus });
   }
 
   if (kind === "wallet_topup") {
-    const { error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
-      p_user_id: userId,
-      p_amount_kopeks: providerAmountKopeks,
-      p_reason: "topup",
-      p_ref: `yookassa:${paymentId}`,
-    });
+    const ledgerRef = `yookassa:${paymentId}`;
 
-    if (error) {
-      const msg = error.message || "credit_wallet error";
-      if (!/duplicate key|unique constraint/i.test(msg)) {
+    try {
+      const { error } = await supabaseAdmin.rpc("credit_wallet_idempotent", {
+        p_user_id: userId,
+        p_amount_kopeks: providerAmountKopeks,
+        p_reason: "topup",
+        p_ref: ledgerRef,
+      });
+
+      if (error && !/duplicate key|unique constraint/i.test(error.message || "")) {
+        const msg = error.message || "credit_wallet error";
+        console.error("[yookassa:sync] credit_wallet_idempotent failed", { paymentId, userId, msg });
+        await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+          status: normalizedStatus,
+          paid_at: paidAtIso,
+          provider_amount_kopeks: providerAmountKopeks,
+          requested_amount_kopeks: requestedAmountKopeks,
+          mismatch_detected: false,
+          last_error: msg,
+        });
         return res.status(500).json({ ok: false, error: msg });
       }
-    }
 
-    return res.status(200).json({ ok: true, checked: 1, credited: 1, updated: 1, status });
+      const ledgerRow = await findWalletLedgerByRef(supabaseAdmin, userId, ledgerRef);
+      if (!ledgerRow) {
+        const msg = "Payment marked as paid but wallet ledger row is missing";
+        console.error("[yookassa:sync] ledger row missing after credit", { paymentId, userId, providerAmountKopeks });
+        await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+          status: normalizedStatus,
+          paid_at: paidAtIso,
+          provider_amount_kopeks: providerAmountKopeks,
+          requested_amount_kopeks: requestedAmountKopeks,
+          mismatch_detected: false,
+          last_error: msg,
+        });
+        return res.status(500).json({ ok: false, error: msg });
+      }
+
+      await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+        status: normalizedStatus,
+        paid_at: paidAtIso,
+        amount_kopeks: providerAmountKopeks,
+        provider_amount_kopeks: providerAmountKopeks,
+        requested_amount_kopeks: requestedAmountKopeks,
+        mismatch_detected: false,
+        last_error: null,
+      });
+
+      return res.status(200).json({ ok: true, checked: 1, credited: 1, updated: 1, status: normalizedStatus });
+    } catch (error: any) {
+      const msg = error?.message || "credit_wallet error";
+      console.error("[yookassa:sync] unexpected reconciliation error", { paymentId, userId, msg });
+      await patchYooKassaTopupSafe(supabaseAdmin, paymentId, {
+        status: normalizedStatus,
+        paid_at: paidAtIso,
+        provider_amount_kopeks: providerAmountKopeks,
+        requested_amount_kopeks: requestedAmountKopeks,
+        mismatch_detected: false,
+        last_error: msg,
+      });
+      return res.status(500).json({ ok: false, error: msg });
+    }
   }
 
-  return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status });
+  return res.status(200).json({ ok: true, checked: 1, credited: 0, updated: 0, skipped: true, status: normalizedStatus });
 }
