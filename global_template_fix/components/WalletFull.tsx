@@ -68,10 +68,10 @@ const DEFAULT_WALLET_HERMES_LAYOUT: WalletHermesLayout = {
   heightPx: 330,
   offsetX: 0,
   offsetY: 0,
-  cardWidthPx: 320,
-  cardHeightPx: 228,
+  cardWidthPx: 330,
+  cardHeightPx: 220,
   cardOffsetX: 0,
-  cardOffsetY: 10,
+  cardOffsetY: 14,
 };
 
 function getStoredPromoCode() {
@@ -223,11 +223,11 @@ export default function WalletPage() {
         if (cancelled) return;
         const next = {
           widthPercent: clamp(Number(data.template.widthPercent ?? DEFAULT_WALLET_HERMES_LAYOUT.widthPercent), 70, 150),
-          heightPx: clamp(Number(data.template.heightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.heightPx), 280, 760),
+          heightPx: clamp(Number(data.template.heightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.heightPx), isGlobalTemplateOwnerEmail(user?.email) ? 280 : 300, isGlobalTemplateOwnerEmail(user?.email) ? 760 : 380),
           offsetX: clamp(Number(data.template.offsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetX), -220, 220),
           offsetY: clamp(Number(data.template.offsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.offsetY), -220, 220),
           cardWidthPx: clamp(Number(data.template.cardWidthPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardWidthPx), 240, 420),
-          cardHeightPx: clamp(Number(data.template.cardHeightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardHeightPx), 200, 420),
+          cardHeightPx: clamp(Number(data.template.cardHeightPx ?? DEFAULT_WALLET_HERMES_LAYOUT.cardHeightPx), isGlobalTemplateOwnerEmail(user?.email) ? 200 : 190, isGlobalTemplateOwnerEmail(user?.email) ? 420 : 320),
           cardOffsetX: clamp(Number(data.template.cardOffsetX ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetX), -220, 220),
           cardOffsetY: clamp(Number(data.template.cardOffsetY ?? DEFAULT_WALLET_HERMES_LAYOUT.cardOffsetY), -220, 220),
         };
@@ -759,7 +759,7 @@ export default function WalletPage() {
                       width: `${walletHermesLayout.cardWidthPx}px`,
                       minHeight: `${walletHermesLayout.cardHeightPx}px`,
                       right: `calc(4% + ${walletHermesLayout.cardOffsetX}px)`,
-                      bottom: `calc(2% + ${walletHermesLayout.cardOffsetY}px)`,
+                      bottom: `calc(6% + ${walletHermesLayout.cardOffsetY}px)`,
                     }}
                   >
                     <div className="text-xs uppercase tracking-[0.22em] text-[#9a7a4b]">{"Оплата"}</div>
