@@ -288,6 +288,7 @@ export default function ProjectResultsStandalonePage() {
   const [fitRequest, setFitRequest] = useState("");
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
   const [fitProfiles, setFitProfiles] = useState<FitRoleProfile[]>(() => getFitRoleProfiles());
+  const [showAiPlusPrompt, setShowAiPlusPrompt] = useState(false);
 
   async function loadResults(explicitCollect: boolean, options?: { showSkeleton?: boolean; announce?: string }) {
     if (!session?.access_token || !projectId) return null;
@@ -566,42 +567,46 @@ export default function ProjectResultsStandalonePage() {
 
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
   const overviewCards = overviewSections.slice(0, 3);
+  const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
-      <div className="mx-auto max-w-[1360px] px-3 pb-12 pt-3 sm:px-4">
-        {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
-        {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
+      <div className="mx-auto max-w-[1320px] px-3 pb-12 pt-4 sm:px-4">
+        {error ? <div className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+        {info ? <div className="mb-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
 
-        <div className="rounded-[38px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f5eee2_100%)] shadow-[0_28px_60px_rgba(93,71,39,0.12)] overflow-hidden">
+        <div className="rounded-[34px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f7f0e5_100%)] shadow-[0_24px_54px_rgba(93,71,39,0.10)] overflow-hidden">
           <div className="border-b border-[#eadcc5] px-5 py-5 sm:px-7">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
-                <div className="font-serif text-[2rem] leading-tight text-[#4d3b24] sm:text-[2.35rem]">Проект: {data?.project.title || "Результаты проекта"}</div>
-                <div className="mt-5 text-[1.9rem] font-semibold leading-tight text-[#2d2a22]">{data?.project.person?.full_name || "Участник проекта"}</div>
+                <div className="font-serif text-[1.95rem] leading-tight text-[#4d3b24] sm:text-[2.35rem]">Проект: {data?.project.title || "Результаты проекта"}</div>
+                <div className="mt-5 text-[1.65rem] font-semibold leading-tight text-[#2d2a22]">{data?.project.person?.full_name || "Участник проекта"}</div>
                 <div className="mt-2 space-y-1 text-sm text-[#6f5a42]">
                   <div>Статус: {data?.fully_done ? "Тесты пройдены" : `Готово ${data?.completed || 0} из ${data?.total || 0}`}</div>
                   {collectedLabel ? <div>Результат собран: {collectedLabel}</div> : null}
                 </div>
               </div>
-              <div className="flex flex-wrap items-start gap-3">
+              <div className="flex flex-col items-start gap-4 lg:items-end">
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." })}
                     disabled={collecting || !data?.fully_done}
-                    className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)] disabled:opacity-60"
+                    className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(93,71,39,0.06)] disabled:opacity-60"
                   >
                     {collecting ? "Пересобираем анализ" : "Пересобрать анализ"}
                   </button>
-                  <Link href={`/projects/${projectId}`} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
+                  <Link href={`/projects/${projectId}`} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_6px_14px_rgba(93,71,39,0.06)]">
                     Назад к проекту
                   </Link>
                 </div>
-                <div className="grid place-items-center rounded-full border-[6px] border-[#8aa46d] bg-[#f5fbf0] text-center text-[#46613f] shadow-[0_18px_34px_rgba(71,98,61,0.14)] h-[170px] w-[170px] sm:h-[190px] sm:w-[190px]">
-                  <div className="rounded-full border-2 border-[#8aa46d] px-4 py-5">
-                    <div className="text-[0.7rem] font-semibold uppercase tracking-[0.28em]">Результат</div>
-                    <div className="mt-2 text-[1.05rem] font-bold uppercase tracking-[0.12em]">{data?.fully_done ? "Собран" : "Ожидает"}</div>
+                <div className="flex justify-end w-full">
+                  <div className="grid h-[112px] w-[112px] place-items-center sm:h-[132px] sm:w-[132px]">
+                    <img
+                      src={data?.fully_done ? "/result-stamp.svg" : "/result-stamp-bw.svg"}
+                      alt={data?.fully_done ? "Результат собран" : "Результат ожидает"}
+                      className="h-full w-full object-contain opacity-95"
+                    />
                   </div>
                 </div>
               </div>
@@ -610,43 +615,45 @@ export default function ProjectResultsStandalonePage() {
 
           <div className="px-5 py-5 sm:px-7">
             {!data?.fully_done ? (
-              <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-5 text-sm leading-7 text-[#6f6454] shadow-[0_16px_34px_rgba(93,71,39,0.08)]">
+              <div className="rounded-[24px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-5 text-sm leading-7 text-[#6f6454]">
                 Все уровни анализа откроются после завершения тестов. Сейчас готово {data?.completed || 0} из {data?.total || 0}.
               </div>
             ) : (
               <>
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.05fr)_270px]">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.06fr)_250px]">
                   {EVALUATION_PACKAGES.map((item) => {
                     const unlocked = isPackageAccessible(unlockedMode, item.key);
                     const currentEval = evaluationByMode[item.key];
                     const isBusy = !!saving || !!evaluationLoading[item.key];
-                    const upgradeRub = getUpgradePriceRub(unlockedMode, item.key);
                     const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
                     const isActive = activeEvaluationMode === item.key;
                     const highlight = item.key === "premium_ai_plus";
                     return (
-                      <div key={item.key} className={`rounded-[26px] border p-5 shadow-[0_12px_28px_rgba(93,71,39,0.08)] ${isActive ? "border-[#8eb48d] bg-[#f3faef]" : highlight ? "border-[#bfd5b6] bg-[#f7fbf3]" : "border-[#dfcfb5] bg-[#fffaf1]"}`}>
+                      <div
+                        key={item.key}
+                        className={`rounded-[26px] border p-5 ${isActive ? "border-[#91b48a] bg-[#f6fbf3]" : highlight ? "border-[#bfd5b6] bg-[#f7fbf4]" : "border-[#dfcfb5] bg-[#fffaf1]"}`}
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[0.82rem] font-semibold uppercase tracking-[0.12em] text-[#4d3b24]">{item.title}</div>
-                            <div className="mt-4 text-base leading-8 text-[#6f5a42]">{item.description}</div>
+                            <div className="text-[0.82rem] font-semibold uppercase tracking-[0.18em] text-[#7d5f34]">{item.title}</div>
+                            <div className="mt-5 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
                           </div>
                           {item.key === "premium" ? <div className="rounded-full bg-[#7f9d73] px-3 py-1 text-xs font-bold text-white">AI</div> : null}
                         </div>
                         {item.key === "premium_ai_plus" ? (
-                          <div className="mt-5 text-[#45623d]">
-                            <div className="text-[2.2rem] font-semibold leading-none">99%</div>
+                          <div className="mt-7 text-[#45623d]">
+                            <div className="text-[2.15rem] font-semibold leading-none">99%</div>
                             <div className="mt-2 text-base">Индекс соответствия</div>
                           </div>
                         ) : null}
                         {item.bullets?.length ? (
-                          <ul className="mt-4 space-y-2 text-sm leading-6 text-[#6f5a42]">
+                          <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
                             {item.bullets.slice(0, 2).map((bullet) => (
                               <li key={bullet} className="flex items-start gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
                             ))}
                           </ul>
                         ) : null}
-                        <div className="mt-6">
+                        <div className="mt-7">
                           {unlocked ? (
                             <button
                               type="button"
@@ -664,7 +671,7 @@ export default function ProjectResultsStandalonePage() {
                             <button
                               type="button"
                               className="w-full rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] disabled:opacity-60"
-                              disabled={isBusy}
+                              disabled={isBusy || !accessible}
                               onClick={() => unlockPackage(item.key)}
                             >
                               {getPackageButtonLabel(item.key, unlockedMode, isUnlimited, activeSubscription, projectCoveredBySubscription)}
@@ -675,28 +682,22 @@ export default function ProjectResultsStandalonePage() {
                     );
                   })}
 
-                  <aside className="rounded-[24px] border border-[#dfcfb5] bg-[#fffaf1] p-5 shadow-[0_12px_28px_rgba(93,71,39,0.08)]">
+                  <aside className="rounded-[24px] border border-[#dfcfb5] bg-[#fffaf1] p-5">
                     <div className="text-[1.1rem] font-semibold text-[#4d3b24]">Статус анализа</div>
-                    <div className="mt-4 space-y-3 text-base leading-7 text-[#6f5a42]">
+                    <div className="mt-5 space-y-4 text-base leading-7 text-[#6f5a42]">
                       <div>Тестов: {blueprint?.tests.length || 0}</div>
                       <div>Компетенций: {blueprint?.competencies.length || 0}</div>
                       <div>Связей: {blueprint?.links.length || 0}</div>
-                      <div>Процент промтов: {coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0}%</div>
+                      <div>Процент промтов: {coveragePercent}%</div>
                     </div>
-                    {collectedLabel ? <div className="mt-6 text-sm text-[#7d6953]">Собрано: {collectedLabel}</div> : null}
+                    {collectedLabel ? <div className="mt-8 text-sm text-[#7d6953]">Собрано: {collectedLabel}</div> : null}
                   </aside>
                 </div>
 
-                {activeSubscription ? (
-                  <div className="mt-4 rounded-[24px] border border-[#d8c5a8] bg-white/70 px-4 py-3 text-sm text-[#6f5a42]">
-                    Активен месячный тариф до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)} · осталось {activeSubscription.projects_remaining} проектов.
-                  </div>
-                ) : null}
-
                 {activeEvaluationMode && isPackageAccessible(unlockedMode, activeEvaluationMode) ? (
-                  <div className="mt-6 rounded-[30px] border border-[#d7c4a6] bg-[#fffaf1] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.10)]">
+                  <div className="mt-6 rounded-[30px] border border-[#d7c4a6] bg-[#fffaf1] p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9bf] pb-4">
-                      <div className="flex flex-wrap gap-6 text-[1.15rem] font-medium text-[#786650]">
+                      <div className="flex flex-wrap gap-6 text-[1.1rem] font-medium text-[#786650]">
                         {availablePackages.map((mode) => {
                           const selected = activeEvaluationMode === mode;
                           return (
@@ -719,7 +720,7 @@ export default function ProjectResultsStandalonePage() {
                       <button
                         type="button"
                         onClick={() => setShowMechanism((prev) => !prev)}
-                        className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)]"
+                        className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]"
                       >
                         {showMechanism ? "Скрыть внутренний механизм" : "Показать внутренний механизм"}
                       </button>
@@ -727,26 +728,39 @@ export default function ProjectResultsStandalonePage() {
 
                     {activeEvaluationMode === "premium_ai_plus" ? (
                       <div className="mt-4 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
-                        <div className="text-sm font-semibold text-[#2d2a22]">Дополнительный запрос для AI+</div>
-                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
-                        <div className="mt-3 grid gap-3">
-                          <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
-                          <div className="flex justify-end">
-                            <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
-                              {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
-                            </button>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-[#2d2a22]">Дополнительный запрос для AI+</div>
+                            <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowAiPlusPrompt((prev) => !prev)}
+                            className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                          >
+                            {showAiPlusPrompt ? "Скрыть уточнение" : "Уточнить AI+"}
+                          </button>
                         </div>
+                        {showAiPlusPrompt ? (
+                          <div className="mt-3 grid gap-3">
+                            <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
+                            <div className="flex justify-end">
+                              <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
+                                {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
 
-                    <div className={`mt-5 grid gap-5 ${showMechanism && blueprint ? "xl:grid-cols-[minmax(0,1.35fr)_420px]" : ""}`}>
+                    <div className={`mt-5 grid gap-5 ${showMechanism && blueprint ? "xl:grid-cols-[minmax(0,1.35fr)_360px]" : ""}`}>
                       <div className="min-w-0">
                         {evaluationLoading[activeEvaluationMode] ? (
                           <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
                         ) : activeSections.length ? (
                           <div className="rounded-[24px] border border-[#e2d1b6] bg-white/70 p-5">
-                            <div className="text-[2rem] font-semibold leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
+                            <div className="text-[1.9rem] font-semibold leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
                             {overviewCards.length ? (
                               <div className={`mt-6 grid gap-5 ${overviewCards.length > 1 ? "lg:grid-cols-2" : ""} ${overviewCards.length > 2 ? "2xl:grid-cols-3" : ""}`}>
                                 {overviewCards.map((section, index) => {
@@ -754,9 +768,10 @@ export default function ProjectResultsStandalonePage() {
                                   const isOpen = openSections[key] ?? false;
                                   const parts = splitSectionBody(section.body);
                                   const tone = inferSectionTone(section.title);
+                                  const toneClass = tone === "positive" ? "bg-[#f5fbf2] border-[#c7debd]" : tone === "warning" ? "bg-[#fff9f0] border-[#ead7b6]" : "bg-[#fffdf8] border-[#ead9bf]";
                                   return (
-                                    <div key={`${section.title}:${index}`} className="rounded-[22px] border border-[#ead9bf] bg-[#fffdf8] p-4">
-                                      <div className="text-[1.2rem] font-semibold text-[#4d3b24]">{section.title}</div>
+                                    <div key={`${section.title}:${index}`} className={`rounded-[22px] border p-4 ${toneClass}`}>
+                                      <div className="text-[1.15rem] font-semibold text-[#4d3b24]">{section.title}</div>
                                       <div className="mt-4 whitespace-pre-line text-base leading-8 text-[#6f5a42]">{parts.preview}</div>
                                       {parts.details ? (
                                         <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
