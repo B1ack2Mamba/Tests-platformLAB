@@ -992,51 +992,32 @@ export default function ProjectDetailsPage() {
             {renderTemplateHandles("results", "результат", "resultsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
-                <div className="h-full rounded-[24px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] px-5 py-4 shadow-[0_16px_34px_rgba(93,71,39,0.10)] flex flex-col justify-between">
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-[#9d7a4b]">Результат проекта</div>
-                    <div className="mt-2 text-[1.05rem] font-semibold leading-6 text-[#2d2a22]">Получить результат</div>
-                    <div className="mt-2 text-sm leading-6 text-[#7d6953]">
-                      {fullyDone
-                        ? "Открой отдельную страницу результатов с тремя уровнями анализа ИИ."
-                        : `Кнопка станет активной после завершения всех тестов · осталось ${Math.max(0, progress.total - progress.completed)}`}
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    {fullyDone ? (
-                      <Link href={`/projects/${data?.project.id}/results`} className="inline-flex rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
-                        Получить результат
-                      </Link>
-                    ) : (
-                      <button type="button" disabled className="inline-flex rounded-2xl border border-[#d9c4a4] bg-[#f7efe1] px-4 py-2.5 text-sm font-semibold text-[#9a856b] opacity-80 cursor-not-allowed">
-                        Получить результат
-                      </button>
-                    )}
-                  </div>
+                <div className="h-full rounded-[24px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] px-5 py-4 shadow-[0_16px_34px_rgba(93,71,39,0.10)] flex items-center justify-center">
+                  {fullyDone ? (
+                    <Link href={`/projects/${data?.project.id}/results`} className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-5 py-3 text-base font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                      Получить результат
+                    </Link>
+                  ) : (
+                    <button type="button" disabled className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#d9c4a4] bg-[#f7efe1] px-5 py-3 text-base font-semibold text-[#9a856b] opacity-80 cursor-not-allowed" title={`Осталось ${Math.max(0, progress.total - progress.completed)} тестов`}>
+                      Получить результат
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
           </div>
           <div className="absolute left-0 top-0" style={{ width: testsWidth, height: testsHeight, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
-            <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: testsWidth, height: testsHeight, transform: `scale(${detailsTemplate.testsScale})` }}>
-              <div className="relative h-full w-full rounded-[30px] border border-[#dfcfb5] bg-transparent" />
-            </div>
             {renderTemplateHandles("tests", "тесты", "testsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.testsContentX}px, ${detailsTemplate.testsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.testsTextScale})` }}>
             <div className="absolute inset-x-[34px] top-[30px]">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-2xl font-semibold">Назначенные тесты</div>
-                    <div className="mt-1 text-sm text-[#8d7860]">Только список и статус.</div>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3">
+                <div className="text-2xl font-semibold">Назначенные тесты</div>
+                <div className="mt-4 grid gap-2.5">
                   {(data?.project.tests || []).map((test) => {
                     const done = completedSet.has(test.test_slug);
                     return (
-                      <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[20px] border border-[#dfcfb5] bg-white/45 px-5 py-3.5">
-                        <div className="text-[1.05rem] font-semibold leading-6 text-[#2d2a22]">{test.test_title}</div>
+                      <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[18px] px-2 py-2.5">
+                        <div className="text-[1.02rem] font-semibold leading-6 text-[#2d2a22]">{test.test_title}</div>
                         <span className={`rounded-full px-4 py-2 text-sm font-medium ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Готово" : "Не пройден"}</span>
                       </div>
                     );
@@ -1046,100 +1027,6 @@ export default function ProjectDetailsPage() {
           </div>
           </div>
         </div>
-
-        {keepLegacyResultsOnProjectPage && fullyDone ? (
-          <div className="mx-auto max-w-[1220px] rounded-[26px] border border-[#d7c4a6] bg-[#fbf5ea] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.12)]">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold text-[#2d2a22]">Уровни результата</div>
-                <div className="mt-1 text-sm text-[#8d7860]">Открывай нужный уровень интерпретации по мере готовности проекта.</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
-                  Собрать итог по всей информации
-                </Link>
-                <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
-                  Открыть страницу результатов
-                </Link>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              {EVALUATION_PACKAGES.map((item) => {
-                const unlocked = isPackageAccessible(unlockedMode, item.key);
-                const currentEval = evaluationByMode[item.key];
-                const isBusy = !!saving || !!evaluationLoading[item.key];
-                const upgradeRub = getUpgradePriceRub(unlockedMode, item.key);
-                const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
-                const isActive = activeEvaluationMode === item.key;
-                return (
-                  <div key={item.key} className={`rounded-[24px] border p-4 shadow-[0_10px_20px_rgba(93,71,39,0.06)] ${isActive ? "border-[#8eb48d] bg-[#f3faef]" : "border-[#dfcfb5] bg-[#fffaf1]"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-base font-semibold text-[#2d2a22]">{item.title}</div>
-                        <div className="mt-1 text-sm leading-6 text-[#7a6a57]">{item.description}</div>
-                      </div>
-                      <button type="button" className="text-xs font-medium text-[#8b6b3c]" onClick={() => setPackageHelp((prev) => (prev === item.key ? null : item.key))}>Что внутри?</button>
-                    </div>
-                    {packageHelp === item.key ? <div className="mt-3 rounded-2xl border border-[#ecdcbf] bg-white/70 p-3 text-sm leading-6 text-[#685742]">{item.helpText}</div> : null}
-                    <div className="mt-4 text-sm font-semibold text-[#2f5031]">{accessible ? (unlocked ? "Уровень уже открыт" : projectCoveredBySubscription ? "Откроется по тарифу" : activeSubscription?.projects_remaining ? `Осталось ${activeSubscription.projects_remaining} проектов по тарифу` : "Можно открыть") : upgradeRub ? `Стоимость: ${formatRub(upgradeRub)}` : "Доступно после предыдущего уровня"}</div>
-                    <div className="mt-4">
-                      {unlocked ? (
-                        <button type="button" className={`w-full rounded-2xl border px-4 py-2.5 text-sm font-medium ${isActive ? "border-[#8eb48d] bg-[#cde7c1] text-[#27402b]" : "border-[#d9c4a4] bg-[#fffaf0] text-[#5b4731]"}`} onClick={() => setActiveEvaluationMode(item.key)}>
-                          {isActive ? "Показано ниже" : "Показать результат"}
-                        </button>
-                      ) : (
-                        <button type="button" className="w-full rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] disabled:opacity-60" disabled={isBusy} onClick={() => unlockPackage(item.key)}>
-                          {getPackageButtonLabel(item.key, unlockedMode, isUnlimited, activeSubscription, projectCoveredBySubscription)}
-                        </button>
-                      )}
-                      {!accessible && !isUnlimited && !projectCoveredBySubscription && !(activeSubscription && activeSubscription.projects_remaining > 0) && balance_rub < upgradeRub ? <div className="mt-2 text-xs text-amber-700">Не хватает {formatRub(upgradeRub - balance_rub)}.</div> : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {activeEvaluationMode && isPackageAccessible(unlockedMode, activeEvaluationMode) ? (
-              <div className="mt-5 rounded-[26px] border border-[#d7c4a6] bg-[#fffaf1] p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9bf] pb-4">
-                  <div>
-                    <div className="text-lg font-semibold text-[#2d2a22]">{getEvaluationPackageDefinition(activeEvaluationMode)?.title || "Результат"}</div>
-                    <div className="mt-1 text-sm text-[#8d7860]">Аккуратная выдача результата по выбранному уровню.</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {EVALUATION_PACKAGES.filter((item) => isPackageAccessible(unlockedMode, item.key)).map((item) => (
-                      <button key={item.key} type="button" className={`rounded-full border px-3 py-1.5 text-xs font-medium ${activeEvaluationMode === item.key ? "border-[#8eb48d] bg-[#e4f1de] text-[#355039]" : "border-[#dec9a8] bg-[#fff8ec] text-[#6b5943]"}`} onClick={async () => { setActiveEvaluationMode(item.key); if (!evaluationByMode[item.key] && !evaluationLoading[item.key]) { await loadEvaluation(item.key, item.key === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined); } }}>
-                        {item.shortTitle}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {activeEvaluationMode === "premium_ai_plus" ? (
-                  <div className="mt-4 rounded-[24px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
-                    <div className="text-sm font-semibold text-[#2d2a22]">Дополнительный запрос к Премиум AI+</div>
-                    <div className="mt-1 text-sm text-[#8d7860]">Можно задать акцент анализа и отдельно включить индекс соответствия.</div>
-                    <div className="mt-3 grid gap-4">
-                      <textarea className="input min-h-[96px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
-                      <label className="flex items-start gap-3 rounded-[20px] border border-[#e1d3bf] bg-white/60 px-4 py-3 text-sm text-[#6f6454]">
-                        <input type="checkbox" className="mt-1 h-4 w-4" checked={fitRequested} onChange={(e) => setFitRequested(e.target.checked)} />
-                        <span>
-                          <span className="font-medium text-[#2d2a22]">Считать индекс соответствия</span>
-                          <span className="mt-1 block text-xs leading-5 text-[#8d7860]">Включай только если нужно проверить соответствие конкретной роли или ожиданиям.</span>
-                        </span>
-                      </label>
-                      {fitRequested ? (
-                        <div className="grid gap-3">
-                          <select className="input" value={fitProfileId} onChange={(e) => setFitProfileId(e.target.value)}>
-                            <option value="">Автоопределение по запросу / роли</option>
-                            {fitProfiles.map((profile) => (
-                              <option key={profile.id} value={profile.id}>{profile.label}</option>
-                            ))}
-                          </select>
-                          <textarea className="input min-h-[84px]" value={fitRequest} onChange={(e) => setFitRequest(e.target.value)} placeholder="Например: соответствие роли руководителя отдела продаж или ожиданиям по самостоятельности, влиянию и стрессоустойчивости." />
-                        </div>
-                      ) : null}
                       <div className="flex justify-end">
                         <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
                           {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
