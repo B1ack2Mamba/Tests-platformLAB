@@ -870,9 +870,14 @@ export default function ProjectDetailsPage() {
               </div>
             </div>
             {fullyDone ? (
-              <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
-                Открыть страницу результатов
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
+                  Собрать итог по всей информации
+                </Link>
+                <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                  Открыть страницу результатов
+                </Link>
+              </div>
             ) : (
               <div className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]">
                 Ещё {Math.max(0, progress.total - progress.completed)} {Math.max(0, progress.total - progress.completed) === 1 ? "тест" : (Math.max(0, progress.total - progress.completed) >= 2 && Math.max(0, progress.total - progress.completed) <= 4 ? "теста" : "тестов")}
@@ -1041,9 +1046,14 @@ export default function ProjectDetailsPage() {
                 <div className="text-lg font-semibold text-[#2d2a22]">Уровни результата</div>
                 <div className="mt-1 text-sm text-[#8d7860]">Открывай нужный уровень интерпретации по мере готовности проекта.</div>
               </div>
-              <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
-                Открыть страницу результатов
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
+                  Собрать итог по всей информации
+                </Link>
+                <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                  Открыть страницу результатов
+                </Link>
+              </div>
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-3">

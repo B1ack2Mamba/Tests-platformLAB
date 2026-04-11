@@ -10,6 +10,8 @@ type ResponseBody =
       fully_done: boolean;
       completed: number;
       total: number;
+      collected_at: string | null;
+      collect_mode: "view" | "collect";
       project: {
         id: string;
         title: string;
@@ -27,8 +29,7 @@ type ResponseBody =
     }
   | { ok: false; error: string };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<ResponseBody>) {
-  if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
+async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseBody>, explicitCollect: boolean) {
   const authed = await requireUser(req, res);
   if (!authed) return;
 
@@ -112,6 +113,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       fully_done,
       completed,
       total,
+      collected_at: explicitCollect ? new Date().toISOString() : null,
+      collect_mode: explicitCollect ? "collect" : "view",
       project: {
         id: String((data as any).id),
         title: String((data as any).title || ""),
@@ -132,4 +135,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   } catch (error: any) {
     return res.status(400).json({ ok: false, error: error?.message || "Не удалось собрать страницу результатов" });
   }
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse<ResponseBody>) {
+  if (req.method !== "GET" && req.method !== "POST") {
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  }
+  return buildResponse(req, res, req.method === "POST");
 }

@@ -18,6 +18,8 @@ type ResultsPagePayload = {
   fully_done: boolean;
   completed: number;
   total: number;
+  collected_at: string | null;
+  collect_mode: "view" | "collect";
   project: {
     id: string;
     title: string;
@@ -76,13 +78,23 @@ function percentValue(done: number, total: number) {
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
 }
 
+function formatCollectedAt(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short" }).format(date);
+}
+
 export default function ProjectResultsStandalonePage() {
   const router = useRouter();
   const { session, user, loading, envOk } = useSession();
   const projectId = typeof router.query.projectId === "string" ? router.query.projectId : "";
   const [data, setData] = useState<ResultsPagePayload | null>(null);
   const [busy, setBusy] = useState(false);
+  const [collecting, setCollecting] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [lastCollectedAt, setLastCollectedAt] = useState<string | null>(null);
   const [showMechanism, setShowMechanism] = useState(false);
   const [focusInput, setFocusInput] = useState("");
   const [roleInput, setRoleInput] = useState("");
@@ -93,32 +105,55 @@ export default function ProjectResultsStandalonePage() {
     setRoleInput((current) => (current ? current : data.project.target_role || ""));
   }, [data?.project?.target_role]);
 
-  useEffect(() => {
-    if (!session?.access_token || !projectId) return;
-    let cancelled = false;
-    setBusy(true);
+  async function loadResults(explicitCollect: boolean, options?: { showSkeleton?: boolean; announce?: string }) {
+    if (!session?.access_token || !projectId) return null;
+    if (options?.showSkeleton) setBusy(true);
+    if (explicitCollect) {
+      setCollecting(true);
+      setInfo("");
+    }
     setError("");
-    fetch(`/api/commercial/projects/results-map?id=${encodeURIComponent(projectId)}`, {
-      headers: { authorization: `Bearer ${session.access_token}` },
-    })
-      .then(async (resp) => {
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось открыть страницу результатов");
-        if (!cancelled) {
-          setData(json as ResultsPagePayload);
-          setSelectedId((json as ResultsPagePayload).blueprint?.final.id || null);
-        }
-      })
-      .catch((err: any) => {
-        if (!cancelled) setError(err?.message || "Не удалось открыть страницу результатов");
-      })
-      .finally(() => {
-        if (!cancelled) setBusy(false);
+    try {
+      const resp = await fetch(`/api/commercial/projects/results-map?id=${encodeURIComponent(projectId)}`, {
+        method: explicitCollect ? "POST" : "GET",
+        headers: { authorization: `Bearer ${session.access_token}` },
       });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось собрать страницу результатов");
+      const payload = json as ResultsPagePayload;
+      setData(payload);
+      setSelectedId(payload.blueprint?.final.id || null);
+      setLastCollectedAt(payload.collected_at || null);
+      if (explicitCollect) {
+        setInfo(options?.announce || "Анализ собран заново по всей информации проекта.");
+      }
+      return payload;
+    } catch (err: any) {
+      setError(err?.message || "Не удалось открыть страницу результатов");
+      return null;
+    } finally {
+      if (options?.showSkeleton) setBusy(false);
+      if (explicitCollect) setCollecting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!router.isReady || !session?.access_token || !projectId) return;
+    let cancelled = false;
+    const shouldCollect = router.query.collect === "1";
+    (async () => {
+      await loadResults(shouldCollect, {
+        showSkeleton: true,
+        announce: shouldCollect ? "Анализ собран по всей информации проекта." : undefined,
+      });
+      if (!cancelled && shouldCollect) {
+        router.replace(`/projects/${projectId}/results`, undefined, { shallow: true });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [projectId, session?.access_token]);
+  }, [router.isReady, projectId, session?.access_token]);
 
   const blueprint = data?.blueprint || null;
   const coverage = blueprint?.summary.promptCoverage || null;
@@ -226,6 +261,46 @@ export default function ProjectResultsStandalonePage() {
     };
   }, [blueprint, coverage, data, focusInput, roleInput]);
 
+  const analysisDraft = useMemo(() => {
+    if (!blueprint) return null;
+
+    const sortedCompetencies = [...blueprint.competencies].sort((a, b) => b.score - a.score);
+    const top = sortedCompetencies.slice(0, 3);
+    const risks = [...sortedCompetencies].reverse().slice(0, 2);
+    const role = roleInput.trim() || blueprint.summary.finalLabel;
+    const focus = focusInput.trim() || blueprint.summary.focusLabel;
+    const customCount = blueprint.competencies.filter((item) => item.promptSource === "custom").length;
+    const missingCount = blueprint.competencies.filter((item) => item.promptSource === "missing" || item.promptSource === "disabled").length;
+    const bridgeLead = blueprint.bridges[0]?.text || blueprint.summary.finalText;
+
+    return {
+      overview: [
+        `Контур сейчас собирает итог под ориентир «${role}» с фокусом на «${focus}».`,
+        bridgeLead,
+        customCount
+          ? `Индивидуальными prompt-настройками усилено ${customCount} ${pluralize(customCount, "узел", "узла", "узлов")}.`
+          : "Система пока в основном опирается на базовые prompt-шаблоны.",
+      ].join(" "),
+      strengths: top.length
+        ? top.map((item) => `${item.title} — ${item.score}/100, ${item.status.toLowerCase()}. ${item.short}`)
+        : ["Сильные узлы пока не выделены."],
+      risks: risks.length
+        ? risks.map((item) => `${item.title} — ${item.score}/100. ${item.short}`)
+        : ["Критические зоны внимания пока не выявлены."],
+      recommendations: [
+        top[0]
+          ? `Опирай итоговую интерпретацию на блок «${top[0].title}»: это сейчас самый сильный рабочий сигнал в карте.`
+          : "Сначала усили базовые компетентностные узлы, чтобы итог был менее общим.",
+        risks[0]
+          ? `В управленческом выводе отдельно подсвети «${risks[0].title}», иначе итог получится слишком гладким и потеряет честность.`
+          : "Сохраняй баланс между сильными сторонами и ограничениями, не делай итог чересчур комплиментарным.",
+        missingCount
+          ? `Закрой ещё ${missingCount} ${pluralize(missingCount, "узел", "узла", "узлов")} без рабочего prompt, чтобы карта перестала терять нюансы.`
+          : "Prompt-контур собран ровно: можно переходить к шлифовке формулировок, а не к достройке структуры.",
+      ],
+    };
+  }, [blueprint, focusInput, roleInput]);
+
   if (!envOk) {
     return (
       <Layout title="Страница результатов">
@@ -270,6 +345,7 @@ export default function ProjectResultsStandalonePage() {
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
       <div className="mx-auto max-w-[1260px] px-3 pb-12 pt-3 sm:px-4">
         {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+        {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
 
         <div className="rounded-[36px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f5eee2_100%)] p-4 shadow-[0_26px_60px_rgba(93,71,39,0.12)] sm:p-5 lg:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eadcc5] pb-4">
@@ -290,19 +366,38 @@ export default function ProjectResultsStandalonePage() {
                   <span className="rounded-full border border-[#e3d4bd] bg-white/70 px-3 py-1">Участник: {data.project.person.full_name}</span>
                 ) : null}
               </div>
+              {data?.fully_done && blueprint ? (
+                <div className="mt-3 text-sm text-[#6f5a42]">
+                  {lastCollectedAt ? (
+                    <>Последняя явная сборка: <span className="font-medium text-[#2f5031]">{formatCollectedAt(lastCollectedAt)}</span>.</>
+                  ) : (
+                    <>Анализ читается на лету. Для фиксированной пересборки нажми <span className="font-medium text-[#2f5031]">«Собрать анализ»</span>.</>
+                  )}
+                </div>
+              ) : null}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href={`/projects/${projectId}`} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
                 Назад к проекту
               </Link>
               {data?.fully_done && blueprint ? (
-                <button
-                  type="button"
-                  onClick={() => setShowMechanism((prev) => !prev)}
-                  className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]"
-                >
-                  {showMechanism ? "Скрыть механизм" : "Открыть механизм"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." })}
+                    disabled={collecting}
+                    className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {collecting ? "Собираем…" : lastCollectedAt ? "Пересобрать анализ" : "Собрать анализ"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMechanism((prev) => !prev)}
+                    className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]"
+                  >
+                    {showMechanism ? "Скрыть механизм" : "Открыть механизм"}
+                  </button>
+                </>
               ) : null}
               {isAdminEmail(user.email) ? (
                 <Link href="/admin/competency-prompts" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
@@ -375,6 +470,41 @@ export default function ProjectResultsStandalonePage() {
                       <div className="mt-2 text-sm leading-7 text-[#5f5446]">{outerDraft?.final}</div>
                     </div>
                   </div>
+
+                  <div className="mt-4 rounded-[26px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf8_0%,#f8f0e4_100%)] px-4 py-4 shadow-[0_14px_30px_rgba(93,71,39,0.06)]">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Анализ на странице результатов</div>
+                        <div className="mt-2 text-[1.02rem] font-semibold text-[#2d2a22]">Развёрнутый аналитический слой без ухода в админку</div>
+                      </div>
+                      <div className="rounded-full border border-[#e2d3bb] bg-white/75 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#7b664f]">
+                        Сразу видно сильные стороны, риски и куда дожимать промты
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                      <div className="rounded-[22px] border border-[#dfcfb5] bg-white/80 px-4 py-4">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Общий анализ</div>
+                        <div className="mt-2 text-sm leading-7 text-[#5f5446]">{analysisDraft?.overview}</div>
+                      </div>
+                      <div className="rounded-[22px] border border-[#dfcfb5] bg-white/80 px-4 py-4">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Сильные сигналы</div>
+                        <ul className="mt-2 space-y-2 text-sm leading-7 text-[#5f5446]">
+                          {(analysisDraft?.strengths || []).map((item) => (
+                            <li key={item} className="rounded-[16px] border border-[#e9ddcb] bg-[#fbf7f0] px-3 py-2">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="rounded-[22px] border border-[#dfcfb5] bg-white/80 px-4 py-4">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Риски и рекомендации</div>
+                        <ul className="mt-2 space-y-2 text-sm leading-7 text-[#5f5446]">
+                          {[...(analysisDraft?.risks || []), ...(analysisDraft?.recommendations || [])].map((item) => (
+                            <li key={item} className="rounded-[16px] border border-[#e9ddcb] bg-[#fbf7f0] px-3 py-2">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
                 </section>
 
                 <aside className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffaf2_0%,#f8f1e7_100%)] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.10)]">
@@ -414,6 +544,14 @@ export default function ProjectResultsStandalonePage() {
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." })}
+                      disabled={collecting}
+                      className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {collecting ? "Собираем…" : lastCollectedAt ? "Пересобрать анализ" : "Собрать анализ"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => setShowMechanism((prev) => !prev)}
