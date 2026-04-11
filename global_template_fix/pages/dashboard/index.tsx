@@ -2120,7 +2120,9 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const stillBooting = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || sceneWidgets.length === 0 || Object.keys(deskPositions).length === 0;
+    const hasDeskEntities = folderBuckets.uncategorized.length > 0 || folderBuckets.byFolder.length > 0;
+    const positionsReady = Object.keys(deskPositions).length > 0 || !hasDeskEntities;
+    const stillBooting = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || sceneWidgets.length === 0 || !positionsReady;
     if (stillBooting) {
       setDashboardPaintReady(false);
       return;
@@ -2138,7 +2140,7 @@ export default function DashboardPage() {
       window.cancelAnimationFrame(rafTwo);
       window.clearTimeout(timer);
     };
-  }, [deskPositions, loading, sceneWidgets.length, sessionLoading, sharedSceneReady, workspace?.workspace?.workspace_id]);
+  }, [deskPositions, folderBuckets.byFolder.length, folderBuckets.uncategorized.length, loading, sceneWidgets.length, sessionLoading, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     const now = Date.now();
@@ -2159,7 +2161,8 @@ export default function DashboardPage() {
     );
   }
 
-  const deskPositionsReady = Object.keys(deskPositions).length > 0;
+  const hasDeskEntities = folderBuckets.uncategorized.length > 0 || folderBuckets.byFolder.length > 0;
+  const deskPositionsReady = Object.keys(deskPositions).length > 0 || !hasDeskEntities;
   const sceneWidgetsReady = sceneWidgets.length > 0;
   const dashboardBootPending = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || !sceneWidgetsReady || !deskPositionsReady || !dashboardPaintReady;
 
@@ -2178,8 +2181,17 @@ export default function DashboardPage() {
         <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div className="h-10 w-[150px] animate-pulse rounded-2xl bg-[#ede6da]" />
-            <div className="h-10 w-[190px] animate-pulse rounded-2xl bg-[#ede6da]" />
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className={`btn btn-sm ${desktopVariant === "scheme" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
+              <button type="button" className={`btn btn-sm ${desktopVariant === "classic" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
+              {desktopVariant === "classic" ? (
+                <>
+                  <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Рабочий стол</button>
+                  <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
+                </>
+              ) : null}
+            </div>
+            <div className="rounded-2xl border border-[#e3d6c4] bg-[#fffaf2] px-4 py-2 text-sm font-medium text-[#6a573e]">Инициализируем рабочее пространство…</div>
           </div>
           <div className="rounded-[28px] border border-white/75 bg-white/70 p-4 shadow-[0_24px_44px_-30px_rgba(54,35,19,0.22)] backdrop-blur-xl">
             <div className="relative overflow-hidden rounded-[28px] border border-[#eadfce] bg-[linear-gradient(180deg,#f7f1e8_0%,#f2ebe2_100%)]" style={{ minHeight: 760 }}>
