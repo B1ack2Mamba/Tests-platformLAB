@@ -859,6 +859,28 @@ export default function ProjectDetailsPage() {
         {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_10px_24px_rgba(124,45,18,0.08)]">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}
 
+        {(progress.total > 0 || fullyDone) ? (
+          <div className="mx-auto mb-4 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe4_100%)] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] text-[#9d7a4b]">Отдельная страница результатов</div>
+              <div className="mt-1 text-[#6f5a42]">
+                {fullyDone
+                  ? "Страница результатов уже готова. Там скрыт внутренний механизм и отдельно показана карта связей между тестами, компетенциями и итогом."
+                  : `Откроется после завершения всех тестов. Сейчас готово ${progress.completed} из ${progress.total}${progress.total ? ` · осталось ${Math.max(0, progress.total - progress.completed)}` : ""}.`}
+              </div>
+            </div>
+            {fullyDone ? (
+              <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                Открыть страницу результатов
+              </Link>
+            ) : (
+              <div className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]">
+                Ещё {Math.max(0, progress.total - progress.completed)} {Math.max(0, progress.total - progress.completed) === 1 ? "тест" : (Math.max(0, progress.total - progress.completed) >= 2 && Math.max(0, progress.total - progress.completed) <= 4 ? "теста" : "тестов")}
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {canEditProjectDetailsTemplate ? (
           <div className="mx-auto mb-4 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
             <div>
@@ -1019,8 +1041,8 @@ export default function ProjectDetailsPage() {
                 <div className="text-lg font-semibold text-[#2d2a22]">Уровни результата</div>
                 <div className="mt-1 text-sm text-[#8d7860]">Открывай нужный уровень интерпретации по мере готовности проекта.</div>
               </div>
-              <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
-                Отдельная страница результатов
+              <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                Открыть страницу результатов
               </Link>
             </div>
 

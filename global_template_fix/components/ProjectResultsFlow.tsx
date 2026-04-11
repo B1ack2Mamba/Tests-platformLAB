@@ -75,6 +75,12 @@ function linkColor(tone: ResultsBlueprintTone) {
   }
 }
 
+function nodeCountLabel(count: number) {
+  if (count % 10 === 1 && count % 100 !== 11) return `${count} узел`;
+  if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) return `${count} узла`;
+  return `${count} узлов`;
+}
+
 export function ProjectResultsFlow({ stages, links, selectedId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -147,15 +153,31 @@ export function ProjectResultsFlow({ stages, links, selectedId, onSelect }: Prop
         </svg>
       ) : null}
 
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-[#eadcc6] pb-4">
+        <div>
+          <div className="text-sm font-semibold text-[#2d2a22]">Карта взаимосвязей</div>
+          <div className="mt-1 text-xs leading-5 text-[#8b7760]">Слева исходные тесты, дальше компетенции и промежуточные блоки, справа верхний итог.</div>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] text-[#6f5a42]">
+          <span className="rounded-full border border-[#bfd8bf] bg-[#e6f3e3] px-3 py-1">Индивидуальный prompt</span>
+          <span className="rounded-full border border-[#e2d3bb] bg-[#f4ecdf] px-3 py-1">Базовый шаблон</span>
+          <span className="rounded-full border border-[#e4c79d] bg-[#fff3e1] px-3 py-1">Нужно внимание</span>
+          <span className="rounded-full border border-[#e4d7c4] bg-[#f5ecde] px-3 py-1">Ещё не собрано</span>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-4 lg:items-start xl:gap-5">
         {stages.map((stage, stageIndex) => (
-          <section key={stage.id} className="relative rounded-[24px] border border-[#eadcc6] bg-white/50 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] lg:min-h-[240px]">
+          <section key={stage.id} className="relative rounded-[24px] border border-[#eadcc6] bg-white/50 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] lg:min-h-[260px]">
             <div className="mb-3 flex items-start gap-3 border-b border-[#efe3cf] pb-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d9c7aa] bg-[#fff7eb] text-sm font-semibold text-[#7b6240]">
                 {stageIndex + 1}
               </div>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-[#2d2a22]">{stage.title}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-semibold text-[#2d2a22]">{stage.title}</div>
+                  <span className="rounded-full border border-[#e2d3bb] bg-[#f4ecdf] px-2.5 py-1 text-[11px] text-[#6f5a42]">{nodeCountLabel(stage.nodes.length)}</span>
+                </div>
                 {stage.caption ? <div className="mt-1 text-xs leading-5 text-[#8b7760]">{stage.caption}</div> : null}
               </div>
             </div>
