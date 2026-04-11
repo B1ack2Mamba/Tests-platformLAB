@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ProjectResultsFlow, type FlowStage } from "@/components/ProjectResultsFlow";
 import { isAdminEmail } from "@/lib/admin";
@@ -134,6 +134,48 @@ function ProgressRail({ label, percent, note }: { label: string; percent: number
   );
 }
 
+function ResultLayerCard({
+  eyebrow,
+  title,
+  text,
+  action,
+  tone = "neutral",
+  active = false,
+  onClick,
+}: {
+  eyebrow: string;
+  title: string;
+  text: string;
+  action: string;
+  tone?: "neutral" | "analysis" | "mechanism";
+  active?: boolean;
+  onClick: () => void;
+}) {
+  const toneClass =
+    tone === "analysis"
+      ? "border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)]"
+      : tone === "mechanism"
+      ? "border-[#bfd2b9] bg-[linear-gradient(180deg,#f7fff5_0%,#eef7ea_100%)]"
+      : "border-[#d8c5a8] bg-white/78";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-[26px] border p-4 text-left shadow-[0_16px_34px_rgba(93,71,39,0.08)] transition hover:-translate-y-[1px] hover:shadow-[0_20px_40px_rgba(93,71,39,0.12)] ${toneClass} ${active ? "ring-2 ring-[#98be8f]/50" : ""}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">{eyebrow}</div>
+          <div className="mt-2 text-lg font-semibold text-[#2d2a22]">{title}</div>
+        </div>
+        <span className="rounded-full border border-[#e2d3bb] bg-white/70 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[#6f5a42]">{action}</span>
+      </div>
+      <div className="mt-3 text-sm leading-7 text-[#6f6454]">{text}</div>
+    </button>
+  );
+}
+
 function DetailContent({ detailNode, isAdmin }: { detailNode: DetailNode | null; isAdmin: boolean }) {
   if (!detailNode) {
     return <div className="text-sm leading-7 text-[#6f6454]">Нажми на любой узел в схеме, чтобы увидеть, из чего он собран и какой смысл он сейчас отдаёт наружу.</div>;
@@ -233,6 +275,17 @@ export default function ProjectResultsStandalonePage() {
   const [focusInput, setFocusInput] = useState("");
   const [roleInput, setRoleInput] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeLayer, setActiveLayer] = useState<"outer" | "analysis" | "mechanism">("outer");
+  const outerLayerRef = useRef<HTMLDivElement | null>(null);
+  const analysisLayerRef = useRef<HTMLDivElement | null>(null);
+  const mechanismLayerRef = useRef<HTMLDivElement | null>(null);
+
+  function openLayer(layer: "outer" | "analysis" | "mechanism") {
+    setActiveLayer(layer);
+    if (layer === "mechanism") setShowMechanism(true);
+    const target = layer === "outer" ? outerLayerRef.current : layer === "analysis" ? analysisLayerRef.current : mechanismLayerRef.current;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   useEffect(() => {
     if (!data?.project?.target_role) return;
@@ -549,9 +602,51 @@ export default function ProjectResultsStandalonePage() {
             </div>
           ) : (
             <>
+              <div className="mt-6 rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6eee3_100%)] p-5 shadow-[0_18px_36px_rgba(93,71,39,0.10)]">
+                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#eadcc5] pb-4">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Дизайн страницы результатов</div>
+                    <div className="mt-2 text-xl font-semibold text-[#2d2a22]">Вся выдача результата теперь живёт здесь, а не на странице проекта</div>
+                    <div className="mt-2 max-w-[820px] text-sm leading-6 text-[#8b7760]">Снаружи — короткий итог и пара строк для настройки акцента. Ниже — отдельный слой анализа. При необходимости раскрывается внутренний механизм, который собирает тесты, компетенции и финальный вывод.</div>
+                  </div>
+                  <div className="rounded-[18px] border border-[#e2d3bb] bg-white/70 px-4 py-3 text-right">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Страница активна</div>
+                    <div className="mt-2 text-sm font-semibold text-[#2f5031]">Отдельный режим интерпретации проекта</div>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  <ResultLayerCard
+                    eyebrow="Слой 1"
+                    title="Короткий результат"
+                    text="Минимальный внешний слой: две строки настройки, промежуточный вывод и итоговый ответ без перегруза внутренней кухней."
+                    action="Открыть"
+                    active={activeLayer === "outer"}
+                    onClick={() => openLayer("outer")}
+                  />
+                  <ResultLayerCard
+                    eyebrow="Слой 2"
+                    title="Анализ"
+                    text="Общий разбор, сильные сигналы, риски и рекомендации, собранные по всем завершённым тестам и компетенциям."
+                    action="Смотреть"
+                    tone="analysis"
+                    active={activeLayer === "analysis"}
+                    onClick={() => openLayer("analysis")}
+                  />
+                  <ResultLayerCard
+                    eyebrow="Слой 3"
+                    title="Механизм"
+                    text="Карта взаимосвязей: какие тесты уже участвуют в интерпретации, где есть промты и как рождается промежуточный и финальный результат."
+                    action={showMechanism ? "Открыт" : "Раскрыть"}
+                    tone="mechanism"
+                    active={activeLayer === "mechanism"}
+                    onClick={() => openLayer("mechanism")}
+                  />
+                </div>
+              </div>
+
               <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_320px]">
                 <section className="space-y-5">
-                  <div className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,rgba(255,255,255,0.84)_0%,rgba(255,250,241,0.72)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
+                  <div ref={outerLayerRef} className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,rgba(255,255,255,0.84)_0%,rgba(255,250,241,0.72)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
                     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#eadcc5] pb-4">
                       <div>
                         <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Внешний слой</div>
@@ -590,7 +685,7 @@ export default function ProjectResultsStandalonePage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-4 xl:grid-cols-3">
+                  <div ref={analysisLayerRef} className="grid gap-4 xl:grid-cols-3">
                     <div className="rounded-[28px] border border-[#d8c5a8] bg-white/76 p-5 shadow-[0_16px_34px_rgba(93,71,39,0.08)] xl:col-span-1">
                       <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Общий анализ</div>
                       <div className="mt-3 text-sm leading-7 text-[#5f5446]">{analysisDraft?.overview || "Анализ ещё не собран."}</div>
@@ -614,7 +709,7 @@ export default function ProjectResultsStandalonePage() {
                   </div>
 
                   {showMechanism ? (
-                    <div className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] p-4 shadow-[0_18px_38px_rgba(93,71,39,0.10)] sm:p-5">
+                    <div ref={mechanismLayerRef} className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] p-4 shadow-[0_18px_38px_rgba(93,71,39,0.10)] sm:p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eadcc5] pb-4">
                         <div>
                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Внутренний механизм</div>

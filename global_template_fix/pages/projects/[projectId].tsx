@@ -830,6 +830,7 @@ export default function ProjectDetailsPage() {
   }
 
   const projectBootPending = sessionLoading || loading || !data?.project?.id || !detailsViewReady || !projectPaintReady;
+  const keepLegacyResultsOnProjectPage = false;
 
   if (projectBootPending) {
     return (
@@ -869,7 +870,7 @@ export default function ProjectDetailsPage() {
                   : `Откроется после завершения всех тестов. Сейчас готово ${progress.completed} из ${progress.total}${progress.total ? ` · осталось ${Math.max(0, progress.total - progress.completed)}` : ""}.`}
               </div>
             </div>
-            {fullyDone ? (
+            {keepLegacyResultsOnProjectPage && fullyDone ? (
               <div className="flex flex-wrap gap-2">
                 <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
                   Собрать итог по всей информации
@@ -1194,9 +1195,35 @@ export default function ProjectDetailsPage() {
               </div>
             ) : null}
           </div>
-        ) : (
-          <div className="rounded-[26px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-4 text-sm text-[#6f6454] shadow-[0_16px_34px_rgba(93,71,39,0.10)]">Уровни результата откроются после того, как участник завершит все назначенные тесты.</div>
-        )}
+        ) : null}
+
+        {progress.total > 0 || fullyDone ? (
+          <div className="mx-auto mt-6 max-w-[1220px] rounded-[26px] border border-[#d7c4a6] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe4_100%)] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.10)]">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="max-w-[760px]">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9d7a4b]">Результаты вынесены на отдельную страницу</div>
+                <div className="mt-2 text-xl font-semibold text-[#2d2a22]">Вся выдача результата теперь живёт отдельно от страницы проекта</div>
+                <div className="mt-2 text-sm leading-6 text-[#8d7860]">На проекте остаётся только короткий вход. Полная выдача, анализ и карта внутреннего механизма открываются на самостоятельной странице результатов.</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {fullyDone ? (
+                  <>
+                    <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
+                      Собрать итог по всей информации
+                    </Link>
+                    <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                      Открыть страницу результатов
+                    </Link>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]">
+                    Результаты откроются после завершения всех тестов · осталось {Math.max(0, progress.total - progress.completed)}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
       </div>
     </Layout>
