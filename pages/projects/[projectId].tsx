@@ -675,6 +675,8 @@ export default function ProjectDetailsPage() {
   const testsWidth = 870 * detailsTemplate.testsWidthScale;
   const testsAutoHeight = estimateTestsContentHeight(data?.project.tests?.length || 0, detailsTemplate.testsTextScale);
   const testsHeight = Math.max(400 * detailsTemplate.testsHeightScale, testsAutoHeight);
+  const resultsWidth = 320 * detailsTemplate.resultsWidthScale;
+  const resultsHeight = 196 * detailsTemplate.resultsHeightScale;
   const counterWidth = 120 * detailsTemplate.counterWidthScale;
   const counterHeight = 88 * detailsTemplate.counterHeightScale;
   const detailsCanvasHeight = Math.max(
@@ -682,6 +684,7 @@ export default function ProjectDetailsPage() {
     detailsTemplate.mainY + mainHeight + 80,
     detailsTemplate.qrY + qrHeight + 80,
     detailsTemplate.testsY + testsHeight + 80,
+    detailsTemplate.resultsY + resultsHeight + 80,
     detailsTemplate.counterY + counterHeight + 80
   );
   const detailsViewportScale = 0.8;
@@ -881,7 +884,7 @@ export default function ProjectDetailsPage() {
               </div>
             ) : (
               <div className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]">
-                Ещё {Math.max(0, progress.total - progress.completed)} {Math.max(0, progress.total - progress.completed) === 1 ? "тест" : (Math.max(0, progress.total - progress.completed) >= 2 && Math.max(0, progress.total - progress.completed) <= 4 ? "теста" : "тестов")}
+                Кнопка анализа вынесена в конструктор страницы проекта
               </div>
             )}
           </div>
@@ -1010,6 +1013,31 @@ export default function ProjectDetailsPage() {
             </div></div></div>
           </div>
 
+
+
+          <div className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
+            {renderTemplateHandles("results", "анализ", "resultsContent")}
+            <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
+              <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
+                <div className="h-full rounded-[24px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] px-5 py-4 shadow-[0_16px_34px_rgba(93,71,39,0.10)]">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-[#9d7a4b]">Страница результатов</div>
+                  <div className="mt-2 text-[1.05rem] font-semibold leading-6 text-[#2d2a22]">Анализ проекта вынесен отдельно</div>
+                  <div className="mt-2 text-sm leading-6 text-[#7d6953]">Три уровня анализа ИИ, цены, собранные результаты и карта prompt-механизма теперь открываются на отдельной странице.</div>
+                  <div className="mt-4">
+                    {fullyDone ? (
+                      <Link href={`/projects/${data?.project.id}/results`} className="inline-flex rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                        Анализ проекта
+                      </Link>
+                    ) : (
+                      <div className="rounded-2xl border border-[#dcc8aa] bg-white/70 px-4 py-2.5 text-sm font-medium text-[#6f5a42]">
+                        Откроется после завершения всех тестов · осталось {Math.max(0, progress.total - progress.completed)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div className="absolute left-0 top-0" style={{ width: testsWidth, height: testsHeight, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
             <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: testsWidth, height: testsHeight, transform: `scale(${detailsTemplate.testsScale})` }}>
               <div className="relative h-full w-full bg-no-repeat" style={{ backgroundImage: "url('/project-details-tests-template.png')", backgroundSize: "100% 100%" }} />

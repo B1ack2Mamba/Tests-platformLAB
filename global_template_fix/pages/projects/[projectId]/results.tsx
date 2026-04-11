@@ -3,8 +3,19 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ProjectResultsFlow, type FlowStage } from "@/components/ProjectResultsFlow";
+import { ThinkingStatus } from "@/components/ThinkingStatus";
 import { isAdminEmail } from "@/lib/admin";
+import {
+  EVALUATION_PACKAGES,
+  getEvaluationPackageDefinition,
+  getUpgradePriceRub,
+  isPackageAccessible,
+  type EvaluationPackage,
+} from "@/lib/commercialGoals";
+import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
+import { getFitRoleProfiles, type FitRoleProfile } from "@/lib/fitProfiles";
 import { useSession } from "@/lib/useSession";
+import { useWalletBalance } from "@/lib/useWalletBalance";
 import type {
   ResultsBlueprint,
   ResultsBlueprintBridgeNode,
@@ -25,6 +36,8 @@ type ResultsPagePayload = {
     title: string;
     goal: string;
     status: string | null;
+    package_mode: string | null;
+    unlocked_package_mode: EvaluationPackage | null;
     target_role: string | null;
     routing_meta: {
       mode: "goal" | "competency";
@@ -40,11 +53,79 @@ type ResultsPagePayload = {
   blueprint: ResultsBlueprint | null;
 };
 
+type EvaluationPayload = {
+  ok: true;
+  fully_done: boolean;
+  completed: number;
+  total: number;
+  unlocked_package_mode?: EvaluationPackage | null;
+  evaluation: {
+    mode: string;
+    sections: Array<{ kind: string; title: string; body: string }>;
+  } | null;
+};
+
+type SubscriptionStatusResp = {
+  ok: boolean;
+  error?: string;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
+};
+
 type DetailNode =
   | { kind: "test"; node: ResultsBlueprintTestNode }
   | { kind: "competency"; node: ResultsBlueprintCompetencyNode }
   | { kind: "bridge"; node: ResultsBlueprintBridgeNode }
   | { kind: "final"; node: ResultsBlueprintFinalNode };
+
+function getThinkingMessages(mode: EvaluationPackage | null) {
+  switch (mode) {
+    case "premium_ai_plus":
+      return [
+        "Обрабатываем информацию. Это может занять около 5 минут.",
+        "Собираем общий профиль по всем тестам и формируем вывод по запросу.",
+        "Проверяем связи между результатами и считаем индекс соответствия.",
+        "AI раскладывает рекомендации по развитию и управленческим выводам.",
+      ];
+    case "premium":
+      return [
+        "Обрабатываем информацию. Это может занять около 5 минут.",
+        "Формируем вывод по каждому тесту и проверяем смысловые связи.",
+        "AI догружает данные и собирает интерпретации по разделам.",
+      ];
+    default:
+      return [
+        "Подгружаем результат и собираем итоговые показатели.",
+        "Сверяем данные проекта и готовим аккуратную выдачу.",
+      ];
+  }
+}
+
+function formatRub(amount: number) {
+  return `${amount.toLocaleString("ru-RU")} ₽`;
+}
+
+function cleanSectionBody(body: string) {
+  return body
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^[-*+]\s+/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function sectionKey(mode: string, index: number) {
+  return `${mode}:${index}`;
+}
+
+function splitSectionBody(body: string) {
+  const clean = cleanSectionBody(body);
+  const [preview, ...rest] = clean.split(/\n\n+/);
+  return {
+    preview: preview || clean,
+    details: rest.join("\n\n").trim(),
+  };
+}
 
 function promptCoverageLine(blueprint: ResultsBlueprint) {
   const coverage = blueprint.summary.promptCoverage;
@@ -64,20 +145,6 @@ function statusLabel(value: string | null | undefined) {
   }
 }
 
-function pluralize(count: number, one: string, few: string, many: string) {
-  const value = Math.abs(count) % 100;
-  const last = value % 10;
-  if (value > 10 && value < 20) return many;
-  if (last > 1 && last < 5) return few;
-  if (last === 1) return one;
-  return many;
-}
-
-function percentValue(done: number, total: number) {
-  if (!total) return 0;
-  return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
-}
-
 function formatCollectedAt(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -85,95 +152,20 @@ function formatCollectedAt(value: string | null) {
   return new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
-function SmallField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <label className="block rounded-[22px] border border-[#e2d3bb] bg-white/78 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">{label}</div>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="mt-2 w-full border-0 bg-transparent p-0 text-sm text-[#3e362c] outline-none placeholder:text-[#b59f81]"
-      />
-    </label>
-  );
-}
-
-function StatTile({ label, value, subline }: { label: string; value: string; subline?: string }) {
-  return (
-    <div className="rounded-[22px] border border-[#e2d3bb] bg-white/72 px-4 py-3 shadow-[0_10px_22px_rgba(93,71,39,0.06)]">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-[#9d7a4b]">{label}</div>
-      <div className="mt-2 text-[1.35rem] font-semibold leading-none text-[#2d2a22]">{value}</div>
-      {subline ? <div className="mt-2 text-xs leading-5 text-[#7d6953]">{subline}</div> : null}
-    </div>
-  );
-}
-
-function ProgressRail({ label, percent, note }: { label: string; percent: number; note: string }) {
-  return (
-    <div>
-      <div className="flex items-center justify-between gap-3 text-xs text-[#7d6953]">
-        <span>{label}</span>
-        <span className="font-semibold text-[#2f5031]">{percent}%</span>
-      </div>
-      <div className="mt-2 h-2 rounded-full bg-[#ebdfcb]">
-        <div className="h-2 rounded-full bg-[linear-gradient(90deg,#86ad7c_0%,#6f9567_100%)]" style={{ width: `${percent}%` }} />
-      </div>
-      <div className="mt-2 text-xs leading-5 text-[#8b7760]">{note}</div>
-    </div>
-  );
-}
-
-function ResultLayerCard({
-  eyebrow,
-  title,
-  text,
-  action,
-  tone = "neutral",
-  active = false,
-  onClick,
-}: {
-  eyebrow: string;
-  title: string;
-  text: string;
-  action: string;
-  tone?: "neutral" | "analysis" | "mechanism";
-  active?: boolean;
-  onClick: () => void;
-}) {
-  const toneClass =
-    tone === "analysis"
-      ? "border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)]"
-      : tone === "mechanism"
-      ? "border-[#bfd2b9] bg-[linear-gradient(180deg,#f7fff5_0%,#eef7ea_100%)]"
-      : "border-[#d8c5a8] bg-white/78";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-[26px] border p-4 text-left shadow-[0_16px_34px_rgba(93,71,39,0.08)] transition hover:-translate-y-[1px] hover:shadow-[0_20px_40px_rgba(93,71,39,0.12)] ${toneClass} ${active ? "ring-2 ring-[#98be8f]/50" : ""}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">{eyebrow}</div>
-          <div className="mt-2 text-lg font-semibold text-[#2d2a22]">{title}</div>
-        </div>
-        <span className="rounded-full border border-[#e2d3bb] bg-white/70 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[#6f5a42]">{action}</span>
-      </div>
-      <div className="mt-3 text-sm leading-7 text-[#6f6454]">{text}</div>
-    </button>
-  );
+function getPackageButtonLabel(
+  target: EvaluationPackage,
+  current: EvaluationPackage | null | undefined,
+  isUnlimited: boolean,
+  activeSubscription: WorkspaceSubscriptionStatus | null,
+  projectCoveredBySubscription: boolean
+) {
+  if (isUnlimited) return "Открыть бесплатно";
+  if (isPackageAccessible(current, target)) return "Открыто";
+  if (projectCoveredBySubscription) return "Открыть по тарифу";
+  if (activeSubscription && activeSubscription.projects_remaining > 0) return "Открыть по тарифу";
+  const upgradeRub = getUpgradePriceRub(current, target);
+  if (current) return `Доплатить ${formatRub(upgradeRub)}`;
+  return `Оплатить ${formatRub(getEvaluationPackageDefinition(target)?.priceRub || 0)}`;
 }
 
 function DetailContent({ detailNode, isAdmin }: { detailNode: DetailNode | null; isAdmin: boolean }) {
@@ -264,33 +256,29 @@ function DetailContent({ detailNode, isAdmin }: { detailNode: DetailNode | null;
 export default function ProjectResultsStandalonePage() {
   const router = useRouter();
   const { session, user, loading, envOk } = useSession();
+  const { balance_rub, refresh: refreshWallet, isUnlimited } = useWalletBalance();
   const projectId = typeof router.query.projectId === "string" ? router.query.projectId : "";
   const [data, setData] = useState<ResultsPagePayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [collecting, setCollecting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [lastCollectedAt, setLastCollectedAt] = useState<string | null>(null);
   const [showMechanism, setShowMechanism] = useState(false);
-  const [focusInput, setFocusInput] = useState("");
-  const [roleInput, setRoleInput] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeLayer, setActiveLayer] = useState<"outer" | "analysis" | "mechanism">("outer");
-  const outerLayerRef = useRef<HTMLDivElement | null>(null);
-  const analysisLayerRef = useRef<HTMLDivElement | null>(null);
-  const mechanismLayerRef = useRef<HTMLDivElement | null>(null);
-
-  function openLayer(layer: "outer" | "analysis" | "mechanism") {
-    setActiveLayer(layer);
-    if (layer === "mechanism") setShowMechanism(true);
-    const target = layer === "outer" ? outerLayerRef.current : layer === "analysis" ? analysisLayerRef.current : mechanismLayerRef.current;
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  useEffect(() => {
-    if (!data?.project?.target_role) return;
-    setRoleInput((current) => (current ? current : data.project.target_role || ""));
-  }, [data?.project?.target_role]);
+  const [evaluationByMode, setEvaluationByMode] = useState<Partial<Record<EvaluationPackage, EvaluationPayload>>>({});
+  const [evaluationLoading, setEvaluationLoading] = useState<Partial<Record<EvaluationPackage, boolean>>>({});
+  const [activeEvaluationMode, setActiveEvaluationMode] = useState<EvaluationPackage | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [aiPlusRequest, setAiPlusRequest] = useState("");
+  const [fitRequested, setFitRequested] = useState(false);
+  const [fitProfileId, setFitProfileId] = useState("");
+  const [fitRequest, setFitRequest] = useState("");
+  const [packageHelp, setPackageHelp] = useState<EvaluationPackage | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [fitProfiles, setFitProfiles] = useState<FitRoleProfile[]>(() => getFitRoleProfiles());
+  const mechanismRef = useRef<HTMLDivElement | null>(null);
 
   async function loadResults(explicitCollect: boolean, options?: { showSkeleton?: boolean; announce?: string }) {
     if (!session?.access_token || !projectId) return null;
@@ -311,9 +299,7 @@ export default function ProjectResultsStandalonePage() {
       setData(payload);
       setSelectedId(payload.blueprint?.final.id || null);
       setLastCollectedAt(payload.collected_at || null);
-      if (explicitCollect) {
-        setInfo(options?.announce || "Анализ собран заново по всей информации проекта.");
-      }
+      if (explicitCollect) setInfo(options?.announce || "Анализ собран заново по всей информации проекта.");
       return payload;
     } catch (err: any) {
       setError(err?.message || "Не удалось открыть страницу результатов");
@@ -324,30 +310,154 @@ export default function ProjectResultsStandalonePage() {
     }
   }
 
+  async function loadSubscriptionStatus() {
+    if (!session?.access_token) {
+      setActiveSubscription(null);
+      return;
+    }
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/status", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = (await resp.json().catch(() => ({}))) as SubscriptionStatusResp;
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить месячный тариф");
+      setActiveSubscription(json.active_subscription || null);
+    } catch (err: any) {
+      setError(err?.message || "Не удалось загрузить месячный тариф");
+    }
+  }
+
+  async function loadEvaluation(mode: EvaluationPackage, opts?: { customRequest?: string }) {
+    if (!session?.access_token || !projectId) return;
+    setEvaluationLoading((prev) => ({ ...prev, [mode]: true }));
+    try {
+      const url = new URL(`/api/commercial/projects/evaluation`, window.location.origin);
+      url.searchParams.set("id", projectId);
+      url.searchParams.set("mode", mode);
+      if (mode === "premium_ai_plus" && opts?.customRequest?.trim()) {
+        url.searchParams.set("custom_request", opts.customRequest.trim());
+      }
+      if (mode === "premium_ai_plus") {
+        url.searchParams.set("fit_enabled", fitRequested ? "1" : "0");
+        if (fitRequested && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
+        if (fitRequested && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
+      }
+      const resp = await fetch(url.toString(), {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить уровень анализа");
+      setEvaluationByMode((prev) => ({ ...prev, [mode]: json as EvaluationPayload }));
+    } catch (err: any) {
+      setError(err?.message || "Не удалось загрузить уровень анализа");
+    } finally {
+      setEvaluationLoading((prev) => ({ ...prev, [mode]: false }));
+    }
+  }
+
+  async function unlockPackage(mode: EvaluationPackage) {
+    if (!session?.access_token || !data?.project.id) return;
+    setSaving(true);
+    setError("");
+    setInfo("");
+    try {
+      const resp = await fetch("/api/commercial/projects/unlock", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ project_id: data.project.id, package_mode: mode }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось открыть уровень анализа");
+      const chargedRub = Number(json?.charged_rub || 0);
+      if (json?.used_subscription) {
+        setInfo(`Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт по месячному тарифу.${Number.isFinite(Number(json?.subscription_remaining)) ? ` Осталось ${Number(json?.subscription_remaining)} проектов.` : ""}`);
+      } else {
+        setInfo(chargedRub > 0 ? `Уровень «${getEvaluationPackageDefinition(mode)?.title || mode}» открыт.` : "Уровень уже был открыт.");
+      }
+      await loadResults(false);
+      await loadSubscriptionStatus();
+      await refreshWallet();
+      setActiveEvaluationMode(mode);
+      await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
+      if (mode === "premium") await loadEvaluation("basic");
+      if (mode === "premium_ai_plus") {
+        await loadEvaluation("basic");
+        await loadEvaluation("premium");
+      }
+    } catch (err: any) {
+      setError(err?.message || "Ошибка оплаты");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadFitProfiles() {
+      try {
+        const resp = await fetch("/api/commercial/fit-config/options");
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok || !Array.isArray(json?.profiles)) return;
+        if (!cancelled && json.profiles.length) setFitProfiles(json.profiles);
+      } catch {
+        // keep embedded defaults
+      }
+    }
+    loadFitProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!router.isReady || !session?.access_token || !projectId) return;
-    let cancelled = false;
     const shouldCollect = router.query.collect === "1";
     (async () => {
       await loadResults(shouldCollect, {
         showSkeleton: true,
         announce: shouldCollect ? "Анализ собран по всей информации проекта." : undefined,
       });
-      if (!cancelled && shouldCollect) {
+      await loadSubscriptionStatus();
+      if (shouldCollect) {
         router.replace(`/projects/${projectId}/results`, undefined, { shallow: true });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [router.isReady, projectId, session?.access_token]);
+
+  useEffect(() => {
+    const unlocked = data?.project.unlocked_package_mode || null;
+    if (!unlocked) {
+      setActiveEvaluationMode(null);
+      return;
+    }
+    setActiveEvaluationMode((prev) => prev || unlocked);
+  }, [data?.project.unlocked_package_mode]);
+
+  useEffect(() => {
+    if (!activeEvaluationMode || !data?.fully_done || !data?.project.unlocked_package_mode) return;
+    if (!isPackageAccessible(data.project.unlocked_package_mode, activeEvaluationMode)) return;
+    if (evaluationByMode[activeEvaluationMode] || evaluationLoading[activeEvaluationMode]) return;
+    loadEvaluation(activeEvaluationMode, activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
+  }, [activeEvaluationMode, data?.fully_done, data?.project.unlocked_package_mode, aiPlusRequest]);
 
   const blueprint = data?.blueprint || null;
   const coverage = blueprint?.summary.promptCoverage || null;
-  const testsReadyPercent = percentValue(data?.completed || 0, data?.total || 0);
-  const promptReadyPercent = coverage ? percentValue(coverage.custom + coverage.default, coverage.total) : 0;
-  const nodeTotal = blueprint ? blueprint.tests.length + blueprint.competencies.length + blueprint.bridges.length + 1 : 0;
-  const remainingTests = Math.max(0, (data?.total || 0) - (data?.completed || 0));
+  const unlockedMode = data?.project.unlocked_package_mode || null;
+  const projectCoveredBySubscription = false;
+  const availablePackages = useMemo(
+    () => EVALUATION_PACKAGES.filter((item) => isPackageAccessible(unlockedMode, item.key)).map((item) => item.key),
+    [unlockedMode]
+  );
+
+  const activeSections = useMemo(() => {
+    const sections = activeEvaluationMode ? evaluationByMode[activeEvaluationMode]?.evaluation?.sections || [] : [];
+    return sections.filter((item) => item.body?.trim());
+  }, [activeEvaluationMode, evaluationByMode]);
+  const overviewSections = useMemo(() => activeSections.filter((item) => item.kind !== "test"), [activeSections]);
+  const testSections = useMemo(() => activeSections.filter((item) => item.kind === "test"), [activeSections]);
 
   const stages = useMemo<FlowStage[]>(() => {
     if (!blueprint) return [];
@@ -394,14 +504,7 @@ export default function ProjectResultsStandalonePage() {
         id: "final",
         title: "Итог",
         caption: "Верхний результат для внешней выдачи.",
-        nodes: [
-          {
-            id: blueprint.final.id,
-            title: blueprint.final.title,
-            body: blueprint.final.text,
-            tone: blueprint.final.tone,
-          },
-        ],
+        nodes: [{ id: blueprint.final.id, title: blueprint.final.title, body: blueprint.final.text, tone: blueprint.final.tone }],
       },
     ];
   }, [blueprint]);
@@ -418,76 +521,6 @@ export default function ProjectResultsStandalonePage() {
     return null;
   }, [blueprint, selectedId]);
 
-  const outerDraft = useMemo(() => {
-    if (!blueprint || !data) return null;
-    const focus = focusInput.trim() || blueprint.summary.focusLabel;
-    const role = roleInput.trim() || blueprint.summary.finalLabel;
-    const strongest = blueprint.summary.strongest.slice(0, 3).join(", ");
-    const attention = blueprint.summary.attention.slice(0, 2).join(", ");
-
-    const intermediate = [
-      `Фокус: ${focus}.`,
-      strongest ? `Опорные сигналы: ${strongest}.` : "Опорные сигналы ещё собираются.",
-      coverage?.custom
-        ? `Индивидуальными промтами закрыто ${coverage.custom} из ${coverage.total} ключевых узлов.`
-        : "Контур пока в основном читает базовые шаблоны.",
-    ].join(" ");
-
-    const final = [
-      `Ориентир: ${role}.`,
-      blueprint.summary.finalText,
-      attention ? `Дополнительное внимание: ${attention}.` : "",
-      focusInput.trim() ? `Акцент сверху: ${focusInput.trim()}.` : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    return {
-      intermediate,
-      final,
-    };
-  }, [blueprint, coverage, data, focusInput, roleInput]);
-
-  const analysisDraft = useMemo(() => {
-    if (!blueprint) return null;
-
-    const sortedCompetencies = [...blueprint.competencies].sort((a, b) => b.score - a.score);
-    const top = sortedCompetencies.slice(0, 3);
-    const risks = [...sortedCompetencies].reverse().slice(0, 2);
-    const role = roleInput.trim() || blueprint.summary.finalLabel;
-    const focus = focusInput.trim() || blueprint.summary.focusLabel;
-    const customCount = blueprint.competencies.filter((item) => item.promptSource === "custom").length;
-    const missingCount = blueprint.competencies.filter((item) => item.promptSource === "missing" || item.promptSource === "disabled").length;
-    const bridgeLead = blueprint.bridges[0]?.text || blueprint.summary.finalText;
-
-    return {
-      overview: [
-        `Контур сейчас собирает итог под ориентир «${role}» с фокусом на «${focus}».`,
-        bridgeLead,
-        customCount
-          ? `Индивидуальными prompt-настройками усилено ${customCount} ${pluralize(customCount, "узел", "узла", "узлов")}.`
-          : "Система пока в основном опирается на базовые prompt-шаблоны.",
-      ].join(" "),
-      strengths: top.length
-        ? top.map((item) => `${item.title} — ${item.score}/100, ${item.status.toLowerCase()}. ${item.short}`)
-        : ["Сильные узлы пока не выделены."],
-      risks: risks.length
-        ? risks.map((item) => `${item.title} — ${item.score}/100. ${item.short}`)
-        : ["Критические зоны внимания пока не выявлены."],
-      recommendations: [
-        top[0]
-          ? `Опирай итоговую интерпретацию на блок «${top[0].title}»: это сейчас самый сильный рабочий сигнал в карте.`
-          : "Сначала усили базовые компетентностные узлы, чтобы итог был менее общим.",
-        risks[0]
-          ? `В управленческом выводе отдельно подсвети «${risks[0].title}», иначе итог получится слишком гладким и потеряет честность.`
-          : "Сохраняй баланс между сильными сторонами и ограничениями, не делай итог чересчур комплиментарным.",
-        missingCount
-          ? `Закрой ещё ${missingCount} ${pluralize(missingCount, "узел", "узла", "узлов")} без рабочего prompt, чтобы карта перестала терять нюансы.`
-          : "Prompt-контур собран ровно: можно переходить к шлифовке формулировок, а не к достройке структуры.",
-      ],
-    };
-  }, [blueprint, focusInput, roleInput]);
-
   if (!envOk) {
     return (
       <Layout title="Страница результатов">
@@ -501,19 +534,13 @@ export default function ProjectResultsStandalonePage() {
       <Layout title="Страница результатов">
         <div className="mx-auto max-w-[1260px] px-3 pb-10 pt-3 sm:px-4">
           <div className="rounded-[34px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe4_100%)] p-5 shadow-[0_24px_54px_rgba(93,71,39,0.10)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="h-5 w-56 animate-pulse rounded bg-[#eadfc8]" />
-                <div className="mt-3 h-8 w-80 animate-pulse rounded bg-[#f0e7d7]" />
-                <div className="mt-3 h-4 w-72 animate-pulse rounded bg-[#f0e7d7]" />
-              </div>
-              <div className="h-11 w-52 animate-pulse rounded-2xl bg-[#eadfc8]" />
+            <div className="h-8 w-72 animate-pulse rounded bg-[#eadfc8]" />
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div className="h-56 animate-pulse rounded-[24px] bg-[#f4ecde]" />
+              <div className="h-56 animate-pulse rounded-[24px] bg-[#f4ecde]" />
+              <div className="h-56 animate-pulse rounded-[24px] bg-[#f4ecde]" />
             </div>
-            <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_340px]">
-              <div className="h-[360px] animate-pulse rounded-[28px] bg-[#f4ecde]" />
-              <div className="h-[360px] animate-pulse rounded-[28px] bg-[#f4ecde]" />
-            </div>
-            <div className="mt-6 h-[520px] animate-pulse rounded-[28px] bg-[#f4ecde]" />
+            <div className="mt-6 h-[460px] animate-pulse rounded-[28px] bg-[#f4ecde]" />
           </div>
         </div>
       </Layout>
@@ -537,49 +564,33 @@ export default function ProjectResultsStandalonePage() {
         <div className="rounded-[36px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f5eee2_100%)] p-4 shadow-[0_26px_60px_rgba(93,71,39,0.12)] sm:p-5 lg:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#eadcc5] pb-5">
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Функциональная страница результатов</div>
+              <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">Страница результатов проекта</div>
               <h1 className="mt-2 text-[1.7rem] font-semibold leading-tight text-[#2d2a22] sm:text-[2.1rem]">{data?.project.title || "Проект"}</h1>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#7b664f]">
                 <span className="rounded-full border border-[#e3d4bd] bg-white/70 px-3 py-1">{statusLabel(data?.project.status)}</span>
                 <span className="rounded-full border border-[#e3d4bd] bg-white/70 px-3 py-1">Тесты: {data?.completed}/{data?.total}</span>
-                {blueprint ? (
-                  <span className="rounded-full border border-[#e3d4bd] bg-white/70 px-3 py-1">{blueprint.summary.routeMode === "competency" ? "Контур компетенций" : "Контур цели"}</span>
-                ) : null}
                 {data?.project.person?.full_name ? <span className="rounded-full border border-[#e3d4bd] bg-white/70 px-3 py-1">Участник: {data.project.person.full_name}</span> : null}
                 {data?.project.person?.current_position ? <span className="rounded-full border border-[#e3d4bd] bg-white/70 px-3 py-1">Позиция: {data.project.person.current_position}</span> : null}
+                {unlockedMode ? <span className="rounded-full border border-[#b9d2b3] bg-[#edf7e7] px-3 py-1 text-[#355039]">Открыт уровень: {getEvaluationPackageDefinition(unlockedMode)?.shortTitle || unlockedMode}</span> : null}
               </div>
-              {data?.fully_done && blueprint ? (
-                <div className="mt-3 text-sm text-[#6f5a42]">
-                  {lastCollectedAt ? (
-                    <>Последняя явная сборка: <span className="font-medium text-[#2f5031]">{formatCollectedAt(lastCollectedAt)}</span>.</>
-                  ) : (
-                    <>Анализ читается на лету. Для фиксированной пересборки нажми <span className="font-medium text-[#2f5031]">«Собрать анализ»</span>.</>
-                  )}
-                </div>
-              ) : null}
+              <div className="mt-3 text-sm text-[#6f5a42]">
+                Здесь живут все три степени анализа ИИ со своими ценниками, а также карта prompt-механизма и взаимосвязей между тестами, компетенциями и итогом.
+              </div>
+              {lastCollectedAt ? <div className="mt-2 text-xs text-[#8b7760]">Последняя явная сборка карты: {formatCollectedAt(lastCollectedAt)}</div> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link href={`/projects/${projectId}`} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
                 Назад к проекту
               </Link>
-              {data?.fully_done && blueprint ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." })}
-                    disabled={collecting}
-                    className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {collecting ? "Собираем…" : lastCollectedAt ? "Пересобрать анализ" : "Собрать анализ"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowMechanism((prev) => !prev)}
-                    className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]"
-                  >
-                    {showMechanism ? "Скрыть механизм" : "Открыть механизм"}
-                  </button>
-                </>
+              {blueprint ? (
+                <button
+                  type="button"
+                  onClick={() => loadResults(true, { announce: lastCollectedAt ? "Карта пересобрана по всей информации проекта." : "Карта собрана по всей информации проекта." })}
+                  disabled={collecting}
+                  className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)] disabled:opacity-60"
+                >
+                  {collecting ? "Собираем…" : lastCollectedAt ? "Пересобрать карту" : "Собрать карту"}
+                </button>
               ) : null}
               {isAdminEmail(user.email) ? (
                 <Link href="/admin/competency-prompts" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
@@ -589,215 +600,244 @@ export default function ProjectResultsStandalonePage() {
             </div>
           </div>
 
-          {!data?.fully_done || !blueprint ? (
-            <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-              <div className="rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-5 text-sm leading-7 text-[#6f6454] shadow-[0_16px_34px_rgba(93,71,39,0.08)]">
-                Эта страница откроется после завершения всех тестов в проекте. Сейчас готово {data?.completed || 0} из {data?.total || 0}. Внешний слой уже подготовлен, но внутренняя карта ещё не собрана до конца.
-              </div>
-              <aside className="rounded-[28px] border border-[#d8c5a8] bg-white/70 p-5 shadow-[0_16px_34px_rgba(93,71,39,0.08)]">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Готовность доступа</div>
-                <div className="mt-3 text-[2.4rem] font-semibold leading-none text-[#2f5031]">{testsReadyPercent}%</div>
-                <div className="mt-2 text-sm leading-6 text-[#6f6454]">Осталось пройти {remainingTests} {pluralize(remainingTests, "тест", "теста", "тестов")}, чтобы открыть итоговую карту результатов.</div>
-              </aside>
+          {!data?.fully_done ? (
+            <div className="mt-6 rounded-[28px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-5 text-sm leading-7 text-[#6f6454] shadow-[0_16px_34px_rgba(93,71,39,0.08)]">
+              Все уровни анализа откроются после завершения тестов. Сейчас готово {data?.completed || 0} из {data?.total || 0}.
             </div>
           ) : (
             <>
-              <div className="mt-6 rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6eee3_100%)] p-5 shadow-[0_18px_36px_rgba(93,71,39,0.10)]">
-                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#eadcc5] pb-4">
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Дизайн страницы результатов</div>
-                    <div className="mt-2 text-xl font-semibold text-[#2d2a22]">Вся выдача результата теперь живёт здесь, а не на странице проекта</div>
-                    <div className="mt-2 max-w-[820px] text-sm leading-6 text-[#8b7760]">Снаружи — короткий итог и пара строк для настройки акцента. Ниже — отдельный слой анализа. При необходимости раскрывается внутренний механизм, который собирает тесты, компетенции и финальный вывод.</div>
-                  </div>
-                  <div className="rounded-[18px] border border-[#e2d3bb] bg-white/70 px-4 py-3 text-right">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Страница активна</div>
-                    <div className="mt-2 text-sm font-semibold text-[#2f5031]">Отдельный режим интерпретации проекта</div>
-                  </div>
-                </div>
-                <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                  <ResultLayerCard
-                    eyebrow="Слой 1"
-                    title="Короткий результат"
-                    text="Минимальный внешний слой: две строки настройки, промежуточный вывод и итоговый ответ без перегруза внутренней кухней."
-                    action="Открыть"
-                    active={activeLayer === "outer"}
-                    onClick={() => openLayer("outer")}
-                  />
-                  <ResultLayerCard
-                    eyebrow="Слой 2"
-                    title="Анализ"
-                    text="Общий разбор, сильные сигналы, риски и рекомендации, собранные по всем завершённым тестам и компетенциям."
-                    action="Смотреть"
-                    tone="analysis"
-                    active={activeLayer === "analysis"}
-                    onClick={() => openLayer("analysis")}
-                  />
-                  <ResultLayerCard
-                    eyebrow="Слой 3"
-                    title="Механизм"
-                    text="Карта взаимосвязей: какие тесты уже участвуют в интерпретации, где есть промты и как рождается промежуточный и финальный результат."
-                    action={showMechanism ? "Открыт" : "Раскрыть"}
-                    tone="mechanism"
-                    active={activeLayer === "mechanism"}
-                    onClick={() => openLayer("mechanism")}
-                  />
-                </div>
+              <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                {EVALUATION_PACKAGES.map((item) => {
+                  const unlocked = isPackageAccessible(unlockedMode, item.key);
+                  const currentEval = evaluationByMode[item.key];
+                  const isBusy = !!saving || !!evaluationLoading[item.key];
+                  const upgradeRub = getUpgradePriceRub(unlockedMode, item.key);
+                  const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
+                  const isActive = activeEvaluationMode === item.key;
+                  return (
+                    <div key={item.key} className={`rounded-[26px] border p-5 shadow-[0_12px_28px_rgba(93,71,39,0.08)] ${isActive ? "border-[#8eb48d] bg-[#f3faef]" : "border-[#dfcfb5] bg-[#fffaf1]"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">{item.note || "уровень анализа"}</div>
+                          <div className="mt-2 text-xl font-semibold text-[#2d2a22]">{item.title}</div>
+                          <div className="mt-2 text-sm leading-6 text-[#7a6a57]">{item.description}</div>
+                        </div>
+                        <button type="button" className="text-xs font-medium text-[#8b6b3c]" onClick={() => setPackageHelp((prev) => (prev === item.key ? null : item.key))}>Что внутри?</button>
+                      </div>
+                      <div className="mt-4 rounded-[18px] border border-[#eadcc5] bg-white/75 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Цена</div>
+                        <div className="mt-2 text-2xl font-semibold text-[#2d2a22]">{formatRub(item.priceRub)}</div>
+                      </div>
+                      <ul className="mt-4 space-y-2 text-sm leading-6 text-[#5f5446]">
+                        {item.bullets.map((bullet) => (
+                          <li key={bullet} className="rounded-[16px] border border-[#eadcc5] bg-white/65 px-3 py-2">• {bullet}</li>
+                        ))}
+                      </ul>
+                      {packageHelp === item.key && item.helpText ? <div className="mt-4 rounded-[20px] border border-[#ecdcbf] bg-white/70 p-3 text-sm leading-6 text-[#685742]">{item.helpText}</div> : null}
+                      <div className="mt-4 text-sm font-semibold text-[#2f5031]">
+                        {unlocked
+                          ? currentEval?.evaluation
+                            ? "Результат уже собран"
+                            : "Уровень открыт и готов к сборке"
+                          : accessible
+                          ? projectCoveredBySubscription
+                            ? "Откроется по тарифу"
+                            : activeSubscription?.projects_remaining
+                            ? `Осталось ${activeSubscription.projects_remaining} проектов по тарифу`
+                            : "Можно открыть"
+                          : upgradeRub
+                          ? `Стоимость открытия: ${formatRub(upgradeRub)}`
+                          : "Доступно после предыдущего уровня"}
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {unlocked ? (
+                          <button
+                            type="button"
+                            className={`w-full rounded-2xl border px-4 py-2.5 text-sm font-medium ${isActive ? "border-[#8eb48d] bg-[#cde7c1] text-[#27402b]" : "border-[#d9c4a4] bg-[#fffaf0] text-[#5b4731]"}`}
+                            onClick={async () => {
+                              setActiveEvaluationMode(item.key);
+                              if (!evaluationByMode[item.key] && !evaluationLoading[item.key]) {
+                                await loadEvaluation(item.key, item.key === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
+                              }
+                            }}
+                          >
+                            {isActive ? "Показано ниже" : currentEval?.evaluation ? "Показать результат" : "Собрать и показать"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="w-full rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] disabled:opacity-60"
+                            disabled={isBusy}
+                            onClick={() => unlockPackage(item.key)}
+                          >
+                            {getPackageButtonLabel(item.key, unlockedMode, isUnlimited, activeSubscription, projectCoveredBySubscription)}
+                          </button>
+                        )}
+                        {!accessible && !isUnlimited && !projectCoveredBySubscription && !(activeSubscription && activeSubscription.projects_remaining > 0) && balance_rub < upgradeRub ? (
+                          <div className="text-xs text-amber-700">Не хватает {formatRub(upgradeRub - balance_rub)}.</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_320px]">
-                <section className="space-y-5">
-                  <div ref={outerLayerRef} className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,rgba(255,255,255,0.84)_0%,rgba(255,250,241,0.72)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
-                    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#eadcc5] pb-4">
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Внешний слой</div>
-                        <div className="mt-2 text-xl font-semibold text-[#2d2a22]">Минимум входа, минимум ответа, скрытая кухня внутри</div>
-                        <div className="mt-2 text-sm leading-6 text-[#8b7760]">Снаружи — только настройка фокуса и роли, промежуточный вывод и итог. Внутренний механизм можно открыть отдельно.</div>
-                      </div>
-                      <div className="rounded-[18px] border border-[#e2d3bb] bg-white/70 px-4 py-3 text-right">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Итоговая опора</div>
-                        <div className="mt-2 text-base font-semibold text-[#2f5031]">{blueprint.summary.finalLabel}</div>
-                      </div>
+              {activeSubscription ? (
+                <div className="mt-4 rounded-[24px] border border-[#d8c5a8] bg-white/70 px-4 py-3 text-sm text-[#6f5a42]">
+                  Активен месячный тариф: {formatMonthlySubscriptionPeriod(activeSubscription.period_start, activeSubscription.period_end)} · осталось {activeSubscription.projects_remaining} проектов.
+                </div>
+              ) : null}
+
+              {activeEvaluationMode && isPackageAccessible(unlockedMode, activeEvaluationMode) ? (
+                <div className="mt-6 rounded-[30px] border border-[#d7c4a6] bg-[#fffaf1] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.10)]">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9bf] pb-4">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Активный уровень анализа</div>
+                      <div className="mt-2 text-2xl font-semibold text-[#2d2a22]">{getEvaluationPackageDefinition(activeEvaluationMode)?.title || "Результат"}</div>
+                      <div className="mt-1 text-sm text-[#8d7860]">Три степени анализа теперь живут отдельно от страницы проекта.</div>
                     </div>
-
-                    <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                      <div className="space-y-3">
-                        <SmallField label="Фокус сверху" value={focusInput} onChange={setFocusInput} placeholder={blueprint.summary.focusLabel} />
-                        <SmallField label="Роль / итоговый ориентир" value={roleInput} onChange={setRoleInput} placeholder={blueprint.summary.finalLabel} />
-                        <div className="rounded-[22px] border border-[#e2d3bb] bg-white/78 px-4 py-4">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Сводка готовности</div>
-                          <div className="mt-3 space-y-4">
-                            <ProgressRail label="Готовность тестов" percent={testsReadyPercent} note={`${data.completed} из ${data.total} тестов уже вошли в контур.`} />
-                            <ProgressRail label="Prompt-покрытие" percent={promptReadyPercent} note={promptCoverageLine(blueprint)} />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="rounded-[24px] border border-[#d7c4a3] bg-[linear-gradient(180deg,#fffdf9_0%,#f8f0e4_100%)] px-4 py-4 shadow-[0_12px_28px_rgba(93,71,39,0.08)]">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Промежуточный результат</div>
-                          <div className="mt-3 text-sm leading-7 text-[#4d4338]">{outerDraft?.intermediate || "Промежуточный вывод ещё не собран."}</div>
-                        </div>
-                        <div className="rounded-[24px] border border-[#b7cfae] bg-[linear-gradient(180deg,#f8fff6_0%,#eef7eb_100%)] px-4 py-4 shadow-[0_14px_30px_rgba(78,116,67,0.10)]">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#5a7a56]">Итоговый результат</div>
-                          <div className="mt-3 text-base font-semibold leading-7 text-[#28422b]">{outerDraft?.final || "Итог ещё не собран."}</div>
-                        </div>
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      {availablePackages.map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          className={`rounded-full border px-3 py-1.5 text-xs font-medium ${activeEvaluationMode === mode ? "border-[#8eb48d] bg-[#e4f1de] text-[#355039]" : "border-[#dec9a8] bg-[#fff8ec] text-[#6b5943]"}`}
+                          onClick={async () => {
+                            setActiveEvaluationMode(mode);
+                            if (!evaluationByMode[mode] && !evaluationLoading[mode]) {
+                              await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
+                            }
+                          }}
+                        >
+                          {getEvaluationPackageDefinition(mode)?.shortTitle || mode}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div ref={analysisLayerRef} className="grid gap-4 xl:grid-cols-3">
-                    <div className="rounded-[28px] border border-[#d8c5a8] bg-white/76 p-5 shadow-[0_16px_34px_rgba(93,71,39,0.08)] xl:col-span-1">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Общий анализ</div>
-                      <div className="mt-3 text-sm leading-7 text-[#5f5446]">{analysisDraft?.overview || "Анализ ещё не собран."}</div>
-                    </div>
-                    <div className="rounded-[28px] border border-[#d8c5a8] bg-white/76 p-5 shadow-[0_16px_34px_rgba(93,71,39,0.08)]">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Сильные сигналы</div>
-                      <ul className="mt-3 space-y-2 text-sm leading-7 text-[#5f5446]">
-                        {(analysisDraft?.strengths || []).map((item) => (
-                          <li key={item} className="rounded-[16px] border border-[#e9ddcb] bg-[#fbf7f0] px-3 py-2">{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="rounded-[28px] border border-[#d8c5a8] bg-white/76 p-5 shadow-[0_16px_34px_rgba(93,71,39,0.08)]">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Риски и рекомендации</div>
-                      <ul className="mt-3 space-y-2 text-sm leading-7 text-[#5f5446]">
-                        {[...(analysisDraft?.risks || []), ...(analysisDraft?.recommendations || [])].map((item) => (
-                          <li key={item} className="rounded-[16px] border border-[#e9ddcb] bg-[#fbf7f0] px-3 py-2">{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {showMechanism ? (
-                    <div ref={mechanismLayerRef} className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] p-4 shadow-[0_18px_38px_rgba(93,71,39,0.10)] sm:p-5">
-                      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eadcc5] pb-4">
-                        <div>
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Внутренний механизм</div>
-                          <div className="mt-2 text-lg font-semibold text-[#2d2a22]">Тесты → компетенции → промежуточный результат → итог</div>
-                          <div className="mt-1 text-sm leading-6 text-[#8b7760]">Здесь видно, где есть индивидуальный prompt, где работает базовый шаблон и какие узлы ещё просят внимания.</div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-xs text-[#6f5a42]">
-                          <span className="rounded-full border border-[#bfd8bf] bg-[#e6f3e3] px-3 py-1">Индивидуальный prompt</span>
-                          <span className="rounded-full border border-[#e2d3bb] bg-[#f4ecdf] px-3 py-1">Базовый шаблон</span>
-                          <span className="rounded-full border border-[#e4c79d] bg-[#fff3e1] px-3 py-1">Нужно внимание</span>
-                          <span className="rounded-full border border-[#e4d7c4] bg-[#f5ecde] px-3 py-1">Ещё не собрано</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-                        <ProjectResultsFlow stages={stages} links={blueprint.links} selectedId={selectedId} onSelect={setSelectedId} />
-                        <aside className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffaf2_0%,#f7efe3_100%)] p-5 shadow-[0_20px_42px_rgba(93,71,39,0.10)] xl:sticky xl:top-4">
-                          <div className="text-sm font-semibold text-[#2d2a22]">Деталь выбранного узла</div>
-                          <div className="mt-4">
-                            <DetailContent detailNode={detailNode} isAdmin={isAdminEmail(user.email)} />
+                  {activeEvaluationMode === "premium_ai_plus" ? (
+                    <div className="mt-4 rounded-[24px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
+                      <div className="text-sm font-semibold text-[#2d2a22]">Дополнительный запрос к Премиум AI+</div>
+                      <div className="mt-1 text-sm text-[#8d7860]">Можно задать акцент анализа и отдельно включить индекс соответствия.</div>
+                      <div className="mt-3 grid gap-4">
+                        <textarea className="input min-h-[96px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
+                        <label className="flex items-start gap-3 rounded-[20px] border border-[#e1d3bf] bg-white/60 px-4 py-3 text-sm text-[#6f6454]">
+                          <input type="checkbox" className="mt-1 h-4 w-4" checked={fitRequested} onChange={(e) => setFitRequested(e.target.checked)} />
+                          <span>
+                            <span className="font-medium text-[#2d2a22]">Считать индекс соответствия</span>
+                            <span className="mt-1 block text-xs leading-5 text-[#8d7860]">Включай только если нужно проверить соответствие конкретной роли или ожиданиям.</span>
+                          </span>
+                        </label>
+                        {fitRequested ? (
+                          <div className="grid gap-3">
+                            <select className="input" value={fitProfileId} onChange={(e) => setFitProfileId(e.target.value)}>
+                              <option value="">Автоопределение по запросу / роли</option>
+                              {fitProfiles.map((profile) => (
+                                <option key={profile.id} value={profile.id}>{profile.label}</option>
+                              ))}
+                            </select>
+                            <textarea className="input min-h-[84px]" value={fitRequest} onChange={(e) => setFitRequest(e.target.value)} placeholder="Например: соответствие роли руководителя отдела продаж или ожиданиям по самостоятельности, влиянию и стрессоустойчивости." />
                           </div>
-                        </aside>
+                        ) : null}
+                        <div className="flex justify-end">
+                          <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
+                            {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
+                          </button>
+                        </div>
                       </div>
+                    </div>
+                  ) : null}
+
+                  {evaluationLoading[activeEvaluationMode] ? (
+                    <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
+                  ) : activeSections.length ? (
+                    <div className="mt-4 grid gap-4">
+                      {overviewSections.length ? (
+                        <div className={`grid gap-3 ${overviewSections.length > 1 ? "md:grid-cols-2" : ""}`}>
+                          {overviewSections.map((section, index) => {
+                            const key = sectionKey(`${activeEvaluationMode}:overview`, index);
+                            const isOpen = openSections[key] ?? false;
+                            const parts = splitSectionBody(section.body);
+                            const hasDetails = Boolean(parts.details);
+                            return (
+                              <div key={`${section.title}:${index}`} className="rounded-[22px] border border-[#dfcfb5] bg-[#fffaf1] p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="text-sm font-semibold text-[#2d2a22]">{section.title}</div>
+                                  {hasDetails ? <button type="button" className="text-xs font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>{isOpen ? "Скрыть детали" : "Подробнее"}</button> : null}
+                                </div>
+                                <div className="mt-2 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.preview}</div>
+                                {hasDetails && isOpen ? <div className="mt-3 whitespace-pre-line border-t border-[#ead9bf] pt-3 text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+
+                      {testSections.length ? (
+                        <div className="rounded-[22px] border border-[#dfcfb5] bg-[#fffaf1] p-4">
+                          <div className="text-sm font-semibold text-[#2d2a22]">По отдельным тестам</div>
+                          <div className="mt-1 text-sm text-[#8d7860]">Открывай только те методики, которые нужно посмотреть сейчас.</div>
+                          <div className="mt-4 grid gap-3">
+                            {testSections.map((section, index) => {
+                              const key = sectionKey(activeEvaluationMode, index);
+                              const isOpen = openSections[key] ?? index === 0;
+                              return (
+                                <div key={key} className="overflow-hidden rounded-[20px] border border-[#e2d1b6] bg-white/70">
+                                  <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? index === 0) }))}>
+                                    <div className="text-sm font-semibold text-[#2d2a22]">{section.title}</div>
+                                    <span className="text-xs text-[#8b6b3c]">{isOpen ? "Скрыть" : "Открыть"}</span>
+                                  </button>
+                                  {isOpen ? <div className="border-t border-[#ead9bf] px-4 py-4 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{cleanSectionBody(section.body)}</div> : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
-                    <div className="rounded-[26px] border border-dashed border-[#d8c5a8] bg-white/55 px-5 py-4 text-sm leading-7 text-[#6f6454]">
-                      Механизм скрыт. Снаружи пользователь видит только короткий вывод. При необходимости можно открыть карту взаимосвязей и пройти путь от тестов к компетенциям, промежуточным блокам и финальному результату.
-                    </div>
+                    <div className="mt-4 rounded-[22px] border border-[#e1d3bf] bg-[#fcf7ef] p-4 text-sm text-[#6f6454]">Результат для этого уровня пока не собран. Выбери уровень и нажми сборку.</div>
                   )}
-                </section>
+                </div>
+              ) : null}
 
-                <aside className="space-y-4 xl:sticky xl:top-4">
-                  <div className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffaf2_0%,#f8f1e7_100%)] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.10)]">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Паспорт карты</div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <StatTile label="Тесты" value={`${data.completed}/${data.total}`} />
-                      <StatTile label="Узлы" value={String(nodeTotal)} />
-                      <StatTile label="Инд. prompt" value={String(coverage?.custom || 0)} />
-                      <StatTile label="Пустых" value={String(coverage?.missing || 0)} />
+              {blueprint ? (
+                <div ref={mechanismRef} className="mt-6 rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.10)]">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eadcc5] pb-4">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Механизм и prompt-карта</div>
+                      <div className="mt-2 text-lg font-semibold text-[#2d2a22]">Тесты → компетенции → промежуточный результат → итог</div>
+                      <div className="mt-1 text-sm leading-6 text-[#8b7760]">Здесь живут все prompt-настройки из админки, статусы покрытий и вся причинно-следственная цепочка результата.</div>
                     </div>
-                    <div className="mt-4 space-y-3 text-sm leading-7 text-[#5f5446]">
-                      <div className="rounded-[22px] border border-[#e2d3bb] bg-white/65 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Опора</div>
-                        <div className="mt-2">{blueprint.summary.strongest.length ? blueprint.summary.strongest.join(", ") : "Опорные сигналы пока не выделены"}</div>
-                      </div>
-                      <div className="rounded-[22px] border border-[#e2d3bb] bg-white/65 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Внимание</div>
-                        <div className="mt-2">{blueprint.summary.attention.length ? blueprint.summary.attention.join(", ") : "Явных провалов в видимом контуре нет"}</div>
-                      </div>
-                      <div className="rounded-[22px] border border-[#e2d3bb] bg-white/65 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Prompt-карта</div>
-                        <div className="mt-2 text-sm leading-6 text-[#5f5446]">{promptCoverageLine(blueprint)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[30px] border border-[#d8c5a8] bg-white/78 p-5 shadow-[0_18px_38px_rgba(93,71,39,0.08)]">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Действия</div>
-                    <div className="mt-4 space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." })}
-                        disabled={collecting}
-                        className="w-full rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {collecting ? "Собираем…" : lastCollectedAt ? "Пересобрать анализ" : "Собрать анализ"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowMechanism((prev) => !prev)}
-                        className="w-full rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]"
-                      >
-                        {showMechanism ? "Скрыть механизм" : "Открыть механизм"}
-                      </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="rounded-full border border-[#e2d3bb] bg-white/70 px-3 py-1 text-xs text-[#6f5a42]">{promptCoverageLine(blueprint)}</div>
                       <button
                         type="button"
                         onClick={() => {
-                          setFocusInput("");
-                          setRoleInput(data?.project.target_role || "");
+                          setShowMechanism((prev) => !prev);
+                          if (!showMechanism) setTimeout(() => mechanismRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 20);
                         }}
-                        className="w-full rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]"
+                        className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]"
                       >
-                        Сбросить строки
+                        {showMechanism ? "Скрыть механизм" : "Открыть механизм"}
                       </button>
                     </div>
                   </div>
-                </aside>
-              </div>
+                  {showMechanism ? (
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+                      <ProjectResultsFlow stages={stages} links={blueprint.links} selectedId={selectedId} onSelect={setSelectedId} />
+                      <aside className="rounded-[30px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffaf2_0%,#f7efe3_100%)] p-5 shadow-[0_20px_42px_rgba(93,71,39,0.10)] xl:sticky xl:top-4">
+                        <div className="text-sm font-semibold text-[#2d2a22]">Деталь выбранного узла</div>
+                        <div className="mt-4"><DetailContent detailNode={detailNode} isAdmin={isAdminEmail(user.email)} /></div>
+                      </aside>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-[22px] border border-dashed border-[#d8c5a8] bg-white/60 px-4 py-4 text-sm leading-7 text-[#6f6454]">
+                      Механизм скрыт. Открой его, чтобы увидеть все связи, prompt-статусы, промежуточные узлы и финальный результат.
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </>
           )}
         </div>
