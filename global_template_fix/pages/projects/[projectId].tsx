@@ -992,14 +992,34 @@ export default function ProjectDetailsPage() {
             {renderTemplateHandles("results", "результат", "resultsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
-                <div className="h-full bg-transparent px-5 py-4 flex items-center justify-center">
+                <div className="h-full bg-transparent px-3 py-2 flex items-center justify-center">
                   {fullyDone ? (
-                    <Link href={`/projects/${data?.project.id}/results`} className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#7ca36f] bg-[#bfe5b8] px-5 py-3 text-base font-semibold text-[#264029] shadow-[0_10px_24px_rgba(74,115,67,0.16)]">
-                      Получить результат
+                    <Link
+                      href={`/projects/${data?.project.id}/results`}
+                      className="group inline-flex items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99]"
+                      aria-label="Получить результат"
+                    >
+                      <img
+                        src="/result-stamp.svg"
+                        alt="Получить результат"
+                        className="block h-[142px] w-[142px] drop-shadow-[0_10px_20px_rgba(70,112,66,0.16)]"
+                        draggable={false}
+                      />
                     </Link>
                   ) : (
-                    <button type="button" disabled className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#d9c4a4] bg-[#f7f0e2] px-5 py-3 text-base font-semibold text-[#9a856b] opacity-90 cursor-not-allowed" title={`Осталось ${Math.max(0, progress.total - progress.completed)} тестов`}>
-                      Получить результат
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center justify-center cursor-not-allowed opacity-85"
+                      title={`Осталось ${Math.max(0, progress.total - progress.completed)} тестов`}
+                      aria-label="Получить результат недоступно, не все тесты пройдены"
+                    >
+                      <img
+                        src="/result-stamp-bw.svg"
+                        alt="Получить результат недоступно"
+                        className="block h-[142px] w-[142px] grayscale-[0.15] contrast-[1.02] opacity-90"
+                        draggable={false}
+                      />
                     </button>
                   )}
                 </div>
