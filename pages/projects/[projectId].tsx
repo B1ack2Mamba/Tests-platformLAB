@@ -863,33 +863,6 @@ export default function ProjectDetailsPage() {
         {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_10px_24px_rgba(124,45,18,0.08)]">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}
 
-        {(progress.total > 0 || fullyDone) ? (
-          <div className="mx-auto mb-4 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe4_100%)] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
-            <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-[#9d7a4b]">Отдельная страница результатов</div>
-              <div className="mt-1 text-[#6f5a42]">
-                {fullyDone
-                  ? "Страница результатов уже готова. Там скрыт внутренний механизм и отдельно показана карта связей между тестами, компетенциями и итогом."
-                  : `Откроется после завершения всех тестов. Сейчас готово ${progress.completed} из ${progress.total}${progress.total ? ` · осталось ${Math.max(0, progress.total - progress.completed)}` : ""}.`}
-              </div>
-            </div>
-            {keepLegacyResultsOnProjectPage && fullyDone ? (
-              <div className="flex flex-wrap gap-2">
-                <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
-                  Собрать итог по всей информации
-                </Link>
-                <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
-                  Открыть страницу результатов
-                </Link>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]">
-                Кнопка анализа вынесена в конструктор страницы проекта
-              </div>
-            )}
-          </div>
-        ) : null}
-
         {canEditProjectDetailsTemplate ? (
           <div className="mx-auto mb-4 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
             <div>
@@ -1016,22 +989,28 @@ export default function ProjectDetailsPage() {
 
 
           <div className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
-            {renderTemplateHandles("results", "анализ", "resultsContent")}
+            {renderTemplateHandles("results", "результат", "resultsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
-                <div className="h-full rounded-[24px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] px-5 py-4 shadow-[0_16px_34px_rgba(93,71,39,0.10)]">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-[#9d7a4b]">Страница результатов</div>
-                  <div className="mt-2 text-[1.05rem] font-semibold leading-6 text-[#2d2a22]">Анализ проекта вынесен отдельно</div>
-                  <div className="mt-2 text-sm leading-6 text-[#7d6953]">Три уровня анализа ИИ, цены, собранные результаты и карта prompt-механизма теперь открываются на отдельной странице.</div>
+                <div className="h-full rounded-[24px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] px-5 py-4 shadow-[0_16px_34px_rgba(93,71,39,0.10)] flex flex-col justify-between">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-[#9d7a4b]">Результат проекта</div>
+                    <div className="mt-2 text-[1.05rem] font-semibold leading-6 text-[#2d2a22]">Получить результат</div>
+                    <div className="mt-2 text-sm leading-6 text-[#7d6953]">
+                      {fullyDone
+                        ? "Открой отдельную страницу результатов с тремя уровнями анализа ИИ."
+                        : `Кнопка станет активной после завершения всех тестов · осталось ${Math.max(0, progress.total - progress.completed)}`}
+                    </div>
+                  </div>
                   <div className="mt-4">
                     {fullyDone ? (
                       <Link href={`/projects/${data?.project.id}/results`} className="inline-flex rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
-                        Анализ проекта
+                        Получить результат
                       </Link>
                     ) : (
-                      <div className="rounded-2xl border border-[#dcc8aa] bg-white/70 px-4 py-2.5 text-sm font-medium text-[#6f5a42]">
-                        Откроется после завершения всех тестов · осталось {Math.max(0, progress.total - progress.completed)}
-                      </div>
+                      <button type="button" disabled className="inline-flex rounded-2xl border border-[#d9c4a4] bg-[#f7efe1] px-4 py-2.5 text-sm font-semibold text-[#9a856b] opacity-80 cursor-not-allowed">
+                        Получить результат
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1040,7 +1019,7 @@ export default function ProjectDetailsPage() {
           </div>
           <div className="absolute left-0 top-0" style={{ width: testsWidth, height: testsHeight, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
             <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: testsWidth, height: testsHeight, transform: `scale(${detailsTemplate.testsScale})` }}>
-              <div className="relative h-full w-full bg-no-repeat" style={{ backgroundImage: "url('/project-details-tests-template.png')", backgroundSize: "100% 100%" }} />
+              <div className="relative h-full w-full rounded-[30px] border border-[#dfcfb5] bg-transparent" />
             </div>
             {renderTemplateHandles("tests", "тесты", "testsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.testsContentX}px, ${detailsTemplate.testsContentY}px)` }}>
@@ -1056,7 +1035,7 @@ export default function ProjectDetailsPage() {
                   {(data?.project.tests || []).map((test) => {
                     const done = completedSet.has(test.test_slug);
                     return (
-                      <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[20px] border border-[#dfcfb5] bg-[#fffaf1] px-5 py-3.5">
+                      <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[20px] border border-[#dfcfb5] bg-white/45 px-5 py-3.5">
                         <div className="text-[1.05rem] font-semibold leading-6 text-[#2d2a22]">{test.test_title}</div>
                         <span className={`rounded-full px-4 py-2 text-sm font-medium ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Готово" : "Не пройден"}</span>
                       </div>
@@ -1222,34 +1201,6 @@ export default function ProjectDetailsPage() {
                 )}
               </div>
             ) : null}
-          </div>
-        ) : null}
-
-        {progress.total > 0 || fullyDone ? (
-          <div className="mx-auto mt-6 max-w-[1220px] rounded-[26px] border border-[#d7c4a6] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe4_100%)] p-5 shadow-[0_18px_38px_rgba(93,71,39,0.10)]">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="max-w-[760px]">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-[#9d7a4b]">Результаты вынесены на отдельную страницу</div>
-                <div className="mt-2 text-xl font-semibold text-[#2d2a22]">Вся выдача результата теперь живёт отдельно от страницы проекта</div>
-                <div className="mt-2 text-sm leading-6 text-[#8d7860]">На проекте остаётся только короткий вход. Полная выдача, анализ и карта внутреннего механизма открываются на самостоятельной странице результатов.</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {fullyDone ? (
-                  <>
-                    <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
-                      Собрать итог по всей информации
-                    </Link>
-                    <Link href={`/projects/${data?.project.id}/results`} className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
-                      Открыть страницу результатов
-                    </Link>
-                  </>
-                ) : (
-                  <div className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]">
-                    Результаты откроются после завершения всех тестов · осталось {Math.max(0, progress.total - progress.completed)}
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         ) : null}
 
