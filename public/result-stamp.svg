@@ -1,45 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
   <defs>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#8ead83" flood-opacity="0.18"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#6ea16f" flood-opacity="0.18"/>
     </filter>
-    <path id="topArc" d="M 110 173 A 150 150 0 0 1 402 173" />
-    <path id="bottomArc" d="M 402 339 A 150 150 0 0 1 110 339" />
   </defs>
   <g filter="url(#shadow)">
-    <circle cx="256" cy="256" r="210" fill="#FFFDF8" stroke="#6E9D68" stroke-width="16"/>
-    <circle cx="256" cy="256" r="186" fill="none" stroke="#6E9D68" stroke-width="4" stroke-dasharray="0 0"/>
-    <circle cx="256" cy="256" r="136" fill="none" stroke="#6E9D68" stroke-width="4"/>
-    <g fill="#6E9D68">
-      <circle cx="256" cy="92" r="10"/>
-      <circle cx="319" cy="104" r="10"/>
-      <circle cx="372" cy="140" r="10"/>
-      <circle cx="405" cy="192" r="10"/>
-      <circle cx="414" cy="256" r="10"/>
-      <circle cx="405" cy="320" r="10"/>
-      <circle cx="372" cy="372" r="10"/>
-      <circle cx="319" cy="408" r="10"/>
-      <circle cx="256" cy="420" r="10"/>
-      <circle cx="193" cy="408" r="10"/>
-      <circle cx="140" cy="372" r="10"/>
-      <circle cx="107" cy="320" r="10"/>
-      <circle cx="98" cy="256" r="10"/>
-      <circle cx="107" cy="192" r="10"/>
-      <circle cx="140" cy="140" r="10"/>
-      <circle cx="193" cy="104" r="10"/>
+    <circle cx="256" cy="256" r="212" fill="#fffefb"/>
+    <circle cx="256" cy="256" r="212" stroke="#7aa774" stroke-width="14"/>
+    <circle cx="256" cy="256" r="191" stroke="#7aa774" stroke-width="4"/>
+    <circle cx="256" cy="256" r="146" stroke="#7aa774" stroke-width="4"/>
+
+    <path d="M156 121c28-20 61-31 100-31 40 0 73 11 101 31" stroke="#7aa774" stroke-width="6" stroke-linecap="round"/>
+    <path d="M356 391c-28 20-61 31-100 31-40 0-73-11-101-31" stroke="#7aa774" stroke-width="6" stroke-linecap="round"/>
+
+    <g fill="#7aa774">
+      <circle cx="135" cy="170" r="10"/>
+      <circle cx="170" cy="136" r="10"/>
+      <circle cx="214" cy="115" r="10"/>
+      <circle cx="256" cy="108" r="10"/>
+      <circle cx="298" cy="115" r="10"/>
+      <circle cx="342" cy="136" r="10"/>
+      <circle cx="377" cy="170" r="10"/>
+      <circle cx="377" cy="342" r="10"/>
+      <circle cx="342" cy="376" r="10"/>
+      <circle cx="298" cy="397" r="10"/>
+      <circle cx="256" cy="404" r="10"/>
+      <circle cx="214" cy="397" r="10"/>
+      <circle cx="170" cy="376" r="10"/>
+      <circle cx="135" cy="342" r="10"/>
     </g>
-    <path d="M92 204 H420" stroke="#6E9D68" stroke-width="6"/>
-    <path d="M92 308 H420" stroke="#6E9D68" stroke-width="6"/>
-    <text x="256" y="176" text-anchor="middle" fill="#6E9D68" font-size="42" font-family="Arial, Helvetica, sans-serif" font-weight="800" letter-spacing="2">ПОЛУЧИТЬ</text>
-    <g>
-      <path d="M112 218 H400 L382 294 H130 Z" fill="#6E9D68"/>
-      <text x="256" y="273" text-anchor="middle" fill="#FFFDF8" font-size="56" font-family="Arial, Helvetica, sans-serif" font-weight="900" letter-spacing="1.5">РЕЗУЛЬТАТ</text>
-    </g>
-    <text font-size="22" font-family="Arial, Helvetica, sans-serif" fill="#6E9D68" font-weight="700" letter-spacing="1.8">
-      <textPath href="#topArc" startOffset="50%" text-anchor="middle">ЛАБОРАТОРИЯ КАДРОВ</textPath>
-    </text>
-    <text font-size="18" font-family="Arial, Helvetica, sans-serif" fill="#6E9D68" font-weight="700" letter-spacing="2.2">
-      <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ПРОЕКТНЫЙ АНАЛИЗ</textPath>
-    </text>
+
+    <text x="256" y="225" text-anchor="middle" fill="#3f6e41" font-size="72" font-weight="600" font-style="italic" font-family="'Brush Script MT','Segoe Script','Lucida Handwriting',cursive">Получить</text>
+    <text x="256" y="307" text-anchor="middle" fill="#3f6e41" font-size="76" font-weight="600" font-style="italic" font-family="'Brush Script MT','Segoe Script','Lucida Handwriting',cursive">результат</text>
+
+    <path d="M152 333h208" stroke="#7aa774" stroke-width="6" stroke-linecap="round"/>
   </g>
 </svg>
