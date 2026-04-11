@@ -645,7 +645,6 @@ export default function DashboardPage() {
   const [sharedSceneWidgets, setSharedSceneWidgets] = useState<SceneWidget[]>([]);
   const [sharedTrayGuideText, setSharedTrayGuideText] = useState("");
   const [sharedSceneReady, setSharedSceneReady] = useState(false);
-  const [dashboardPaintReady, setDashboardPaintReady] = useState(false);
   const [isRoomLightDimmed, setIsRoomLightDimmed] = useState(false);
   const [roomSwitchPosition, setRoomSwitchPosition] = useState(DEFAULT_ROOM_SWITCH_ZONE);
   const roomSwitchInteractionRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
@@ -1071,7 +1070,6 @@ export default function DashboardPage() {
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
 
     let sourceWidgets: SceneWidget[] = [];
-
     if (desktopVariant === "classic") {
       sourceWidgets = saved.length ? saved : defaultSceneWidgets;
     } else {
@@ -2120,27 +2118,6 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const stillBooting = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || sceneWidgets.length === 0 || Object.keys(deskPositions).length === 0;
-    if (stillBooting) {
-      setDashboardPaintReady(false);
-      return;
-    }
-    let rafOne = 0;
-    let rafTwo = 0;
-    let timer = 0;
-    rafOne = window.requestAnimationFrame(() => {
-      rafTwo = window.requestAnimationFrame(() => {
-        timer = window.setTimeout(() => setDashboardPaintReady(true), 120);
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(rafOne);
-      window.cancelAnimationFrame(rafTwo);
-      window.clearTimeout(timer);
-    };
-  }, [deskPositions, loading, sceneWidgets.length, sessionLoading, sharedSceneReady, workspace?.workspace?.workspace_id]);
-
-  useEffect(() => {
     const now = Date.now();
     const expired = trashEntries.filter((item) => item.expiresAt <= now);
     if (!expired.length) return;
@@ -2159,10 +2136,6 @@ export default function DashboardPage() {
     );
   }
 
-  const deskPositionsReady = Object.keys(deskPositions).length > 0;
-  const sceneWidgetsReady = sceneWidgets.length > 0;
-  const dashboardBootPending = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || !sceneWidgetsReady || !deskPositionsReady || !dashboardPaintReady;
-
   const trayFolders = folderBuckets.byFolder.filter(({ folder }, index) => {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return isInsideGuideRect(pos.x, pos.y);
@@ -2171,29 +2144,6 @@ export default function DashboardPage() {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return !isInsideGuideRect(pos.x, pos.y);
   });
-
-  if (dashboardBootPending) {
-    return (
-      <Layout title="Кабинет специалиста">
-        <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
-          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div className="h-10 w-[150px] animate-pulse rounded-2xl bg-[#ede6da]" />
-            <div className="h-10 w-[190px] animate-pulse rounded-2xl bg-[#ede6da]" />
-          </div>
-          <div className="rounded-[28px] border border-white/75 bg-white/70 p-4 shadow-[0_24px_44px_-30px_rgba(54,35,19,0.22)] backdrop-blur-xl">
-            <div className="relative overflow-hidden rounded-[28px] border border-[#eadfce] bg-[linear-gradient(180deg,#f7f1e8_0%,#f2ebe2_100%)]" style={{ minHeight: 760 }}>
-              <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.55))]" />
-              <div className="absolute left-[18px] top-[18px] h-14 w-40 rounded-[18px] bg-white/80" />
-              <div className="absolute right-[26px] top-[26px] h-14 w-52 rounded-[18px] bg-white/80" />
-              <div className="absolute inset-x-[14px] top-[70px] bottom-[18px] rounded-[26px] border border-white/70 bg-white/45" />
-              <div className="absolute left-[55px] bottom-[42px] h-20 w-[72%] rounded-[22px] bg-white/78" />
-            </div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
 
   if (desktopVariant === "classic") {
     return (
@@ -2763,8 +2713,8 @@ export default function DashboardPage() {
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_48%)]" />
                 <div className="relative z-[1] grid h-full grid-cols-[0.95fr_1.05fr] gap-2 px-2 pb-2 pt-6">
                   <div className="flex h-full min-h-0 flex-col rounded-[4px] border border-[#b8cad8] bg-[linear-gradient(180deg,#ffffff_0%,#eef4f8_100%)] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
-                    <div className="text-[9px] uppercase tracking-[0.14em] text-slate-500">Баланс</div>
-                    <div className="mt-1 text-[21px] font-semibold leading-none text-slate-900">{balanceText}</div>
+                    <div className="text-[8px] uppercase tracking-[0.14em] text-slate-500">Баланс</div>
+                    <div className="mt-1 text-[18px] font-semibold leading-none text-slate-900">{balanceText}</div>
                     <Link
                       href="/wallet"
                       onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }}
@@ -2774,10 +2724,10 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                   <div className="flex h-full min-h-0 flex-col rounded-[4px] border border-[#b8cad8] bg-[linear-gradient(180deg,#ffffff_0%,#eef4f8_100%)] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
-                    <div className="text-[9px] uppercase tracking-[0.14em] text-slate-500">Тариф</div>
-                    <div className="mt-1 line-clamp-2 text-[11px] font-semibold leading-[1.15] text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
+                    <div className="text-[8px] uppercase tracking-[0.14em] text-slate-500">Тариф</div>
+                    <div className="mt-1 line-clamp-2 text-[10px] font-semibold leading-[1.15] text-slate-900">{activeSubscription ? activeSubscription.plan_title : "Не подключён"}</div>
                     {activeSubscription ? (
-                      <div className="mt-1.5 space-y-1 text-[10px] leading-[1.25] text-slate-700">
+                      <div className="mt-1.5 space-y-1 text-[9px] leading-[1.25] text-slate-700">
                         <div className="rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1">
                           До завершения: <span className="font-semibold text-slate-900">{getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.</span>
                         </div>
@@ -2786,7 +2736,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-1.5 rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1 text-[10px] leading-[1.25] text-slate-600">
+                      <div className="mt-1.5 rounded-[3px] border border-[#d4dee7] bg-[#f8fbfe] px-2 py-1 text-[9px] leading-[1.25] text-slate-600">
                         Тариф не подключён.
                       </div>
                     )}
