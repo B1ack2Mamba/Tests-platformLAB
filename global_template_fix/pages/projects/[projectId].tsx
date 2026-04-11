@@ -994,11 +994,11 @@ export default function ProjectDetailsPage() {
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
                 <div className="h-full rounded-[24px] border border-[#d8c5a8] bg-[linear-gradient(180deg,#fffdf9_0%,#f6efe4_100%)] px-5 py-4 shadow-[0_16px_34px_rgba(93,71,39,0.10)] flex items-center justify-center">
                   {fullyDone ? (
-                    <Link href={`/projects/${data?.project.id}/results`} className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-5 py-3 text-base font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.18)]">
+                    <Link href={`/projects/${data?.project.id}/results`} className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#7ca36f] bg-transparent px-5 py-3 text-base font-semibold text-[#264029] shadow-none">
                       Получить результат
                     </Link>
                   ) : (
-                    <button type="button" disabled className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#d9c4a4] bg-[#f7efe1] px-5 py-3 text-base font-semibold text-[#9a856b] opacity-80 cursor-not-allowed" title={`Осталось ${Math.max(0, progress.total - progress.completed)} тестов`}>
+                    <button type="button" disabled className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-[#d9c4a4] bg-transparent px-5 py-3 text-base font-semibold text-[#9a856b] opacity-80 cursor-not-allowed" title={`Осталось ${Math.max(0, progress.total - progress.completed)} тестов`}>
                       Получить результат
                     </button>
                   )}
