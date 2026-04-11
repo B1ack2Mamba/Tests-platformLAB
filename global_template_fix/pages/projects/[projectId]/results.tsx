@@ -684,7 +684,7 @@ export default function ProjectResultsStandalonePage() {
 
               {activeSubscription ? (
                 <div className="mt-4 rounded-[24px] border border-[#d8c5a8] bg-white/70 px-4 py-3 text-sm text-[#6f5a42]">
-                  Активен месячный тариф: {formatMonthlySubscriptionPeriod(activeSubscription.period_start, activeSubscription.period_end)} · осталось {activeSubscription.projects_remaining} проектов.
+                  Активен месячный тариф до {formatMonthlySubscriptionPeriod(activeSubscription.expires_at)} · осталось {activeSubscription.projects_remaining} проектов.
                 </div>
               ) : null}
 
