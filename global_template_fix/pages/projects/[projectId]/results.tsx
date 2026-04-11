@@ -127,6 +127,13 @@ function splitSectionBody(body: string) {
   };
 }
 
+function inferSectionTone(title: string) {
+  const value = title.toLowerCase();
+  if (value.includes("сильн") || value.includes("ресурс") || value.includes("опора")) return "positive" as const;
+  if (value.includes("риск") || value.includes("огранич") || value.includes("зона внимания")) return "warning" as const;
+  return "neutral" as const;
+}
+
 function promptCoverageLine(blueprint: ResultsBlueprint) {
   const coverage = blueprint.summary.promptCoverage;
   return `Индивидуальных: ${coverage.custom}/${coverage.total} · базовых: ${coverage.default} · выключено: ${coverage.disabled} · пустых: ${coverage.missing}`;
