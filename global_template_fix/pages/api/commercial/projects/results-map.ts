@@ -17,6 +17,8 @@ type ResponseBody =
         title: string;
         goal: string;
         status: string | null;
+        package_mode: string | null;
+        unlocked_package_mode: string | null;
         target_role: string | null;
         routing_meta: ReturnType<typeof parseProjectSummary>["meta"];
         person: {
@@ -45,6 +47,8 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
         title,
         goal,
         status,
+        package_mode,
+        unlocked_package_mode,
         target_role,
         summary,
         commercial_people(full_name, email, current_position),
@@ -120,6 +124,8 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
         title: String((data as any).title || ""),
         goal: String((data as any).goal || "general_assessment"),
         status: ((data as any).status as string | null) || null,
+        package_mode: ((data as any).package_mode as string | null) || null,
+        unlocked_package_mode: ((data as any).unlocked_package_mode as string | null) || null,
         target_role: ((data as any).target_role as string | null) || null,
         routing_meta: parsedSummary.meta,
         person: (data as any).commercial_people

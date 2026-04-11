@@ -870,7 +870,7 @@ export default function ProjectDetailsPage() {
                   : `Откроется после завершения всех тестов. Сейчас готово ${progress.completed} из ${progress.total}${progress.total ? ` · осталось ${Math.max(0, progress.total - progress.completed)}` : ""}.`}
               </div>
             </div>
-            {fullyDone ? (
+            {keepLegacyResultsOnProjectPage && fullyDone ? (
               <div className="flex flex-wrap gap-2">
                 <Link href={`/projects/${data?.project.id}/results?collect=1`} className="rounded-2xl border border-[#7ca36f] bg-[#d9ead3] px-4 py-2.5 text-sm font-semibold text-[#264029] shadow-[0_10px_20px_rgba(78,116,67,0.14)]">
                   Собрать итог по всей информации

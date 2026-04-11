@@ -90,7 +90,25 @@ type DeskItemInteractionState = {
 type SceneWidgetKind = "text" | "button" | "image";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
 type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
-type DesktopVariant = "scheme" | "classic";
+type DesktopVariant = "scheme" | "desk1" | "desk2" | "desk3";
+const CLASSIC_DESKTOP_VARIANTS: DesktopVariant[] = ["desk1", "desk2", "desk3"];
+
+function isClassicDesktopVariant(variant: DesktopVariant): variant is Exclude<DesktopVariant, "scheme"> {
+  return variant !== "scheme";
+}
+
+function getDesktopVariantLabel(variant: DesktopVariant) {
+  switch (variant) {
+    case "desk1":
+      return "Рабочий стол 1";
+    case "desk2":
+      return "Рабочий стол 2";
+    case "desk3":
+      return "Рабочий стол 3";
+    default:
+      return "Схема на доске";
+  }
+}
 type ClassicViewMode = "desktop" | "sheet";
 type TrashItemKind = "folder" | "project";
 
@@ -796,7 +814,7 @@ export default function DashboardPage() {
     </div>
   ) : null;
   const defaultSceneWidgets = useMemo(
-    () => (desktopVariant === "classic" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
+    () => (isClassicDesktopVariant(desktopVariant) ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
       displayName,
       workspaceName,
       email: data?.profile?.email || user?.email || "email не указан",
@@ -811,7 +829,11 @@ export default function DashboardPage() {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id));
-      if (raw === "classic" || raw === "scheme") setDesktopVariant(raw);
+      if (raw === "classic") {
+        setDesktopVariant("desk1");
+      } else if (raw === "scheme" || raw === "desk1" || raw === "desk2" || raw === "desk3") {
+        setDesktopVariant(raw as DesktopVariant);
+      }
     } catch {}
   }, [workspace?.workspace?.workspace_id]);
 
@@ -1072,7 +1094,7 @@ export default function DashboardPage() {
 
     let sourceWidgets: SceneWidget[] = [];
 
-    if (desktopVariant === "classic") {
+    if (isClassicDesktopVariant(desktopVariant)) {
       sourceWidgets = saved.length ? saved : defaultSceneWidgets;
     } else {
       const legacyWidgetIds = new Set([
@@ -1702,7 +1724,10 @@ export default function DashboardPage() {
     const saved = typeof window !== "undefined"
       ? (() => {
           try {
-            const raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant));
+            let raw = window.localStorage.getItem(getDeskStorageKey(workspace.workspace.workspace_id, desktopVariant));
+            if (!raw && desktopVariant === "desk1") {
+              raw = window.localStorage.getItem(`${DESK_STORAGE_PREFIX}${workspace.workspace.workspace_id}:classic`);
+            }
             const parsed = raw ? (JSON.parse(raw) as DeskPositions) : {};
             return stripSharedScenePositions(parsed);
           } catch {
@@ -2120,9 +2145,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const hasDeskEntities = folderBuckets.uncategorized.length > 0 || folderBuckets.byFolder.length > 0;
-    const positionsReady = Object.keys(deskPositions).length > 0 || !hasDeskEntities;
-    const stillBooting = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || sceneWidgets.length === 0 || !positionsReady;
+    const stillBooting = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || sceneWidgets.length === 0 || Object.keys(deskPositions).length === 0;
     if (stillBooting) {
       setDashboardPaintReady(false);
       return;
@@ -2140,7 +2163,7 @@ export default function DashboardPage() {
       window.cancelAnimationFrame(rafTwo);
       window.clearTimeout(timer);
     };
-  }, [deskPositions, folderBuckets.byFolder.length, folderBuckets.uncategorized.length, loading, sceneWidgets.length, sessionLoading, sharedSceneReady, workspace?.workspace?.workspace_id]);
+  }, [deskPositions, loading, sceneWidgets.length, sessionLoading, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     const now = Date.now();
@@ -2161,8 +2184,7 @@ export default function DashboardPage() {
     );
   }
 
-  const hasDeskEntities = folderBuckets.uncategorized.length > 0 || folderBuckets.byFolder.length > 0;
-  const deskPositionsReady = Object.keys(deskPositions).length > 0 || !hasDeskEntities;
+  const deskPositionsReady = Object.keys(deskPositions).length > 0;
   const sceneWidgetsReady = sceneWidgets.length > 0;
   const dashboardBootPending = sessionLoading || loading || !workspace?.workspace?.workspace_id || !sharedSceneReady || !sceneWidgetsReady || !deskPositionsReady || !dashboardPaintReady;
 
@@ -2181,17 +2203,8 @@ export default function DashboardPage() {
         <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className={`btn btn-sm ${desktopVariant === "scheme" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
-              <button type="button" className={`btn btn-sm ${desktopVariant === "classic" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
-              {desktopVariant === "classic" ? (
-                <>
-                  <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Рабочий стол</button>
-                  <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
-                </>
-              ) : null}
-            </div>
-            <div className="rounded-2xl border border-[#e3d6c4] bg-[#fffaf2] px-4 py-2 text-sm font-medium text-[#6a573e]">Инициализируем рабочее пространство…</div>
+            <div className="h-10 w-[150px] animate-pulse rounded-2xl bg-[#ede6da]" />
+            <div className="h-10 w-[190px] animate-pulse rounded-2xl bg-[#ede6da]" />
           </div>
           <div className="rounded-[28px] border border-white/75 bg-white/70 p-4 shadow-[0_24px_44px_-30px_rgba(54,35,19,0.22)] backdrop-blur-xl">
             <div className="relative overflow-hidden rounded-[28px] border border-[#eadfce] bg-[linear-gradient(180deg,#f7f1e8_0%,#f2ebe2_100%)]" style={{ minHeight: 760 }}>
@@ -2207,7 +2220,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (desktopVariant === "classic") {
+  if (isClassicDesktopVariant(desktopVariant)) {
     return (
       <Layout title="Кабинет специалиста">
         <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
@@ -2216,7 +2229,19 @@ export default function DashboardPage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
-              <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Рабочий стол</button>
+              {CLASSIC_DESKTOP_VARIANTS.map((variant) => (
+                <button
+                  key={variant}
+                  type="button"
+                  className={`btn btn-sm ${desktopVariant === variant && classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`}
+                  onClick={() => {
+                    setDesktopVariant(variant);
+                    setClassicViewMode("desktop");
+                  }}
+                >
+                  {getDesktopVariantLabel(variant)}
+                </button>
+              ))}
               <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
             </div>
             <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
@@ -2391,10 +2416,33 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
+              className={`btn btn-sm ${desktopVariant === "scheme" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setDesktopVariant("scheme")}
             >
-              {desktopVariant === "scheme" ? "Рабочий стол" : "Схема на доске"}
+              Схема на доске
+            </button>
+            {CLASSIC_DESKTOP_VARIANTS.map((variant) => (
+              <button
+                key={variant}
+                type="button"
+                className={`btn btn-sm ${desktopVariant === variant && classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => {
+                  setDesktopVariant(variant);
+                  setClassicViewMode("desktop");
+                }}
+              >
+                {getDesktopVariantLabel(variant)}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`btn btn-sm ${desktopVariant !== "scheme" && classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => {
+                setDesktopVariant((prev) => (prev === "scheme" ? "desk1" : prev));
+                setClassicViewMode("sheet");
+              }}
+            >
+              Таблица
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
