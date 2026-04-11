@@ -821,5 +821,4 @@ export default function ProjectResultsStandalonePage() {
       </div>
     </Layout>
   );
-}  );
 }
