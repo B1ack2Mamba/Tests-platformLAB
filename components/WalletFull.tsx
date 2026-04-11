@@ -853,33 +853,45 @@ export default function WalletPage() {
             {canShowInlinePayment ? (
               <>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                {QUICK_AMOUNTS.map((a) => (
+                  {QUICK_AMOUNTS.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => setAmountRub(String(a))}
+                      className="relative inline-flex min-h-[48px] items-center justify-center overflow-hidden rounded-[18px] border border-[#d8c49d] bg-[linear-gradient(180deg,rgba(255,254,249,0.99)_0%,rgba(247,239,224,0.96)_100%)] px-2 py-1.5 text-[11px] font-semibold leading-none tracking-[0.02em] text-[#55665d] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(120,92,44,0.06)] transition duration-150 hover:border-[#8fd0aa] hover:text-[#1f4d36] disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                      <span className="pointer-events-none absolute left-[6px] top-[6px] h-[7px] w-[7px] rounded-tl-[7px] border-l border-t border-[#dcc8a6] opacity-85" />
+                      <span className="pointer-events-none absolute right-[6px] top-[6px] h-[7px] w-[7px] rounded-tr-[7px] border-r border-t border-[#dcc8a6] opacity-85" />
+                      <span className="pointer-events-none absolute bottom-[6px] left-[6px] h-[7px] w-[7px] rounded-bl-[7px] border-b border-l border-[#dcc8a6] opacity-85" />
+                      <span className="pointer-events-none absolute bottom-[6px] right-[6px] h-[7px] w-[7px] rounded-br-[7px] border-b border-r border-[#dcc8a6] opacity-85" />
+                      <span className="whitespace-nowrap">{a.toLocaleString("ru-RU")} ₽</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-col items-center gap-3">
+                  <div className="relative mx-auto w-full max-w-[208px] overflow-hidden rounded-[16px] border border-[#d8c49d] bg-[linear-gradient(180deg,rgba(255,254,249,0.99)_0%,rgba(247,239,224,0.96)_100%)] px-8 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(120,92,44,0.06)]">
+                    <span className="pointer-events-none absolute left-[8px] top-[8px] h-[9px] w-[9px] rounded-tl-[9px] border-l border-t border-[#dcc8a6] opacity-90" />
+                    <span className="pointer-events-none absolute right-[8px] top-[8px] h-[9px] w-[9px] rounded-tr-[9px] border-r border-t border-[#dcc8a6] opacity-90" />
+                    <span className="pointer-events-none absolute bottom-[8px] left-[8px] h-[9px] w-[9px] rounded-bl-[9px] border-b border-l border-[#dcc8a6] opacity-90" />
+                    <span className="pointer-events-none absolute bottom-[8px] right-[8px] h-[9px] w-[9px] rounded-br-[9px] border-b border-r border-[#dcc8a6] opacity-90" />
+                    <span className="pointer-events-none absolute inset-y-[4px] right-[4px] w-[38px] rounded-[12px] border-l border-[#e5d5b6] bg-[linear-gradient(180deg,rgba(255,251,242,0.92)_0%,rgba(246,236,214,0.98)_100%)]" />
+                    <input
+                      value={amountRub}
+                      onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
+                      inputMode="numeric"
+                      placeholder="3000"
+                      className="h-[36px] w-full border-0 bg-transparent p-0 pr-10 text-center text-[18px] font-semibold tracking-[0.02em] text-[#223144] outline-none placeholder:text-[#8c9a90]"
+                    />
+                    <span className="pointer-events-none absolute right-[16px] top-1/2 -translate-y-1/2 text-[17px] font-medium text-[#9c8355]">₽</span>
+                  </div>
                   <button
-                    key={a}
                     type="button"
-                    onClick={() => setAmountRub(String(a))}
-                    className="inline-flex min-h-[46px] items-center justify-center rounded-[16px] border border-[#d9ccb7] bg-white/90 px-2 py-1.5 text-[11px] font-semibold leading-none tracking-[-0.01em] text-[#55665d] shadow-[0_6px_14px_rgba(132,104,62,0.08)] transition duration-150 hover:border-[#8fd0aa] hover:text-[#1f4d36] disabled:cursor-not-allowed disabled:opacity-55"
+                    disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
+                    onClick={() => startTopup(parsedRub || 0)}
+                    className={ACTION_PRIMARY + " w-full py-2 text-[14px] font-semibold"}
                   >
-                    <span className="whitespace-nowrap">{a} ₽</span>
+                    {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
                   </button>
-                ))}
-              </div>
-                <div className="mt-3 space-y-3">
-                  <input
-                    value={amountRub}
-                    onChange={(e) => setAmountRub(sanitizeRubInput(e.target.value))}
-                    inputMode="numeric"
-                    placeholder="3000"
-                    className={INPUT_CLASS + " mx-auto h-8 max-w-[132px] text-center text-[13px] font-semibold tracking-[-0.01em]"}
-                  />
-                  <button
-                  type="button"
-                  disabled={isUnlimited || topupBusy || parsedRub === null || parsedRub < 1}
-                  onClick={() => startTopup(parsedRub || 0)}
-                  className={ACTION_PRIMARY + " w-full py-2 text-[13px] font-semibold"}
-                >
-                  {isUnlimited ? "∞" : topupBusy ? "Создаю оплату…" : "Пополнить баланс"}
-                </button>
                 </div>
                 <div className="mt-1 text-center text-[11px] leading-4 text-slate-500">Минимум 1 ₽.</div>
                 {topupError ? <div className="mt-1 text-xs text-red-600">{topupError}</div> : null}
