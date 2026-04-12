@@ -2,9 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
-import { ProjectResultsFlow, type FlowStage } from "@/components/ProjectResultsFlow";
 import { ThinkingStatus } from "@/components/ThinkingStatus";
-import { isAdminEmail } from "@/lib/admin";
 import {
   EVALUATION_PACKAGES,
   getEvaluationPackageDefinition,
@@ -16,13 +14,7 @@ import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } fro
 import { getFitRoleProfiles, type FitRoleProfile } from "@/lib/fitProfiles";
 import { useSession } from "@/lib/useSession";
 import { useWalletBalance } from "@/lib/useWalletBalance";
-import type {
-  ResultsBlueprint,
-  ResultsBlueprintBridgeNode,
-  ResultsBlueprintCompetencyNode,
-  ResultsBlueprintFinalNode,
-  ResultsBlueprintTestNode,
-} from "@/lib/projectResultsBlueprint";
+import type { ResultsBlueprint } from "@/lib/projectResultsBlueprint";
 
 type ResultsPagePayload = {
   ok: true;
@@ -71,199 +63,6 @@ type SubscriptionStatusResp = {
   active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
-type DetailNode =
-  | { kind: "test"; node: ResultsBlueprintTestNode }
-  | { kind: "competency"; node: ResultsBlueprintCompetencyNode }
-  | { kind: "bridge"; node: ResultsBlueprintBridgeNode }
-  | { kind: "final"; node: ResultsBlueprintFinalNode };
-
-function getThinkingMessages(mode: EvaluationPackage | null) {
-  switch (mode) {
-    case "premium_ai_plus":
-      return [
-        "Обрабатываем информацию. Это может занять около 5 минут.",
-        "Собираем общий профиль по всем тестам и формируем вывод по запросу.",
-        "Проверяем связи между результатами и считаем индекс соответствия.",
-        "AI раскладывает рекомендации по развитию и управленческим выводам.",
-      ];
-    case "premium":
-      return [
-        "Обрабатываем информацию. Это может занять около 5 минут.",
-        "Формируем вывод по каждому тесту и проверяем смысловые связи.",
-        "AI догружает данные и собирает интерпретации по разделам.",
-      ];
-    default:
-      return [
-        "Подгружаем результат и собираем итоговые показатели.",
-        "Сверяем данные проекта и готовим аккуратную выдачу.",
-      ];
-  }
-}
-
-function formatRub(amount: number) {
-  return `${amount.toLocaleString("ru-RU")} ₽`;
-}
-
-function cleanSectionBody(body: string) {
-  return body
-    .replace(/^#{1,6}\s*/gm, "")
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/^[-*+]\s+/gm, "• ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function sectionKey(mode: string, index: number) {
-  return `${mode}:${index}`;
-}
-
-function splitSectionBody(body: string) {
-  const clean = cleanSectionBody(body);
-  const [preview, ...rest] = clean.split(/\n\n+/);
-  return {
-    preview: preview || clean,
-    details: rest.join("\n\n").trim(),
-  };
-}
-
-function inferSectionTone(title: string) {
-  const value = title.toLowerCase();
-  if (value.includes("сильн") || value.includes("ресурс") || value.includes("опора")) return "positive" as const;
-  if (value.includes("риск") || value.includes("огранич") || value.includes("зона внимания")) return "warning" as const;
-  return "neutral" as const;
-}
-
-function promptCoverageLine(blueprint: ResultsBlueprint) {
-  const coverage = blueprint.summary.promptCoverage;
-  return `Индивидуальных: ${coverage.custom}/${coverage.total} · базовых: ${coverage.default} · выключено: ${coverage.disabled} · пустых: ${coverage.missing}`;
-}
-
-function statusLabel(value: string | null | undefined) {
-  switch (value) {
-    case "completed":
-      return "Завершён";
-    case "active":
-      return "Активен";
-    case "draft":
-      return "Черновик";
-    default:
-      return "Проект";
-  }
-}
-
-function formatCollectedAt(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short" }).format(date);
-}
-
-function stageCountLine(blueprint: ResultsBlueprint) {
-  return `Тестов: ${blueprint.tests.length} · компетенций: ${blueprint.competencies.length} · связей: ${blueprint.links.length}`;
-}
-
-function getPackageButtonLabel(
-  target: EvaluationPackage,
-  current: EvaluationPackage | null | undefined,
-  isUnlimited: boolean,
-  activeSubscription: WorkspaceSubscriptionStatus | null,
-  projectCoveredBySubscription: boolean
-) {
-  if (isUnlimited) return "Открыть бесплатно";
-  if (isPackageAccessible(current, target)) return "Открыто";
-  if (projectCoveredBySubscription) return "Открыть по тарифу";
-  if (activeSubscription && activeSubscription.projects_remaining > 0) return "Открыть по тарифу";
-  const upgradeRub = getUpgradePriceRub(current, target);
-  if (current) return `Доплатить ${formatRub(upgradeRub)}`;
-  return `Оплатить ${formatRub(getEvaluationPackageDefinition(target)?.priceRub || 0)}`;
-}
-
-function DetailContent({ detailNode, isAdmin }: { detailNode: DetailNode | null; isAdmin: boolean }) {
-  if (!detailNode) {
-    return <div className="text-sm leading-7 text-[#6f6454]">Нажми на любой узел в схеме, чтобы увидеть, из чего он собран и какой смысл он сейчас отдаёт наружу.</div>;
-  }
-
-  if (detailNode.kind === "test") {
-    const badges = detailNode.node.badges.length ? detailNode.node.badges : [detailNode.node.completed ? "Готово" : "Ожидает прохождения"];
-    return (
-      <div className="space-y-3 text-sm leading-7 text-[#5f5446]">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Тест</div>
-          <div className="mt-1 text-lg font-semibold text-[#2d2a22]">{detailNode.node.title}</div>
-        </div>
-        <div className="rounded-[20px] border border-[#e2d3bb] bg-white/80 px-4 py-3">{detailNode.node.summary}</div>
-        <div className="flex flex-wrap gap-2">
-          {badges.map((item) => (
-            <span key={item} className="rounded-full border border-[#e2d3bb] bg-[#f4ecdf] px-3 py-1 text-xs text-[#6f5a42]">
-              {item}
-            </span>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (detailNode.kind === "competency") {
-    return (
-      <div className="space-y-3 text-sm leading-7 text-[#5f5446]">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Компетенция</div>
-          <div className="mt-1 text-lg font-semibold text-[#2d2a22]">{detailNode.node.title}</div>
-          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#9d7a4b]">{detailNode.node.cluster} · {detailNode.node.score}/100</div>
-        </div>
-        <div className="rounded-[20px] border border-[#e2d3bb] bg-white/80 px-4 py-3 whitespace-pre-line">{detailNode.node.details}</div>
-        <div className="rounded-[20px] border border-[#e2d3bb] bg-white/80 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Статус prompt</div>
-          <div className="mt-1">{detailNode.node.promptLabel}</div>
-          <div className="mt-2 text-xs leading-6 text-[#8b7760]">
-            {detailNode.node.promptSource === "custom"
-              ? "Узел опирается на настроенный в админке индивидуальный prompt."
-              : detailNode.node.promptSource === "default"
-              ? "Узел живёт на базовом шаблоне — это не пустота, но и не индивидуальная настройка."
-              : detailNode.node.promptSource === "disabled"
-              ? "Узел выключен в таблице prompt-контура и требует внимания."
-              : "Здесь вообще нет рабочего шаблона, значит итог будет слабее."}
-          </div>
-        </div>
-        <div className="rounded-[20px] border border-[#e2d3bb] bg-white/80 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Связанные тесты</div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {(detailNode.node.testTitles.length ? detailNode.node.testTitles : ["Пока нет завершённых релевантных тестов"]).map((item) => (
-              <span key={item} className="rounded-full border border-[#e2d3bb] bg-[#f4ecdf] px-3 py-1 text-xs text-[#6f5a42]">
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-        {isAdmin ? (
-          <Link href="/admin/competency-prompts" className="inline-flex rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">
-            Открыть prompt-админку
-          </Link>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (detailNode.kind === "bridge") {
-    return (
-      <div className="space-y-3 text-sm leading-7 text-[#5f5446]">
-        <div className="text-lg font-semibold text-[#2d2a22]">{detailNode.node.title}</div>
-        <div className="rounded-[20px] border border-[#e2d3bb] bg-white/80 px-4 py-3">{detailNode.node.text}</div>
-        <div className="text-xs text-[#8b7760]">Это уже не сырые результаты тестов, а собранный промежуточный слой, из которого питается итог.</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3 text-sm leading-7 text-[#5f5446]">
-      <div className="text-lg font-semibold text-[#2d2a22]">{detailNode.node.title}</div>
-      <div className="rounded-[20px] border border-[#e2d3bb] bg-white/80 px-4 py-3">{detailNode.node.text}</div>
-      <div className="text-xs text-[#8b7760]">Это верхний результат. Снаружи он короткий, а подробная логика остаётся в раскрываемом слое.</div>
-    </div>
-  );
-}
-
 export default function ProjectResultsStandalonePage() {
   const router = useRouter();
   const { session, user, loading, envOk } = useSession();
@@ -276,8 +75,6 @@ export default function ProjectResultsStandalonePage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [lastCollectedAt, setLastCollectedAt] = useState<string | null>(null);
-  const [showMechanism, setShowMechanism] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [evaluationByMode, setEvaluationByMode] = useState<Partial<Record<EvaluationPackage, EvaluationPayload>>>({});
   const [evaluationLoading, setEvaluationLoading] = useState<Partial<Record<EvaluationPackage, boolean>>>({});
   const [activeEvaluationMode, setActiveEvaluationMode] = useState<EvaluationPackage | null>(null);
@@ -307,7 +104,6 @@ export default function ProjectResultsStandalonePage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось собрать страницу результатов");
       const payload = json as ResultsPagePayload;
       setData(payload);
-      setSelectedId(payload.blueprint?.final.id || null);
       setLastCollectedAt(payload.collected_at || null);
       if (explicitCollect) setInfo(options?.announce || "Анализ собран заново по всей информации проекта.");
       return payload;
@@ -469,67 +265,7 @@ export default function ProjectResultsStandalonePage() {
   const overviewSections = useMemo(() => activeSections.filter((item) => item.kind !== "test"), [activeSections]);
   const testSections = useMemo(() => activeSections.filter((item) => item.kind === "test"), [activeSections]);
 
-  const stages = useMemo<FlowStage[]>(() => {
-    if (!blueprint) return [];
-    return [
-      {
-        id: "tests",
-        title: "Тесты",
-        caption: "Сырые блоки, из которых собирается контур.",
-        nodes: blueprint.tests.map((item) => ({
-          id: item.id,
-          title: item.title,
-          meta: item.completed ? "готово" : "ожидаем",
-          body: item.summary,
-          badges: item.badges,
-          tone: item.completed ? "ready" : "muted",
-        })),
-      },
-      {
-        id: "competencies",
-        title: "Компетенции",
-        caption: "Промежуточные смысловые узлы с prompt-статусом.",
-        nodes: blueprint.competencies.map((item) => ({
-          id: item.id,
-          title: item.title,
-          meta: `${item.score}/100 · ${item.promptLabel}`,
-          body: item.short,
-          badges: item.badges,
-          footer: item.cluster,
-          tone: item.promptSource === "custom" ? "ready" : item.promptSource === "default" ? "neutral" : "attention",
-        })),
-      },
-      {
-        id: "bridges",
-        title: "Промежуточный результат",
-        caption: "Сборка сильных сигналов, зон внимания и prompt-карты.",
-        nodes: blueprint.bridges.map((item) => ({
-          id: item.id,
-          title: item.title,
-          body: item.text,
-          tone: item.tone,
-        })),
-      },
-      {
-        id: "final",
-        title: "Итог",
-        caption: "Верхний результат для внешней выдачи.",
-        nodes: [{ id: blueprint.final.id, title: blueprint.final.title, body: blueprint.final.text, tone: blueprint.final.tone }],
-      },
-    ];
-  }, [blueprint]);
 
-  const detailNode = useMemo<DetailNode | null>(() => {
-    if (!blueprint || !selectedId) return null;
-    const test = blueprint.tests.find((item) => item.id === selectedId);
-    if (test) return { kind: "test", node: test };
-    const competency = blueprint.competencies.find((item) => item.id === selectedId);
-    if (competency) return { kind: "competency", node: competency };
-    const bridge = blueprint.bridges.find((item) => item.id === selectedId);
-    if (bridge) return { kind: "bridge", node: bridge };
-    if (blueprint.final.id === selectedId) return { kind: "final", node: blueprint.final };
-    return null;
-  }, [blueprint, selectedId]);
 
   if (!envOk) {
     return (
@@ -643,12 +379,6 @@ export default function ProjectResultsStandalonePage() {
                             {isAi ? <div className="rounded-full bg-[#839c71] px-3 py-1 text-xs font-bold text-white">AI</div> : null}
                           </div>
                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
-                          {isAiPlus ? (
-                            <div className="mt-7 text-[#45623d]">
-                              <div className="text-[2.45rem] font-semibold leading-none">99%</div>
-                              <div className="mt-2 text-[1.05rem]">Индекс соответствия</div>
-                            </div>
-                          ) : null}
                           {item.bullets?.length ? (
                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
                               {item.bullets.slice(0, 2).map((bullet) => (
@@ -722,13 +452,6 @@ export default function ProjectResultsStandalonePage() {
                           );
                         })}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowMechanism((prev) => !prev)}
-                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]"
-                      >
-                        {showMechanism ? "Скрыть внутренний механизм" : "Показать внутренний механизм"}
-                      </button>
                     </div>
 
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
@@ -756,7 +479,7 @@ export default function ProjectResultsStandalonePage() {
                       </div>
                     ) : null}
 
-                    <div className={`mt-5 grid gap-6 ${showMechanism && blueprint ? "xl:grid-cols-[minmax(0,1.34fr)_340px]" : ""}`}>
+                    <div className="mt-5">
                       <div className="min-w-0">
                         {evaluationLoading[activeEvaluationMode] ? (
                           <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
@@ -835,22 +558,6 @@ export default function ProjectResultsStandalonePage() {
                           <div className="rounded-[24px] border border-[#e1d3bf] bg-[#fcf7ef] p-4 text-sm text-[#6f6454]">Результат для этого уровня пока не собран. Выбери уровень и нажми сборку.</div>
                         )}
                       </div>
-
-                      {showMechanism && blueprint ? (
-                        <div className="min-w-0 space-y-4">
-                          <div className="rounded-[24px] border border-[#e2d1b6] bg-white/78 p-4 text-sm leading-7 text-[#6f6454]">
-                            <div className="text-base font-semibold text-[#4d3b24]">Внутренний механизм</div>
-                            <div className="mt-2">{stageCountLine(blueprint)}</div>
-                            <div className="mt-1">{promptCoverageLine(blueprint)}</div>
-                          </div>
-                          <div className="rounded-[24px] border border-[#e2d1b6] bg-white/82 p-4 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
-                            <ProjectResultsFlow stages={stages} links={blueprint.links} selectedId={selectedId} onSelect={setSelectedId} />
-                          </div>
-                          <aside className="rounded-[24px] border border-[#e2d1b6] bg-white/82 p-4 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
-                            <DetailContent detailNode={detailNode} isAdmin={isAdminEmail(user.email)} />
-                          </aside>
-                        </div>
-                      ) : null}
                     </div>
                   </div>
                 ) : null}
