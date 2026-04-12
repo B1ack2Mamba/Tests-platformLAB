@@ -79,6 +79,14 @@ function splitSectionBody(body: string | null | undefined): { preview: string; d
   if (parts.length <= 1) return { preview: cleaned, details: "" };
   return { preview: parts[0], details: parts.slice(1).join("\n\n") };
 }
+
+function inferSectionTone(title: string | null | undefined): SectionTone {
+  const source = String(title || "").toLowerCase();
+  if (/(сильн|ресурс|потенциал|достоин|преиму|опора|устойчив|готов)/.test(source)) return "positive";
+  if (/(риск|огранич|напряж|конфликт|слаб|дефицит|уязвим|предупреж|внимани)/.test(source)) return "warning";
+  return "neutral";
+}
+
 function sectionKey(scope: string | null | undefined, index: number): string {
   return `${scope || "section"}:${index}`;
 }
