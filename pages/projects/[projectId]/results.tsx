@@ -63,6 +63,36 @@ type SubscriptionStatusResp = {
   active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
+
+const formatCollectedAt = (value: string | null | undefined) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
+const splitSectionBody = (body: string | null | undefined) => {
+  if (!body) return [];
+  return body
+    .split(/\n{2,}|•|\u2022|—\s+/g)
+    .map((part) => part.replace(/^[\s•·\-–—]+/, "").trim())
+    .filter(Boolean);
+};
+
+const inferSectionTone = (title: string) => {
+  const normalized = (title || "").toLowerCase();
+  if (/(сильн|преим|ресурс|потенциал|достоин)/.test(normalized)) return "positive" as const;
+  if (/(риск|огранич|зон|слаб|барьер|угроз)/.test(normalized)) return "warning" as const;
+  if (/(рекоменд|действ|шаг|развит)/.test(normalized)) return "action" as const;
+  return "neutral" as const;
+};
+
 export default function ProjectResultsStandalonePage() {
   const router = useRouter();
   const { session, user, loading, envOk } = useSession();
