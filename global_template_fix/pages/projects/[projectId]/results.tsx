@@ -69,33 +69,16 @@ function formatCollectedAt(value: string | null | undefined): string | null {
 }
 
 function cleanSectionBody(body: string | null | undefined): string {
-  return String(body || "").replace(//g, "").replace(/
-{3,}/g, "
-
-").trim();
+  return String(body || "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function splitSectionBody(body: string | null | undefined): { preview: string; details: string } {
   const cleaned = cleanSectionBody(body);
   if (!cleaned) return { preview: "", details: "" };
-  const parts = cleaned.split(/
-
-+/).map((x) => x.trim()).filter(Boolean);
+  const parts = cleaned.split(/\n\n+/).map((x) => x.trim()).filter(Boolean);
   if (parts.length <= 1) return { preview: cleaned, details: "" };
-  return { preview: parts.slice(0, 1).join("
-
-"), details: parts.slice(1).join("
-
-") };
+  return { preview: parts[0], details: parts.slice(1).join("\n\n") };
 }
-
-function inferSectionTone(title: string | null | undefined): SectionTone {
-  const value = String(title || "").toLowerCase();
-  if (/(сильн|ресурс|потенциал|достоин|опора|преимущ|сигнал)/.test(value)) return "positive";
-  if (/(риск|огранич|дефицит|уязв|зона внимания|предупреж)/.test(value)) return "warning";
-  return "neutral";
-}
-
 function sectionKey(scope: string | null | undefined, index: number): string {
   return `${scope || "section"}:${index}`;
 }
