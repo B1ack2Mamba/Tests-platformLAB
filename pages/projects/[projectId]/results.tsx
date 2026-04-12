@@ -276,7 +276,7 @@ export default function ProjectResultsStandalonePage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [lastCollectedAt, setLastCollectedAt] = useState<string | null>(null);
-  const [showMechanism, setShowMechanism] = useState(false);
+  const [showMechanism, setShowMechanism] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [evaluationByMode, setEvaluationByMode] = useState<Partial<Record<EvaluationPackage, EvaluationPayload>>>({});
   const [evaluationLoading, setEvaluationLoading] = useState<Partial<Record<EvaluationPackage, boolean>>>({});
@@ -567,232 +567,243 @@ export default function ProjectResultsStandalonePage() {
 
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
   const overviewCards = overviewSections.slice(0, 3);
+  const primaryOverviewCards = overviewCards.slice(0, 2);
+  const secondaryOverviewCards = overviewCards.slice(2);
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
-  const statusItems = [
-    { label: "Тестов", value: String(blueprint?.tests.length || 0) },
-    { label: "Компетенций", value: String(blueprint?.competencies.length || 0) },
-    { label: "Связей", value: String(blueprint?.links.length || 0) },
-    { label: "Prompt", value: `${coveragePercent}%` },
-  ];
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
-      <div className="mx-auto max-w-[1290px] px-3 pb-10 pt-4 sm:px-4">
-        {error ? <div className="mb-4 rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
-        {info ? <div className="mb-4 rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
+      <div className="mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4">
+        {error ? <div className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+        {info ? <div className="mb-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
 
-        <div className="overflow-hidden rounded-[30px] border border-[#e7dbc7] bg-[#f9f5ee] shadow-[0_16px_38px_rgba(97,75,45,0.08)]">
-          <div className="border-b border-[#ece2d3] bg-[#fcfaf6] px-5 py-4 sm:px-7">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium tracking-[0.08em] text-[#8a775c]">Результаты проекта</div>
-                <div className="mt-2 text-[1.55rem] font-semibold leading-tight text-[#3b2f22] sm:text-[1.8rem]">{data?.project.title || "Проект"}</div>
-                <div className="mt-3 text-[1.22rem] font-medium text-[#2d2a22]">{data?.project.person?.full_name || "Участник проекта"}</div>
-                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[0.95rem] text-[#7b6a52]">
-                  <span>{data?.fully_done ? "Тесты пройдены" : `Готово ${data?.completed || 0} из ${data?.total || 0}`}</span>
-                  {collectedLabel ? <span>Собрано: {collectedLabel}</span> : null}
+        <div className="relative overflow-hidden rounded-[38px] border border-[#dcc8aa] bg-[radial-gradient(circle_at_14%_18%,rgba(164,137,92,0.08)_0,transparent_26%),radial-gradient(circle_at_78%_22%,rgba(129,157,115,0.07)_0,transparent_24%),linear-gradient(180deg,#fffefb_0%,#f7f0e4_100%)] shadow-[0_22px_48px_rgba(93,71,39,0.08)]">
+          <div className="absolute inset-0 opacity-[0.05] [background-image:radial-gradient(#ab9067_0.55px,transparent_0.55px)] [background-size:13px_13px]" />
+
+          <div className="relative border-b border-[#eadbc3] px-6 py-5 sm:px-8 sm:py-6">
+            <div className="pr-[170px] sm:pr-[210px]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="font-serif text-[1.7rem] leading-tight text-[#5b4321] sm:text-[2.05rem]">Проект: {data?.project.title || "Результаты проекта"}</div>
+                  <div className="mt-5 text-[1.5rem] font-semibold leading-tight text-[#2d2a22] sm:text-[1.7rem]">{data?.project.person?.full_name || "Участник проекта"}</div>
+                  <div className="mt-2 space-y-1 text-[1rem] text-[#765f45]">
+                    <div>Статус: {data?.fully_done ? "Тесты пройдены" : `Готово ${data?.completed || 0} из ${data?.total || 0}`}</div>
+                    {collectedLabel ? <div>Результат собран: {collectedLabel}</div> : null}
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex items-start gap-3 xl:justify-end">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 lg:justify-end">
                   <button
                     type="button"
                     onClick={() => loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." })}
                     disabled={collecting || !data?.fully_done}
-                    className="rounded-[16px] border border-[#d9cbb5] bg-white px-4 py-2.5 text-sm font-medium text-[#5f4b36] shadow-[0_4px_12px_rgba(97,75,45,0.04)] disabled:opacity-60"
+                    className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)] disabled:opacity-60"
                   >
-                    {collecting ? "Пересобираем…" : "Пересобрать анализ"}
+                    {collecting ? "Пересобираем анализ" : "Пересобрать анализ"}
                   </button>
-                  <Link href={`/projects/${projectId}`} className="rounded-[16px] border border-[#d9cbb5] bg-white px-4 py-2.5 text-sm font-medium text-[#5f4b36] shadow-[0_4px_12px_rgba(97,75,45,0.04)]">
+                  <Link href={`/projects/${projectId}`} className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)]">
                     Назад к проекту
                   </Link>
                 </div>
-                <div className="grid h-[88px] w-[88px] shrink-0 place-items-center sm:h-[98px] sm:w-[98px]">
-                  <img
-                    src={data?.fully_done ? "/result-stamp.svg" : "/result-stamp-bw.svg"}
-                    alt={data?.fully_done ? "Результат собран" : "Результат ожидает"}
-                    className="h-full w-full object-contain opacity-90"
-                  />
-                </div>
               </div>
+            </div>
+
+            <div className="absolute right-5 top-5 grid h-[126px] w-[126px] place-items-center sm:right-8 sm:top-4 sm:h-[170px] sm:w-[170px]">
+              <img
+                src={data?.fully_done ? "/result-stamp.svg" : "/result-stamp-bw.svg"}
+                alt={data?.fully_done ? "Результат собран" : "Результат ожидает"}
+                className="h-full w-full object-contain opacity-90"
+              />
             </div>
           </div>
 
-          <div className="px-5 py-5 sm:px-7">
+          <div className="relative px-6 py-5 sm:px-8 sm:py-6">
             {!data?.fully_done ? (
-              <div className="rounded-[22px] border border-[#e4d8c5] bg-[#fffdf9] px-5 py-5 text-sm leading-7 text-[#6f6454]">
+              <div className="rounded-[26px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-5 text-sm leading-7 text-[#6f6454]">
                 Все уровни анализа откроются после завершения тестов. Сейчас готово {data?.completed || 0} из {data?.total || 0}.
               </div>
             ) : (
               <>
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_220px]">
+                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.08fr)_220px] xl:items-stretch">
                   {EVALUATION_PACKAGES.map((item) => {
                     const unlocked = isPackageAccessible(unlockedMode, item.key);
                     const currentEval = evaluationByMode[item.key];
                     const isBusy = !!saving || !!evaluationLoading[item.key];
                     const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
                     const isActive = activeEvaluationMode === item.key;
-                    const price = item.priceRub > 0 ? formatRub(item.priceRub) : "Входит в проект";
-                    const highlight = item.key === "premium_ai_plus";
+                    const isAi = item.key === "premium";
+                    const isAiPlus = item.key === "premium_ai_plus";
                     return (
                       <div
                         key={item.key}
-                        className={`flex min-h-[228px] flex-col rounded-[24px] border px-5 py-4 ${isActive ? "border-[#a9c6a4] bg-[#f4faf2]" : highlight ? "border-[#cfdcc7] bg-[#fafcf8]" : "border-[#e5d9c6] bg-[#fffdf9]"}`}
+                        className={`min-h-[284px] rounded-[30px] border p-6 shadow-[0_10px_24px_rgba(93,71,39,0.04)] ${isAiPlus ? "border-[#b6d0ab] bg-[radial-gradient(circle_at_90%_10%,rgba(145,180,138,0.08),transparent_34%),linear-gradient(180deg,#f9fcf6_0%,#eef6e9_100%)]" : "border-[#dfcfb5] bg-[radial-gradient(circle_at_18%_18%,rgba(184,153,108,0.08),transparent_30%),linear-gradient(180deg,#fffdf9_0%,#fbf5ec_100%)]"}`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[0.76rem] font-semibold uppercase tracking-[0.18em] text-[#8a7554]">{item.title}</div>
-                            <div className="mt-3 text-[0.97rem] leading-7 text-[#695943]">{item.description}</div>
+                        <div className="flex h-full flex-col">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="font-serif text-[2rem] leading-none text-[#4d3b24]">{item.title}</div>
+                            {isAi ? <div className="rounded-full bg-[#839c71] px-3 py-1 text-xs font-bold text-white">AI</div> : null}
                           </div>
-                          {item.key === "premium" ? <div className="rounded-full border border-[#b8ceb1] bg-[#edf5ea] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#52714f]">AI</div> : null}
-                        </div>
-
-                        <div className="mt-5 flex items-end justify-between gap-4">
-                          <div>
-                            <div className={`text-[1.55rem] font-semibold leading-none ${highlight ? "text-[#44603d]" : "text-[#433526]"}`}>{highlight ? "99%" : price}</div>
-                            <div className="mt-2 text-sm text-[#7a6952]">{highlight ? "Индекс соответствия" : unlocked ? "Уровень доступен" : "Стоимость открытия"}</div>
-                          </div>
-                        </div>
-
-                        <div className="mt-5 flex-1 space-y-2 text-sm leading-7 text-[#73614b]">
-                          {(item.bullets || []).slice(0, 2).map((bullet) => (
-                            <div key={bullet} className="flex items-start gap-2">
-                              <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[#cdb488]" />
-                              <span>{bullet}</span>
+                          <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
+                          {isAiPlus ? (
+                            <div className="mt-7 text-[#45623d]">
+                              <div className="text-[2.45rem] font-semibold leading-none">99%</div>
+                              <div className="mt-2 text-[1.05rem]">Индекс соответствия</div>
                             </div>
-                          ))}
-                        </div>
-
-                        <div className="mt-5">
-                          {unlocked ? (
-                            <button
-                              type="button"
-                              className={`w-full rounded-[16px] border px-4 py-2.5 text-sm font-medium ${isActive ? "border-[#8fb48d] bg-[#dceecd] text-[#27402b]" : "border-[#d9cbb5] bg-white text-[#5b4731]"}`}
-                              onClick={async () => {
-                                setActiveEvaluationMode(item.key);
-                                if (!evaluationByMode[item.key] && !evaluationLoading[item.key]) {
-                                  await loadEvaluation(item.key, item.key === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
-                                }
-                              }}
-                            >
-                              {isActive ? "Открыт" : currentEval?.evaluation ? "Открыть" : "Собрать и открыть"}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="w-full rounded-[16px] border border-[#88ab7f] bg-[#abd1a3] px-4 py-2.5 text-sm font-semibold text-[#264029] disabled:opacity-60"
-                              disabled={isBusy || !accessible}
-                              onClick={() => unlockPackage(item.key)}
-                            >
-                              {getPackageButtonLabel(item.key, unlockedMode, isUnlimited, activeSubscription, projectCoveredBySubscription)}
-                            </button>
-                          )}
+                          ) : null}
+                          {item.bullets?.length ? (
+                            <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
+                              {item.bullets.slice(0, 2).map((bullet) => (
+                                <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          <div className="mt-auto pt-6">
+                            {unlocked ? (
+                              <button
+                                type="button"
+                                className={`w-full rounded-[18px] border px-4 py-2.5 text-sm font-medium ${isActive ? "border-[#8eb48d] bg-[#dceecd] text-[#27402b]" : "border-[#d9c4a4] bg-[#fffaf0] text-[#5b4731]"}`}
+                                onClick={async () => {
+                                  setActiveEvaluationMode(item.key);
+                                  if (!evaluationByMode[item.key] && !evaluationLoading[item.key]) {
+                                    await loadEvaluation(item.key, item.key === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
+                                  }
+                                }}
+                              >
+                                {isActive ? "Открыт" : currentEval?.evaluation ? "Открыть" : "Собрать и открыть"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="w-full rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029] disabled:opacity-60"
+                                disabled={isBusy || !accessible}
+                                onClick={() => unlockPackage(item.key)}
+                              >
+                                {getPackageButtonLabel(item.key, unlockedMode, isUnlimited, activeSubscription, projectCoveredBySubscription)}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
                   })}
 
-                  <aside className="rounded-[24px] border border-[#e5d9c6] bg-[#fffdf9] px-4 py-4">
-                    <div className="text-[0.8rem] font-semibold uppercase tracking-[0.18em] text-[#8a7554]">Статус анализа</div>
-                    <div className="mt-4 space-y-3">
-                      {statusItems.map((item) => (
-                        <div key={item.label} className="flex items-end justify-between gap-3 border-b border-[#f0e7d8] pb-2 last:border-b-0 last:pb-0">
-                          <span className="text-sm text-[#7e6c55]">{item.label}</span>
-                          <span className="text-lg font-semibold text-[#3f3225]">{item.value}</span>
-                        </div>
-                      ))}
+                  <aside className="rounded-[28px] border border-[#dfcfb5] bg-[linear-gradient(180deg,#fffdf9_0%,#fbf5ec_100%)] p-5 shadow-[0_10px_24px_rgba(93,71,39,0.04)]">
+                    <div className="text-[1.15rem] font-semibold text-[#4d3b24]">Статус анализа</div>
+                    <div className="mt-6 space-y-4 text-[1.02rem] leading-7 text-[#6f5a42]">
+                      <div>Тестов: {blueprint?.tests.length || 0}</div>
+                      <div>Компетенций: {blueprint?.competencies.length || 0}</div>
+                      <div>Связей: {blueprint?.links.length || 0}</div>
+                      <div>Процент промтов: {coveragePercent}%</div>
                     </div>
-                    {collectedLabel ? <div className="mt-5 text-xs leading-6 text-[#8a775f]">Последняя сборка: {collectedLabel}</div> : null}
+                    {collectedLabel ? <div className="mt-10 text-[0.96rem] text-[#7d6953]">Собрано: {collectedLabel}</div> : null}
                   </aside>
                 </div>
 
                 {activeEvaluationMode && isPackageAccessible(unlockedMode, activeEvaluationMode) ? (
-                  <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_310px]">
-                    <div className="min-w-0 rounded-[28px] border border-[#e5d9c6] bg-[#fffdf9] p-5 shadow-[0_8px_24px_rgba(97,75,45,0.04)]">
-                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#efe5d6] pb-4">
-                        <div className="flex flex-wrap gap-2">
-                          {availablePackages.map((mode) => {
-                            const selected = activeEvaluationMode === mode;
-                            return (
-                              <button
-                                key={mode}
-                                type="button"
-                                className={`rounded-full px-4 py-2 text-sm font-medium ${selected ? "bg-[#29432d] text-white" : "border border-[#ded1bc] bg-white text-[#6a5943]"}`}
-                                onClick={async () => {
-                                  setActiveEvaluationMode(mode);
-                                  if (!evaluationByMode[mode] && !evaluationLoading[mode]) {
-                                    await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
-                                  }
-                                }}
-                              >
-                                {getEvaluationPackageDefinition(mode)?.title || mode}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowMechanism((prev) => !prev)}
-                          className="rounded-[16px] border border-[#d9cbb5] bg-white px-4 py-2 text-sm font-medium text-[#5f4b36]"
-                        >
-                          {showMechanism ? "Скрыть механизм" : "Показать механизм"}
-                        </button>
+                  <div className="mt-6 rounded-[32px] border border-[#d7c4a6] bg-[linear-gradient(180deg,#fffdf9_0%,#f9f3e8_100%)] p-6 shadow-[0_14px_32px_rgba(93,71,39,0.05)]">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9bf] pb-4">
+                      <div className="flex flex-wrap items-center gap-8 text-[1.08rem] font-medium">
+                        {availablePackages.map((mode) => {
+                          const selected = activeEvaluationMode === mode;
+                          return (
+                            <button
+                              key={mode}
+                              type="button"
+                              className={`relative pb-2 ${selected ? "text-[#2f4e2f]" : "text-[#8f7c64]"}`}
+                              onClick={async () => {
+                                setActiveEvaluationMode(mode);
+                                if (!evaluationByMode[mode] && !evaluationLoading[mode]) {
+                                  await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
+                                }
+                              }}
+                            >
+                              {getEvaluationPackageDefinition(mode)?.title || mode}
+                              <span className={`absolute inset-x-0 -bottom-[5px] h-[2px] rounded-full ${selected ? "bg-[#8eb48d]" : "bg-transparent"}`} />
+                            </button>
+                          );
+                        })}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowMechanism((prev) => !prev)}
+                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731]"
+                      >
+                        {showMechanism ? "Скрыть внутренний механизм" : "Показать внутренний механизм"}
+                      </button>
+                    </div>
 
-                      {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
-                        <div className="mt-4 rounded-[20px] border border-[#e7dbc8] bg-[#fbf8f2] p-4">
-                          <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
-                          <div className="mt-1 text-sm text-[#8d7860]">Добавь акцент и собери профиль заново.</div>
-                          <div className="mt-3 grid gap-3">
-                            <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
-                            <div className="flex justify-end">
-                              <button type="button" className="rounded-[16px] border border-[#88ab7f] bg-[#abd1a3] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
-                                {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
-                              </button>
-                            </div>
+                    {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
+                      <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
+                        <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
+                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
+                        <div className="mt-3 grid gap-3">
+                          <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
+                          <div className="flex justify-end">
+                            <button type="button" className="rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
+                              {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
+                            </button>
                           </div>
                         </div>
-                      ) : activeEvaluationMode === "premium_ai_plus" ? (
-                        <div className="mt-4 flex justify-start">
-                          <button
-                            type="button"
-                            onClick={() => setShowAiPlusPrompt(true)}
-                            className="rounded-[16px] border border-[#d9cbb5] bg-white px-4 py-2 text-sm font-medium text-[#5f4b36]"
-                          >
-                            Уточнить AI+
-                          </button>
-                        </div>
-                      ) : null}
+                      </div>
+                    ) : activeEvaluationMode === "premium_ai_plus" ? (
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setShowAiPlusPrompt(true)}
+                          className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                        >
+                          Уточнить AI+
+                        </button>
+                      </div>
+                    ) : null}
 
-                      <div className="mt-5">
+                    <div className={`mt-5 grid gap-6 ${showMechanism && blueprint ? "xl:grid-cols-[minmax(0,1.34fr)_340px]" : ""}`}>
+                      <div className="min-w-0">
                         {evaluationLoading[activeEvaluationMode] ? (
                           <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
                         ) : activeSections.length ? (
-                          <>
-                            <div className="rounded-[24px] border border-[#ece2d4] bg-[#fcfaf6] px-5 py-5">
-                              <div className="text-[1.55rem] font-semibold leading-tight text-[#3f3225] sm:text-[1.75rem]">Итоговый аналитический вывод</div>
-                              <div className="mt-2 text-sm leading-7 text-[#8a775f]">Краткая сводка по уровню {getEvaluationPackageDefinition(activeEvaluationMode)?.title || activeEvaluationMode}.</div>
-                            </div>
-
-                            {overviewCards.length ? (
-                              <div className={`mt-5 grid gap-4 ${overviewCards.length > 1 ? "lg:grid-cols-2" : ""} ${overviewCards.length > 2 ? "2xl:grid-cols-3" : ""}`}>
-                                {overviewCards.map((section, index) => {
+                          <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
+                            <div className="font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
+                            {primaryOverviewCards.length ? (
+                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
+                                {primaryOverviewCards.map((section, index) => {
                                   const key = sectionKey(`${activeEvaluationMode}:overview`, index);
                                   const isOpen = openSections[key] ?? false;
                                   const parts = splitSectionBody(section.body);
                                   const tone = inferSectionTone(section.title);
-                                  const toneClass = tone === "positive" ? "border-[#d6e6ce] bg-[#f7fbf4]" : tone === "warning" ? "border-[#eadfc9] bg-[#fffaf2]" : "border-[#e7ddcf] bg-white";
+                                  const toneClass = tone === "positive" ? "bg-[#f7fcf4] border-[#d8e7cf]" : tone === "warning" ? "bg-[#fffaf2] border-[#eddcc0]" : "bg-[#fffdf8] border-[#ead9bf]";
                                   return (
-                                    <div key={`${section.title}:${index}`} className={`rounded-[22px] border p-4 ${toneClass}`}>
-                                      <div className="text-[1.02rem] font-semibold text-[#423526]">{section.title}</div>
-                                      <div className="mt-3 whitespace-pre-line text-[0.98rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                    <div key={`${section.title}:${index}`} className={`rounded-[24px] border p-5 ${toneClass}`}>
+                                      <div className="font-serif text-[1.3rem] text-[#4d3b24]">{section.title}</div>
+                                      <div className="mt-4 whitespace-pre-line text-[1.02rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
                                       {parts.details ? (
-                                        <button type="button" className="mt-4 text-sm font-medium text-[#876739]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                        <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
                                           {isOpen ? "Скрыть детали" : "Подробнее"}
                                         </button>
                                       ) : null}
-                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#eee4d5] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+
+                            {secondaryOverviewCards.length ? (
+                              <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                                {secondaryOverviewCards.map((section, index) => {
+                                  const actualIndex = index + primaryOverviewCards.length;
+                                  const key = sectionKey(`${activeEvaluationMode}:overview`, actualIndex);
+                                  const isOpen = openSections[key] ?? false;
+                                  const parts = splitSectionBody(section.body);
+                                  return (
+                                    <div key={`${section.title}:${actualIndex}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                      <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
+                                      <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                      {parts.details ? (
+                                        <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                          {isOpen ? "Скрыть детали" : "Подробнее"}
+                                        </button>
+                                      ) : null}
+                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
                                     </div>
                                   );
                                 })}
@@ -800,56 +811,46 @@ export default function ProjectResultsStandalonePage() {
                             ) : null}
 
                             {testSections.length ? (
-                              <div className="mt-5 rounded-[22px] border border-[#e7ddcf] bg-white p-4">
-                                <div className="text-base font-semibold text-[#433526]">Подробности по отдельным тестам</div>
+                              <div className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
                                 <div className="mt-4 grid gap-3">
                                   {testSections.map((section, index) => {
                                     const key = sectionKey(activeEvaluationMode, index);
                                     const isOpen = openSections[key] ?? index === 0;
                                     return (
-                                      <div key={key} className="overflow-hidden rounded-[18px] border border-[#ece2d4] bg-[#fcfaf6]">
+                                      <div key={key} className="overflow-hidden rounded-[20px] border border-[#e2d1b6] bg-white/82">
                                         <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? index === 0) }))}>
                                           <div className="text-sm font-semibold text-[#2d2a22]">{section.title}</div>
                                           <span className="text-xs text-[#8b6b3c]">{isOpen ? "Скрыть" : "Открыть"}</span>
                                         </button>
-                                        {isOpen ? <div className="border-t border-[#eee4d5] px-4 py-4 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{cleanSectionBody(section.body)}</div> : null}
+                                        {isOpen ? <div className="border-t border-[#ead9bf] px-4 py-4 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{cleanSectionBody(section.body)}</div> : null}
                                       </div>
                                     );
                                   })}
                                 </div>
                               </div>
                             ) : null}
-                          </>
+                          </div>
                         ) : (
-                          <div className="rounded-[22px] border border-[#e7ddcf] bg-[#fcfaf6] p-4 text-sm text-[#6f6454]">Результат для этого уровня пока не собран. Выбери уровень и нажми сборку.</div>
+                          <div className="rounded-[24px] border border-[#e1d3bf] bg-[#fcf7ef] p-4 text-sm text-[#6f6454]">Результат для этого уровня пока не собран. Выбери уровень и нажми сборку.</div>
                         )}
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 space-y-4">
-                      <div className="rounded-[24px] border border-[#e5d9c6] bg-[#fffdf9] p-4">
-                        <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8a7554]">Паспорт карты</div>
-                        <div className="mt-3 space-y-2 text-sm leading-7 text-[#6f6454]">
-                          <div>{stageCountLine(blueprint!)}</div>
-                          <div>{promptCoverageLine(blueprint!)}</div>
-                          <div>Режим сбора: {data?.collect_mode === "collect" ? "Явная сборка" : "Просмотр"}</div>
-                        </div>
                       </div>
 
                       {showMechanism && blueprint ? (
-                        <>
-                          <div className="rounded-[24px] border border-[#e5d9c6] bg-[#fffdf9] p-4">
+                        <div className="min-w-0 space-y-4">
+                          <div className="rounded-[24px] border border-[#e2d1b6] bg-white/78 p-4 text-sm leading-7 text-[#6f6454]">
+                            <div className="text-base font-semibold text-[#4d3b24]">Внутренний механизм</div>
+                            <div className="mt-2">{stageCountLine(blueprint)}</div>
+                            <div className="mt-1">{promptCoverageLine(blueprint)}</div>
+                          </div>
+                          <div className="rounded-[24px] border border-[#e2d1b6] bg-white/82 p-4 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
                             <ProjectResultsFlow stages={stages} links={blueprint.links} selectedId={selectedId} onSelect={setSelectedId} />
                           </div>
-                          <aside className="rounded-[24px] border border-[#e5d9c6] bg-[#fffdf9] p-4">
+                          <aside className="rounded-[24px] border border-[#e2d1b6] bg-white/82 p-4 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
                             <DetailContent detailNode={detailNode} isAdmin={isAdminEmail(user.email)} />
                           </aside>
-                        </>
-                      ) : (
-                        <div className="rounded-[24px] border border-[#e5d9c6] bg-[#fffdf9] p-4 text-sm leading-7 text-[#6f6454]">
-                          Внутренний механизм скрыт. Открой его, чтобы увидеть цепочку: тесты → компетенции → промежуточный результат → итог.
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
