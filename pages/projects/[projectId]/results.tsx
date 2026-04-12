@@ -93,6 +93,21 @@ const inferSectionTone = (title: string) => {
   return "neutral" as const;
 };
 
+const getPackageButtonLabel = (
+  mode: EvaluationPackage,
+  unlockedMode: EvaluationPackage | null,
+  isUnlimited: boolean,
+  activeSubscription: WorkspaceSubscriptionStatus | null,
+  projectCoveredBySubscription: boolean
+) => {
+  if (isPackageAccessible(unlockedMode, mode)) return "Открыть";
+  if (isUnlimited) return "Открыть без лимита";
+  if (projectCoveredBySubscription) return "Открыть по тарифу";
+  if ((activeSubscription?.projects_remaining || 0) > 0) return "Открыть по тарифу";
+  const price = getUpgradePriceRub(mode, unlockedMode);
+  return price > 0 ? `Открыть за ${price} ₽` : "Открыть";
+};
+
 export default function ProjectResultsStandalonePage() {
   const router = useRouter();
   const { session, user, loading, envOk } = useSession();
