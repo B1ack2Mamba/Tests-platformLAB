@@ -57,55 +57,88 @@ type EvaluationPayload = {
   } | null;
 };
 
-type SubscriptionStatusResp = {
-  ok: boolean;
-  error?: string;
-  active_subscription?: WorkspaceSubscriptionStatus | null;
-};
 
 
-const formatCollectedAt = (value: string | null | undefined) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-};
+type SectionTone = "positive" | "warning" | "neutral";
 
-const splitSectionBody = (body: string | null | undefined) => {
-  if (!body) return [];
-  return body
-    .split(/\n{2,}|•|\u2022|—\s+/g)
-    .map((part) => part.replace(/^[\s•·\-–—]+/, "").trim())
-    .filter(Boolean);
-};
+function formatCollectedAt(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "long", timeStyle: "short" }).format(d);
+}
 
-const inferSectionTone = (title: string) => {
-  const normalized = (title || "").toLowerCase();
-  if (/(сильн|преим|ресурс|потенциал|достоин)/.test(normalized)) return "positive" as const;
-  if (/(риск|огранич|зон|слаб|барьер|угроз)/.test(normalized)) return "warning" as const;
-  if (/(рекоменд|действ|шаг|развит)/.test(normalized)) return "action" as const;
-  return "neutral" as const;
-};
+function cleanSectionBody(body: string | null | undefined): string {
+  return String(body || "").replace(//g, "").replace(/
+{3,}/g, "
 
-const getPackageButtonLabel = (
+").trim();
+}
+
+function splitSectionBody(body: string | null | undefined): { preview: string; details: string } {
+  const cleaned = cleanSectionBody(body);
+  if (!cleaned) return { preview: "", details: "" };
+  const parts = cleaned.split(/
+
++/).map((x) => x.trim()).filter(Boolean);
+  if (parts.length <= 1) return { preview: cleaned, details: "" };
+  return { preview: parts.slice(0, 1).join("
+
+"), details: parts.slice(1).join("
+
+") };
+}
+
+function inferSectionTone(title: string | null | undefined): SectionTone {
+  const value = String(title || "").toLowerCase();
+  if (/(сильн|ресурс|потенциал|достоин|опора|преимущ|сигнал)/.test(value)) return "positive";
+  if (/(риск|огранич|дефицит|уязв|зона внимания|предупреж)/.test(value)) return "warning";
+  return "neutral";
+}
+
+function sectionKey(scope: string | null | undefined, index: number): string {
+  return `${scope || "section"}:${index}`;
+}
+
+function getThinkingMessages(mode: EvaluationPackage | null): string[] {
+  if (mode === "premium_ai_plus") {
+    return [
+      "Собираем итоговый профиль по всем тестам",
+      "Сопоставляем компетенции и сигналы",
+      "Формируем рекомендации и итоговый вывод",
+    ];
+  }
+  if (mode === "premium") {
+    return [
+      "Читаем результаты каждого теста",
+      "Собираем интерпретацию по секциям",
+      "Готовим краткий аналитический вывод",
+    ];
+  }
+  return [
+    "Собираем базовый результат",
+    "Проверяем готовность тестов",
+    "Формируем выдачу по уровню",
+  ];
+}
+
+function getPackageButtonLabel(
   mode: EvaluationPackage,
   unlockedMode: EvaluationPackage | null,
   isUnlimited: boolean,
   activeSubscription: WorkspaceSubscriptionStatus | null,
   projectCoveredBySubscription: boolean
-) => {
+): string {
   if (isPackageAccessible(unlockedMode, mode)) return "Открыть";
   if (isUnlimited) return "Открыть без лимита";
-  if (projectCoveredBySubscription) return "Открыть по тарифу";
-  if ((activeSubscription?.projects_remaining || 0) > 0) return "Открыть по тарифу";
+  if (projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0) return "Открыть по тарифу";
   const price = getUpgradePriceRub(mode, unlockedMode);
   return price > 0 ? `Открыть за ${price} ₽` : "Открыть";
+}
+type SubscriptionStatusResp = {
+  ok: boolean;
+  error?: string;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
 export default function ProjectResultsStandalonePage() {
