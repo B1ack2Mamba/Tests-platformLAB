@@ -445,14 +445,17 @@ export default function ProjectResultsStandalonePage() {
                         <div className="flex h-full flex-col">
                           <div className="flex items-start justify-between gap-3">
                             <div className="font-serif text-[2rem] leading-none text-[#4d3b24]">{item.title}</div>
-                            {isAi ? <div className="rounded-full bg-[#839c71] px-3 py-1 text-xs font-bold text-white">AI</div> : null}
+                            
                           </div>
                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
-                          {item.bullets?.length ? (
+                          {item.bullets?.length || isAiPlus ? (
                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
-                              {item.bullets.slice(0, 2).map((bullet) => (
+                              {item.bullets?.slice(0, 2).map((bullet) => (
                                 <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
                               ))}
+                              {isAiPlus ? (
+                                <li className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>индекс соответствия по выбранной цели</span></li>
+                              ) : null}
                             </ul>
                           ) : null}
                           <div className="mt-auto pt-6">
