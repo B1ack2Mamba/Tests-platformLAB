@@ -484,6 +484,7 @@ export default function DashboardPage() {
   const [deskPositions, setDeskPositions] = useState<DeskPositions>({});
   const [deskLayer, setDeskLayer] = useState(300);
   const [previewProject, setPreviewProject] = useState<ProjectRow | null>(null);
+  const [previewSceneImage, setPreviewSceneImage] = useState<{ src: string; title: string } | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [trashHover, setTrashHover] = useState<{ kind: "project" | "folder"; id: string } | null>(null);
   const trashHoverTimer = useRef<number | null>(null);
@@ -1961,6 +1962,13 @@ export default function DashboardPage() {
         />
       ) : null}
 
+      {previewSceneImage ? (
+        <SceneImagePreviewModal
+          src={previewSceneImage.src}
+          title={previewSceneImage.title}
+          onClose={() => setPreviewSceneImage(null)}
+        />
+      ) : null}
 
       {folderActionTarget ? (
         <FolderActionDialog
@@ -2347,6 +2355,38 @@ function ProjectDesktopIcon({ project, onOpen, onDragStart, onDragEnd, onDelete,
           <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={onResizeHandleMouseDown} aria-label="Изменить размер листа">↘</button>
         </>
       ) : null}
+    </div>
+  );
+}
+
+type SceneImagePreviewModalProps = {
+  src: string;
+  title: string;
+  onClose: () => void;
+};
+
+function SceneImagePreviewModal({ src, title, onClose }: SceneImagePreviewModalProps) {
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      <div className="relative w-full max-w-[980px]" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="absolute right-2 top-2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/92 text-lg text-slate-700 shadow-lg hover:text-slate-950"
+          onClick={onClose}
+          aria-label="Закрыть"
+        >
+          ✕
+        </button>
+        <div className="overflow-hidden rounded-[28px] border border-[#d8ccb7] bg-[#f7f3eb] p-4 shadow-[0_32px_70px_-32px_rgba(31,22,11,0.4)]">
+          <div className="mb-3 text-center text-sm font-semibold uppercase tracking-[0.24em] text-[#7b5b3b]">{title}</div>
+          <img
+            src={src}
+            alt={title}
+            draggable={false}
+            className="mx-auto max-h-[78vh] w-auto max-w-full rounded-[20px] object-contain shadow-[0_18px_36px_-24px_rgba(31,22,11,0.45)]"
+          />
+        </div>
+      </div>
     </div>
   );
 }

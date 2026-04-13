@@ -158,6 +158,9 @@ const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
 const DEFAULT_LAPTOP_POSITION: DeskPosition = { x: 936, y: 432, width: 372, height: 248, z: 24, rotation: -5.4, tiltX: 0, tiltY: 0 };
 const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 226, height: 132, z: 26, rotation: -5.4, tiltX: 0, tiltY: 0 };
+const CERTIFICATE_PSI_PROFILE_ID = "certificate-psi-profile";
+const CERTIFICATE_COGITO_ID = "certificate-cogito-centre";
+const CERTIFICATE_WIDGET_IDS = new Set([CERTIFICATE_PSI_PROFILE_ID, CERTIFICATE_COGITO_ID]);
 
 
 type DeskRect = { left: number; top: number; right: number; bottom: number };
@@ -432,6 +435,8 @@ function buildSchemeSceneWidgets(params: {
 }): SceneWidget[] {
   return [
     { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
+    { id: CERTIFICATE_PSI_PROFILE_ID, kind: "image", text: "Свидетельство о регистрации программы", src: "/dashboard-certificate-psi-profile.png", action: "none", tone: "scheme", x: 278, y: 122, width: 146, height: 207, rotation: -3.8, fontSize: 0, z: 26 },
+    { id: CERTIFICATE_COGITO_ID, kind: "image", text: "Сертификат Когито-Центр", src: "/dashboard-certificate-cogito.png", action: "none", tone: "scheme", x: 844, y: 118, width: 148, height: 210, rotation: 2.9, fontSize: 0, z: 27 },
     { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
     { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
   ];
@@ -446,6 +451,16 @@ function buildClassicSceneWidgets(params: {
   greeneryLabel: string;
 }): SceneWidget[] {
   return [];
+}
+
+function isPreviewableSceneWidget(widget: SceneWidget | null | undefined): widget is SceneWidget {
+  return Boolean(widget && widget.kind === "image" && CERTIFICATE_WIDGET_IDS.has(widget.id));
+}
+
+function getPreviewableSceneWidgetTitle(widget: SceneWidget): string {
+  if (widget.id === CERTIFICATE_PSI_PROFILE_ID) return "Свидетельство о государственной регистрации программы";
+  if (widget.id === CERTIFICATE_COGITO_ID) return "Сертификат Когито-Центр";
+  return "Сертификат";
 }
 
 
@@ -623,6 +638,7 @@ export default function DashboardPage() {
   const [deskPositions, setDeskPositions] = useState<DeskPositions>({});
   const [deskLayer, setDeskLayer] = useState(300);
   const [previewProject, setPreviewProject] = useState<ProjectRow | null>(null);
+  const [previewSceneImage, setPreviewSceneImage] = useState<{ src: string; title: string } | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [trashHover, setTrashHover] = useState<{ kind: "project" | "folder"; id: string } | null>(null);
   const trashHoverTimer = useRef<number | null>(null);
@@ -2315,6 +2331,14 @@ export default function DashboardPage() {
               onOpenFull={() => router.push(`/projects/${previewProject.id}`)}
             />
           ) : null}
+
+          {previewSceneImage ? (
+            <SceneImagePreviewModal
+              src={previewSceneImage.src}
+              title={previewSceneImage.title}
+              onClose={() => setPreviewSceneImage(null)}
+            />
+          ) : null}
         </div>
       </Layout>
     );
@@ -2603,12 +2627,18 @@ export default function DashboardPage() {
                       transform: `rotate(${widget.rotation}deg)`,
                       zIndex: widget.z,
                       fontSize: `${widget.fontSize}px`,
-                      pointerEvents: widget.kind === "image" && !sceneEditMode ? "none" : "auto",
+                      pointerEvents: widget.kind === "image" && !sceneEditMode && !isPreviewableSceneWidget(widget) ? "none" : "auto",
+                      cursor: !sceneEditMode && isPreviewableSceneWidget(widget) ? "zoom-in" : undefined,
                     }}
                     onMouseDown={(e) => startWidgetInteraction(e, widget, "drag")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (widget.kind === "image" && !sceneEditMode) return;
+                      if (widget.kind === "image" && !sceneEditMode) {
+                        if (isPreviewableSceneWidget(widget)) {
+                          setPreviewSceneImage({ src: widget.src || "", title: getPreviewableSceneWidgetTitle(widget) });
+                        }
+                        return;
+                      }
                       setSelectedWidgetId(widget.id);
                       setSelectedDeskItemId(null);
                       if (!sceneEditMode && widget.kind === "button") handleSceneWidgetAction(widget.action);
@@ -3062,6 +3092,13 @@ export default function DashboardPage() {
         />
       ) : null}
 
+      {previewSceneImage ? (
+        <SceneImagePreviewModal
+          src={previewSceneImage.src}
+          title={previewSceneImage.title}
+          onClose={() => setPreviewSceneImage(null)}
+        />
+      ) : null}
 
       {folderActionTarget ? (
         <FolderActionDialog
@@ -3525,6 +3562,38 @@ function ProjectDesktopIcon({ variant = "scheme", project, onOpen, onDragStart, 
           <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={onResizeHandleMouseDown} aria-label="Изменить размер листа">↘</button>
         </>
       ) : null}
+    </div>
+  );
+}
+
+type SceneImagePreviewModalProps = {
+  src: string;
+  title: string;
+  onClose: () => void;
+};
+
+function SceneImagePreviewModal({ src, title, onClose }: SceneImagePreviewModalProps) {
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      <div className="relative w-full max-w-[980px]" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="absolute right-2 top-2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/92 text-lg text-slate-700 shadow-lg hover:text-slate-950"
+          onClick={onClose}
+          aria-label="Закрыть"
+        >
+          ✕
+        </button>
+        <div className="overflow-hidden rounded-[28px] border border-[#d8ccb7] bg-[#f7f3eb] p-4 shadow-[0_32px_70px_-32px_rgba(31,22,11,0.4)]">
+          <div className="mb-3 text-center text-sm font-semibold uppercase tracking-[0.24em] text-[#7b5b3b]">{title}</div>
+          <img
+            src={src}
+            alt={title}
+            draggable={false}
+            className="mx-auto max-h-[78vh] w-auto max-w-full rounded-[20px] object-contain shadow-[0_18px_36px_-24px_rgba(31,22,11,0.45)]"
+          />
+        </div>
+      </div>
     </div>
   );
 }
