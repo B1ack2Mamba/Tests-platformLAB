@@ -1,0 +1,60 @@
+--- /mnt/data/proj_main/Tests-platformLAB-main/pages/projects/[projectId]/results.tsx	2026-04-13 21:37:18.000000000 +0000
++++ /mnt/data/short_summary_fix/pages/projects/[projectId]/results.tsx	2026-04-14 02:42:22.451059463 +0000
+@@ -72,12 +72,36 @@
+   return String(body || "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
+ }
+ 
+-function splitSectionBody(body: string | null | undefined): { preview: string; details: string } {
++function isTrivialPreviewBlock(value: string): boolean {
++  const compact = value.replace(/\s+/g, " ").trim();
++  if (!compact) return true;
++  if (/^\d+[\)\].:-]*$/.test(compact)) return true;
++  if (/^(?:пункт|шаг|этап)\s*\d+[\)\].:-]*$/i.test(compact)) return true;
++  return compact.length <= 4;
++}
++
++function splitSectionBody(body: string | null | undefined, title?: string | null): { preview: string; details: string } {
+   const cleaned = cleanSectionBody(body);
+   if (!cleaned) return { preview: "", details: "" };
+-  const parts = cleaned.split(/\n\n+/).map((x) => x.trim()).filter(Boolean);
++  const normalizedTitle = String(title || "").trim().toLowerCase();
++  if (normalizedTitle === "короткий вывод") {
++    return { preview: cleaned, details: "" };
++  }
++  const parts = cleaned.split(/
++
+++/).map((x) => x.trim()).filter(Boolean);
+   if (parts.length <= 1) return { preview: cleaned, details: "" };
+-  return { preview: parts[0], details: parts.slice(1).join("\n\n") };
++  if (isTrivialPreviewBlock(parts[0]) && parts.length > 1) {
++    return {
++      preview: `${parts[0]} ${parts[1]}`.trim(),
++      details: parts.slice(2).join("
++
++"),
++    };
++  }
++  return { preview: parts[0], details: parts.slice(1).join("
++
++") };
+ }
+ 
+ function inferSectionTone(title: string | null | undefined): SectionTone {
+@@ -563,7 +587,7 @@
+                                 {primaryOverviewCards.map((section, index) => {
+                                   const key = sectionKey(`${activeEvaluationMode}:overview`, index);
+                                   const isOpen = openSections[key] ?? false;
+-                                  const parts = splitSectionBody(section.body);
++                                  const parts = splitSectionBody(section.body, section.title);
+                                   const tone = inferSectionTone(section.title);
+                                   const toneClass = tone === "positive" ? "bg-[#f7fcf4] border-[#d8e7cf]" : tone === "warning" ? "bg-[#fffaf2] border-[#eddcc0]" : "bg-[#fffdf8] border-[#ead9bf]";
+                                   return (
+@@ -588,7 +612,7 @@
+                                   const actualIndex = index + primaryOverviewCards.length;
+                                   const key = sectionKey(`${activeEvaluationMode}:overview`, actualIndex);
+                                   const isOpen = openSections[key] ?? false;
+-                                  const parts = splitSectionBody(section.body);
++                                  const parts = splitSectionBody(section.body, section.title);
+                                   return (
+                                     <div key={`${section.title}:${actualIndex}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                       <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
