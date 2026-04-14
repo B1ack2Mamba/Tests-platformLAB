@@ -87,23 +87,16 @@ function splitSectionBody(body: string | null | undefined, title?: string | null
   if (normalizedTitle === "короткий вывод") {
     return { preview: cleaned, details: "" };
   }
-  const parts = cleaned.split(/
-
-+/).map((x) => x.trim()).filter(Boolean);
+  const parts = cleaned.split(/\n\n+/).map((x) => x.trim()).filter(Boolean);
   if (parts.length <= 1) return { preview: cleaned, details: "" };
   if (isTrivialPreviewBlock(parts[0]) && parts.length > 1) {
     return {
       preview: `${parts[0]} ${parts[1]}`.trim(),
-      details: parts.slice(2).join("
-
-"),
+      details: parts.slice(2).join("\n\n"),
     };
   }
-  return { preview: parts[0], details: parts.slice(1).join("
-
-") };
+  return { preview: parts[0], details: parts.slice(1).join("\n\n") };
 }
-
 function inferSectionTone(title: string | null | undefined): SectionTone {
   const source = String(title || "").toLowerCase();
   if (/(сильн|ресурс|потенциал|достоин|преиму|опора|устойчив|готов)/.test(source)) return "positive";
