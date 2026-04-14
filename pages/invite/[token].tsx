@@ -50,7 +50,7 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
           <div className="mt-2 text-2xl font-semibold text-slate-950">{project.person_name || "Участник"}</div>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
             {goal ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-800">{goal.shortTitle}</span> : null}
-            {project.target_role ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Роль: {project.target_role}</span> : null}
+            {project.target_role ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Будущая предполагаемая должность: {project.target_role}</span> : null}
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Пройдено: {completed} / {total}</span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Режим: {packageLabel}</span>
           </div>

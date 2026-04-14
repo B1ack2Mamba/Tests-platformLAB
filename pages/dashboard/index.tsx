@@ -463,25 +463,6 @@ function getPreviewableSceneWidgetTitle(widget: SceneWidget): string {
   return "Сертификат";
 }
 
-function serializeSceneWidget(widget: SceneWidget | null | undefined) {
-  if (!widget) return "";
-  return JSON.stringify({
-    id: widget.id,
-    x: Math.round(Number(widget.x || 0)),
-    y: Math.round(Number(widget.y || 0)),
-    width: Math.round(Number(widget.width || 0)),
-    height: Math.round(Number(widget.height || 0)),
-    rotation: Number(Number(widget.rotation || 0).toFixed(1)),
-    z: Math.round(Number(widget.z || 0)),
-    fontSize: Math.round(Number(widget.fontSize || 0)),
-    src: widget.src || "",
-    kind: widget.kind || "",
-    text: widget.text || "",
-    action: widget.action || "",
-    tone: widget.tone || "",
-  });
-}
-
 
 function getClassicFolderPosition(index: number): DeskPosition {
   const col = Math.floor(index / 6);
@@ -1126,40 +1107,23 @@ export default function DashboardPage() {
         : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
     }
 
-    const sharedWidgetsById = new Map(sharedSceneWidgets.map((item) => [item.id, item]));
-
     const normalizedWidgets = sourceWidgets
       .filter((item) => allowedIds.has(item.id))
       .map((item) => {
         const defaults = defaultsById.get(item.id);
-        const sharedWidget = desktopVariant === "scheme" && CERTIFICATE_WIDGET_IDS.has(item.id)
-          ? sharedWidgetsById.get(item.id)
-          : undefined;
-        const sourceWidget = sharedWidget || item;
-        if (!defaults) return sourceWidget;
+        if (!defaults) return item;
         return {
-          ...sourceWidget,
+          ...item,
           text: defaults.text,
           action: defaults.action,
           kind: defaults.kind,
           tone: defaults.tone,
-          src: (sourceWidget as SceneWidget).src || defaults.src,
+          src: (item as SceneWidget).src || defaults.src,
         };
       });
 
     for (const defaults of defaultSceneWidgets) {
-      if (normalizedWidgets.some((item) => item.id === defaults.id)) continue;
-      const sharedWidget = desktopVariant === "scheme" && CERTIFICATE_WIDGET_IDS.has(defaults.id)
-        ? sharedWidgetsById.get(defaults.id)
-        : undefined;
-      normalizedWidgets.push(sharedWidget ? {
-        ...sharedWidget,
-        text: defaults.text,
-        action: defaults.action,
-        kind: defaults.kind,
-        tone: defaults.tone,
-        src: sharedWidget.src || defaults.src,
-      } : { ...defaults });
+      if (!normalizedWidgets.some((item) => item.id === defaults.id)) normalizedWidgets.push({ ...defaults });
     }
 
     normalizedWidgets.sort((a, b) => a.z - b.z);
@@ -1288,46 +1252,6 @@ export default function DashboardPage() {
     })),
     trayGuideText,
   }), [deskPositions, sceneWidgets, sharedDeskPositions, trayGuideText]);
-
-  useEffect(() => {
-    if (!canEditScene || !session?.access_token || !sharedSceneReady || desktopVariant !== "scheme") return;
-
-    const certificateIds = Array.from(CERTIFICATE_WIDGET_IDS);
-    const currentSerialized = certificateIds.map((id) => serializeSceneWidget(sceneWidgets.find((item) => item.id === id))).join("|");
-    const sharedSerialized = certificateIds.map((id) => serializeSceneWidget(sharedSceneWidgets.find((item) => item.id === id))).join("|");
-    if (!currentSerialized || currentSerialized === sharedSerialized) return;
-
-    const timer = window.setTimeout(async () => {
-      try {
-        const standardPayload = buildCurrentSceneStandard();
-        const resp = await fetch("/api/commercial/scene-template", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            standard: standardPayload,
-            positions: standardPayload.positions,
-            widgets: standardPayload.widgets,
-            trayGuideText: standardPayload.trayGuideText,
-            templates: pickGlobalDeskTemplates(deskPositions),
-          }),
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить сертификаты в общий шаблон");
-        const parsedStandard = pickSceneStandard(json?.standard || json || {});
-        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
-        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
-        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
-      } catch (err) {
-        console.error(err);
-      }
-    }, 650);
-
-    return () => window.clearTimeout(timer);
-  }, [buildCurrentSceneStandard, canEditScene, deskPositions, desktopVariant, sceneWidgets, session?.access_token, sharedSceneReady, sharedSceneWidgets]);
-
 
   const saveSceneStandardForAll = useCallback(async () => {
     if (!session?.access_token || !canManageGlobalTemplates) {
@@ -3723,7 +3647,7 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
                   <div><span>Имя и фамилия</span><strong>{displayName}</strong></div>
                   <div><span>Email</span><strong>{project.person?.email || "Не указан"}</strong></div>
                   <div><span>Текущая должность</span><strong>{project.person?.current_position || "Не указана"}</strong></div>
-                  <div><span>Целевая роль</span><strong>{roleLine}</strong></div>
+                  <div><span>Будущая предполагаемая должность</span><strong>{roleLine}</strong></div>
                   <div><span>Цель оценки</span><strong>{goal?.title || goal?.shortTitle || project.goal}</strong></div>
                   <div><span>Создан</span><strong>{new Date(project.created_at).toLocaleString("ru-RU")}</strong></div>
                 </div>

@@ -1,0 +1,557 @@
+diff -ruN project_orig/Tests-platformLAB-main/lib/commercialEvaluation.ts project_work/Tests-platformLAB-main/lib/commercialEvaluation.ts
+--- project_orig/Tests-platformLAB-main/lib/commercialEvaluation.ts	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/lib/commercialEvaluation.ts	2026-04-14 16:57:14.544423715 +0000
+@@ -63,6 +63,15 @@
+   details: string;
+ };
+ 
++type MatrixLike = {
++  label: string;
++  weights: Record<string, number>;
++  critical: string[];
++  explanation: string[];
++  matchedProfiles?: Array<unknown>;
++  matchedExpectations?: Array<unknown>;
++};
++
+ function rowsFromResult(result: any) {
+   return Array.isArray(result?.ranked) ? result.ranked : [];
+ }
+@@ -242,19 +251,17 @@
+   return { label: "Зона риска", tone: "есть заметные ограничения" };
+ }
+ 
+-async function buildCorrespondenceIndex(
+-  project: ProjectLike,
++function buildCorrespondenceIndexFromMatrix(
+   attempts: AttemptLike[],
+   competencySignals: CompetencySignal[],
+-  fitRequest?: string | null,
+-  fitProfileId?: string | null
++  matrix: MatrixLike,
++  args: {
++    title: string;
++    context: string;
++    requestedLabel: string;
++    requestBonus?: number;
++  }
+ ) {
+-  const matrix = await resolveFitMatrixServer({
+-    goal: project.goal as AssessmentGoal,
+-    fitProfileId: fitProfileId || null,
+-    fitRequest: fitRequest || null,
+-    targetRole: project.target_role || null,
+-  });
+   const signalMap = new Map(competencySignals.map((item) => [item.id, item]));
+   const weighted = Object.entries(matrix.weights)
+     .map(([id, weight]) => ({ id, weight, signal: signalMap.get(id) || null }))
+@@ -274,21 +281,13 @@
+   }, 0);
+   const coverageRatio = weighted.length ? covered.length / weighted.length : 0.55;
+   const coveragePenalty = weighted.length ? Math.round((1 - coverageRatio) * 10) : 0;
+-  const profileBonus = matrix.matchedProfiles.length ? 3 : matrix.matchedExpectations.length ? 2 : 0;
++  const profileBonus = Array.isArray(matrix.matchedProfiles) && matrix.matchedProfiles.length ? 3 : Array.isArray(matrix.matchedExpectations) && matrix.matchedExpectations.length ? 2 : 0;
+   const testsBonus = Math.min(6, attempts.length * 1.1);
+-  const requestBonus = fitRequest?.trim() ? 2 : 0;
++  const requestBonus = Number(args.requestBonus || 0);
+   const score = Math.round(clamp(38, base + testsBonus + profileBonus + requestBonus - criticalPenalty - coveragePenalty, 97));
+ 
+-  const requestedLabel = fitRequest?.trim() || project.target_role || goalLabel(project.goal);
+-  const title = fitRequest?.trim() ? "Индекс соответствия запросу" : "Индекс соответствия";
+-  const context = fitRequest?.trim()
+-    ? `Ориентир собран под запрос: ${fitRequest?.trim()}.`
+-    : project.target_role
+-    ? `Ориентир собран относительно роли «${project.target_role}».`
+-    : `Ориентир собран относительно фокуса оценки «${goalLabel(project.goal)}».`;
+-
+   const weightedCompetencies = getWeightedCompetencyLabels(matrix.weights);
+-  const strongest = covered
++  const strongest = [...covered]
+     .sort((a, b) => (b.signal?.score || 0) - (a.signal?.score || 0))
+     .slice(0, 4)
+     .map((item) => `${item.signal?.title} (${item.signal?.score}/100)`);
+@@ -300,7 +299,7 @@
+     .map((item) => `${item?.title} (${item?.score}/100)`);
+ 
+   const bodyParts = [
+-    `${title}: ${score}/100. ${context}`,
++    `${args.title}: ${score}/100. ${args.context}`,
+     `Матрица: ${matrix.label}. ${matrix.explanation.join(" ")}`,
+     weightedCompetencies.length ? `Ключевые компетенции в матрице: ${weightedCompetencies.map((item) => `${item.name} ×${item.weight}`).join(", ")}.` : "",
+     strongest.length ? `Что поддерживает соответствие: ${strongest.join(", ")}.` : "",
+@@ -310,18 +309,109 @@
+ 
+   return {
+     score,
+-    title,
++    title: args.title,
+     body: bodyParts.join("\n\n"),
+-    requestedLabel,
++    requestedLabel: args.requestedLabel,
+     matrixLabel: matrix.label,
+   };
+ }
+ 
++async function buildGoalOrCompetencyIndex(
++  project: ProjectLike,
++  attempts: AttemptLike[],
++  competencySignals: CompetencySignal[]
++) {
++  const competencyIds = project.routing_meta?.mode === "competency" ? (project.routing_meta.competencyIds || []).filter(Boolean) : [];
++  if (competencyIds.length) {
++    const competencyLabel = getCompetencyShortLabel(competencyIds);
++    const matrix: MatrixLike = {
++      label: competencyLabel,
++      weights: Object.fromEntries(competencyIds.map((id) => [id, 4])),
++      critical: competencyIds,
++      explanation: [`Ориентир собран по выбранным компетенциям: ${competencyLabel}.`],
++      matchedProfiles: [],
++      matchedExpectations: [],
++    };
++    return buildCorrespondenceIndexFromMatrix(attempts, competencySignals, matrix, {
++      title: competencyIds.length > 1 ? "Индекс по выбранным компетенциям" : "Индекс по выбранной компетенции",
++      context: `Ориентир собран относительно выбранного набора компетенций: ${competencyLabel}.`,
++      requestedLabel: competencyLabel,
++    });
++  }
++
++  if (project.goal === "general_assessment") return null;
++
++  const goalShort = goalLabel(project.goal);
++  const matrix = await resolveFitMatrixServer({
++    goal: project.goal as AssessmentGoal,
++    fitProfileId: null,
++    fitRequest: null,
++    targetRole: null,
++  });
++  return buildCorrespondenceIndexFromMatrix(attempts, competencySignals, matrix, {
++    title: "Индекс по выбранной цели",
++    context: `Ориентир собран относительно выбранной цели «${goalShort}».`,
++    requestedLabel: goalShort,
++  });
++}
++
++async function buildRoleCorrespondenceIndex(
++  project: ProjectLike,
++  attempts: AttemptLike[],
++  competencySignals: CompetencySignal[],
++  role: string | null | undefined,
++  title: string,
++  contextLabel: string
++) {
++  const roleText = String(role || "").trim();
++  if (!roleText) return null;
++  const matrix = await resolveFitMatrixServer({
++    goal: project.goal as AssessmentGoal,
++    fitProfileId: null,
++    fitRequest: null,
++    targetRole: roleText,
++  });
++  return buildCorrespondenceIndexFromMatrix(attempts, competencySignals, matrix, {
++    title,
++    context: `Ориентир собран относительно ${contextLabel} «${roleText}».`,
++    requestedLabel: roleText,
++  });
++}
++
++async function buildCorrespondenceIndex(
++  project: ProjectLike,
++  attempts: AttemptLike[],
++  competencySignals: CompetencySignal[],
++  fitRequest?: string | null,
++  fitProfileId?: string | null
++) {
++  const matrix = await resolveFitMatrixServer({
++    goal: project.goal as AssessmentGoal,
++    fitProfileId: fitProfileId || null,
++    fitRequest: fitRequest || null,
++    targetRole: project.target_role || null,
++  });
++  const requestedLabel = fitRequest?.trim() || project.target_role || goalLabel(project.goal);
++  const title = fitRequest?.trim() ? "Индекс соответствия запросу" : "Индекс соответствия";
++  const context = fitRequest?.trim()
++    ? `Ориентир собран под запрос: ${fitRequest?.trim()}.`
++    : project.target_role
++    ? `Ориентир собран относительно будущей предполагаемой должности «${project.target_role}».`
++    : `Ориентир собран относительно фокуса оценки «${goalLabel(project.goal)}».`;
++
++  return buildCorrespondenceIndexFromMatrix(attempts, competencySignals, matrix, {
++    title,
++    context,
++    requestedLabel,
++    requestBonus: fitRequest?.trim() ? 2 : 0,
++  });
++}
++
+ function buildPortraitFallback(project: ProjectLike, attempts: AttemptLike[]) {
+   const topTraits = attempts.flatMap((item) => getTopLabels(item.result, 2)).filter(Boolean);
+   const uniqueTraits = [...new Set(topTraits)].slice(0, 6);
+   const person = project.person_name || "Участник";
+-  const role = project.target_role ? ` для роли «${project.target_role}»` : "";
++  const role = project.target_role ? ` для будущей предполагаемой должности «${project.target_role}»` : "";
+   const goalDef = getGoalDefinition(project.goal);
+   const goalText = goalDef
+     ? `Фокус оценки смещён на направление «${goalDef.shortTitle.toLowerCase()}»: ${goalDef.description.toLowerCase()}`
+@@ -372,10 +462,10 @@
+   return [
+     "Сделай профессиональную интерпретацию одного психометрического теста для специалиста по оценке персонала.",
+     `Цель оценки: ${goalLabel(project.goal)}.`,
+-    project.target_role ? `Целевая роль: ${project.target_role}.` : "",
++    project.target_role ? `Будущая предполагаемая должность: ${project.target_role}.` : "",
+     `Тест: ${attempt.test_title || attempt.test_slug}.`,
+     project.person_name ? `Участник: ${project.person_name}.` : "",
+-    project.current_position ? `Текущая позиция: ${project.current_position}.` : "",
++    project.current_position ? `Текущая должность: ${project.current_position}.` : "",
+     project.notes ? `Заметки специалиста: ${trimText(project.notes, 700)}.` : "",
+     "",
+     "Результаты теста:",
+@@ -421,8 +511,8 @@
+     "Собери короткий синтез для специалиста по оценке персонала.",
+     `Цель оценки: ${goalLabel(project.goal)}.`,
+     project.person_name ? `Участник: ${project.person_name}.` : "",
+-    project.current_position ? `Текущая позиция: ${project.current_position}.` : "",
+-    project.target_role ? `Целевая роль: ${project.target_role}.` : "",
++    project.current_position ? `Текущая должность: ${project.current_position}.` : "",
++    project.target_role ? `Будущая предполагаемая должность: ${project.target_role}.` : "",
+     project.notes ? `Заметки специалиста: ${trimText(project.notes, 900)}` : "",
+     fitProfileId ? `Ролевая матрица: ${(await getServerFitProfileById(fitProfileId))?.label || fitProfileId}.` : "",
+     fitRequest ? `Индекс соответствия нужен относительно запроса: ${fitRequest}.` : "",
+@@ -459,8 +549,8 @@
+ 
+ function buildProfileContext(project: ProjectLike) {
+   const lines: string[] = [];
+-  if (project.current_position?.trim()) lines.push(`Текущая позиция: ${project.current_position.trim()}.`);
+-  if (project.target_role?.trim()) lines.push(`Целевая роль / ориентир: ${project.target_role.trim()}.`);
++  if (project.current_position?.trim()) lines.push(`Текущая должность: ${project.current_position.trim()}.`);
++  if (project.target_role?.trim()) lines.push(`Будущая предполагаемая должность: ${project.target_role.trim()}.`);
+   if (project.notes?.trim()) lines.push(`Комментарий специалиста: ${trimText(project.notes.trim(), 420)}`);
+   if (!lines.length) return "Дополнительный профиль не заполнен: анализ опирается прежде всего на результаты тестов.";
+   lines.push("Эти данные используются как контекст для интерпретации, но не как самостоятельное доказательство компетенций.");
+@@ -667,13 +757,72 @@
+       });
+     }
+ 
+-    sections.unshift({
+-      kind: "portrait",
+-      title: "Контекст профиля",
+-      body: profileContext,
+-    });
++    const overviewSections: EvaluationSection[] = [
++      {
++        kind: "summary",
++        title: "Фокус анализа",
++        body: buildFocusIntro(project, competencySignals),
++      },
++      {
++        kind: "portrait",
++        title: "Короткий вывод",
++        body: synthesis ? cleanText(synthesis) : buildPortraitFallback(project, attempts),
++      },
++      {
++        kind: "portrait",
++        title: "Контекст профиля",
++        body: profileContext,
++      },
++    ];
++
++    const goalOrCompetencyIndex = await buildGoalOrCompetencyIndex(project, attempts, rawCompetencySignals);
++    if (goalOrCompetencyIndex) {
++      overviewSections.unshift({
++        kind: "portrait",
++        title: goalOrCompetencyIndex.title,
++        body: `${goalOrCompetencyIndex.body}
+ 
+-    if (options?.fitEnabled) {
++Ориентир: ${goalOrCompetencyIndex.requestedLabel}.`,
++      });
++    }
++
++    const currentRoleIndex = await buildRoleCorrespondenceIndex(
++      project,
++      attempts,
++      rawCompetencySignals,
++      project.current_position || null,
++      "Индекс по текущей должности",
++      "текущей должности"
++    );
++    if (currentRoleIndex) {
++      overviewSections.unshift({
++        kind: "portrait",
++        title: currentRoleIndex.title,
++        body: `${currentRoleIndex.body}
++
++Ориентир: ${currentRoleIndex.requestedLabel}.`,
++      });
++    }
++
++    const futureRoleIndex = await buildRoleCorrespondenceIndex(
++      project,
++      attempts,
++      rawCompetencySignals,
++      project.target_role || null,
++      "Индекс по будущей предполагаемой должности",
++      "будущей предполагаемой должности"
++    );
++    if (futureRoleIndex) {
++      overviewSections.unshift({
++        kind: "portrait",
++        title: futureRoleIndex.title,
++        body: `${futureRoleIndex.body}
++
++Ориентир: ${futureRoleIndex.requestedLabel}.`,
++      });
++    }
++
++    if (options?.fitEnabled && (options?.fitRequest || options?.fitProfileId)) {
+       const correspondence = await buildCorrespondenceIndex(
+         project,
+         attempts,
+@@ -681,7 +830,7 @@
+         options?.fitRequest || null,
+         options?.fitProfileId || null
+       );
+-      sections.unshift({
++      overviewSections.unshift({
+         kind: "portrait",
+         title: correspondence.title,
+         body: `${correspondence.body}
+@@ -690,16 +839,7 @@
+       });
+     }
+ 
+-    sections.unshift({
+-      kind: "portrait",
+-      title: "Короткий вывод",
+-      body: synthesis ? cleanText(synthesis) : buildPortraitFallback(project, attempts),
+-    });
+-    sections.unshift({
+-      kind: "summary",
+-      title: "Фокус анализа",
+-      body: buildFocusIntro(project, competencySignals),
+-    });
++    sections.unshift(...overviewSections);
+   }
+ 
+   return { mode, sections };
+diff -ruN project_orig/Tests-platformLAB-main/lib/commercialGoals.ts project_work/Tests-platformLAB-main/lib/commercialGoals.ts
+--- project_orig/Tests-platformLAB-main/lib/commercialGoals.ts	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/lib/commercialGoals.ts	2026-04-14 16:54:12.961535800 +0000
+@@ -379,8 +379,8 @@
+   },
+   {
+     key: "premium",
+-    title: "Премиум AI",
+-    shortTitle: "Премиум AI",
++    title: "Премиум",
++    shortTitle: "Премиум",
+     note: "для специалистов",
+     description: "Результаты тестов + индивидуальная интерпретация результатов каждого теста.",
+     bullets: ["результаты тестов", "индивидуальная интерпретация каждого теста"],
+@@ -392,14 +392,15 @@
+     key: "premium_ai_plus",
+     title: "Премиум AI+",
+     shortTitle: "Премиум AI+",
+-    description: "Составление индивидуального профиля на основе всех пройденных тестов, индекс соответствия.",
++    description: "Составление индивидуального профиля на основе всех пройденных тестов и нескольких индексов соответствия.",
+     bullets: [
+       "индивидуальный профиль по всем тестам",
+-      "индекс соответствия по выбранной цели",
+-      "рекомендации по развитию и руководителю",
++      "индекс по выбранной цели или компетенции",
++      "индекс по текущей должности",
++      "индекс по будущей предполагаемой должности",
+     ],
+     helpText:
+-      "Премиум AI+ не заменяет профессиональное решение специалиста. Он собирает интегральный профиль по всем пройденным тестам, рассчитывает индекс соответствия выбранной цели и формирует рекомендации как вспомогательный аналитический слой для более точного экспертного вывода.",
++      "Премиум AI+ не заменяет профессиональное решение специалиста. Он собирает интегральный профиль по всем пройденным тестам, рассчитывает индексы по выбранной цели или компетенции, текущей должности и будущей предполагаемой должности и формирует рекомендации как вспомогательный аналитический слой для более точного экспертного вывода.",
+     priceRub: 3000,
+   },
+ ];
+diff -ruN project_orig/Tests-platformLAB-main/lib/competencyPrompts.ts project_work/Tests-platformLAB-main/lib/competencyPrompts.ts
+--- project_orig/Tests-platformLAB-main/lib/competencyPrompts.ts	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/lib/competencyPrompts.ts	2026-04-14 16:57:14.545428553 +0000
+@@ -23,8 +23,8 @@
+   { key: "project_goal_label", label: "Человеческое название цели оценки" },
+   { key: "project_title", label: "Название проекта" },
+   { key: "person_name", label: "Имя участника" },
+-  { key: "current_position", label: "Текущая позиция" },
+-  { key: "target_role", label: "Целевая роль" },
++  { key: "current_position", label: "Текущая должность" },
++  { key: "target_role", label: "Будущая предполагаемая должность" },
+   { key: "notes", label: "Заметки специалиста" },
+   { key: "practical_experience", label: "Практические правила и опыт специалиста" },
+   { key: "custom_request", label: "Дополнительный запрос специалиста" },
+@@ -47,8 +47,8 @@
+     "- Название проекта: {{project_title}}",
+     "- Цель оценки: {{project_goal_label}}",
+     "- Участник: {{person_name}}",
+-    "- Текущая позиция: {{current_position}}",
+-    "- Целевая роль: {{target_role}}",
++    "- Текущая должность: {{current_position}}",
++    "- Будущая предполагаемая должность: {{target_role}}",
+     "- Заметки специалиста: {{notes}}",
+     "- Дополнительный запрос: {{custom_request}}",
+     "- Запрос на соответствие: {{fit_request}}",
+diff -ruN project_orig/Tests-platformLAB-main/pages/api/commercial/projects/create.ts project_work/Tests-platformLAB-main/pages/api/commercial/projects/create.ts
+--- project_orig/Tests-platformLAB-main/pages/api/commercial/projects/create.ts	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/pages/api/commercial/projects/create.ts	2026-04-14 16:55:09.026053514 +0000
+@@ -82,13 +82,13 @@
+           "Режим проекта: оценка по компетенциям.",
+           `Выбрано: ${getCompetencyLongLabel(competencyIds)}.`,
+           `Аналитическая опора внутри системы: ${definition.shortTitle}.`,
+-          targetRole ? `Целевая роль: ${targetRole}.` : null,
++          targetRole ? `Будущая предполагаемая должность: ${targetRole}.` : null,
+           notes ? `Контекст специалиста: ${notes}` : null,
+         ].filter(Boolean).join(" ")
+       : [
+           `Цель проекта: ${definition.shortTitle}.`,
+           definition.description,
+-          targetRole ? `Целевая роль: ${targetRole}.` : null,
++          targetRole ? `Будущая предполагаемая должность: ${targetRole}.` : null,
+           notes ? `Контекст специалиста: ${notes}` : null,
+         ].filter(Boolean).join(" ");
+ 
+diff -ruN project_orig/Tests-platformLAB-main/pages/dashboard/index.tsx project_work/Tests-platformLAB-main/pages/dashboard/index.tsx
+--- project_orig/Tests-platformLAB-main/pages/dashboard/index.tsx	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/pages/dashboard/index.tsx	2026-04-14 16:55:09.040418009 +0000
+@@ -3647,7 +3647,7 @@
+                   <div><span>Имя и фамилия</span><strong>{displayName}</strong></div>
+                   <div><span>Email</span><strong>{project.person?.email || "Не указан"}</strong></div>
+                   <div><span>Текущая должность</span><strong>{project.person?.current_position || "Не указана"}</strong></div>
+-                  <div><span>Целевая роль</span><strong>{roleLine}</strong></div>
++                  <div><span>Будущая предполагаемая должность</span><strong>{roleLine}</strong></div>
+                   <div><span>Цель оценки</span><strong>{goal?.title || goal?.shortTitle || project.goal}</strong></div>
+                   <div><span>Создан</span><strong>{new Date(project.created_at).toLocaleString("ru-RU")}</strong></div>
+                 </div>
+diff -ruN project_orig/Tests-platformLAB-main/pages/invite/[token].tsx project_work/Tests-platformLAB-main/pages/invite/[token].tsx
+--- project_orig/Tests-platformLAB-main/pages/invite/[token].tsx	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/pages/invite/[token].tsx	2026-04-14 16:54:41.550590391 +0000
+@@ -34,7 +34,7 @@
+   const completed = doneSet.size;
+   const total = project.tests.length;
+   const fullyDone = total > 0 && completed >= total;
+-  const packageLabel = project.package_mode === "basic" ? "База" : project.package_mode === "premium_ai_plus" ? "Премиум AI+" : "Премиум AI";
++  const packageLabel = project.package_mode === "basic" ? "База" : project.package_mode === "premium_ai_plus" ? "Премиум AI+" : "Премиум";
+ 
+   return (
+     <Layout title={project.title || "Оценка сотрудника"}>
+@@ -50,7 +50,7 @@
+           <div className="mt-2 text-2xl font-semibold text-slate-950">{project.person_name || "Участник"}</div>
+           <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+             {goal ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-800">{goal.shortTitle}</span> : null}
+-            {project.target_role ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Роль: {project.target_role}</span> : null}
++            {project.target_role ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Будущая предполагаемая должность: {project.target_role}</span> : null}
+             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Пройдено: {completed} / {total}</span>
+             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Режим: {packageLabel}</span>
+           </div>
+@@ -100,7 +100,7 @@
+             <div className="card">
+               <div className="text-sm font-semibold text-slate-900">Статус прохождения</div>
+               <div className="mt-3 text-3xl font-semibold text-slate-950">{completed} / {total}</div>
+-              <div className="mt-2 text-sm text-slate-600">{fullyDone ? `Все тесты завершены. Специалист получит ${packageLabel === "База" ? "итоговые результаты тестов" : packageLabel === "Премиум AI" ? "интерпретации по каждому тесту" : "индивидуальный профиль и индекс соответствия"}.` : "Пока не все тесты завершены."}</div>
++              <div className="mt-2 text-sm text-slate-600">{fullyDone ? `Все тесты завершены. Специалист получит ${packageLabel === "База" ? "итоговые результаты тестов" : packageLabel === "Премиум" ? "интерпретации по каждому тесту" : "индивидуальный профиль и индекс соответствия"}.` : "Пока не все тесты завершены."}</div>
+             </div>
+           </div>
+         </div>
+diff -ruN project_orig/Tests-platformLAB-main/pages/projects/[projectId]/results.tsx project_work/Tests-platformLAB-main/pages/projects/[projectId]/results.tsx
+--- project_orig/Tests-platformLAB-main/pages/projects/[projectId]/results.tsx	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/pages/projects/[projectId]/results.tsx	2026-04-14 16:53:33.922653955 +0000
+@@ -123,7 +123,7 @@
+   if (isPackageAccessible(unlockedMode, mode)) return "Открыть";
+   if (isUnlimited) return "Открыть без лимита";
+   if (projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0) return "Открыть по тарифу";
+-  const price = getUpgradePriceRub(mode, unlockedMode);
++  const price = getUpgradePriceRub(unlockedMode, mode);
+   return price > 0 ? `Открыть за ${price} ₽` : "Открыть";
+ }
+ type SubscriptionStatusResp = {
+@@ -371,9 +371,8 @@
+   }
+ 
+   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
+-  const overviewCards = overviewSections.slice(0, 3);
+-  const primaryOverviewCards = overviewCards.slice(0, 2);
+-  const secondaryOverviewCards = overviewCards.slice(2);
++  const primaryOverviewCards = overviewSections.slice(0, 3);
++  const secondaryOverviewCards = overviewSections.slice(3);
+   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
+ 
+   return (
+@@ -435,7 +434,6 @@
+                     const isBusy = !!saving || !!evaluationLoading[item.key];
+                     const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
+                     const isActive = activeEvaluationMode === item.key;
+-                    const isAi = item.key === "premium";
+                     const isAiPlus = item.key === "premium_ai_plus";
+                     return (
+                       <div
+@@ -448,14 +446,11 @@
+                             
+                           </div>
+                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
+-                          {item.bullets?.length || isAiPlus ? (
++                          {item.bullets?.length ? (
+                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
+-                              {item.bullets?.slice(0, 2).map((bullet) => (
++                              {item.bullets.map((bullet) => (
+                                 <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
+                               ))}
+-                              {isAiPlus ? (
+-                                <li className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>индекс соответствия по выбранной цели</span></li>
+-                              ) : null}
+                             </ul>
+                           ) : null}
+                           <div className="mt-auto pt-6">
+@@ -529,7 +524,7 @@
+                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
+                       <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
+                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
+-                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
++                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля. Индексы по цели, текущей и будущей должности собираются автоматически по заполненным данным.</div>
+                         <div className="mt-3 grid gap-3">
+                           <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
+                           <div className="flex justify-end">
+@@ -559,7 +554,7 @@
+                           <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
+                             <div className="font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
+                             {primaryOverviewCards.length ? (
+-                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
++                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length >= 3 ? "lg:grid-cols-3" : primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
+                                 {primaryOverviewCards.map((section, index) => {
+                                   const key = sectionKey(`${activeEvaluationMode}:overview`, index);
+                                   const isOpen = openSections[key] ?? false;
+diff -ruN project_orig/Tests-platformLAB-main/pages/projects/[projectId].tsx project_work/Tests-platformLAB-main/pages/projects/[projectId].tsx
+--- project_orig/Tests-platformLAB-main/pages/projects/[projectId].tsx	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/pages/projects/[projectId].tsx	2026-04-14 16:54:41.552776481 +0000
+@@ -914,7 +914,7 @@
+                           <input className="input" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
+                           <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Текущая должность" />
+                         </div>
+-                        <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Целевая роль" />
++                        <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Будущая предполагаемая должность" />
+                         <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
+                         <div className="flex flex-wrap gap-2">
+                           <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
+@@ -934,8 +934,8 @@
+                           </div>
+                         </div>
+                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Целевая роль</div>
+-                          <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.target_role || goal?.shortTitle || "Роль не указана"}</div>
++                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Будущая предполагаемая должность</div>
++                          <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.target_role || goal?.shortTitle || "Должность не указана"}</div>
+                         </div>
+                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий</div>
+diff -ruN project_orig/Tests-platformLAB-main/pages/projects/new.tsx project_work/Tests-platformLAB-main/pages/projects/new.tsx
+--- project_orig/Tests-platformLAB-main/pages/projects/new.tsx	2026-04-13 21:37:18.000000000 +0000
++++ project_work/Tests-platformLAB-main/pages/projects/new.tsx	2026-04-14 16:54:41.553994381 +0000
+@@ -725,7 +725,7 @@
+                       />
+                     </label>
+                     <label className="grid gap-1.5">
+-                      <span className="text-sm font-medium text-[#6c563b]">Целевая роль</span>
++                      <span className="text-sm font-medium text-[#6c563b]">Будущая предполагаемая должность</span>
+                       <input
+                         className="h-11 rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
+                         value={targetRole}

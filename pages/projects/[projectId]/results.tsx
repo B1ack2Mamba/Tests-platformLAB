@@ -371,9 +371,8 @@ export default function ProjectResultsStandalonePage() {
   }
 
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
-  const overviewCards = overviewSections.slice(0, 3);
-  const primaryOverviewCards = overviewCards.slice(0, 2);
-  const secondaryOverviewCards = overviewCards.slice(2);
+  const primaryOverviewCards = overviewSections.slice(0, 3);
+  const secondaryOverviewCards = overviewSections.slice(3);
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
 
   return (
@@ -435,7 +434,6 @@ export default function ProjectResultsStandalonePage() {
                     const isBusy = !!saving || !!evaluationLoading[item.key];
                     const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
                     const isActive = activeEvaluationMode === item.key;
-                    const isAi = item.key === "premium";
                     const isAiPlus = item.key === "premium_ai_plus";
                     return (
                       <div
@@ -448,14 +446,11 @@ export default function ProjectResultsStandalonePage() {
                             
                           </div>
                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
-                          {item.bullets?.length || isAiPlus ? (
+                          {item.bullets?.length ? (
                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
-                              {item.bullets?.slice(0, 2).map((bullet) => (
+                              {item.bullets.map((bullet) => (
                                 <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
                               ))}
-                              {isAiPlus ? (
-                                <li className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>индекс соответствия по выбранной цели</span></li>
-                              ) : null}
                             </ul>
                           ) : null}
                           <div className="mt-auto pt-6">
@@ -529,7 +524,7 @@ export default function ProjectResultsStandalonePage() {
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
                       <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
-                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
+                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля. Индексы по цели, текущей и будущей должности собираются автоматически по заполненным данным.</div>
                         <div className="mt-3 grid gap-3">
                           <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
                           <div className="flex justify-end">
@@ -559,7 +554,7 @@ export default function ProjectResultsStandalonePage() {
                           <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
                             <div className="font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
                             {primaryOverviewCards.length ? (
-                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
+                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length >= 3 ? "lg:grid-cols-3" : primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
                                 {primaryOverviewCards.map((section, index) => {
                                   const key = sectionKey(`${activeEvaluationMode}:overview`, index);
                                   const isOpen = openSections[key] ?? false;

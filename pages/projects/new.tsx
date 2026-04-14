@@ -725,7 +725,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       />
                     </label>
                     <label className="grid gap-1.5">
-                      <span className="text-sm font-medium text-[#6c563b]">Целевая роль</span>
+                      <span className="text-sm font-medium text-[#6c563b]">Будущая предполагаемая должность</span>
                       <input
                         className="h-11 rounded-[16px] border border-[#dfcfba] bg-[#fffdf8] px-4 text-[15px] text-[#3d3124] outline-none transition placeholder:text-[#b8aa97] focus:border-[#c9ab7f] focus:ring-2 focus:ring-[#ecd6af]"
                         value={targetRole}

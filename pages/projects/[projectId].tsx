@@ -914,7 +914,7 @@ export default function ProjectDetailsPage() {
                           <input className="input" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
                           <input className="input" value={form.current_position} onChange={(e) => setForm((prev) => ({ ...prev, current_position: e.target.value }))} placeholder="Текущая должность" />
                         </div>
-                        <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Целевая роль" />
+                        <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Будущая предполагаемая должность" />
                         <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
                         <div className="flex flex-wrap gap-2">
                           <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
@@ -934,8 +934,8 @@ export default function ProjectDetailsPage() {
                           </div>
                         </div>
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Целевая роль</div>
-                          <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.target_role || goal?.shortTitle || "Роль не указана"}</div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Будущая предполагаемая должность</div>
+                          <div className="mt-2 text-base font-medium leading-6 text-[#5b4731]">{data?.project.target_role || goal?.shortTitle || "Должность не указана"}</div>
                         </div>
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий</div>

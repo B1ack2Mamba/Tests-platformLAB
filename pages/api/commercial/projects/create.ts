@@ -82,13 +82,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           "Режим проекта: оценка по компетенциям.",
           `Выбрано: ${getCompetencyLongLabel(competencyIds)}.`,
           `Аналитическая опора внутри системы: ${definition.shortTitle}.`,
-          targetRole ? `Целевая роль: ${targetRole}.` : null,
+          targetRole ? `Будущая предполагаемая должность: ${targetRole}.` : null,
           notes ? `Контекст специалиста: ${notes}` : null,
         ].filter(Boolean).join(" ")
       : [
           `Цель проекта: ${definition.shortTitle}.`,
           definition.description,
-          targetRole ? `Целевая роль: ${targetRole}.` : null,
+          targetRole ? `Будущая предполагаемая должность: ${targetRole}.` : null,
           notes ? `Контекст специалиста: ${notes}` : null,
         ].filter(Boolean).join(" ");
 
