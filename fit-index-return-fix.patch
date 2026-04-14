@@ -1,0 +1,38 @@
+--- a/pages/projects/[projectId]/results.tsx
++++ b/pages/projects/[projectId]/results.tsx
+@@ -213,9 +213,11 @@
+         url.searchParams.set("custom_request", opts.customRequest.trim());
+       }
+       if (mode === "premium_ai_plus") {
+-        url.searchParams.set("fit_enabled", fitRequested ? "1" : "0");
+-        if (fitRequested && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
+-        if (fitRequested && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
++        const hasCompetencyAnchor = data?.project.routing_meta?.mode === "competency" && !!data.project.routing_meta?.competencyIds?.length;
++        const shouldEnableFit = fitRequested || hasCompetencyAnchor || !!data?.project.target_role?.trim() || !!fitProfileId || !!fitRequest.trim();
++        url.searchParams.set("fit_enabled", shouldEnableFit ? "1" : "0");
++        if (shouldEnableFit && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
++        if (shouldEnableFit && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
+       }
+       const resp = await fetch(url.toString(), {
+         headers: { authorization: `Bearer ${session.access_token}` },
+--- a/lib/commercialEvaluation.ts
++++ b/lib/commercialEvaluation.ts
+@@ -279,12 +279,17 @@
+   const requestBonus = fitRequest?.trim() ? 2 : 0;
+   const score = Math.round(clamp(38, base + testsBonus + profileBonus + requestBonus - criticalPenalty - coveragePenalty, 97));
+ 
+-  const requestedLabel = fitRequest?.trim() || project.target_role || goalLabel(project.goal);
++  const competencyFocusLabel = project.routing_meta?.mode === "competency" && project.routing_meta.competencyIds?.length
++    ? compactLine(project.routing_meta.selectionLabel) || getCompetencyShortLabel(project.routing_meta.competencyIds)
++    : "";
++  const requestedLabel = fitRequest?.trim() || project.target_role || competencyFocusLabel || goalLabel(project.goal);
+   const title = fitRequest?.trim() ? "Индекс соответствия запросу" : "Индекс соответствия";
+   const context = fitRequest?.trim()
+     ? `Ориентир собран под запрос: ${fitRequest?.trim()}.`
+     : project.target_role
+     ? `Ориентир собран относительно роли «${project.target_role}».`
++    : competencyFocusLabel
++    ? `Ориентир собран относительно выбранных компетенций: ${competencyFocusLabel}.`
+     : `Ориентир собран относительно фокуса оценки «${goalLabel(project.goal)}».`;
+ 
+   const weightedCompetencies = getWeightedCompetencyLabels(matrix.weights);

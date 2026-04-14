@@ -63,13 +63,6 @@ type CompetencySignal = {
   details: string;
 };
 
-type AttemptSignalSummary = {
-  title: string;
-  signal: number;
-  topLabels: string[];
-  bottomLabels: string[];
-};
-
 function rowsFromResult(result: any) {
   return Array.isArray(result?.ranked) ? result.ranked : [];
 }
@@ -119,12 +112,6 @@ function formatTopRows(result: any) {
 function getTopLabels(result: any, limit = 3) {
   const rows = rowsFromResult(result).slice(0, limit);
   return rows.map((row: any) => String(row.style || row.tag || "показатель")).filter(Boolean);
-}
-
-function getBottomLabels(result: any, limit = 2) {
-  const rows = rowsFromResult(result);
-  if (rows.length <= limit) return [];
-  return rows.slice(-limit).map((row: any) => String(row.style || row.tag || "показатель")).filter(Boolean);
 }
 
 function extractSignal(result: any) {
@@ -187,121 +174,6 @@ function buildRelevantPremiumBlock(attempts: AttemptLike[], premiumByTest: Array
     })
     .filter(Boolean);
   return chunks.length ? chunks.join("\n\n---\n\n") : "Дополнительных интерпретаций по релевантным тестам пока нет.";
-}
-
-
-function buildAttemptSignalSummary(attempt: AttemptLike): AttemptSignalSummary {
-  return {
-    title: attempt.test_title || attempt.test_slug,
-    signal: Math.round(extractSignal(attempt.result)),
-    topLabels: getTopLabels(attempt.result, 2),
-    bottomLabels: getBottomLabels(attempt.result, 2),
-  };
-}
-
-function splitParagraphs(value: string | null | undefined) {
-  return cleanText(String(value || ""))
-    .split(/\n\n+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function buildCompetencyEvidence(args: {
-  relevantAttempts: AttemptLike[];
-  relevantSlugs: string[];
-  route: CompetencyRoute;
-}) {
-  const { relevantAttempts, relevantSlugs, route } = args;
-  const attemptSignals = relevantAttempts
-    .map(buildAttemptSignalSummary)
-    .sort((a, b) => {
-      if (b.signal !== a.signal) return b.signal - a.signal;
-      return a.title.localeCompare(b.title, "ru");
-    });
-
-  const strongest = attemptSignals.slice(0, 2);
-  const weakest = [...attemptSignals]
-    .sort((a, b) => {
-      if (a.signal !== b.signal) return a.signal - b.signal;
-      return a.title.localeCompare(b.title, "ru");
-    })
-    .slice(0, Math.min(2, attemptSignals.length));
-
-  const supportLabels = [...new Set(strongest.flatMap((item) => item.topLabels))].slice(0, 4);
-  const limitingLabels = [...new Set(weakest.flatMap((item) => item.bottomLabels.length ? item.bottomLabels : item.topLabels))]
-    .filter((label) => !supportLabels.includes(label))
-    .slice(0, 4);
-
-  const completedSlugSet = new Set(relevantAttempts.map((item) => item.test_slug));
-  const missingSlugs = relevantSlugs.filter((slug) => !completedSlugSet.has(slug));
-
-  const testsLine = attemptSignals.length
-    ? attemptSignals.map((item) => `${item.title} — ${item.signal}/100`).join('; ')
-    : 'нужные тесты для этой компетенции пока не завершены';
-
-  const supportLine = supportLabels.length
-    ? `${supportLabels.join(', ')}${strongest.length ? `; сильнее всего это видно через ${strongest.map((item) => `${item.title} (${item.signal}/100)`).join(', ')}` : ''}.`
-    : attemptSignals.length
-    ? `есть частичная опора по ${attemptSignals.slice(0, 2).map((item) => item.title).join(', ')}, но сигнал пока неустойчив.`
-    : 'устойчивой опоры пока нет — релевантные тесты ещё не закрыты.';
-
-  const constraintParts: string[] = [];
-  if (weakest.length) {
-    constraintParts.push(`слабее всего читаются ${weakest.map((item) => `${item.title} (${item.signal}/100)`).join(', ')}`);
-  }
-  if (limitingLabels.length) {
-    constraintParts.push(`по ограничивающим паттернам чаще всплывают ${limitingLabels.join(', ')}`);
-  }
-  if (missingSlugs.length) {
-    constraintParts.push(`не хватает покрытия по ${missingSlugs.join(', ')}`);
-  }
-  const constraintLine = constraintParts.length ? `${constraintParts.join('; ')}.` : 'критичных ограничений по доступным данным не видно.';
-
-  return {
-    attemptSignals,
-    strongest,
-    weakest,
-    supportLabels,
-    limitingLabels,
-    missingSlugs,
-    testsLine,
-    supportLine,
-    constraintLine,
-    routeReason: route.fitGate,
-  };
-}
-
-function buildFallbackCompetencyPreview(args: {
-  signal: CompetencySignal;
-  evidence: ReturnType<typeof buildCompetencyEvidence>;
-}) {
-  const { signal, evidence } = args;
-  return `Сигнал ${signal.score}/100. По текущим данным компетенция читается ${signal.status.toLowerCase()}: опора — ${evidence.supportLabels.length ? evidence.supportLabels.join(', ') : 'пока слабая'}, ограничения — ${evidence.limitingLabels.length ? evidence.limitingLabels.join(', ') : 'смешанные сигналы и/или неполное покрытие'}.`;
-}
-
-function buildCompetencyCardBody(args: {
-  signal: CompetencySignal;
-  route: CompetencyRoute;
-  relevantAttempts: AttemptLike[];
-  relevantSlugs: string[];
-  aiBody?: string | null;
-}) {
-  const { signal, route, relevantAttempts, relevantSlugs, aiBody } = args;
-  const evidence = buildCompetencyEvidence({ relevantAttempts, relevantSlugs, route });
-  const aiParts = splitParagraphs(aiBody);
-  const aiPreview = aiParts.shift() || '';
-  const preview = aiPreview ? `Сигнал ${signal.score}/100. ${aiPreview}` : buildFallbackCompetencyPreview({ signal, evidence });
-
-  const detailParts = [
-    `Какие тесты реально повлияли: ${evidence.testsLine}.`,
-    `Сигнал за: ${evidence.supportLine}`,
-    `Сигнал против: ${evidence.constraintLine}`,
-    `Почему такой балл: ${evidence.routeReason}`,
-    aiParts.length ? `Интерпретация по промту:
-${aiParts.join('\n\n')}` : signal.details,
-  ].filter(Boolean);
-
-  return [preview, ...detailParts].join('\n\n');
 }
 
 async function buildCompetencyAiDetail(args: {
@@ -407,12 +279,17 @@ async function buildCorrespondenceIndex(
   const requestBonus = fitRequest?.trim() ? 2 : 0;
   const score = Math.round(clamp(38, base + testsBonus + profileBonus + requestBonus - criticalPenalty - coveragePenalty, 97));
 
-  const requestedLabel = fitRequest?.trim() || project.target_role || goalLabel(project.goal);
+  const competencyFocusLabel = project.routing_meta?.mode === "competency" && project.routing_meta.competencyIds?.length
+    ? compactLine(project.routing_meta.selectionLabel) || getCompetencyShortLabel(project.routing_meta.competencyIds)
+    : "";
+  const requestedLabel = fitRequest?.trim() || project.target_role || competencyFocusLabel || goalLabel(project.goal);
   const title = fitRequest?.trim() ? "Индекс соответствия запросу" : "Индекс соответствия";
   const context = fitRequest?.trim()
     ? `Ориентир собран под запрос: ${fitRequest?.trim()}.`
     : project.target_role
     ? `Ориентир собран относительно роли «${project.target_role}».`
+    : competencyFocusLabel
+    ? `Ориентир собран относительно выбранных компетенций: ${competencyFocusLabel}.`
     : `Ориентир собран относительно фокуса оценки «${goalLabel(project.goal)}».`;
 
   const weightedCompetencies = getWeightedCompetencyLabels(matrix.weights);
@@ -637,15 +514,14 @@ function buildCompetencySignals(project: ProjectLike, attempts: AttemptLike[], e
     const coverageBoost = Math.min(6, relevantAttempts.length * 2);
     const score = Math.round(clamp(35, avgSignal + coverageBoost, 95));
     const statusInfo = describeStatus(score);
-    const evidence = buildCompetencyEvidence({ relevantAttempts, relevantSlugs, route });
+    const evidence = [...new Set(relevantAttempts.flatMap((item) => getTopLabels(item.result, 2)))].slice(0, 4);
     const profileLink = project.target_role?.trim() || project.current_position?.trim() || goalLabel(project.goal);
-    const short = `${statusInfo.tone}; за: ${evidence.supportLabels.length ? evidence.supportLabels.join(", ") : "опора пока слабая"}; против: ${evidence.limitingLabels.length ? evidence.limitingLabels.join(", ") : evidence.missingSlugs.length ? `неполное покрытие (${evidence.missingSlugs.join(", ")})` : "смешанные сигналы"}.`;
+    const short = `${statusInfo.tone}; опора: ${evidence.length ? evidence.join(", ") : "данные тестов"}.`;
     const details = [
       `${statusInfo.label}: ${score}/100.`,
-      `Какие тесты реально повлияли: ${evidence.testsLine}.`,
-      `Сигнал за: ${evidence.supportLine}`,
-      `Сигнал против: ${evidence.constraintLine}`,
-      `Почему такой балл для текущего ориентира (${profileLink}): ${route.fitGate}`,
+      `Компетенция читается через методики: ${relevantAttempts.map((item) => item.test_title || item.test_slug).join(", ") || "нет завершённых тестов из этого контура"}.`,
+      evidence.length ? `Повторяющиеся сигналы: ${evidence.join(", ")}.` : "Повторяющиеся сигналы пока слабые: часть нужных методик ещё не завершена или результаты неоднозначны.",
+      `Как читать для текущего запроса (${profileLink}): ${route.fitGate}`,
     ].join("\n\n");
 
     return {
@@ -779,13 +655,11 @@ ${item.details}` };
         });
         return {
           item,
-          body: buildCompetencyCardBody({
-            signal: item,
-            route,
-            relevantAttempts,
-            relevantSlugs,
-            aiBody: aiBody || item.details,
-          }),
+          body: aiBody ? `${item.status} — ${item.score}/100. ${item.short}
+
+${aiBody}` : `${item.status} — ${item.score}/100. ${item.short}
+
+${item.details}`,
         };
       })
     );

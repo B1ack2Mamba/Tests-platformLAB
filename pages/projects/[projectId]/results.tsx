@@ -72,31 +72,14 @@ function cleanSectionBody(body: string | null | undefined): string {
   return String(body || "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function isTrivialPreviewBlock(value: string): boolean {
-  const compact = value.replace(/\s+/g, " ").trim();
-  if (!compact) return true;
-  if (/^\d+[\)\].:-]*$/.test(compact)) return true;
-  if (/^(?:пункт|шаг|этап)\s*\d+[\)\].:-]*$/i.test(compact)) return true;
-  return compact.length <= 4;
-}
-
-function splitSectionBody(body: string | null | undefined, title?: string | null): { preview: string; details: string } {
+function splitSectionBody(body: string | null | undefined): { preview: string; details: string } {
   const cleaned = cleanSectionBody(body);
   if (!cleaned) return { preview: "", details: "" };
-  const normalizedTitle = String(title || "").trim().toLowerCase();
-  if (normalizedTitle === "короткий вывод") {
-    return { preview: cleaned, details: "" };
-  }
   const parts = cleaned.split(/\n\n+/).map((x) => x.trim()).filter(Boolean);
   if (parts.length <= 1) return { preview: cleaned, details: "" };
-  if (isTrivialPreviewBlock(parts[0]) && parts.length > 1) {
-    return {
-      preview: `${parts[0]} ${parts[1]}`.trim(),
-      details: parts.slice(2).join("\n\n"),
-    };
-  }
   return { preview: parts[0], details: parts.slice(1).join("\n\n") };
 }
+
 function inferSectionTone(title: string | null | undefined): SectionTone {
   const source = String(title || "").toLowerCase();
   if (/(сильн|ресурс|потенциал|достоин|преиму|опора|устойчив|готов)/.test(source)) return "positive";
@@ -230,9 +213,11 @@ export default function ProjectResultsStandalonePage() {
         url.searchParams.set("custom_request", opts.customRequest.trim());
       }
       if (mode === "premium_ai_plus") {
-        url.searchParams.set("fit_enabled", fitRequested ? "1" : "0");
-        if (fitRequested && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
-        if (fitRequested && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
+        const hasCompetencyAnchor = data?.project.routing_meta?.mode === "competency" && !!data.project.routing_meta?.competencyIds?.length;
+        const shouldEnableFit = fitRequested || hasCompetencyAnchor || !!data?.project.target_role?.trim() || !!fitProfileId || !!fitRequest.trim();
+        url.searchParams.set("fit_enabled", shouldEnableFit ? "1" : "0");
+        if (shouldEnableFit && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
+        if (shouldEnableFit && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
       }
       const resp = await fetch(url.toString(), {
         headers: { authorization: `Bearer ${session.access_token}` },
@@ -580,7 +565,7 @@ export default function ProjectResultsStandalonePage() {
                                 {primaryOverviewCards.map((section, index) => {
                                   const key = sectionKey(`${activeEvaluationMode}:overview`, index);
                                   const isOpen = openSections[key] ?? false;
-                                  const parts = splitSectionBody(section.body, section.title);
+                                  const parts = splitSectionBody(section.body);
                                   const tone = inferSectionTone(section.title);
                                   const toneClass = tone === "positive" ? "bg-[#f7fcf4] border-[#d8e7cf]" : tone === "warning" ? "bg-[#fffaf2] border-[#eddcc0]" : "bg-[#fffdf8] border-[#ead9bf]";
                                   return (
@@ -605,7 +590,7 @@ export default function ProjectResultsStandalonePage() {
                                   const actualIndex = index + primaryOverviewCards.length;
                                   const key = sectionKey(`${activeEvaluationMode}:overview`, actualIndex);
                                   const isOpen = openSections[key] ?? false;
-                                  const parts = splitSectionBody(section.body, section.title);
+                                  const parts = splitSectionBody(section.body);
                                   return (
                                     <div key={`${section.title}:${actualIndex}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
                                       <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
