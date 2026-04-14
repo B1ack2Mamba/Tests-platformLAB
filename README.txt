@@ -1,8 +1,2 @@
-Заменить файл в проекте:
-- pages/projects/[projectId]/results.tsx
-
-Что изменено:
-- индексы убраны из отдельных больших карточек и собраны в компактный левый столбик
-- в левом столбце оставлены только короткие ориентиры: Индексы, Фокус, Контекст
-- справа сохранён главный аналитический блок: Короткий вывод, Сильные стороны, Риски, Что особенно важно
-- кнопка «Уточнить цели» скроллит к блоку «Уточнение для AI+»
+Replace this file into your project at pages/projects/[projectId]/results.tsx
+Restores strengths/risks/recommendations layout and colors index cards by score.

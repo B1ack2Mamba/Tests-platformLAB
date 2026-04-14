@@ -65,7 +65,8 @@ type CompactIndexItem = {
   label: string;
   sublabel?: string;
   value: string;
-  tone: "green" | "sand" | "peach";
+  tone: "green" | "sand" | "red";
+  status?: string;
   body: string;
 };
 
@@ -95,12 +96,12 @@ function compactText(body: string | null | undefined, maxLength = 110): string {
   return source.slice(0, maxLength).trimEnd() + "…";
 }
 
-function getIndexTone(value: string): "green" | "sand" | "peach" {
+function getIndexTone(value: string): "green" | "sand" | "red" {
   const n = Number(value);
   if (!Number.isFinite(n)) return "sand";
   if (n >= 70) return "green";
   if (n >= 45) return "sand";
-  return "peach";
+  return "red";
 }
 
 function formatCollectedAt(value: string | null | undefined): string | null {
@@ -436,11 +437,14 @@ export default function ProjectResultsStandalonePage() {
       else if (/будущ|целева|предполагаем/.test(title)) label = "Будущая роль";
       else if (/компет/.test(title)) label = "Компетенция";
       else if (/цел/.test(title)) label = "Цель";
+      const tone = getIndexTone(value);
+      const status = tone === "green" ? "сильное соответствие" : tone === "sand" ? "умеренное соответствие" : "зона риска";
       return {
         label,
-        sublabel: compactText(item.body, 54),
+        sublabel: compactText(item.body, 48),
         value,
-        tone: getIndexTone(value),
+        tone,
+        status,
         body: item.body,
       };
     });
@@ -637,12 +641,15 @@ export default function ProjectResultsStandalonePage() {
                                     <div className="text-sm font-semibold uppercase tracking-[0.14em] text-[#7c8f73]">Индексы</div>
                                     <div className="mt-3 space-y-3">
                                       {compactIndexes.map((item, idx) => (
-                                        <div key={`${item.label}:${idx}`} className="flex items-center gap-3">
-                                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#c6dbb9] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#f4e3c4] text-[#6d5330]" : "border-[#ebcdb7] bg-[#f3d9bf] text-[#7b4c35]"}`}>{item.value}</div>
-                                          <div className="min-w-0">
-                                            <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
-                                            {item.sublabel ? <div className="mt-0.5 text-xs leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
+                                        <div key={`${item.label}:${idx}`} className={`rounded-[18px] border px-3 py-3 ${item.tone === "green" ? "border-[#c6dbb9] bg-[#eef6e8]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#fbf3df]" : "border-[#e6c0b4] bg-[#fbe9e4]"}`}>
+                                          <div className="flex items-center gap-3">
+                                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#b8d1aa] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e1c99d] bg-[#f4e3c4] text-[#6d5330]" : "border-[#dfb1a4] bg-[#f1cdc2] text-[#7b3f34]"}`}>{item.value}</div>
+                                            <div className="min-w-0">
+                                              <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
+                                              {item.status ? <div className={`mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] ${item.tone === "green" ? "text-[#57734d]" : item.tone === "sand" ? "text-[#8a6b37]" : "text-[#a15b50]"}`}>{item.status}</div> : null}
+                                            </div>
                                           </div>
+                                          {item.sublabel ? <div className="mt-2 pl-[56px] text-[12px] leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
                                         </div>
                                       ))}
                                     </div>
