@@ -61,6 +61,8 @@ type EvaluationPayload = {
 
 type SectionTone = "positive" | "warning" | "neutral";
 
+type OverviewSectionBucket = "summary" | "index" | "focus" | "context" | "detail";
+
 function formatCollectedAt(value: string | null | undefined): string | null {
   if (!value) return null;
   const d = new Date(value);
@@ -85,6 +87,40 @@ function inferSectionTone(title: string | null | undefined): SectionTone {
   if (/(сильн|ресурс|потенциал|достоин|преиму|опора|устойчив|готов)/.test(source)) return "positive";
   if (/(риск|огранич|напряж|конфликт|слаб|дефицит|уязвим|предупреж|внимани)/.test(source)) return "warning";
   return "neutral";
+}
+
+function getOverviewSectionBucket(title: string | null | undefined): OverviewSectionBucket {
+  const source = String(title || "").toLowerCase();
+  if (/(коротк.*вывод|общий вывод|итогов.*вывод|резюме)/.test(source)) return "summary";
+  if (/(индекс.*соответ|соответствие.*должност|текущ.*должност|будущ.*должност)/.test(source)) return "index";
+  if (/фокус анализа/.test(source)) return "focus";
+  if (/контекст профиля/.test(source)) return "context";
+  return "detail";
+}
+
+function getOverviewSectionOrder(section: { title: string }): number {
+  const bucket = getOverviewSectionBucket(section.title);
+  if (bucket === "index") {
+    const source = String(section.title || "").toLowerCase();
+    if (/(цели|компетенц)/.test(source)) return 10;
+    if (/текущ/.test(source)) return 11;
+    if (/(будущ|целев|предполагаем)/.test(source)) return 12;
+    return 13;
+  }
+  if (bucket === "focus") return 20;
+  if (bucket === "context") return 21;
+  return 40;
+}
+
+function getOverviewSectionCardClass(section: { title: string }): string {
+  const tone = inferSectionTone(section.title);
+  const bucket = getOverviewSectionBucket(section.title);
+  if (bucket === "index") return "border-[#d8e7cf] bg-[#f7fcf4]";
+  if (bucket === "focus") return "border-[#ead9bf] bg-[#fffaf2]";
+  if (bucket === "context") return "border-[#ead9bf] bg-[#fffdf8]";
+  if (tone === "positive") return "border-[#d8e7cf] bg-[#f7fcf4]";
+  if (tone === "warning") return "border-[#eddcc0] bg-[#fffaf2]";
+  return "border-[#ead9bf] bg-[#fffdf8]";
 }
 
 function sectionKey(scope: string | null | undefined, index: number): string {
@@ -371,8 +407,16 @@ export default function ProjectResultsStandalonePage() {
   }
 
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
-  const primaryOverviewCards = overviewSections.slice(0, 3);
-  const secondaryOverviewCards = overviewSections.slice(3);
+  const summarySection = overviewSections.find((section) => getOverviewSectionBucket(section.title) === "summary") || null;
+  const supportOverviewCards = overviewSections
+    .map((section, index) => ({ section, index }))
+    .filter(({ section }) => section !== summarySection)
+    .filter(({ section }) => getOverviewSectionBucket(section.title) !== "detail")
+    .sort((a, b) => getOverviewSectionOrder(a.section) - getOverviewSectionOrder(b.section));
+  const detailOverviewCards = overviewSections
+    .map((section, index) => ({ section, index }))
+    .filter(({ section }) => section !== summarySection)
+    .filter(({ section }) => getOverviewSectionBucket(section.title) === "detail");
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
 
   return (
@@ -553,40 +597,66 @@ export default function ProjectResultsStandalonePage() {
                         ) : activeSections.length ? (
                           <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
                             <div className="font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
-                            {primaryOverviewCards.length ? (
-                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length >= 3 ? "lg:grid-cols-3" : primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
-                                {primaryOverviewCards.map((section, index) => {
-                                  const key = sectionKey(`${activeEvaluationMode}:overview`, index);
-                                  const isOpen = openSections[key] ?? false;
-                                  const parts = splitSectionBody(section.body);
-                                  const tone = inferSectionTone(section.title);
-                                  const toneClass = tone === "positive" ? "bg-[#f7fcf4] border-[#d8e7cf]" : tone === "warning" ? "bg-[#fffaf2] border-[#eddcc0]" : "bg-[#fffdf8] border-[#ead9bf]";
+                            {(summarySection || supportOverviewCards.length) ? (
+                              <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.28fr)] xl:items-start">
+                                <div className="grid gap-4">
+                                  {supportOverviewCards.map(({ section, index }) => {
+                                    const key = sectionKey(`${activeEvaluationMode}:overview`, index);
+                                    const isOpen = openSections[key] ?? false;
+                                    const parts = splitSectionBody(section.body);
+                                    return (
+                                      <div key={`${section.title}:${index}`} className={`rounded-[22px] border p-5 shadow-[0_8px_20px_rgba(93,71,39,0.03)] ${getOverviewSectionCardClass(section)}`}>
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="font-serif text-[1.18rem] leading-tight text-[#4d3b24]">{section.title}</div>
+                                          {getOverviewSectionBucket(section.title) === "index" ? <span className="rounded-full border border-[#d8e7cf] bg-white/75 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5d7b59]">Индекс</span> : null}
+                                        </div>
+                                        <div className="mt-3 whitespace-pre-line text-[0.98rem] leading-7 text-[#6f5a42]">{parts.preview}</div>
+                                        {parts.details ? (
+                                          <button type="button" className="mt-3 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                            {isOpen ? "Скрыть детали" : "Подробнее"}
+                                          </button>
+                                        ) : null}
+                                        {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {summarySection ? (() => {
+                                  const summaryIndex = overviewSections.findIndex((section) => section === summarySection);
+                                  const key = sectionKey(`${activeEvaluationMode}:overview`, summaryIndex);
+                                  const isOpen = openSections[key] ?? true;
+                                  const parts = splitSectionBody(summarySection.body);
                                   return (
-                                    <div key={`${section.title}:${index}`} className={`rounded-[24px] border p-5 ${toneClass}`}>
-                                      <div className="font-serif text-[1.3rem] text-[#4d3b24]">{section.title}</div>
-                                      <div className="mt-4 whitespace-pre-line text-[1.02rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                    <div className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-6 shadow-[0_10px_24px_rgba(93,71,39,0.04)]">
+                                      <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a8362]">Главное</div>
+                                          <div className="mt-2 font-serif text-[1.5rem] leading-tight text-[#4d3b24]">{summarySection.title}</div>
+                                        </div>
+                                      </div>
+                                      <div className="mt-5 whitespace-pre-line text-[1.03rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
                                       {parts.details ? (
                                         <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
                                           {isOpen ? "Скрыть детали" : "Подробнее"}
                                         </button>
                                       ) : null}
-                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                      {parts.details && isOpen ? <div className="mt-4 border-t border-[#ead9bf] pt-4 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
                                     </div>
                                   );
-                                })}
+                                })() : null}
                               </div>
                             ) : null}
 
-                            {secondaryOverviewCards.length ? (
+                            {detailOverviewCards.length ? (
                               <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                                {secondaryOverviewCards.map((section, index) => {
-                                  const actualIndex = index + primaryOverviewCards.length;
-                                  const key = sectionKey(`${activeEvaluationMode}:overview`, actualIndex);
+                                {detailOverviewCards.map(({ section, index }) => {
+                                  const key = sectionKey(`${activeEvaluationMode}:overview`, index);
                                   const isOpen = openSections[key] ?? false;
                                   const parts = splitSectionBody(section.body);
                                   return (
-                                    <div key={`${section.title}:${actualIndex}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
-                                      <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
+                                    <div key={`${section.title}:${index}`} className={`rounded-[24px] border p-5 ${getOverviewSectionCardClass(section)}`}>
+                                      <div className="font-serif text-[1.22rem] text-[#4d3b24]">{section.title}</div>
                                       <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
                                       {parts.details ? (
                                         <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
