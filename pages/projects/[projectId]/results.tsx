@@ -395,10 +395,10 @@ export default function ProjectResultsStandalonePage() {
 
   const activeSections = useMemo(() => {
     const sections = activeEvaluationMode ? evaluationByMode[activeEvaluationMode]?.evaluation?.sections || [] : [];
-    return sections.filter((item) => item && typeof item === "object" && String(item.body || "").trim());
+    return sections.filter((item) => item.body?.trim());
   }, [activeEvaluationMode, evaluationByMode]);
-  const overviewSections = useMemo(() => activeSections.filter((item) => item && item.kind !== "test"), [activeSections]);
-  const testSections = useMemo(() => activeSections.filter((item) => item && item.kind === "test"), [activeSections]);
+  const overviewSections = useMemo(() => activeSections.filter((item) => item.kind !== "test"), [activeSections]);
+  const testSections = useMemo(() => activeSections.filter((item) => item.kind === "test"), [activeSections]);
 
 
 
@@ -439,10 +439,8 @@ export default function ProjectResultsStandalonePage() {
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
 
-  const analysisLayout = useMemo(() => {
-    const items = overviewSections
-      .filter((section) => section && typeof section === "object")
-      .map((section, index) => ({ section, index, normalizedTitle: normalizeSectionTitle(section.title) }));
+  const analysisLayout = (() => {
+    const items = overviewSections.map((section, index) => ({ section, index, normalizedTitle: normalizeSectionTitle(section.title) }));
     const used = new Set<number>();
     const takeOne = (predicate: (title: string) => boolean) => {
       const found = items.find((item) => !used.has(item.index) && predicate(item.normalizedTitle));
@@ -451,16 +449,15 @@ export default function ProjectResultsStandalonePage() {
       return found.section;
     };
 
-    const seenIndexTitles = new Set<string>();
+    const uniqueIndexTitles = new Set<string>();
     const indexSections = items
       .filter((item) => /индекс соответств/.test(item.normalizedTitle))
-      .map((item) => item.section)
-      .filter((section) => {
-        const key = `${String(section?.title || "")}::${cleanSectionBody(section?.body)}`;
-        if (seenIndexTitles.has(key)) return false;
-        seenIndexTitles.add(key);
+      .filter((item) => {
+        if (uniqueIndexTitles.has(item.normalizedTitle)) return false;
+        uniqueIndexTitles.add(item.normalizedTitle);
         return true;
-      });
+      })
+      .map((item) => item.section);
     indexSections.forEach((section) => {
       const found = items.find((item) => item.section === section);
       if (found) used.add(found.index);
@@ -491,7 +488,7 @@ export default function ProjectResultsStandalonePage() {
       summaryParts,
       remainingSections,
     };
-  }, [overviewSections]);
+  })();
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
