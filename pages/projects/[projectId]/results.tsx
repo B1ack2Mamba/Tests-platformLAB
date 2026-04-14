@@ -123,7 +123,7 @@ function getPackageButtonLabel(
   if (isPackageAccessible(unlockedMode, mode)) return "Открыть";
   if (isUnlimited) return "Открыть без лимита";
   if (projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0) return "Открыть по тарифу";
-  const price = getUpgradePriceRub(mode, unlockedMode);
+  const price = getUpgradePriceRub(unlockedMode, mode);
   return price > 0 ? `Открыть за ${price} ₽` : "Открыть";
 }
 type SubscriptionStatusResp = {
@@ -213,11 +213,9 @@ export default function ProjectResultsStandalonePage() {
         url.searchParams.set("custom_request", opts.customRequest.trim());
       }
       if (mode === "premium_ai_plus") {
-        const hasCompetencyAnchor = data?.project.routing_meta?.mode === "competency" && !!data.project.routing_meta?.competencyIds?.length;
-        const shouldEnableFit = fitRequested || hasCompetencyAnchor || !!data?.project.target_role?.trim() || !!fitProfileId || !!fitRequest.trim();
-        url.searchParams.set("fit_enabled", shouldEnableFit ? "1" : "0");
-        if (shouldEnableFit && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
-        if (shouldEnableFit && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
+        url.searchParams.set("fit_enabled", fitRequested ? "1" : "0");
+        if (fitRequested && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
+        if (fitRequested && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
       }
       const resp = await fetch(url.toString(), {
         headers: { authorization: `Bearer ${session.access_token}` },

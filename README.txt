@@ -1,15 +1,9 @@
-Исправление возврата индекса соответствия для Premium AI+
+Точечная правка: восстановлены суммы на кнопках открытия пакетов результатов.
 
-Что изменено:
-1. pages/projects/[projectId]/results.tsx
-   - fit_enabled теперь включается автоматически, если у проекта есть конкретный ориентир:
-     * выбранные компетенции
-     * target_role
-     * fit profile
-     * fit request
+Причина бага:
+в pages/projects/[projectId]/results.tsx аргументы в getUpgradePriceRub(...) были переданы в обратном порядке.
+Из-за этого цена апгрейда считалась как 0, и на кнопках показывалось просто «Открыть» вместо «Открыть за N ₽».
 
-2. lib/commercialEvaluation.ts
-   - текст индекса теперь объясняет, что он считается по выбранным компетенциям,
-     если анализ запущен в competency-режиме без target_role.
-
-Замените файлы вручную или примените patch.
+Что заменено:
+было: getUpgradePriceRub(mode, unlockedMode)
+стало: getUpgradePriceRub(unlockedMode, mode)
