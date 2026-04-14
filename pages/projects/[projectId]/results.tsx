@@ -61,6 +61,48 @@ type EvaluationPayload = {
 
 type SectionTone = "positive" | "warning" | "neutral";
 
+type CompactIndexItem = {
+  label: string;
+  sublabel?: string;
+  value: string;
+  tone: "green" | "sand" | "peach";
+  body: string;
+};
+
+function normalizeTitle(title: string | null | undefined): string {
+  return String(title || "").toLowerCase().replace(/ё/g, "е").trim();
+}
+
+function parseIndexValue(text: string | null | undefined): string {
+  const source = cleanSectionBody(text);
+  const m = source.match(/(\d{1,3})\s*\/\s*100/);
+  return m ? m[1] : "—";
+}
+
+function parseCompactList(body: string | null | undefined): string[] {
+  const source = cleanSectionBody(body);
+  if (!source) return [];
+  return source
+    .split(/\n+/)
+    .map((line) => line.replace(/^[-•*\u2022\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+function compactText(body: string | null | undefined, maxLength = 110): string {
+  const source = cleanSectionBody(body).replace(/\s+/g, " ").trim();
+  if (!source) return "";
+  if (source.length <= maxLength) return source;
+  return source.slice(0, maxLength).trimEnd() + "…";
+}
+
+function getIndexTone(value: string): "green" | "sand" | "peach" {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "sand";
+  if (n >= 70) return "green";
+  if (n >= 45) return "sand";
+  return "peach";
+}
+
 function formatCollectedAt(value: string | null | undefined): string | null {
   if (!value) return null;
   const d = new Date(value);
@@ -89,238 +131,6 @@ function inferSectionTone(title: string | null | undefined): SectionTone {
 
 function sectionKey(scope: string | null | undefined, index: number): string {
   return `${scope || "section"}:${index}`;
-}
-
-
-type EvaluationSectionItem = NonNullable<EvaluationPayload["evaluation"]>["sections"][number];
-
-type MatchIndexItem = {
-  value: string;
-  label: string;
-  tone: "green" | "sand" | "peach";
-};
-
-type ParsedSummaryBuckets = {
-  summary: string;
-  strengths: string[];
-  risks: string[];
-  important: string;
-};
-
-type AnalysisLayoutData = {
-  indexItems: MatchIndexItem[];
-  focusSection: EvaluationSectionItem | null;
-  contextSection: EvaluationSectionItem | null;
-  summaryText: string;
-  strengths: string[];
-  risks: string[];
-  importantText: string;
-  extraSections: EvaluationSectionItem[];
-};
-
-function normalizeLine(value: string | null | undefined): string {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function stripListPrefix(value: string): string {
-  return value.replace(/^\s*(?:[•●▪◦*\-–—]+|\d+[\)\.\-:]?)\s*/u, "").trim();
-}
-
-function dedupeTextList(values: string[]): string[] {
-  const seen = new Set<string>();
-  const output: string[] = [];
-  for (const raw of values) {
-    const cleaned = normalizeLine(stripListPrefix(raw));
-    if (!cleaned) continue;
-    const key = cleaned.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    output.push(cleaned);
-  }
-  return output;
-}
-
-function parseBulletLines(body: string | null | undefined): string[] {
-  return dedupeTextList(
-    cleanSectionBody(body)
-      .split(/\n+/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-  );
-}
-
-function detectSummaryBucket(value: string): keyof ParsedSummaryBuckets | null {
-  const normalized = stripListPrefix(value).toLowerCase();
-  if (/^(общий|итоговый|короткий)\s+вывод/.test(normalized) || normalized === "вывод") return "summary";
-  if (/^(сильные стороны|сильные сигналы|ресурсы|опоры)/.test(normalized)) return "strengths";
-  if (/^(риски|риски и ограничения|ограничения|слабые стороны)/.test(normalized)) return "risks";
-  if (/^(что особенно важно|что важно|особенно важно|что учитывать|рекомендации|что особенно важно с уч[её]том профиля)/.test(normalized)) return "important";
-  return null;
-}
-
-function stripBucketHeading(value: string): string {
-  let cleaned = value.trim().replace(/^\s*\d+[\)\.\-:]?\s*/, "");
-  cleaned = cleaned
-    .replace(/^(общий|итоговый|короткий)\s+вывод\s*[:\-–—]?\s*/i, "")
-    .replace(/^(сильные стороны|сильные сигналы|ресурсы|опоры)\s*[:\-–—]?\s*/i, "")
-    .replace(/^(риски|риски и ограничения|ограничения|слабые стороны)\s*[:\-–—]?\s*/i, "")
-    .replace(/^(что особенно важно|что важно|особенно важно|что учитывать|рекомендации|что особенно важно с уч[её]том профиля)\s*[:\-–—]?\s*/i, "");
-  return cleaned.trim();
-}
-
-function parseStructuredSummary(body: string | null | undefined): ParsedSummaryBuckets {
-  const buckets: Record<keyof ParsedSummaryBuckets, string[]> = {
-    summary: [],
-    strengths: [],
-    risks: [],
-    important: [],
-  };
-  const lines = cleanSectionBody(body)
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  let current: keyof ParsedSummaryBuckets = "summary";
-
-  for (const line of lines) {
-    const bucket = detectSummaryBucket(line);
-    if (bucket) {
-      current = bucket;
-      const remainder = stripBucketHeading(line);
-      if (remainder) buckets[current].push(remainder);
-      continue;
-    }
-    buckets[current].push(line);
-  }
-
-  return {
-    summary: normalizeLine(buckets.summary.join(" ")),
-    strengths: dedupeTextList(buckets.strengths),
-    risks: dedupeTextList(buckets.risks),
-    important: normalizeLine(buckets.important.join(" ")),
-  };
-}
-
-function isIndexSectionTitle(title: string | null | undefined): boolean {
-  return /индекс соответствия/i.test(String(title || ""));
-}
-
-function isFocusSectionTitle(title: string | null | undefined): boolean {
-  return /фокус анализа/i.test(String(title || ""));
-}
-
-function isContextSectionTitle(title: string | null | undefined): boolean {
-  return /контекст профиля/i.test(String(title || ""));
-}
-
-function isSummarySectionTitle(title: string | null | undefined): boolean {
-  return /короткий вывод/i.test(String(title || ""));
-}
-
-function isStrengthSectionTitle(title: string | null | undefined): boolean {
-  return /(сильные стороны|сильные сигналы|ресурсы|опоры)/i.test(String(title || ""));
-}
-
-function isRiskSectionTitle(title: string | null | undefined): boolean {
-  return /(риски|ограничения|слабые стороны)/i.test(String(title || ""));
-}
-
-function isImportantSectionTitle(title: string | null | undefined): boolean {
-  return /(что особенно важно|что учитывать|рекомендации|уч[её]том профиля)/i.test(String(title || ""));
-}
-
-function buildIndexLabel(section: EvaluationSectionItem, fallbackIndex: number): string {
-  const body = cleanSectionBody(section.body);
-  const orientMatch = body.match(/Ориентир:\s*([^\n.]+)/i);
-  if (orientMatch?.[1]) {
-    return `по ${orientMatch[1].trim().replace(/^[А-ЯЁ]/, (ch) => ch.toLowerCase())}`;
-  }
-  const scoreStripped = body
-    .replace(/^[^:]+:\s*\d{1,3}\s*\/\s*100\.?\s*/i, "")
-    .replace(/\b\d{1,3}\s*\/\s*100\b/g, "")
-    .replace(/Ориентир:\s*[^\n.]+\.?/gi, "")
-    .replace(/Индекс соответствия:?/gi, "")
-    .trim();
-  const firstSentence = scoreStripped.split(/\.\s+/)[0]?.trim();
-  if (firstSentence) return firstSentence;
-  if (fallbackIndex === 0) return "по выбранной цели";
-  if (fallbackIndex === 1) return "по текущей должности";
-  return "по будущей предполагаемой должности";
-}
-
-function buildAnalysisLayout(sections: EvaluationSectionItem[]): AnalysisLayoutData {
-  const usedIndexes = new Set<number>();
-
-  const findSection = (predicate: (section: EvaluationSectionItem) => boolean): { section: EvaluationSectionItem; index: number } | null => {
-    const index = sections.findIndex((section) => predicate(section));
-    return index >= 0 ? { section: sections[index], index } : null;
-  };
-
-  const indexItems: MatchIndexItem[] = [];
-  const seenIndexKeys = new Set<string>();
-  sections.forEach((section, index) => {
-    if (!isIndexSectionTitle(section.title)) return;
-    usedIndexes.add(index);
-    const valueMatch = cleanSectionBody(section.body).match(/(\d{1,3})\s*\/\s*100/);
-    const value = valueMatch?.[1] || "—";
-    const label = buildIndexLabel(section, indexItems.length);
-    const key = `${value}|${label.toLowerCase()}`;
-    if (seenIndexKeys.has(key)) return;
-    seenIndexKeys.add(key);
-    indexItems.push({
-      value,
-      label,
-      tone: indexItems.length === 0 ? "green" : indexItems.length === 1 ? "sand" : "peach",
-    });
-  });
-
-  const focusMatch = findSection((section) => isFocusSectionTitle(section.title));
-  if (focusMatch) usedIndexes.add(focusMatch.index);
-
-  const contextMatch = findSection((section) => isContextSectionTitle(section.title));
-  if (contextMatch) usedIndexes.add(contextMatch.index);
-
-  const summaryMatch = findSection((section) => isSummarySectionTitle(section.title));
-  if (summaryMatch) usedIndexes.add(summaryMatch.index);
-
-  const strengthMatch = findSection((section) => isStrengthSectionTitle(section.title));
-  if (strengthMatch) usedIndexes.add(strengthMatch.index);
-
-  const riskMatch = findSection((section) => isRiskSectionTitle(section.title));
-  if (riskMatch) usedIndexes.add(riskMatch.index);
-
-  const importantMatch = findSection((section) => isImportantSectionTitle(section.title));
-  if (importantMatch) usedIndexes.add(importantMatch.index);
-
-  const parsedSummary = parseStructuredSummary(summaryMatch?.section.body || "");
-  const summaryParts = summaryMatch ? splitSectionBody(summaryMatch.section.body) : { preview: "", details: "" };
-
-  const strengths = dedupeTextList([
-    ...parsedSummary.strengths,
-    ...(strengthMatch ? parseBulletLines(strengthMatch.section.body) : []),
-  ]).slice(0, 6);
-
-  const risks = dedupeTextList([
-    ...parsedSummary.risks,
-    ...(riskMatch ? parseBulletLines(riskMatch.section.body) : []),
-  ]).slice(0, 6);
-
-  const importantText = normalizeLine(
-    importantMatch ? cleanSectionBody(importantMatch.section.body) : parsedSummary.important
-  );
-
-  const extraSections = sections.filter((_, index) => !usedIndexes.has(index));
-
-  return {
-    indexItems,
-    focusSection: focusMatch?.section || null,
-    contextSection: contextMatch?.section || null,
-    summaryText: parsedSummary.summary || summaryParts.preview,
-    strengths,
-    risks,
-    importantText,
-    extraSections,
-  };
 }
 
 function getThinkingMessages(mode: EvaluationPackage | null): string[] {
@@ -355,7 +165,7 @@ function getPackageButtonLabel(
   if (isPackageAccessible(unlockedMode, mode)) return "Открыть";
   if (isUnlimited) return "Открыть без лимита";
   if (projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0) return "Открыть по тарифу";
-  const price = getUpgradePriceRub(unlockedMode, mode);
+  const price = getUpgradePriceRub(mode, unlockedMode);
   return price > 0 ? `Открыть за ${price} ₽` : "Открыть";
 }
 type SubscriptionStatusResp = {
@@ -607,7 +417,35 @@ export default function ProjectResultsStandalonePage() {
   const primaryOverviewCards = overviewCards.slice(0, 2);
   const secondaryOverviewCards = overviewCards.slice(2);
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
-  const analysisLayout = buildAnalysisLayout(overviewSections);
+
+  const summarySection = overviewSections.find((item) => /коротк|итогов|общий вывод/.test(normalizeTitle(item.title))) || null;
+  const strengthsSection = overviewSections.find((item) => /сильн|ресурс|преимущ|опора/.test(normalizeTitle(item.title))) || null;
+  const risksSection = overviewSections.find((item) => /риск|огранич|уязвим|зона риска/.test(normalizeTitle(item.title))) || null;
+  const focusSection = overviewSections.find((item) => /фокус/.test(normalizeTitle(item.title))) || null;
+  const contextSection = overviewSections.find((item) => /контекст/.test(normalizeTitle(item.title))) || null;
+  const importantSection = overviewSections.find((item) => /важно|учетом профиля|учётом профиля|рекомендац/.test(normalizeTitle(item.title))) || null;
+
+  const compactIndexes: CompactIndexItem[] = overviewSections
+    .filter((item) => /индекс/.test(normalizeTitle(item.title)))
+    .slice(0, 3)
+    .map((item) => {
+      const title = normalizeTitle(item.title);
+      const value = parseIndexValue(item.body);
+      let label = item.title;
+      if (/текущ/.test(title)) label = "Текущая роль";
+      else if (/будущ|целева|предполагаем/.test(title)) label = "Будущая роль";
+      else if (/компет/.test(title)) label = "Компетенция";
+      else if (/цел/.test(title)) label = "Цель";
+      return {
+        label,
+        sublabel: compactText(item.body, 54),
+        value,
+        tone: getIndexTone(value),
+        body: item.body,
+      };
+    });
+
+  const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, risksSection, focusSection, contextSection, importantSection, ...compactIndexes.map((x) => overviewSections.find((s) => s.body === x.body && s.title !== undefined) as any)].includes(item as any));
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
@@ -681,11 +519,14 @@ export default function ProjectResultsStandalonePage() {
                             
                           </div>
                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
-                          {item.bullets?.length ? (
+                          {item.bullets?.length || isAiPlus ? (
                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
-                              {item.bullets?.slice(0, isAiPlus ? 3 : 2).map((bullet) => (
+                              {item.bullets?.slice(0, 2).map((bullet) => (
                                 <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
                               ))}
+                              {isAiPlus ? (
+                                <li className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>индекс соответствия по выбранной цели</span></li>
+                              ) : null}
                             </ul>
                           ) : null}
                           <div className="mt-auto pt-6">
@@ -757,7 +598,7 @@ export default function ProjectResultsStandalonePage() {
                     </div>
 
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
-                      <div id="ai-refine-section" className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4 transition-all duration-300 data-[flash=true]:ring-2 data-[flash=true]:ring-[#b9cfab] data-[flash=true]:ring-offset-2 data-[flash=true]:ring-offset-[#fcf7ef]">
+                      <div id="ai-refine-section" className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
                         <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
                         <div className="mt-3 grid gap-3">
@@ -773,19 +614,8 @@ export default function ProjectResultsStandalonePage() {
                       <div className="mt-4 flex justify-end">
                         <button
                           type="button"
-                          onClick={() => {
-                            setShowAiPlusPrompt(true);
-                            window.setTimeout(() => {
-                              const target = document.getElementById("ai-refine-section");
-                              if (!target) return;
-                              target.dataset.flash = "true";
-                              target.scrollIntoView({ behavior: "smooth", block: "start" });
-                              window.setTimeout(() => {
-                                delete target.dataset.flash;
-                              }, 1600);
-                            }, 60);
-                          }}
-                          className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] transition hover:-translate-y-[1px] hover:bg-[#fff4e6]"
+                          onClick={() => setShowAiPlusPrompt(true)}
+                          className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
                         >
                           Уточнить AI+
                         </button>
@@ -797,234 +627,143 @@ export default function ProjectResultsStandalonePage() {
                         {evaluationLoading[activeEvaluationMode] ? (
                           <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
                         ) : activeSections.length ? (
-                          <div className="rounded-[30px] border border-[#e2d1b6] bg-white/74 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
-                            <div className="font-serif text-[2rem] leading-tight text-[#4d3b24] sm:text-[2.2rem]">Итоговый аналитический вывод</div>
-                            <div className="mt-6 border-t border-[#ead9bf] pt-6">
-                              <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-                                <aside className="space-y-5">
-                                  {analysisLayout.indexItems.length ? (
-                                    <div className="rounded-[26px] border border-[#d9e4d1] bg-[linear-gradient(180deg,#fbfdf8_0%,#f4f8ef_100%)] p-5 shadow-[0_8px_18px_rgba(93,71,39,0.03)]">
-                                      <div className="font-serif text-[1.55rem] leading-tight text-[#4d3b24]">Индексы соответствия</div>
-                                      <div className="mt-5 space-y-4">
-                                        {analysisLayout.indexItems.map((item, index) => (
-                                          <div key={`${item.value}:${item.label}:${index}`} className="grid grid-cols-[52px_minmax(0,1fr)] items-center gap-3">
-                                            <div
-                                              className={`grid h-[52px] w-[52px] place-items-center rounded-full border text-[1.45rem] font-medium leading-none text-[#5b4321] ${
-                                                item.tone === "green"
-                                                  ? "border-[#bfd3b3] bg-[#dcead7]"
-                                                  : item.tone === "sand"
-                                                    ? "border-[#e7d2b3] bg-[#f4e3c4]"
-                                                    : "border-[#ebd0bc] bg-[#f3d9bf]"
-                                              }`}
-                                            >
-                                              {item.value}
-                                            </div>
-                                            <div className="text-[1rem] leading-6 text-[#6f5a42]">{item.label}</div>
+                          <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
+                            <div className="border-b border-[#ead9bf] pb-4 font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
+
+                            <div className="mt-5 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+                              <aside className="space-y-4">
+                                {compactIndexes.length ? (
+                                  <div className="rounded-[24px] border border-[#dce8d3] bg-[#f7fbf3] p-4">
+                                    <div className="text-sm font-semibold uppercase tracking-[0.14em] text-[#7c8f73]">Индексы</div>
+                                    <div className="mt-3 space-y-3">
+                                      {compactIndexes.map((item, idx) => (
+                                        <div key={`${item.label}:${idx}`} className="flex items-center gap-3">
+                                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#c6dbb9] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#f4e3c4] text-[#6d5330]" : "border-[#ebcdb7] bg-[#f3d9bf] text-[#7b4c35]"}`}>{item.value}</div>
+                                          <div className="min-w-0">
+                                            <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
+                                            {item.sublabel ? <div className="mt-0.5 text-xs leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
                                           </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : null}
-
-                                  {analysisLayout.focusSection ? (() => {
-                                    const focusKey = sectionKey(`${activeEvaluationMode}:analysis-focus`, 0);
-                                    const focusOpen = openSections[focusKey] ?? false;
-                                    const focusParts = splitSectionBody(analysisLayout.focusSection.body);
-                                    return (
-                                      <div className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5 shadow-[0_8px_18px_rgba(93,71,39,0.03)]">
-                                        <div className="font-serif text-[1.42rem] leading-tight text-[#4d3b24]">Фокус анализа</div>
-                                        <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{focusParts.preview}</div>
-                                        {focusParts.details ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              className="mt-4 text-sm font-medium text-[#8b6b3c]"
-                                              onClick={() => setOpenSections((prev) => ({ ...prev, [focusKey]: !focusOpen }))}
-                                            >
-                                              {focusOpen ? "Скрыть детали" : "Подробнее"}
-                                            </button>
-                                            {focusOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{focusParts.details}</div> : null}
-                                          </>
-                                        ) : null}
-                                      </div>
-                                    );
-                                  })() : null}
-
-                                  {analysisLayout.contextSection ? (() => {
-                                    const contextKey = sectionKey(`${activeEvaluationMode}:analysis-context`, 0);
-                                    const contextOpen = openSections[contextKey] ?? false;
-                                    const contextParts = splitSectionBody(analysisLayout.contextSection.body);
-                                    return (
-                                      <div className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5 shadow-[0_8px_18px_rgba(93,71,39,0.03)]">
-                                        <div className="font-serif text-[1.42rem] leading-tight text-[#4d3b24]">Контекст профиля</div>
-                                        <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{contextParts.preview}</div>
-                                        {contextParts.details ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              className="mt-4 text-sm font-medium text-[#8b6b3c]"
-                                              onClick={() => setOpenSections((prev) => ({ ...prev, [contextKey]: !contextOpen }))}
-                                            >
-                                              {contextOpen ? "Скрыть детали" : "Подробнее"}
-                                            </button>
-                                            {contextOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{contextParts.details}</div> : null}
-                                          </>
-                                        ) : null}
-                                      </div>
-                                    );
-                                  })() : null}
-                                </aside>
-
-                                <div className="rounded-[32px] border border-[#e4d3be] bg-[linear-gradient(180deg,#fffefb_0%,#fcf8f1_100%)] p-5 shadow-[0_8px_20px_rgba(93,71,39,0.04)] sm:p-6">
-                                  <div className="flex items-center gap-3 px-1">
-                                    <div className="grid h-12 w-12 place-items-center rounded-full border border-[#b9cfab] bg-[#eef5e6] text-[1.55rem] leading-none text-[#6b815f]">
-                                      💡
-                                    </div>
-                                    <div className="font-serif text-[1.8rem] leading-tight text-[#4d3b24] sm:text-[2rem]">Короткий вывод</div>
-                                  </div>
-
-                                  <div className="mt-4 rounded-[26px] border border-[#ead9bf] bg-white/55 px-6 py-5">
-                                    <div className="whitespace-pre-line text-[1.08rem] leading-9 text-[#5f4930] sm:text-[1.16rem]">
-                                      {analysisLayout.summaryText || "Краткий вывод пока не выделен. Открой подробности по тестам ниже."}
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
+                                ) : null}
 
-                                  {analysisLayout.strengths.length || analysisLayout.risks.length ? (
-                                    <div className="mt-5 overflow-hidden rounded-[24px] border border-[#ead9bf] bg-white/44 lg:grid lg:grid-cols-2">
-                                      <div className="p-5">
-                                        <div className="flex items-center gap-3 text-[#4d3b24]">
-                                          <span className="grid h-6 w-6 place-items-center rounded-full bg-[#9eb78f] text-sm font-semibold text-white">✓</span>
-                                          <div className="text-[1.35rem] font-medium">Сильные стороны</div>
-                                        </div>
-                                        {analysisLayout.strengths.length ? (
-                                          <ul className="mt-4 space-y-3.5 text-[1rem] leading-8 text-[#6f5a42]">
-                                            {analysisLayout.strengths.map((item, index) => (
-                                              <li key={`${item}:${index}`} className="flex items-start gap-3 pr-1">
-                                                <span className="mt-[13px] h-2.5 w-2.5 flex-none rounded-full bg-[#9eb78f]" />
-                                                <span>{item}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        ) : (
-                                          <div className="mt-4 text-sm leading-7 text-[#8a745a]">Отдельный блок сильных сторон пока не выделен.</div>
-                                        )}
-                                      </div>
-                                      <div className="border-t border-[#ead9bf] p-5 lg:border-l lg:border-t-0 lg:pl-6">
-                                        <div className="flex items-center gap-3 text-[#4d3b24]">
-                                          <span className="grid h-6 w-6 place-items-center rounded-full bg-[#cb8b7a] text-sm font-semibold text-white">!</span>
-                                          <div className="text-[1.35rem] font-medium">Риски</div>
-                                        </div>
-                                        {analysisLayout.risks.length ? (
-                                          <ul className="mt-4 space-y-3.5 text-[1rem] leading-8 text-[#6f5a42]">
-                                            {analysisLayout.risks.map((item, index) => (
-                                              <li key={`${item}:${index}`} className="flex items-start gap-3 pr-1">
-                                                <span className="mt-[13px] h-2.5 w-2.5 flex-none rounded-full bg-[#cb8b7a]" />
-                                                <span>{item}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        ) : (
-                                          <div className="mt-4 text-sm leading-7 text-[#8a745a]">Отдельный блок рисков пока не выделен.</div>
-                                        )}
-                                      </div>
+                                {focusSection ? (
+                                  <div className="rounded-[22px] border border-[#ead9bf] bg-[#fffdf8] p-4">
+                                    <div className="font-serif text-[1.1rem] text-[#4d3b24]">Фокус</div>
+                                    <div className="mt-2 text-sm leading-7 text-[#6f5a42]">{compactText(focusSection.body, 140)}</div>
+                                  </div>
+                                ) : null}
+
+                                {contextSection ? (
+                                  <div className="rounded-[22px] border border-[#ead9bf] bg-[#fffdf8] p-4">
+                                    <div className="font-serif text-[1.1rem] text-[#4d3b24]">Контекст</div>
+                                    <div className="mt-2 text-sm leading-7 text-[#6f5a42]">{compactText(contextSection.body, 110)}</div>
+                                  </div>
+                                ) : null}
+                              </aside>
+
+                              <div className="rounded-[26px] border border-[#ead9bf] bg-[#fffdf8] p-4 sm:p-5">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#c6dbb9] bg-[#dcead7] text-lg">💡</div>
+                                  <div className="font-serif text-[1.8rem] leading-none text-[#4d3b24]">Короткий вывод</div>
+                                </div>
+
+                                {summarySection ? (
+                                  <div className="mt-4 rounded-[22px] border border-[#ead9bf] bg-white/70 p-5 text-[1.02rem] leading-8 text-[#6f5a42]">
+                                    {splitSectionBody(summarySection.body).preview}
+                                  </div>
+                                ) : null}
+
+                                {strengthsSection || risksSection ? (
+                                  <div className="mt-4 grid overflow-hidden rounded-[22px] border border-[#ead9bf] md:grid-cols-2">
+                                    <div className="p-5">
+                                      <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#a9c495] text-white">✓</span>Сильные стороны</div>
+                                      <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
+                                        {parseCompactList(strengthsSection?.body).map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#9eb78f]" /><span>{item}</span></li>))}
+                                      </ul>
                                     </div>
-                                  ) : null}
-
-                                  {analysisLayout.importantText ? (
-                                    <div className="mt-5 border-t border-[#ead9bf] pt-5">
-                                      <div className="text-[1.35rem] font-medium text-[#4d3b24]">Что особенно важно с учётом профиля</div>
-                                      <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{analysisLayout.importantText}</div>
+                                    <div className="border-t border-[#ead9bf] p-5 md:border-l md:border-t-0">
+                                      <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#cc8b7b] text-white">!</span>Риски</div>
+                                      <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
+                                        {parseCompactList(risksSection?.body).map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
+                                      </ul>
                                     </div>
-                                  ) : null}
+                                  </div>
+                                ) : null}
 
-                                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#ead9bf] bg-white/38 px-4 py-3">
-                                    <div className="text-[1.18rem] font-medium text-[#4d3b24]">Подробности по отдельным тестам</div>
-                                    {activeEvaluationMode === "premium_ai_plus" ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (!showAiPlusPrompt) {
-                                            setShowAiPlusPrompt(true);
-                                          }
+                                {importantSection ? (
+                                  <div className="mt-4 border-t border-[#ead9bf] pt-4">
+                                    <div className="text-[1.15rem] font-semibold text-[#4d3b24]">Что особенно важно с учётом профиля</div>
+                                    <div className="mt-2 text-[0.98rem] leading-8 text-[#6f5a42]">{cleanSectionBody(importantSection.body)}</div>
+                                  </div>
+                                ) : null}
+
+                                <div className="mt-5 flex items-center justify-between gap-3 rounded-[18px] border border-[#ead9bf] bg-white/70 px-4 py-3">
+                                  <div className="text-[1.02rem] font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
+                                  {activeEvaluationMode === "premium_ai_plus" ? (
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-[#b9cfab] bg-[#dbe8d0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                                      onClick={() => {
+                                        setShowAiPlusPrompt(true);
+                                        if (typeof window !== "undefined") {
                                           window.setTimeout(() => {
-                                            const target = document.getElementById("ai-refine-section");
-                                            if (!target) return;
-                                            target.dataset.flash = "true";
-                                            target.scrollIntoView({ behavior: "smooth", block: "start" });
-                                            window.setTimeout(() => {
-                                              delete target.dataset.flash;
-                                            }, 1600);
-                                          }, showAiPlusPrompt ? 0 : 60);
-                                        }}
-                                        className="rounded-full border border-[#b9cfab] bg-[#dbe8d0] px-4 py-2 text-sm font-medium text-[#5b4731] transition hover:-translate-y-[1px] hover:bg-[#cfe0c2]"
-                                      >
-                                        Уточнить цели
-                                      </button>
-                                    ) : null}
-                                  </div>
+                                            document.getElementById("ai-refine-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                          }, 40);
+                                        }
+                                      }}
+                                    >
+                                      Уточнить цели
+                                    </button>
+                                  ) : null}
                                 </div>
                               </div>
+                            </div>
 
-                              {analysisLayout.extraSections.length ? (
-                                <div className="mt-6 grid gap-5 lg:grid-cols-2">
-                                  {analysisLayout.extraSections.map((section, index) => {
-                                    const key = sectionKey(`${activeEvaluationMode}:analysis-extra`, index);
-                                    const isOpen = openSections[key] ?? false;
-                                    const parts = splitSectionBody(section.body);
-                                    const tone = inferSectionTone(section.title);
-                                    const toneClass =
-                                      tone === "positive"
-                                        ? "border-[#d8e7cf] bg-[#f7fcf4]"
-                                        : tone === "warning"
-                                          ? "border-[#eddcc0] bg-[#fffaf2]"
-                                          : "border-[#ead9bf] bg-[#fffdf8]";
+                            {remainingOverviewCards.length ? (
+                              <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                                {remainingOverviewCards.map((section, index) => {
+                                  const key = sectionKey(`${activeEvaluationMode}:overview:rest`, index);
+                                  const isOpen = openSections[key] ?? false;
+                                  const parts = splitSectionBody(section.body);
+                                  return (
+                                    <div key={`${section.title}:${index}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                      <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
+                                      <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                      {parts.details ? (
+                                        <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                          {isOpen ? "Скрыть детали" : "Подробнее"}
+                                        </button>
+                                      ) : null}
+                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+
+                            {testSections.length ? (
+                              <div className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
+                                <div className="mt-4 grid gap-3">
+                                  {testSections.map((section, index) => {
+                                    const key = sectionKey(activeEvaluationMode, index);
+                                    const isOpen = openSections[key] ?? index === 0;
                                     return (
-                                      <div key={`${section.title}:${index}`} className={`rounded-[24px] border p-5 shadow-[0_8px_18px_rgba(93,71,39,0.03)] ${toneClass}`}>
-                                        <div className="font-serif text-[1.32rem] leading-tight text-[#4d3b24]">{section.title}</div>
-                                        <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
-                                        {parts.details ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              className="mt-4 text-sm font-medium text-[#8b6b3c]"
-                                              onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}
-                                            >
-                                              {isOpen ? "Скрыть детали" : "Подробнее"}
-                                            </button>
-                                            {isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
-                                          </>
-                                        ) : null}
+                                      <div key={key} className="overflow-hidden rounded-[20px] border border-[#e2d1b6] bg-white/82">
+                                        <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? index === 0) }))}>
+                                          <div className="text-sm font-semibold text-[#2d2a22]">{section.title}</div>
+                                          <span className="text-xs text-[#8b6b3c]">{isOpen ? "Скрыть" : "Открыть"}</span>
+                                        </button>
+                                        {isOpen ? <div className="border-t border-[#ead9bf] px-4 py-4 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{cleanSectionBody(section.body)}</div> : null}
                                       </div>
                                     );
                                   })}
                                 </div>
-                              ) : null}
-
-                              {testSections.length ? (
-                                <div id="analysis-test-details" className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
-                                  <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
-                                  <div className="mt-4 grid gap-3">
-                                    {testSections.map((section, index) => {
-                                      const key = sectionKey(activeEvaluationMode, index);
-                                      const isOpen = openSections[key] ?? index === 0;
-                                      return (
-                                        <div key={key} className="overflow-hidden rounded-[20px] border border-[#e2d1b6] bg-white/82">
-                                          <button
-                                            type="button"
-                                            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                                            onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] ?? index === 0) }))}
-                                          >
-                                            <div className="text-sm font-semibold text-[#2d2a22]">{section.title}</div>
-                                            <span className="text-xs text-[#8b6b3c]">{isOpen ? "Скрыть" : "Открыть"}</span>
-                                          </button>
-                                          {isOpen ? <div className="border-t border-[#ead9bf] px-4 py-4 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{cleanSectionBody(section.body)}</div> : null}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
+                              </div>
+                            ) : null}
                           </div>
                         ) : (
                           <div className="rounded-[24px] border border-[#e1d3bf] bg-[#fcf7ef] p-4 text-sm text-[#6f6454]">Результат для этого уровня пока не собран. Выбери уровень и нажми сборку.</div>
