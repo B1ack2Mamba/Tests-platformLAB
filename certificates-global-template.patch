@@ -1,0 +1,119 @@
+--- /tmp/orig_extract/Tests-platformLAB-main/pages/dashboard/index.tsx	2026-04-13 21:37:18.000000000 +0000
++++ /mnt/data/proj/Tests-platformLAB-main/pages/dashboard/index.tsx	2026-04-13 23:49:59.220069488 +0000
+@@ -463,6 +463,25 @@
+   return "Сертификат";
+ }
+ 
++function serializeSceneWidget(widget: SceneWidget | null | undefined) {
++  if (!widget) return "";
++  return JSON.stringify({
++    id: widget.id,
++    x: Math.round(Number(widget.x || 0)),
++    y: Math.round(Number(widget.y || 0)),
++    width: Math.round(Number(widget.width || 0)),
++    height: Math.round(Number(widget.height || 0)),
++    rotation: Number(Number(widget.rotation || 0).toFixed(1)),
++    z: Math.round(Number(widget.z || 0)),
++    fontSize: Math.round(Number(widget.fontSize || 0)),
++    src: widget.src || "",
++    kind: widget.kind || "",
++    text: widget.text || "",
++    action: widget.action || "",
++    tone: widget.tone || "",
++  });
++}
++
+ 
+ function getClassicFolderPosition(index: number): DeskPosition {
+   const col = Math.floor(index / 6);
+@@ -979,6 +998,45 @@
+   }, [canEditScene, roomSwitchPosition.x, roomSwitchPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+ 
+   useEffect(() => {
++    if (!canEditScene || !session?.access_token || !sharedSceneReady || desktopVariant !== "scheme") return;
++
++    const certificateIds = Array.from(CERTIFICATE_WIDGET_IDS);
++    const currentSerialized = certificateIds.map((id) => serializeSceneWidget(sceneWidgets.find((item) => item.id === id))).join("|");
++    const sharedSerialized = certificateIds.map((id) => serializeSceneWidget(sharedSceneWidgets.find((item) => item.id === id))).join("|");
++    if (!currentSerialized || currentSerialized === sharedSerialized) return;
++
++    const timer = window.setTimeout(async () => {
++      try {
++        const standardPayload = buildCurrentSceneStandard();
++        const resp = await fetch("/api/commercial/scene-template", {
++          method: "POST",
++          headers: {
++            "content-type": "application/json",
++            authorization: `Bearer ${session.access_token}`,
++          },
++          body: JSON.stringify({
++            standard: standardPayload,
++            positions: standardPayload.positions,
++            widgets: standardPayload.widgets,
++            trayGuideText: standardPayload.trayGuideText,
++            templates: pickGlobalDeskTemplates(deskPositions),
++          }),
++        });
++        const json = await resp.json().catch(() => ({}));
++        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить сертификаты в общий шаблон");
++        const parsedStandard = pickSceneStandard(json?.standard || json || {});
++        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
++        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
++        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
++      } catch (err) {
++        console.error(err);
++      }
++    }, 650);
++
++    return () => window.clearTimeout(timer);
++  }, [buildCurrentSceneStandard, canEditScene, deskPositions, desktopVariant, sceneWidgets, session?.access_token, sharedSceneReady, sharedSceneWidgets]);
++
++  useEffect(() => {
+     if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
+     const sharedLaptop = (sharedDeskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION) as DeskPosition;
+     const sharedPanel = (sharedDeskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION) as DeskPosition;
+@@ -1107,23 +1165,40 @@
+         : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
+     }
+ 
++    const sharedWidgetsById = new Map(sharedSceneWidgets.map((item) => [item.id, item]));
++
+     const normalizedWidgets = sourceWidgets
+       .filter((item) => allowedIds.has(item.id))
+       .map((item) => {
+         const defaults = defaultsById.get(item.id);
+-        if (!defaults) return item;
++        const sharedWidget = desktopVariant === "scheme" && CERTIFICATE_WIDGET_IDS.has(item.id)
++          ? sharedWidgetsById.get(item.id)
++          : undefined;
++        const sourceWidget = sharedWidget || item;
++        if (!defaults) return sourceWidget;
+         return {
+-          ...item,
++          ...sourceWidget,
+           text: defaults.text,
+           action: defaults.action,
+           kind: defaults.kind,
+           tone: defaults.tone,
+-          src: (item as SceneWidget).src || defaults.src,
++          src: (sourceWidget as SceneWidget).src || defaults.src,
+         };
+       });
+ 
+     for (const defaults of defaultSceneWidgets) {
+-      if (!normalizedWidgets.some((item) => item.id === defaults.id)) normalizedWidgets.push({ ...defaults });
++      if (normalizedWidgets.some((item) => item.id === defaults.id)) continue;
++      const sharedWidget = desktopVariant === "scheme" && CERTIFICATE_WIDGET_IDS.has(defaults.id)
++        ? sharedWidgetsById.get(defaults.id)
++        : undefined;
++      normalizedWidgets.push(sharedWidget ? {
++        ...sharedWidget,
++        text: defaults.text,
++        action: defaults.action,
++        kind: defaults.kind,
++        tone: defaults.tone,
++        src: sharedWidget.src || defaults.src,
++      } : { ...defaults });
+     }
+ 
+     normalizedWidgets.sort((a, b) => a.z - b.z);
