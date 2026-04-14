@@ -998,45 +998,6 @@ export default function DashboardPage() {
   }, [canEditScene, roomSwitchPosition.x, roomSwitchPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
 
   useEffect(() => {
-    if (!canEditScene || !session?.access_token || !sharedSceneReady || desktopVariant !== "scheme") return;
-
-    const certificateIds = Array.from(CERTIFICATE_WIDGET_IDS);
-    const currentSerialized = certificateIds.map((id) => serializeSceneWidget(sceneWidgets.find((item) => item.id === id))).join("|");
-    const sharedSerialized = certificateIds.map((id) => serializeSceneWidget(sharedSceneWidgets.find((item) => item.id === id))).join("|");
-    if (!currentSerialized || currentSerialized === sharedSerialized) return;
-
-    const timer = window.setTimeout(async () => {
-      try {
-        const standardPayload = buildCurrentSceneStandard();
-        const resp = await fetch("/api/commercial/scene-template", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            standard: standardPayload,
-            positions: standardPayload.positions,
-            widgets: standardPayload.widgets,
-            trayGuideText: standardPayload.trayGuideText,
-            templates: pickGlobalDeskTemplates(deskPositions),
-          }),
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить сертификаты в общий шаблон");
-        const parsedStandard = pickSceneStandard(json?.standard || json || {});
-        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
-        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
-        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
-      } catch (err) {
-        console.error(err);
-      }
-    }, 650);
-
-    return () => window.clearTimeout(timer);
-  }, [buildCurrentSceneStandard, canEditScene, deskPositions, desktopVariant, sceneWidgets, session?.access_token, sharedSceneReady, sharedSceneWidgets]);
-
-  useEffect(() => {
     if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
     const sharedLaptop = (sharedDeskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION) as DeskPosition;
     const sharedPanel = (sharedDeskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION) as DeskPosition;
@@ -1327,6 +1288,46 @@ export default function DashboardPage() {
     })),
     trayGuideText,
   }), [deskPositions, sceneWidgets, sharedDeskPositions, trayGuideText]);
+
+  useEffect(() => {
+    if (!canEditScene || !session?.access_token || !sharedSceneReady || desktopVariant !== "scheme") return;
+
+    const certificateIds = Array.from(CERTIFICATE_WIDGET_IDS);
+    const currentSerialized = certificateIds.map((id) => serializeSceneWidget(sceneWidgets.find((item) => item.id === id))).join("|");
+    const sharedSerialized = certificateIds.map((id) => serializeSceneWidget(sharedSceneWidgets.find((item) => item.id === id))).join("|");
+    if (!currentSerialized || currentSerialized === sharedSerialized) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const standardPayload = buildCurrentSceneStandard();
+        const resp = await fetch("/api/commercial/scene-template", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            standard: standardPayload,
+            positions: standardPayload.positions,
+            widgets: standardPayload.widgets,
+            trayGuideText: standardPayload.trayGuideText,
+            templates: pickGlobalDeskTemplates(deskPositions),
+          }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить сертификаты в общий шаблон");
+        const parsedStandard = pickSceneStandard(json?.standard || json || {});
+        setSharedDeskPositions((parsedStandard.positions || {}) as DeskPositions);
+        setSharedSceneWidgets((parsedStandard.widgets || []) as SceneWidget[]);
+        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      } catch (err) {
+        console.error(err);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [buildCurrentSceneStandard, canEditScene, deskPositions, desktopVariant, sceneWidgets, session?.access_token, sharedSceneReady, sharedSceneWidgets]);
+
 
   const saveSceneStandardForAll = useCallback(async () => {
     if (!session?.access_token || !canManageGlobalTemplates) {

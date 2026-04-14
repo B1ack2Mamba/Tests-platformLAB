@@ -1,16 +1,12 @@
-Точечная правка для проекта Tests-platformLAB-main.
+Исправление для compile error и сохранения сертификатов в общий шаблон.
 
-Что внутри:
-- pages/dashboard/index.tsx — готовый изменённый файл
-- certificates-global-template.patch — unified diff относительно исходного архива
+Что исправлено:
+1) Сохранение/подтягивание сертификатов через общий scene-template.
+2) Исправлен compile error:
+   Block-scoped variable 'buildCurrentSceneStandard' used before its declaration.
+   Хук useEffect перенесён ниже объявления buildCurrentSceneStandard.
 
 Как применить:
-1. Открой свой проект Tests-platformLAB-main.
-2. Замени файл pages/dashboard/index.tsx на файл из архива.
-   ИЛИ
-   примени patch-файл через git apply / patch.
-
-Суть правки:
-- сертификаты на рабочем столе сохраняются в общий scene-template
-- при загрузке в режиме scheme сертификаты берутся из общего шаблона для всех
-- остальные части проекта не менялись
+- заменить файл pages/dashboard/index.tsx
+или
+- применить certificates-global-template.patch
