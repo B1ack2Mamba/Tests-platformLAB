@@ -213,9 +213,9 @@ export default function ProjectResultsStandalonePage() {
         url.searchParams.set("custom_request", opts.customRequest.trim());
       }
       if (mode === "premium_ai_plus") {
-        url.searchParams.set("fit_enabled", fitRequested ? "1" : "0");
-        if (fitRequested && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
-        if (fitRequested && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
+        url.searchParams.set("fit_enabled", "1");
+        if (fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
+        if (fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
       }
       const resp = await fetch(url.toString(), {
         headers: { authorization: `Bearer ${session.access_token}` },
@@ -371,9 +371,25 @@ export default function ProjectResultsStandalonePage() {
   }
 
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
-  const overviewCards = overviewSections.slice(0, 3);
-  const primaryOverviewCards = overviewCards.slice(0, 2);
-  const secondaryOverviewCards = overviewCards.slice(2);
+  const activePackageDefinition = getEvaluationPackageDefinition(activeEvaluationMode);
+  const packageSummaryTitle = activePackageDefinition?.title || "";
+  const filteredOverviewSections = overviewSections.filter((item) => item.title !== packageSummaryTitle);
+  const shortConclusionSection = filteredOverviewSections.find((item) => /короткий вывод/i.test(item.title)) || null;
+  const fitSections = filteredOverviewSections.filter((item) => /индекс соответствия/i.test(item.title));
+  const focusSection = filteredOverviewSections.find((item) => /фокус анализа/i.test(item.title)) || null;
+  const profileContextSection = filteredOverviewSections.find((item) => /контекст профиля/i.test(item.title)) || null;
+  const keyIndicatorsSection = filteredOverviewSections.find((item) => /ключевые показатели/i.test(item.title)) || null;
+  const competencySections = filteredOverviewSections.filter((item) => item.kind === "development");
+  const usedOverviewSections = new Set([
+    ...(shortConclusionSection ? [shortConclusionSection] : []),
+    ...fitSections,
+    ...(focusSection ? [focusSection] : []),
+    ...(profileContextSection ? [profileContextSection] : []),
+    ...(keyIndicatorsSection ? [keyIndicatorsSection] : []),
+    ...competencySections,
+  ]);
+  const additionalOverviewSections = filteredOverviewSections.filter((item) => !usedOverviewSections.has(item));
+  const metaOverviewSections = [...fitSections, ...(focusSection ? [focusSection] : []), ...(profileContextSection ? [profileContextSection] : [])];
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
 
   return (
@@ -448,14 +464,11 @@ export default function ProjectResultsStandalonePage() {
                             
                           </div>
                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
-                          {item.bullets?.length || isAiPlus ? (
+                          {item.bullets?.length ? (
                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
-                              {item.bullets?.slice(0, 2).map((bullet) => (
+                              {item.bullets.slice(0, 3).map((bullet) => (
                                 <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
                               ))}
-                              {isAiPlus ? (
-                                <li className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>индекс соответствия по выбранной цели</span></li>
-                              ) : null}
                             </ul>
                           ) : null}
                           <div className="mt-auto pt-6">
@@ -529,12 +542,12 @@ export default function ProjectResultsStandalonePage() {
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
                       <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
-                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
+                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля. Индекс соответствия по выбранной цели теперь входит в AI+ по умолчанию.</div>
                         <div className="mt-3 grid gap-3">
                           <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
                           <div className="flex justify-end">
                             <button type="button" className="rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
-                              {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
+                              {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить профиль AI+"}
                             </button>
                           </div>
                         </div>
@@ -558,18 +571,18 @@ export default function ProjectResultsStandalonePage() {
                         ) : activeSections.length ? (
                           <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
                             <div className="font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
-                            {primaryOverviewCards.length ? (
-                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
-                                {primaryOverviewCards.map((section, index) => {
-                                  const key = sectionKey(`${activeEvaluationMode}:overview`, index);
+                            {metaOverviewSections.length ? (
+                              <div className={`mt-6 grid gap-5 ${metaOverviewSections.length > 1 ? "xl:grid-cols-3" : ""}`}>
+                                {metaOverviewSections.map((section, index) => {
+                                  const key = sectionKey(`${activeEvaluationMode}:meta`, index);
                                   const isOpen = openSections[key] ?? false;
                                   const parts = splitSectionBody(section.body);
-                                  const tone = inferSectionTone(section.title);
+                                  const tone = /индекс соответствия/i.test(section.title) ? "positive" : inferSectionTone(section.title);
                                   const toneClass = tone === "positive" ? "bg-[#f7fcf4] border-[#d8e7cf]" : tone === "warning" ? "bg-[#fffaf2] border-[#eddcc0]" : "bg-[#fffdf8] border-[#ead9bf]";
                                   return (
                                     <div key={`${section.title}:${index}`} className={`rounded-[24px] border p-5 ${toneClass}`}>
-                                      <div className="font-serif text-[1.3rem] text-[#4d3b24]">{section.title}</div>
-                                      <div className="mt-4 whitespace-pre-line text-[1.02rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                      <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
+                                      <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
                                       {parts.details ? (
                                         <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
                                           {isOpen ? "Скрыть детали" : "Подробнее"}
@@ -582,15 +595,77 @@ export default function ProjectResultsStandalonePage() {
                               </div>
                             ) : null}
 
-                            {secondaryOverviewCards.length ? (
+                            {shortConclusionSection ? (() => {
+                              const key = sectionKey(`${activeEvaluationMode}:short`, 0);
+                              const isOpen = openSections[key] ?? false;
+                              const parts = splitSectionBody(shortConclusionSection.body);
+                              return (
+                                <div className="mt-5 rounded-[24px] border border-[#e3d4bf] bg-[linear-gradient(180deg,#fffdf9_0%,#fcf6eb_100%)] p-5 shadow-[0_8px_18px_rgba(93,71,39,0.04)]">
+                                  <div className="font-serif text-[1.45rem] text-[#4d3b24]">{shortConclusionSection.title}</div>
+                                  <div className="mt-4 whitespace-pre-line text-[1.04rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                  {parts.details ? (
+                                    <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                      {isOpen ? "Скрыть детали" : "Подробнее"}
+                                    </button>
+                                  ) : null}
+                                  {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                </div>
+                              );
+                            })() : null}
+
+                            {keyIndicatorsSection ? (() => {
+                              const key = sectionKey(`${activeEvaluationMode}:indicators`, 0);
+                              const isOpen = openSections[key] ?? true;
+                              const parts = splitSectionBody(keyIndicatorsSection.body);
+                              return (
+                                <div className="mt-5 rounded-[24px] border border-[#d8e7cf] bg-[#f8fcf5] p-5">
+                                  <div className="font-serif text-[1.28rem] text-[#355033]">{keyIndicatorsSection.title}</div>
+                                  <div className="mt-4 whitespace-pre-line text-[0.98rem] leading-8 text-[#4d5f44]">{parts.preview}</div>
+                                  {parts.details ? (
+                                    <button type="button" className="mt-4 text-sm font-medium text-[#6a8a52]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                      {isOpen ? "Скрыть детали" : "Подробнее"}
+                                    </button>
+                                  ) : null}
+                                  {parts.details && isOpen ? <div className="mt-3 border-t border-[#d8e7cf] pt-3 whitespace-pre-line text-sm leading-7 text-[#5f6b56]">{parts.details}</div> : null}
+                                </div>
+                              );
+                            })() : null}
+
+                            {competencySections.length ? (
+                              <div className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                <div className="text-lg font-semibold text-[#4d3b24]">Профиль по компетенциям</div>
+                                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                                  {competencySections.map((section, index) => {
+                                    const key = sectionKey(`${activeEvaluationMode}:competency`, index);
+                                    const isOpen = openSections[key] ?? false;
+                                    const parts = splitSectionBody(section.body);
+                                    const tone = inferSectionTone(section.title);
+                                    const toneClass = tone === "positive" ? "bg-[#f7fcf4] border-[#d8e7cf]" : tone === "warning" ? "bg-[#fffaf2] border-[#eddcc0]" : "bg-white border-[#ead9bf]";
+                                    return (
+                                      <div key={key} className={`rounded-[22px] border p-5 ${toneClass}`}>
+                                        <div className="font-serif text-[1.2rem] text-[#4d3b24]">{section.title}</div>
+                                        <div className="mt-3 whitespace-pre-line text-[0.98rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                        {parts.details ? (
+                                          <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                            {isOpen ? "Скрыть детали" : "Подробнее"}
+                                          </button>
+                                        ) : null}
+                                        {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {additionalOverviewSections.length ? (
                               <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                                {secondaryOverviewCards.map((section, index) => {
-                                  const actualIndex = index + primaryOverviewCards.length;
-                                  const key = sectionKey(`${activeEvaluationMode}:overview`, actualIndex);
+                                {additionalOverviewSections.map((section, index) => {
+                                  const key = sectionKey(`${activeEvaluationMode}:overview:extra`, index);
                                   const isOpen = openSections[key] ?? false;
                                   const parts = splitSectionBody(section.body);
                                   return (
-                                    <div key={`${section.title}:${actualIndex}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                    <div key={`${section.title}:${index}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
                                       <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
                                       <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
                                       {parts.details ? (

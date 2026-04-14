@@ -34,7 +34,7 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
   const completed = doneSet.size;
   const total = project.tests.length;
   const fullyDone = total > 0 && completed >= total;
-  const packageLabel = project.package_mode === "basic" ? "База" : project.package_mode === "premium_ai_plus" ? "Премиум AI+" : "Премиум AI";
+  const packageLabel = project.package_mode === "basic" ? "База" : project.package_mode === "premium_ai_plus" ? "Премиум AI+" : "Премиум";
 
   return (
     <Layout title={project.title || "Оценка сотрудника"}>
@@ -100,7 +100,7 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
             <div className="card">
               <div className="text-sm font-semibold text-slate-900">Статус прохождения</div>
               <div className="mt-3 text-3xl font-semibold text-slate-950">{completed} / {total}</div>
-              <div className="mt-2 text-sm text-slate-600">{fullyDone ? `Все тесты завершены. Специалист получит ${packageLabel === "База" ? "итоговые результаты тестов" : packageLabel === "Премиум AI" ? "интерпретации по каждому тесту" : "индивидуальный профиль и индекс соответствия"}.` : "Пока не все тесты завершены."}</div>
+              <div className="mt-2 text-sm text-slate-600">{fullyDone ? `Все тесты завершены. Специалист получит ${packageLabel === "База" ? "итоговые результаты тестов" : packageLabel === "Премиум" ? "интерпретации по каждому тесту" : "индивидуальный профиль и индекс соответствия"}.` : "Пока не все тесты завершены."}</div>
             </div>
           </div>
         </div>
