@@ -91,7 +91,6 @@ function sectionKey(scope: string | null | undefined, index: number): string {
   return `${scope || "section"}:${index}`;
 }
 
-
 function normalizeSectionTitle(title: string | null | undefined): string {
   return String(title || "")
     .toLowerCase()
@@ -121,40 +120,21 @@ function parseStructuredSummary(body: string | null | undefined): {
   const cleaned = cleanSectionBody(body);
   if (!cleaned) return { general: "", strengths: "", risks: "", important: "" };
 
-  const headingRegex = /(?:^|\n)\s*(\d+)[\)\.\-:]\s*([^\n:]+):?/g;
-  const matches = Array.from(cleaned.matchAll(headingRegex));
-  if (!matches.length) {
-    return { general: cleaned, strengths: "", risks: "", important: "" };
+  const chunks = cleaned.split(/\n\s*\n+/).map((x) => x.trim()).filter(Boolean);
+  if (!chunks.length) return { general: cleaned, strengths: "", risks: "", important: "" };
+
+  const result = { general: "", strengths: "", risks: "", important: "" };
+  for (const chunk of chunks) {
+    const firstLine = chunk.split(/\n/)[0] || "";
+    const title = normalizeSectionTitle(firstLine.replace(/^\d+[).:-]?\s*/, ""));
+    const content = chunk.replace(/^.*?(?:\n|$)/, "").trim() || chunk.replace(/^\d+[).:-]?\s*/, "").trim();
+    if (!result.general && (/общ(ий|ая) вывод|итог|резюме/.test(title) || /^\d+[).:-]?\s*общ/i.test(chunk))) { result.general = content; continue; }
+    if (!result.strengths && /сильн|ресурс|опора|преимущ/.test(title)) { result.strengths = content; continue; }
+    if (!result.risks && /риск|огранич|слаб/.test(title)) { result.risks = content; continue; }
+    if (!result.important && /что особенно важно|важно|учесть|рекомендац|условия/.test(title)) { result.important = content; continue; }
   }
-
-  const buckets: Record<string, string> = {};
-  for (let i = 0; i < matches.length; i += 1) {
-    const match = matches[i];
-    const headingRaw = (match[2] || "").trim();
-    const heading = normalizeSectionTitle(headingRaw);
-    const start = (match.index || 0) + match[0].length;
-    const end = i + 1 < matches.length ? (matches[i + 1].index || cleaned.length) : cleaned.length;
-    const content = cleaned.slice(start, end).trim();
-    if (!content) continue;
-
-    if (/общ(ий|ая) вывод|итог|резюме/.test(heading)) buckets.general = content;
-    else if (/сильн|ресурс|опора|преимущ/.test(heading)) buckets.strengths = content;
-    else if (/риск|огранич|слаб/.test(heading)) buckets.risks = content;
-    else if (/что особенно важно|важно|рекомендац|учесть|условия/.test(heading)) buckets.important = content;
-  }
-
-  if (!buckets.general) {
-    const firstMatch = matches[0];
-    const nextStart = matches.length > 1 ? (matches[1].index || cleaned.length) : cleaned.length;
-    buckets.general = cleaned.slice((firstMatch.index || 0) + firstMatch[0].length, nextStart).trim();
-  }
-
-  return {
-    general: buckets.general || "",
-    strengths: buckets.strengths || "",
-    risks: buckets.risks || "",
-    important: buckets.important || "",
-  };
+  if (!result.general) result.general = chunks[0];
+  return result;
 }
 
 function getThinkingMessages(mode: EvaluationPackage | null): string[] {
@@ -439,56 +419,34 @@ export default function ProjectResultsStandalonePage() {
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
 
-  const analysisLayout = (() => {
-    const items = overviewSections.map((section, index) => ({ section, index, normalizedTitle: normalizeSectionTitle(section.title) }));
-    const used = new Set<number>();
-    const takeOne = (predicate: (title: string) => boolean) => {
-      const found = items.find((item) => !used.has(item.index) && predicate(item.normalizedTitle));
-      if (!found) return null;
-      used.add(found.index);
-      return found.section;
-    };
+  const overviewItems = overviewSections.map((section, index) => ({ section, index, normalizedTitle: normalizeSectionTitle(section.title) }));
+  const usedOverviewIndexes = new Set<number>();
+  const takeOverviewSection = (predicate: (title: string) => boolean) => {
+    const found = overviewItems.find((item) => !usedOverviewIndexes.has(item.index) && predicate(item.normalizedTitle));
+    if (!found) return null;
+    usedOverviewIndexes.add(found.index);
+    return found.section;
+  };
 
-    const uniqueIndexTitles = new Set<string>();
-    const indexSections = items
-      .filter((item) => /индекс соответств/.test(item.normalizedTitle))
-      .filter((item) => {
-        if (uniqueIndexTitles.has(item.normalizedTitle)) return false;
-        uniqueIndexTitles.add(item.normalizedTitle);
-        return true;
-      })
-      .map((item) => item.section);
-    indexSections.forEach((section) => {
-      const found = items.find((item) => item.section === section);
-      if (found) used.add(found.index);
-    });
+  const seenIndexTitles = new Set<string>();
+  const indexSections = overviewItems
+    .filter((item) => /индекс соответств/.test(item.normalizedTitle))
+    .filter((item) => {
+      if (seenIndexTitles.has(item.normalizedTitle)) return false;
+      seenIndexTitles.add(item.normalizedTitle);
+      return true;
+    })
+    .map((item) => item.section);
+  indexSections.forEach((section) => {
+    const match = overviewItems.find((item) => item.section === section);
+    if (match) usedOverviewIndexes.add(match.index);
+  });
 
-    const focusSection = takeOne((title) => /фокус анализа/.test(title));
-    const contextSection = takeOne((title) => /контекст профиля/.test(title));
-    const shortSummarySection =
-      takeOne((title) => /коротк(ий|ая) вывод/.test(title)) ||
-      takeOne((title) => /общ(ий|ая) вывод/.test(title)) ||
-      takeOne((title) => /итогов(ый|ая) вывод/.test(title));
-
-    const strengthsSection = takeOne((title) => /сильн|ресурс|опора|преимущ/.test(title));
-    const risksSection = takeOne((title) => /риск|огранич|слаб/.test(title));
-    const importantSection = takeOne((title) => /что особенно важно|важно|рекомендац|учесть|условия/.test(title));
-
-    const summaryParts = parseStructuredSummary(shortSummarySection?.body);
-    const remainingSections = items.filter((item) => !used.has(item.index)).map((item) => item.section);
-
-    return {
-      indexSections,
-      focusSection,
-      contextSection,
-      shortSummarySection,
-      strengthsSection,
-      risksSection,
-      importantSection,
-      summaryParts,
-      remainingSections,
-    };
-  })();
+  const focusSection = takeOverviewSection((title) => /фокус анализа/.test(title));
+  const contextSection = takeOverviewSection((title) => /контекст профиля/.test(title));
+  const shortSummarySection = takeOverviewSection((title) => /коротк(ий|ая) вывод|общ(ий|ая) вывод/.test(title));
+  const summaryParts = parseStructuredSummary(shortSummarySection?.body);
+  const remainingOverviewSections = overviewItems.filter((item) => !usedOverviewIndexes.has(item.index)).map((item) => item.section);
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
@@ -549,6 +507,7 @@ export default function ProjectResultsStandalonePage() {
                     const isBusy = !!saving || !!evaluationLoading[item.key];
                     const accessible = unlocked || isUnlimited || projectCoveredBySubscription || (activeSubscription?.projects_remaining || 0) > 0;
                     const isActive = activeEvaluationMode === item.key;
+                    const isAi = item.key === "premium";
                     const isAiPlus = item.key === "premium_ai_plus";
                     return (
                       <div
@@ -561,11 +520,14 @@ export default function ProjectResultsStandalonePage() {
                             
                           </div>
                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
-                          {item.bullets?.length ? (
+                          {item.bullets?.length || isAiPlus ? (
                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
-                              {item.bullets.map((bullet) => (
+                              {item.bullets?.slice(0, 2).map((bullet) => (
                                 <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
                               ))}
+                              {isAiPlus ? (
+                                <li className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>индекс соответствия по выбранной цели</span></li>
+                              ) : null}
                             </ul>
                           ) : null}
                           <div className="mt-auto pt-6">
@@ -639,7 +601,7 @@ export default function ProjectResultsStandalonePage() {
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
                       <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
-                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля. Индексы по цели, текущей и будущей должности собираются автоматически по заполненным данным.</div>
+                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
                         <div className="mt-3 grid gap-3">
                           <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
                           <div className="flex justify-end">
@@ -668,25 +630,23 @@ export default function ProjectResultsStandalonePage() {
                         ) : activeSections.length ? (
                           <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
                             <div className="font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
-                            <div className="mt-4 h-px bg-[#eedfc7]" />
 
-                            <div className="mt-6 grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-                              <div className="space-y-4">
-                                {analysisLayout.indexSections.length ? (
-                                  <div className="rounded-[24px] border border-[#d8e7cf] bg-[linear-gradient(180deg,#f9fcf6_0%,#f1f8ec_100%)] p-5">
-                                    <div className="font-serif text-[1.25rem] text-[#4d3b24]">Индексы соответствия</div>
+                            <div className="mt-6 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+                              <div className="space-y-5">
+                                {indexSections.length ? (
+                                  <div className="rounded-[24px] border border-[#d7e4cf] bg-[#f7fcf4] p-5">
+                                    <div className="font-serif text-[1.45rem] text-[#4d3b24]">Индексы соответствия</div>
                                     <div className="mt-4 space-y-4">
-                                      {analysisLayout.indexSections.map((section, index) => {
-                                        const meta = extractScoreMeta(section.body);
-                                        const palette = index % 3 === 0 ? "bg-[#dcecd4] text-[#476142]" : index % 3 === 1 ? "bg-[#f2e4c8] text-[#7a5932]" : "bg-[#f1dacd] text-[#8a5a43]";
+                                      {indexSections.map((section, index) => {
+                                        const parts = extractScoreMeta(section.body);
                                         return (
-                                          <div key={`${section.title}:${index}`} className="flex gap-3">
-                                            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-[1.45rem] font-semibold ${palette}`}>
-                                              {meta.score || "—"}
+                                          <div key={`${section.title}:${index}`} className="flex items-start gap-3">
+                                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[#d6e3cd] bg-[#e8f3df] text-[1.15rem] font-semibold text-[#476040]">
+                                              {parts.score || "—"}
                                             </div>
                                             <div className="min-w-0">
-                                              <div className="text-sm font-semibold leading-5 text-[#4d3b24]">{section.title}</div>
-                                              <div className="mt-1 text-sm leading-6 text-[#6f5a42]">{meta.description}</div>
+                                              <div className="text-[0.98rem] font-medium leading-6 text-[#4d3b24]">{section.title}</div>
+                                              <div className="mt-1 text-sm leading-6 text-[#6f5a42]">{parts.description}</div>
                                             </div>
                                           </div>
                                         );
@@ -695,81 +655,91 @@ export default function ProjectResultsStandalonePage() {
                                   </div>
                                 ) : null}
 
-                                {analysisLayout.focusSection ? (
-                                  <div className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
-                                    <div className="font-serif text-[1.2rem] text-[#4d3b24]">{analysisLayout.focusSection.title}</div>
-                                    <div className="mt-3 whitespace-pre-line text-[0.98rem] leading-7 text-[#6f5a42]">{cleanSectionBody(analysisLayout.focusSection.body)}</div>
-                                  </div>
-                                ) : null}
-
-                                {analysisLayout.contextSection ? (
-                                  <div className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
-                                    <div className="font-serif text-[1.2rem] text-[#4d3b24]">{analysisLayout.contextSection.title}</div>
-                                    <div className="mt-3 whitespace-pre-line text-[0.98rem] leading-7 text-[#6f5a42]">{cleanSectionBody(analysisLayout.contextSection.body)}</div>
-                                  </div>
-                                ) : null}
+                                {[focusSection, contextSection].filter(Boolean).map((section, blockIndex) => {
+                                  const realSection = section!;
+                                  const key = sectionKey(`${activeEvaluationMode}:overview:side`, blockIndex);
+                                  const isOpen = openSections[key] ?? false;
+                                  const parts = splitSectionBody(realSection.body);
+                                  return (
+                                    <div key={`${realSection.title}:${blockIndex}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                      <div className="font-serif text-[1.28rem] text-[#4d3b24]">{realSection.title}</div>
+                                      <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                      {parts.details ? (
+                                        <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                          {isOpen ? "Скрыть детали" : "Подробнее"}
+                                        </button>
+                                      ) : null}
+                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                    </div>
+                                  );
+                                })}
                               </div>
 
-                              <div className="rounded-[28px] border border-[#ead9bf] bg-[#fffdf9] p-5 shadow-[0_10px_18px_rgba(93,71,39,0.04)]">
+                              <div className="rounded-[26px] border border-[#ead9bf] bg-[#fffdf8] p-5 md:p-6">
                                 <div className="flex items-center gap-3">
-                                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#d8e7cf] bg-[#f4faef] text-xl">💡</div>
-                                  <div>
-                                    <div className="font-serif text-[1.65rem] text-[#4d3b24]">Короткий вывод</div>
-                                    <div className="mt-1 h-px w-44 bg-[#ead9bf]" />
-                                  </div>
+                                  <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#cfdcbb] bg-[#eef6e4] text-[#6d8c5f]">✦</div>
+                                  <div className="font-serif text-[1.6rem] text-[#4d3b24]">Короткий вывод</div>
                                 </div>
 
-                                <div className="mt-5 rounded-[22px] border border-[#ead9bf] bg-white/80 px-5 py-4">
-                                  <div className="whitespace-pre-line text-[1.08rem] leading-9 text-[#5f4b34]">
-                                    {analysisLayout.summaryParts.general || cleanSectionBody(analysisLayout.shortSummarySection?.body)}
-                                  </div>
-                                </div>
+                                {summaryParts.general ? <div className="mt-5 whitespace-pre-line text-[1.12rem] leading-9 text-[#5e4d39]">{summaryParts.general}</div> : null}
 
-                                {analysisLayout.summaryParts.strengths || analysisLayout.summaryParts.risks || analysisLayout.strengthsSection || analysisLayout.risksSection ? (
+                                {(summaryParts.strengths || summaryParts.risks) ? (
                                   <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                                    <div className="rounded-[22px] border border-[#d8e7cf] bg-[#fbfef9] p-5">
-                                      <div className="flex items-center gap-2 text-[1.2rem] font-semibold text-[#4d3b24]">
-                                        <span className="grid h-7 w-7 place-items-center rounded-full bg-[#dcecd4] text-[#476142]">✓</span>
-                                        <span>Сильные стороны</span>
+                                    {summaryParts.strengths ? (
+                                      <div className="rounded-[22px] border border-[#d7e4cf] bg-[#f8fcf5] p-5">
+                                        <div className="text-[1.2rem] font-semibold text-[#4d3b24]">Сильные стороны</div>
+                                        <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#5f694f]">{summaryParts.strengths}</div>
                                       </div>
-                                      <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">
-                                        {analysisLayout.summaryParts.strengths || cleanSectionBody(analysisLayout.strengthsSection?.body) || "—"}
+                                    ) : null}
+                                    {summaryParts.risks ? (
+                                      <div className="rounded-[22px] border border-[#eddcc0] bg-[#fffaf2] p-5">
+                                        <div className="text-[1.2rem] font-semibold text-[#4d3b24]">Риски</div>
+                                        <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#7a5b45]">{summaryParts.risks}</div>
                                       </div>
-                                    </div>
-                                    <div className="rounded-[22px] border border-[#ead9bf] bg-[#fffaf5] p-5">
-                                      <div className="flex items-center gap-2 text-[1.2rem] font-semibold text-[#4d3b24]">
-                                        <span className="grid h-7 w-7 place-items-center rounded-full bg-[#f1dacd] text-[#8a5a43]">!</span>
-                                        <span>Риски</span>
-                                      </div>
-                                      <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">
-                                        {analysisLayout.summaryParts.risks || cleanSectionBody(analysisLayout.risksSection?.body) || "—"}
-                                      </div>
-                                    </div>
+                                    ) : null}
                                   </div>
                                 ) : null}
 
-                                {analysisLayout.summaryParts.important || analysisLayout.importantSection ? (
-                                  <div className="mt-5 rounded-[22px] border border-[#ead9bf] bg-white/80 p-5">
-                                    <div className="text-[1.18rem] font-semibold text-[#4d3b24]">Что особенно важно с учётом профиля</div>
-                                    <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">
-                                      {analysisLayout.summaryParts.important || cleanSectionBody(analysisLayout.importantSection?.body)}
-                                    </div>
+                                {summaryParts.important ? (
+                                  <div className="mt-5 rounded-[22px] border border-[#ead9bf] bg-white p-5">
+                                    <div className="text-[1.15rem] font-semibold text-[#4d3b24]">Что особенно важно с учётом профиля</div>
+                                    <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{summaryParts.important}</div>
                                   </div>
+                                ) : null}
+
+                                {!summaryParts.general && shortSummarySection ? (
+                                  (() => {
+                                    const key = sectionKey(`${activeEvaluationMode}:overview:summary`, 0);
+                                    const isOpen = openSections[key] ?? true;
+                                    const parts = splitSectionBody(shortSummarySection.body);
+                                    return (
+                                      <div className="mt-5">
+                                        <div className="whitespace-pre-line text-[1.08rem] leading-8 text-[#5e4d39]">{parts.preview || cleanSectionBody(shortSummarySection.body)}</div>
+                                        {parts.details ? (
+                                          <>
+                                            <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
+                                              {isOpen ? "Скрыть детали" : "Подробнее"}
+                                            </button>
+                                            {isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                                          </>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })()
                                 ) : null}
                               </div>
                             </div>
 
-                            {analysisLayout.remainingSections.length ? (
+                            {remainingOverviewSections.length ? (
                               <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                                {analysisLayout.remainingSections.map((section, index) => {
-                                  const actualIndex = overviewSections.findIndex((item) => item === section);
-                                  const key = sectionKey(`${activeEvaluationMode}:overview`, actualIndex >= 0 ? actualIndex : index);
+                                {remainingOverviewSections.map((section, index) => {
+                                  const key = sectionKey(`${activeEvaluationMode}:overview:extra`, index);
                                   const isOpen = openSections[key] ?? false;
                                   const parts = splitSectionBody(section.body);
                                   return (
-                                    <div key={`${section.title}:${actualIndex >= 0 ? actualIndex : index}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
-                                      <div className="font-serif text-[1.2rem] text-[#4d3b24]">{section.title}</div>
-                                      <div className="mt-3 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
+                                    <div key={`${section.title}:${index}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
+                                      <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
+                                      <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
                                       {parts.details ? (
                                         <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
                                           {isOpen ? "Скрыть детали" : "Подробнее"}
@@ -784,18 +754,7 @@ export default function ProjectResultsStandalonePage() {
 
                             {testSections.length ? (
                               <div className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
-                                  {activeEvaluationMode === "premium_ai_plus" ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowAiPlusPrompt(true)}
-                                      className="rounded-[18px] border border-[#d9c4a4] bg-[#eef6e9] px-4 py-2 text-sm font-medium text-[#5b4731]"
-                                    >
-                                      Уточнить цели
-                                    </button>
-                                  ) : null}
-                                </div>
+                                <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
                                 <div className="mt-4 grid gap-3">
                                   {testSections.map((section, index) => {
                                     const key = sectionKey(activeEvaluationMode, index);
