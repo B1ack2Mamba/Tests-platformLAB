@@ -1,0 +1,13 @@
+--- /mnt/data/orig_compare/commercialGoals.ts	2026-04-14 20:58:48.631444906 +0000
++++ /mnt/data/proj/Tests-platformLAB-main/lib/commercialGoals.ts	2026-04-14 20:56:38.354012788 +0000
+@@ -379,8 +379,8 @@
+   },
+   {
+     key: "premium",
+-    title: "Премиум AI",
+-    shortTitle: "Премиум AI",
++    title: "Премиум",
++    shortTitle: "Премиум",
+     note: "для специалистов",
+     description: "Результаты тестов + индивидуальная интерпретация результатов каждого теста.",
+     bullets: ["результаты тестов", "индивидуальная интерпретация каждого теста"],
