@@ -757,7 +757,7 @@ export default function ProjectResultsStandalonePage() {
                     </div>
 
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
-                      <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
+                      <div id="ai-refine-section" className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4 transition-all duration-300 data-[flash=true]:ring-2 data-[flash=true]:ring-[#b9cfab] data-[flash=true]:ring-offset-2 data-[flash=true]:ring-offset-[#fcf7ef]">
                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
                         <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
                         <div className="mt-3 grid gap-3">
@@ -773,8 +773,19 @@ export default function ProjectResultsStandalonePage() {
                       <div className="mt-4 flex justify-end">
                         <button
                           type="button"
-                          onClick={() => setShowAiPlusPrompt(true)}
-                          className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                          onClick={() => {
+                            setShowAiPlusPrompt(true);
+                            window.setTimeout(() => {
+                              const target = document.getElementById("ai-refine-section");
+                              if (!target) return;
+                              target.dataset.flash = "true";
+                              target.scrollIntoView({ behavior: "smooth", block: "start" });
+                              window.setTimeout(() => {
+                                delete target.dataset.flash;
+                              }, 1600);
+                            }, 60);
+                          }}
+                          className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] transition hover:-translate-y-[1px] hover:bg-[#fff4e6]"
                         >
                           Уточнить AI+
                         </button>
@@ -886,10 +897,10 @@ export default function ProjectResultsStandalonePage() {
                                           <div className="text-[1.35rem] font-medium">Сильные стороны</div>
                                         </div>
                                         {analysisLayout.strengths.length ? (
-                                          <ul className="mt-4 space-y-3 text-[1rem] leading-8 text-[#6f5a42]">
+                                          <ul className="mt-4 space-y-3.5 text-[1rem] leading-8 text-[#6f5a42]">
                                             {analysisLayout.strengths.map((item, index) => (
-                                              <li key={`${item}:${index}`} className="flex items-start gap-3">
-                                                <span className="mt-[11px] h-2 w-2 flex-none rounded-full bg-[#9eb78f]" />
+                                              <li key={`${item}:${index}`} className="flex items-start gap-3 pr-1">
+                                                <span className="mt-[13px] h-2.5 w-2.5 flex-none rounded-full bg-[#9eb78f]" />
                                                 <span>{item}</span>
                                               </li>
                                             ))}
@@ -898,16 +909,16 @@ export default function ProjectResultsStandalonePage() {
                                           <div className="mt-4 text-sm leading-7 text-[#8a745a]">Отдельный блок сильных сторон пока не выделен.</div>
                                         )}
                                       </div>
-                                      <div className="border-t border-[#ead9bf] p-5 lg:border-l lg:border-t-0">
+                                      <div className="border-t border-[#ead9bf] p-5 lg:border-l lg:border-t-0 lg:pl-6">
                                         <div className="flex items-center gap-3 text-[#4d3b24]">
                                           <span className="grid h-6 w-6 place-items-center rounded-full bg-[#cb8b7a] text-sm font-semibold text-white">!</span>
                                           <div className="text-[1.35rem] font-medium">Риски</div>
                                         </div>
                                         {analysisLayout.risks.length ? (
-                                          <ul className="mt-4 space-y-3 text-[1rem] leading-8 text-[#6f5a42]">
+                                          <ul className="mt-4 space-y-3.5 text-[1rem] leading-8 text-[#6f5a42]">
                                             {analysisLayout.risks.map((item, index) => (
-                                              <li key={`${item}:${index}`} className="flex items-start gap-3">
-                                                <span className="mt-[11px] h-2 w-2 flex-none rounded-full bg-[#cb8b7a]" />
+                                              <li key={`${item}:${index}`} className="flex items-start gap-3 pr-1">
+                                                <span className="mt-[13px] h-2.5 w-2.5 flex-none rounded-full bg-[#cb8b7a]" />
                                                 <span>{item}</span>
                                               </li>
                                             ))}
@@ -931,8 +942,21 @@ export default function ProjectResultsStandalonePage() {
                                     {activeEvaluationMode === "premium_ai_plus" ? (
                                       <button
                                         type="button"
-                                        onClick={() => setShowAiPlusPrompt(true)}
-                                        className="rounded-full border border-[#b9cfab] bg-[#dbe8d0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                                        onClick={() => {
+                                          if (!showAiPlusPrompt) {
+                                            setShowAiPlusPrompt(true);
+                                          }
+                                          window.setTimeout(() => {
+                                            const target = document.getElementById("ai-refine-section");
+                                            if (!target) return;
+                                            target.dataset.flash = "true";
+                                            target.scrollIntoView({ behavior: "smooth", block: "start" });
+                                            window.setTimeout(() => {
+                                              delete target.dataset.flash;
+                                            }, 1600);
+                                          }, showAiPlusPrompt ? 0 : 60);
+                                        }}
+                                        className="rounded-full border border-[#b9cfab] bg-[#dbe8d0] px-4 py-2 text-sm font-medium text-[#5b4731] transition hover:-translate-y-[1px] hover:bg-[#cfe0c2]"
                                       >
                                         Уточнить цели
                                       </button>
