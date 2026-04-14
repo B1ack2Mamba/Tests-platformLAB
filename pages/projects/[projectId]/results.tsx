@@ -156,6 +156,12 @@ export default function ProjectResultsStandalonePage() {
   const [fitProfiles, setFitProfiles] = useState<FitRoleProfile[]>(() => getFitRoleProfiles());
   const [showAiPlusPrompt, setShowAiPlusPrompt] = useState(false);
 
+  const shouldShowFitIndex = useMemo(() => {
+    const routingMeta = data?.project.routing_meta;
+    const hasCompetencyTarget = routingMeta?.mode === "competency" && Boolean(routingMeta.competencyIds?.length);
+    return Boolean(hasCompetencyTarget || data?.project.target_role?.trim() || fitProfileId || fitRequest.trim());
+  }, [data?.project.routing_meta, data?.project.target_role, fitProfileId, fitRequest]);
+
   async function loadResults(explicitCollect: boolean, options?: { showSkeleton?: boolean; announce?: string }) {
     if (!session?.access_token || !projectId) return null;
     if (options?.showSkeleton) setBusy(true);
@@ -213,9 +219,9 @@ export default function ProjectResultsStandalonePage() {
         url.searchParams.set("custom_request", opts.customRequest.trim());
       }
       if (mode === "premium_ai_plus") {
-        url.searchParams.set("fit_enabled", "1");
-        if (fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
-        if (fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
+        url.searchParams.set("fit_enabled", shouldShowFitIndex ? "1" : "0");
+        if (shouldShowFitIndex && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
+        if (shouldShowFitIndex && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
       }
       const resp = await fetch(url.toString(), {
         headers: { authorization: `Bearer ${session.access_token}` },
@@ -542,7 +548,7 @@ export default function ProjectResultsStandalonePage() {
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
                       <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
-                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля. Индекс соответствия по выбранной цели теперь входит в AI+ по умолчанию.</div>
+                        <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля. Индекс соответствия показывается только когда задан конкретный ориентир: выбранные компетенции, должность, профиль или отдельный запрос.</div>
                         <div className="mt-3 grid gap-3">
                           <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
                           <div className="flex justify-end">
