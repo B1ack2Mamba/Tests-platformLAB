@@ -122,6 +122,65 @@ function splitSectionBody(body: string | null | undefined): { preview: string; d
   return { preview: parts[0], details: parts.slice(1).join("\n\n") };
 }
 
+type ParsedSummaryOutline = {
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  important: string;
+};
+
+function parseSummaryOutline(body: string | null | undefined): ParsedSummaryOutline {
+  const cleaned = cleanSectionBody(body);
+  if (!cleaned) return { summary: "", strengths: [], risks: [], important: "" };
+
+  const blocks = cleaned
+    .split(/(?:^|\n)\s*(?=\d+\)\s*)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!blocks.length || !blocks.some((part) => /^\d+\)\s*/.test(part))) {
+    return { summary: cleaned, strengths: [], risks: [], important: "" };
+  }
+
+  const result: ParsedSummaryOutline = { summary: "", strengths: [], risks: [], important: "" };
+
+  for (const block of blocks) {
+    const normalizedBlock = block.replace(/^\d+\)\s*/, "").trim();
+    if (!normalizedBlock) continue;
+
+    const titleMatch = normalizedBlock.match(/^([^\n:]{1,120})(?::)?\s*/);
+    const rawTitle = titleMatch ? titleMatch[1] : "";
+    const title = normalizeTitle(rawTitle);
+    const content = normalizedBlock.slice(titleMatch ? titleMatch[0].length : 0).trim();
+
+    if (/(общий вывод|краткий вывод|итог)/.test(title)) {
+      result.summary = content || normalizedBlock;
+      continue;
+    }
+
+    if (/(сильн|ресурс|преимущ|опора)/.test(title)) {
+      result.strengths = parseCompactList(content || normalizedBlock);
+      continue;
+    }
+
+    if (/(риск|огранич|слаб|уязвим)/.test(title)) {
+      result.risks = parseCompactList(content || normalizedBlock);
+      continue;
+    }
+
+    if (/(важно|учетом профиля|учётом профиля|рекомендац)/.test(title)) {
+      result.important = content || normalizedBlock;
+      continue;
+    }
+  }
+
+  if (!result.summary) {
+    result.summary = blocks[0].replace(/^\d+\)\s*/, "").trim();
+  }
+
+  return result;
+}
+
 function inferSectionTone(title: string | null | undefined): SectionTone {
   const source = String(title || "").toLowerCase();
   if (/(сильн|ресурс|потенциал|достоин|преиму|опора|устойчив|готов)/.test(source)) return "positive";
@@ -424,6 +483,11 @@ export default function ProjectResultsStandalonePage() {
   const focusSection = overviewSections.find((item) => /фокус/.test(normalizeTitle(item.title))) || null;
   const contextSection = overviewSections.find((item) => /контекст/.test(normalizeTitle(item.title))) || null;
   const importantSection = overviewSections.find((item) => /важно|учетом профиля|учётом профиля|рекомендац/.test(normalizeTitle(item.title))) || null;
+  const parsedSummaryOutline = parseSummaryOutline(summarySection?.body);
+  const displaySummary = parsedSummaryOutline.summary || (summarySection ? splitSectionBody(summarySection.body).preview : "");
+  const displayStrengths = strengthsSection ? parseCompactList(strengthsSection.body) : parsedSummaryOutline.strengths;
+  const displayRisks = risksSection ? parseCompactList(risksSection.body) : parsedSummaryOutline.risks;
+  const displayImportant = importantSection ? cleanSectionBody(importantSection.body) : parsedSummaryOutline.important;
 
   const compactIndexes: CompactIndexItem[] = overviewSections
     .filter((item) => /индекс/.test(normalizeTitle(item.title)))
@@ -672,31 +736,31 @@ export default function ProjectResultsStandalonePage() {
 
                                 {summarySection ? (
                                   <div className="mt-4 rounded-[22px] border border-[#ead9bf] bg-white/70 p-5 text-[1.02rem] leading-8 text-[#6f5a42]">
-                                    {splitSectionBody(summarySection.body).preview}
+                                    {displaySummary}
                                   </div>
                                 ) : null}
 
-                                {strengthsSection || risksSection ? (
+                                {displayStrengths.length || displayRisks.length ? (
                                   <div className="mt-4 grid overflow-hidden rounded-[22px] border border-[#ead9bf] md:grid-cols-2">
                                     <div className="p-5">
                                       <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#a9c495] text-white">✓</span>Сильные стороны</div>
                                       <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
-                                        {parseCompactList(strengthsSection?.body).map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#9eb78f]" /><span>{item}</span></li>))}
+                                        {displayStrengths.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#9eb78f]" /><span>{item}</span></li>))}
                                       </ul>
                                     </div>
                                     <div className="border-t border-[#ead9bf] p-5 md:border-l md:border-t-0">
                                       <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#cc8b7b] text-white">!</span>Риски</div>
                                       <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
-                                        {parseCompactList(risksSection?.body).map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
+                                        {displayRisks.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
                                       </ul>
                                     </div>
                                   </div>
                                 ) : null}
 
-                                {importantSection ? (
+                                {displayImportant ? (
                                   <div className="mt-4 border-t border-[#ead9bf] pt-4">
                                     <div className="text-[1.15rem] font-semibold text-[#4d3b24]">Что особенно важно с учётом профиля</div>
-                                    <div className="mt-2 text-[0.98rem] leading-8 text-[#6f5a42]">{cleanSectionBody(importantSection.body)}</div>
+                                    <div className="mt-2 text-[0.98rem] leading-8 text-[#6f5a42]">{displayImportant}</div>
                                   </div>
                                 ) : null}
 
