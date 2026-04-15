@@ -1480,9 +1480,10 @@ export default function DashboardPage() {
       }
       if (current.mode === "resize") {
         const isImageWidget = current.widget.kind === "image";
+        const isCertificateWidget = CERTIFICATE_WIDGET_IDS.has(current.id);
         updateSceneWidget(current.id, {
-          width: clampDesk(current.widget.width + dx, isImageWidget ? 280 : 110, isImageWidget ? DESK_WIDTH - 20 : 520),
-          height: clampDesk(current.widget.height + dy, isImageWidget ? 180 : 30, isImageWidget ? DESK_HEIGHT - 10 : 180),
+          width: clampDesk(current.widget.width + dx, isCertificateWidget ? 112 : isImageWidget ? 280 : 110, isImageWidget ? DESK_WIDTH - 20 : 520),
+          height: clampDesk(current.widget.height + dy, isCertificateWidget ? 158 : isImageWidget ? 180 : 30, isImageWidget ? DESK_HEIGHT - 10 : 180),
         });
         return;
       }
@@ -3647,7 +3648,7 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
                   <div><span>Имя и фамилия</span><strong>{displayName}</strong></div>
                   <div><span>Email</span><strong>{project.person?.email || "Не указан"}</strong></div>
                   <div><span>Текущая должность</span><strong>{project.person?.current_position || "Не указана"}</strong></div>
-                  <div><span>Будущая предполагаемая должность</span><strong>{roleLine}</strong></div>
+                  <div><span>Целевая роль</span><strong>{roleLine}</strong></div>
                   <div><span>Цель оценки</span><strong>{goal?.title || goal?.shortTitle || project.goal}</strong></div>
                   <div><span>Создан</span><strong>{new Date(project.created_at).toLocaleString("ru-RU")}</strong></div>
                 </div>
