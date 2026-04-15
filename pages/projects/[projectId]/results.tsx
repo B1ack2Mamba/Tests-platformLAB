@@ -65,8 +65,7 @@ type CompactIndexItem = {
   label: string;
   sublabel?: string;
   value: string;
-  tone: "green" | "sand" | "red";
-  status?: string;
+  tone: "green" | "sand" | "peach";
   body: string;
 };
 
@@ -96,12 +95,12 @@ function compactText(body: string | null | undefined, maxLength = 110): string {
   return source.slice(0, maxLength).trimEnd() + "…";
 }
 
-function getIndexTone(value: string): "green" | "sand" | "red" {
+function getIndexTone(value: string): "green" | "sand" | "peach" {
   const n = Number(value);
   if (!Number.isFinite(n)) return "sand";
   if (n >= 70) return "green";
   if (n >= 45) return "sand";
-  return "red";
+  return "peach";
 }
 
 function formatCollectedAt(value: string | null | undefined): string | null {
@@ -121,6 +120,65 @@ function splitSectionBody(body: string | null | undefined): { preview: string; d
   const parts = cleaned.split(/\n\n+/).map((x) => x.trim()).filter(Boolean);
   if (parts.length <= 1) return { preview: cleaned, details: "" };
   return { preview: parts[0], details: parts.slice(1).join("\n\n") };
+}
+
+type ParsedSummaryOutline = {
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  important: string;
+};
+
+function parseSummaryOutline(body: string | null | undefined): ParsedSummaryOutline {
+  const cleaned = cleanSectionBody(body);
+  if (!cleaned) return { summary: "", strengths: [], risks: [], important: "" };
+
+  const blocks = cleaned
+    .split(/(?:^|\n)\s*(?=\d+\)\s*)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!blocks.length || !blocks.some((part) => /^\d+\)\s*/.test(part))) {
+    return { summary: cleaned, strengths: [], risks: [], important: "" };
+  }
+
+  const result: ParsedSummaryOutline = { summary: "", strengths: [], risks: [], important: "" };
+
+  for (const block of blocks) {
+    const normalizedBlock = block.replace(/^\d+\)\s*/, "").trim();
+    if (!normalizedBlock) continue;
+
+    const titleMatch = normalizedBlock.match(/^([^\n:]{1,120})(?::)?\s*/);
+    const rawTitle = titleMatch ? titleMatch[1] : "";
+    const title = normalizeTitle(rawTitle);
+    const content = normalizedBlock.slice(titleMatch ? titleMatch[0].length : 0).trim();
+
+    if (/(общий вывод|краткий вывод|итог)/.test(title)) {
+      result.summary = content || normalizedBlock;
+      continue;
+    }
+
+    if (/(сильн|ресурс|преимущ|опора)/.test(title)) {
+      result.strengths = parseCompactList(content || normalizedBlock);
+      continue;
+    }
+
+    if (/(риск|огранич|слаб|уязвим)/.test(title)) {
+      result.risks = parseCompactList(content || normalizedBlock);
+      continue;
+    }
+
+    if (/(важно|учетом профиля|учётом профиля|рекомендац)/.test(title)) {
+      result.important = content || normalizedBlock;
+      continue;
+    }
+  }
+
+  if (!result.summary) {
+    result.summary = blocks[0].replace(/^\d+\)\s*/, "").trim();
+  }
+
+  return result;
 }
 
 function inferSectionTone(title: string | null | undefined): SectionTone {
@@ -425,6 +483,11 @@ export default function ProjectResultsStandalonePage() {
   const focusSection = overviewSections.find((item) => /фокус/.test(normalizeTitle(item.title))) || null;
   const contextSection = overviewSections.find((item) => /контекст/.test(normalizeTitle(item.title))) || null;
   const importantSection = overviewSections.find((item) => /важно|учетом профиля|учётом профиля|рекомендац/.test(normalizeTitle(item.title))) || null;
+  const parsedSummaryOutline = parseSummaryOutline(summarySection?.body);
+  const displaySummary = parsedSummaryOutline.summary || (summarySection ? splitSectionBody(summarySection.body).preview : "");
+  const displayStrengths = strengthsSection ? parseCompactList(strengthsSection.body) : parsedSummaryOutline.strengths;
+  const displayRisks = risksSection ? parseCompactList(risksSection.body) : parsedSummaryOutline.risks;
+  const displayImportant = importantSection ? cleanSectionBody(importantSection.body) : parsedSummaryOutline.important;
 
   const compactIndexes: CompactIndexItem[] = overviewSections
     .filter((item) => /индекс/.test(normalizeTitle(item.title)))
@@ -437,14 +500,11 @@ export default function ProjectResultsStandalonePage() {
       else if (/будущ|целева|предполагаем/.test(title)) label = "Будущая роль";
       else if (/компет/.test(title)) label = "Компетенция";
       else if (/цел/.test(title)) label = "Цель";
-      const tone = getIndexTone(value);
-      const status = tone === "green" ? "сильное соответствие" : tone === "sand" ? "умеренное соответствие" : "зона риска";
       return {
         label,
-        sublabel: compactText(item.body, 48),
+        sublabel: compactText(item.body, 54),
         value,
-        tone,
-        status,
+        tone: getIndexTone(value),
         body: item.body,
       };
     });
@@ -641,15 +701,12 @@ export default function ProjectResultsStandalonePage() {
                                     <div className="text-sm font-semibold uppercase tracking-[0.14em] text-[#7c8f73]">Индексы</div>
                                     <div className="mt-3 space-y-3">
                                       {compactIndexes.map((item, idx) => (
-                                        <div key={`${item.label}:${idx}`} className={`rounded-[18px] border px-3 py-3 ${item.tone === "green" ? "border-[#c6dbb9] bg-[#eef6e8]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#fbf3df]" : "border-[#e6c0b4] bg-[#fbe9e4]"}`}>
-                                          <div className="flex items-center gap-3">
-                                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#b8d1aa] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e1c99d] bg-[#f4e3c4] text-[#6d5330]" : "border-[#dfb1a4] bg-[#f1cdc2] text-[#7b3f34]"}`}>{item.value}</div>
-                                            <div className="min-w-0">
-                                              <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
-                                              {item.status ? <div className={`mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] ${item.tone === "green" ? "text-[#57734d]" : item.tone === "sand" ? "text-[#8a6b37]" : "text-[#a15b50]"}`}>{item.status}</div> : null}
-                                            </div>
+                                        <div key={`${item.label}:${idx}`} className="flex items-center gap-3">
+                                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#c6dbb9] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#f4e3c4] text-[#6d5330]" : "border-[#ebcdb7] bg-[#f3d9bf] text-[#7b4c35]"}`}>{item.value}</div>
+                                          <div className="min-w-0">
+                                            <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
+                                            {item.sublabel ? <div className="mt-0.5 text-xs leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
                                           </div>
-                                          {item.sublabel ? <div className="mt-2 pl-[56px] text-[12px] leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
                                         </div>
                                       ))}
                                     </div>
@@ -679,31 +736,31 @@ export default function ProjectResultsStandalonePage() {
 
                                 {summarySection ? (
                                   <div className="mt-4 rounded-[22px] border border-[#ead9bf] bg-white/70 p-5 text-[1.02rem] leading-8 text-[#6f5a42]">
-                                    {splitSectionBody(summarySection.body).preview}
+                                    {displaySummary}
                                   </div>
                                 ) : null}
 
-                                {strengthsSection || risksSection ? (
+                                {displayStrengths.length || displayRisks.length ? (
                                   <div className="mt-4 grid overflow-hidden rounded-[22px] border border-[#ead9bf] md:grid-cols-2">
                                     <div className="p-5">
                                       <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#a9c495] text-white">✓</span>Сильные стороны</div>
                                       <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
-                                        {parseCompactList(strengthsSection?.body).map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#9eb78f]" /><span>{item}</span></li>))}
+                                        {displayStrengths.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#9eb78f]" /><span>{item}</span></li>))}
                                       </ul>
                                     </div>
                                     <div className="border-t border-[#ead9bf] p-5 md:border-l md:border-t-0">
                                       <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#cc8b7b] text-white">!</span>Риски</div>
                                       <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
-                                        {parseCompactList(risksSection?.body).map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
+                                        {displayRisks.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
                                       </ul>
                                     </div>
                                   </div>
                                 ) : null}
 
-                                {importantSection ? (
+                                {displayImportant ? (
                                   <div className="mt-4 border-t border-[#ead9bf] pt-4">
                                     <div className="text-[1.15rem] font-semibold text-[#4d3b24]">Что особенно важно с учётом профиля</div>
-                                    <div className="mt-2 text-[0.98rem] leading-8 text-[#6f5a42]">{cleanSectionBody(importantSection.body)}</div>
+                                    <div className="mt-2 text-[0.98rem] leading-8 text-[#6f5a42]">{displayImportant}</div>
                                   </div>
                                 ) : null}
 
