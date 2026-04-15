@@ -1480,7 +1480,8 @@ export default function DashboardPage() {
       }
       if (current.mode === "resize") {
         const isImageWidget = current.widget.kind === "image";
-        const isCertificateWidget = isSceneCertificateWidget(current.widget);
+        const isCertificateWidget =
+          current.widget.kind === "image" && CERTIFICATE_WIDGET_IDS.has(current.widget.id);
         const minImageWidth = isCertificateWidget ? 200 : 280;
         const minImageHeight = isCertificateWidget ? 140 : 180;
         updateSceneWidget(current.id, {

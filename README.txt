@@ -1,7 +1,2 @@
-Заменить файл поверх проекта:
-- pages/dashboard/index.tsx
-
-Что изменено:
-- уменьшен минимальный размер только для двух сертификатов на рабочем столе
-- остальные image widgets не затронуты
-- новый минимум для этих двух: 200x140 вместо общего 280x180
+Replace pages/dashboard/index.tsx in your project with this file.
+This fixes the compile error and reduces the minimum resize only for the two certificate image widgets.
