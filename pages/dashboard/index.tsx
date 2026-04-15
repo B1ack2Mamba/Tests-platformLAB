@@ -1480,10 +1480,12 @@ export default function DashboardPage() {
       }
       if (current.mode === "resize") {
         const isImageWidget = current.widget.kind === "image";
-        const isCertificateWidget = CERTIFICATE_WIDGET_IDS.has(current.id);
+        const isCertificateWidget = isSceneCertificateWidget(current.widget);
+        const minImageWidth = isCertificateWidget ? 200 : 280;
+        const minImageHeight = isCertificateWidget ? 140 : 180;
         updateSceneWidget(current.id, {
-          width: clampDesk(current.widget.width + dx, isCertificateWidget ? 112 : isImageWidget ? 280 : 110, isImageWidget ? DESK_WIDTH - 20 : 520),
-          height: clampDesk(current.widget.height + dy, isCertificateWidget ? 158 : isImageWidget ? 180 : 30, isImageWidget ? DESK_HEIGHT - 10 : 180),
+          width: clampDesk(current.widget.width + dx, isImageWidget ? minImageWidth : 110, isImageWidget ? DESK_WIDTH - 20 : 520),
+          height: clampDesk(current.widget.height + dy, isImageWidget ? minImageHeight : 30, isImageWidget ? DESK_HEIGHT - 10 : 180),
         });
         return;
       }
