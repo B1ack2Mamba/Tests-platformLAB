@@ -1,3 +1,2 @@
-Replace into project: pages/projects/[projectId]/results.tsx
-
-Restores strengths, risks and recommendations in the new layout by parsing numbered AI summary blocks when backend returns them inside one summary section instead of separate sections.
+Заменить файл pages/projects/[projectId]/results.tsx в проекте.
+Убраны лишние нижние обзорные карточки: «Аналитическое мышление», «Ключевые показатели», «Премиум AI+».
