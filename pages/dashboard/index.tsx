@@ -160,7 +160,6 @@ const DEFAULT_LAPTOP_POSITION: DeskPosition = { x: 936, y: 432, width: 372, heig
 const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 226, height: 132, z: 26, rotation: -5.4, tiltX: 0, tiltY: 0 };
 const CERTIFICATE_PSI_PROFILE_ID = "certificate-psi-profile";
 const CERTIFICATE_COGITO_ID = "certificate-cogito-centre";
-const DECOR_FRAME_WOOD_ID = "decor-frame-wood";
 const CERTIFICATE_WIDGET_IDS = new Set([CERTIFICATE_PSI_PROFILE_ID, CERTIFICATE_COGITO_ID]);
 
 
@@ -438,7 +437,6 @@ function buildSchemeSceneWidgets(params: {
     { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
     { id: CERTIFICATE_PSI_PROFILE_ID, kind: "image", text: "Свидетельство о регистрации программы", src: "/dashboard-certificate-psi-profile.png", action: "none", tone: "scheme", x: 278, y: 122, width: 146, height: 207, rotation: -3.8, fontSize: 0, z: 26 },
     { id: CERTIFICATE_COGITO_ID, kind: "image", text: "Сертификат Когито-Центр", src: "/dashboard-certificate-cogito.png", action: "none", tone: "scheme", x: 844, y: 118, width: 148, height: 210, rotation: 2.9, fontSize: 0, z: 27 },
-    { id: DECOR_FRAME_WOOD_ID, kind: "image", text: "Декоративная рамка", src: "/dashboard-frame-wood.png", action: "none", tone: "scheme", x: 1058, y: 116, width: 178, height: 230, rotation: -1.2, fontSize: 0, z: 25 },
     { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
     { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
   ];
