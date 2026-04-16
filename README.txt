@@ -1,14 +1,1 @@
-Что изменено
-- /api/commercial/projects/evaluation теперь работает по стадиям: summary -> tests (батчи по 2) -> competencies
-- фронтенд results.tsx сам последовательно вызывает те же данные стадиями и собирает итоговый экран
-- основной короткий вывод и индексы грузятся раньше, подробности по тестам догружаются пачками
-
-Важно
-- адрес endpoint остался тем же: /api/commercial/projects/evaluation
-- но теперь страница делает несколько более коротких запросов вместо одного очень тяжёлого
-- AI-детализация по компетенциям в общем потоке упрощена: в этом патче она строится из уже рассчитанных сигналов без отдельного тяжёлого LLM-вызова на каждую компетенцию
-
-Файлы для замены
-- lib/commercialEvaluation.ts
-- pages/api/commercial/projects/evaluation.ts
-- pages/projects/[projectId]/results.tsx
+Replace pages/projects/[projectId]/results.tsx with this file.

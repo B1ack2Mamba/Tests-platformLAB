@@ -64,6 +64,48 @@ type EvaluationPayload = {
 
 type SectionTone = "positive" | "warning" | "neutral";
 
+type CompactIndexItem = {
+  label: string;
+  sublabel?: string;
+  value: string;
+  tone: "green" | "sand" | "peach";
+  body: string;
+};
+
+function normalizeTitle(title: string | null | undefined): string {
+  return String(title || "").toLowerCase().replace(/ё/g, "е").trim();
+}
+
+function parseIndexValue(text: string | null | undefined): string {
+  const source = cleanSectionBody(text);
+  const m = source.match(/(\d{1,3})\s*\/\s*100/);
+  return m ? m[1] : "—";
+}
+
+function parseCompactList(body: string | null | undefined): string[] {
+  const source = cleanSectionBody(body);
+  if (!source) return [];
+  return source
+    .split(/\n+/)
+    .map((line) => line.replace(/^[-•*\u2022\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+function compactText(body: string | null | undefined, maxLength = 110): string {
+  const source = cleanSectionBody(body).replace(/\s+/g, " ").trim();
+  if (!source) return "";
+  if (source.length <= maxLength) return source;
+  return source.slice(0, maxLength).trimEnd() + "…";
+}
+
+function getIndexTone(value: string): "green" | "sand" | "peach" {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "sand";
+  if (n >= 70) return "green";
+  if (n >= 45) return "sand";
+  return "peach";
+}
+
 function formatCollectedAt(value: string | null | undefined): string | null {
   if (!value) return null;
   const d = new Date(value);
@@ -437,6 +479,40 @@ export default function ProjectResultsStandalonePage() {
   const secondaryOverviewCards = overviewCards.slice(2);
   const coveragePercent = coverage ? Math.round(((coverage.custom + coverage.default) / Math.max(coverage.total, 1)) * 100) : 0;
 
+  const summarySection = overviewSections.find((item) => /коротк|итогов|общий вывод/.test(normalizeTitle(item.title))) || null;
+  const strengthsSection = overviewSections.find((item) => /сильн|ресурс|преимущ|опора/.test(normalizeTitle(item.title))) || null;
+  const risksSection = overviewSections.find((item) => /риск|огранич|уязвим|зона риска/.test(normalizeTitle(item.title))) || null;
+  const focusSection = overviewSections.find((item) => /фокус/.test(normalizeTitle(item.title))) || null;
+  const contextSection = overviewSections.find((item) => /контекст/.test(normalizeTitle(item.title))) || null;
+  const importantSection = overviewSections.find((item) => /важно|учетом профиля|учётом профиля|рекомендац/.test(normalizeTitle(item.title))) || null;
+  const parsedSummaryOutline = parseSummaryOutline(summarySection?.body);
+  const displaySummary = parsedSummaryOutline.summary || (summarySection ? splitSectionBody(summarySection.body).preview : "");
+  const displayStrengths = strengthsSection ? parseCompactList(strengthsSection.body) : parsedSummaryOutline.strengths;
+  const displayRisks = risksSection ? parseCompactList(risksSection.body) : parsedSummaryOutline.risks;
+  const displayImportant = importantSection ? cleanSectionBody(importantSection.body) : parsedSummaryOutline.important;
+
+  const compactIndexes: CompactIndexItem[] = overviewSections
+    .filter((item) => /индекс/.test(normalizeTitle(item.title)))
+    .slice(0, 3)
+    .map((item) => {
+      const title = normalizeTitle(item.title);
+      const value = parseIndexValue(item.body);
+      let label = item.title;
+      if (/текущ/.test(title)) label = "Текущая роль";
+      else if (/будущ|целева|предполагаем/.test(title)) label = "Будущая роль";
+      else if (/компет/.test(title)) label = "Компетенция";
+      else if (/цел/.test(title)) label = "Цель";
+      return {
+        label,
+        sublabel: compactText(item.body, 54),
+        value,
+        tone: getIndexTone(value),
+        body: item.body,
+      };
+    });
+
+  const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, risksSection, focusSection, contextSection, importantSection, ...compactIndexes.map((x) => overviewSections.find((s) => s.body === x.body && s.title !== undefined) as any)].includes(item as any));
+
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
       <div className="mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4">
@@ -618,54 +694,99 @@ export default function ProjectResultsStandalonePage() {
                           <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
                         ) : activeSections.length ? (
                           <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
-                            <div className="font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
-                            {primaryOverviewCards.length ? (
-                              <div className={`mt-6 grid gap-5 ${primaryOverviewCards.length > 1 ? "lg:grid-cols-2" : ""}`}>
-                                {primaryOverviewCards.map((section, index) => {
-                                  const key = sectionKey(`${activeEvaluationMode}:overview`, index);
-                                  const isOpen = openSections[key] ?? false;
-                                  const parts = splitSectionBody(section.body);
-                                  const tone = inferSectionTone(section.title);
-                                  const toneClass = tone === "positive" ? "bg-[#f7fcf4] border-[#d8e7cf]" : tone === "warning" ? "bg-[#fffaf2] border-[#eddcc0]" : "bg-[#fffdf8] border-[#ead9bf]";
-                                  return (
-                                    <div key={`${section.title}:${index}`} className={`rounded-[24px] border p-5 ${toneClass}`}>
-                                      <div className="font-serif text-[1.3rem] text-[#4d3b24]">{section.title}</div>
-                                      <div className="mt-4 whitespace-pre-line text-[1.02rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
-                                      {parts.details ? (
-                                        <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
-                                          {isOpen ? "Скрыть детали" : "Подробнее"}
-                                        </button>
-                                      ) : null}
-                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : null}
+                            <div className="border-b border-[#ead9bf] pb-4 font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
 
-                            {secondaryOverviewCards.length ? (
-                              <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                                {secondaryOverviewCards.map((section, index) => {
-                                  const actualIndex = index + primaryOverviewCards.length;
-                                  const key = sectionKey(`${activeEvaluationMode}:overview`, actualIndex);
-                                  const isOpen = openSections[key] ?? false;
-                                  const parts = splitSectionBody(section.body);
-                                  return (
-                                    <div key={`${section.title}:${actualIndex}`} className="rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
-                                      <div className="font-serif text-[1.24rem] text-[#4d3b24]">{section.title}</div>
-                                      <div className="mt-4 whitespace-pre-line text-[1rem] leading-8 text-[#6f5a42]">{parts.preview}</div>
-                                      {parts.details ? (
-                                        <button type="button" className="mt-4 text-sm font-medium text-[#8b6b3c]" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !isOpen }))}>
-                                          {isOpen ? "Скрыть детали" : "Подробнее"}
-                                        </button>
-                                      ) : null}
-                                      {parts.details && isOpen ? <div className="mt-3 border-t border-[#ead9bf] pt-3 whitespace-pre-line text-sm leading-7 text-[#6f6454]">{parts.details}</div> : null}
+                            <div className="mt-5 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+                              <aside className="space-y-4">
+                                {compactIndexes.length ? (
+                                  <div className="rounded-[24px] border border-[#dce8d3] bg-[#f7fbf3] p-4">
+                                    <div className="text-sm font-semibold uppercase tracking-[0.14em] text-[#7c8f73]">Индексы</div>
+                                    <div className="mt-3 space-y-3">
+                                      {compactIndexes.map((item, idx) => (
+                                        <div key={`${item.label}:${idx}`} className="flex items-center gap-3">
+                                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#c6dbb9] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#f4e3c4] text-[#6d5330]" : "border-[#ebcdb7] bg-[#f3d9bf] text-[#7b4c35]"}`}>{item.value}</div>
+                                          <div className="min-w-0">
+                                            <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
+                                            {item.sublabel ? <div className="mt-0.5 text-xs leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
+                                          </div>
+                                        </div>
+                                      ))}
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            ) : null}
+                                  </div>
+                                ) : null}
 
+                                {focusSection ? (
+                                  <div className="rounded-[22px] border border-[#ead9bf] bg-[#fffdf8] p-4">
+                                    <div className="font-serif text-[1.1rem] text-[#4d3b24]">Фокус</div>
+                                    <div className="mt-2 text-sm leading-7 text-[#6f5a42]">{compactText(focusSection.body, 140)}</div>
+                                  </div>
+                                ) : null}
+
+                                {contextSection ? (
+                                  <div className="rounded-[22px] border border-[#ead9bf] bg-[#fffdf8] p-4">
+                                    <div className="font-serif text-[1.1rem] text-[#4d3b24]">Контекст</div>
+                                    <div className="mt-2 text-sm leading-7 text-[#6f5a42]">{compactText(contextSection.body, 110)}</div>
+                                  </div>
+                                ) : null}
+                              </aside>
+
+                              <div className="rounded-[26px] border border-[#ead9bf] bg-[#fffdf8] p-4 sm:p-5">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#c6dbb9] bg-[#dcead7] text-lg">💡</div>
+                                  <div className="font-serif text-[1.8rem] leading-none text-[#4d3b24]">Короткий вывод</div>
+                                </div>
+
+                                {summarySection ? (
+                                  <div className="mt-4 rounded-[22px] border border-[#ead9bf] bg-white/70 p-5 text-[1.02rem] leading-8 text-[#6f5a42]">
+                                    {displaySummary}
+                                  </div>
+                                ) : null}
+
+                                {displayStrengths.length || displayRisks.length ? (
+                                  <div className="mt-4 grid overflow-hidden rounded-[22px] border border-[#ead9bf] md:grid-cols-2">
+                                    <div className="p-5">
+                                      <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#a9c495] text-white">✓</span>Сильные стороны</div>
+                                      <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
+                                        {displayStrengths.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#9eb78f]" /><span>{item}</span></li>))}
+                                      </ul>
+                                    </div>
+                                    <div className="border-t border-[#ead9bf] p-5 md:border-l md:border-t-0">
+                                      <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#cc8b7b] text-white">!</span>Риски</div>
+                                      <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
+                                        {displayRisks.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                {displayImportant ? (
+                                  <div className="mt-4 border-t border-[#ead9bf] pt-4">
+                                    <div className="text-[1.15rem] font-semibold text-[#4d3b24]">Что особенно важно с учётом профиля</div>
+                                    <div className="mt-2 text-[0.98rem] leading-8 text-[#6f5a42]">{displayImportant}</div>
+                                  </div>
+                                ) : null}
+
+                                <div className="mt-5 flex items-center justify-between gap-3 rounded-[18px] border border-[#ead9bf] bg-white/70 px-4 py-3">
+                                  <div className="text-[1.02rem] font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
+                                  {activeEvaluationMode === "premium_ai_plus" ? (
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-[#b9cfab] bg-[#dbe8d0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                                      onClick={() => {
+                                        setShowAiPlusPrompt(true);
+                                        if (typeof window !== "undefined") {
+                                          window.setTimeout(() => {
+                                            document.getElementById("ai-refine-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                          }, 40);
+                                        }
+                                      }}
+                                    >
+                                      Уточнить цели
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
                             {testSections.length ? (
                               <div className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
                                 <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
