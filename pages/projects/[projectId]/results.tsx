@@ -138,14 +138,13 @@ function parseSummaryOutline(body: string | null | undefined): {
   }
 
   const sections = cleaned
-    .split(/(?:^|
-)\s*(?:\d+[).:]?|[1-4]\s*[—-])\s*/)
+    .split(/(?:^|\n)\s*(?:\d+[).:]?|[1-4]\s*[—-])\s*/)
     .map((part) => part.trim())
     .filter(Boolean);
 
-  const parsed = sections.length > 1 ? sections : cleaned.split(/
-
-+/).map((part) => part.trim()).filter(Boolean);
+  const parsed = sections.length > 1
+    ? sections
+    : cleaned.split(/\n\n+/).map((part) => part.trim()).filter(Boolean);
   const [rawSummary = "", rawStrengths = "", rawRisks = "", rawImportant = ""] = parsed;
 
   return {
