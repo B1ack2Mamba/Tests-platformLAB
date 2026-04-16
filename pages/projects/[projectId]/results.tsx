@@ -125,6 +125,39 @@ function splitSectionBody(body: string | null | undefined): { preview: string; d
   return { preview: parts[0], details: parts.slice(1).join("\n\n") };
 }
 
+
+function parseSummaryOutline(body: string | null | undefined): {
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  important: string;
+} {
+  const cleaned = cleanSectionBody(body);
+  if (!cleaned) {
+    return { summary: "", strengths: [], risks: [], important: "" };
+  }
+
+  const sections = cleaned
+    .split(/(?:^|
+)\s*(?:\d+[).:]?|[1-4]\s*[—-])\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const parsed = sections.length > 1 ? sections : cleaned.split(/
+
++/).map((part) => part.trim()).filter(Boolean);
+  const [rawSummary = "", rawStrengths = "", rawRisks = "", rawImportant = ""] = parsed;
+
+  return {
+    summary: rawSummary.replace(/^(общий вывод[:\s-]*)/i, "").trim(),
+    strengths: parseCompactList(rawStrengths),
+    risks: parseCompactList(rawRisks),
+    important: rawImportant
+      .replace(/^(что особенно важно(?:\s+с\s+уч[её]том\s+профиля)?[:\s-]*)/i, "")
+      .trim(),
+  };
+}
+
 function inferSectionTone(title: string | null | undefined): SectionTone {
   const source = String(title || "").toLowerCase();
   if (/(сильн|ресурс|потенциал|достоин|преиму|опора|устойчив|готов)/.test(source)) return "positive";
