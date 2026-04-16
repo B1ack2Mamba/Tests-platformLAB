@@ -540,7 +540,11 @@ export default function ProjectResultsStandalonePage() {
   const displayRisks = risksSection ? parseCompactList(risksSection.body) : parsedSummaryOutline.risks;
   const displayImportant = importantSection ? cleanSectionBody(importantSection.body) : parsedSummaryOutline.important;
 
-  const compactIndexesSource = overviewSections.filter((item) => /индекс/.test(normalizeTitle(item.title)));
+  const compactIndexesSource = overviewSections.filter((item) => {
+    const title = normalizeTitle(item.title);
+    const body = cleanSectionBody(item.body);
+    return /индекс/.test(title) || (/\d{1,3}\s*\/\s*100/.test(body) && /(текущ|будущ|целева|предполагаем|компет|цел)/.test(`${title} ${body.toLowerCase()}`));
+  });
   const compactIndexesByKey = new Map<string, CompactIndexItem>();
 
   for (const item of compactIndexesSource) {
@@ -569,6 +573,7 @@ export default function ProjectResultsStandalonePage() {
 
   const compactIndexBodies = new Set(compactIndexes.map((item) => item.body));
   const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, risksSection, focusSection, contextSection, importantSection].includes(item as any) && !compactIndexBodies.has(item.body));
+  const fallbackRisks = displayRisks.length ? displayRisks : remainingOverviewCards.filter((item) => inferSectionTone(item.title) === "warning").flatMap((item) => parseCompactList(item.body)).slice(0, 6);
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
@@ -801,7 +806,7 @@ export default function ProjectResultsStandalonePage() {
                                   </div>
                                 ) : null}
 
-                                {displayStrengths.length || displayRisks.length ? (
+                                {displayStrengths.length || fallbackRisks.length ? (
                                   <div className="mt-4 grid overflow-hidden rounded-[22px] border border-[#ead9bf] md:grid-cols-2">
                                     <div className="p-5">
                                       <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#a9c495] text-white">✓</span>Сильные стороны</div>
@@ -812,7 +817,7 @@ export default function ProjectResultsStandalonePage() {
                                     <div className="border-t border-[#ead9bf] p-5 md:border-l md:border-t-0">
                                       <div className="flex items-center gap-2 text-[1.05rem] font-semibold text-[#4d3b24]"><span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#cc8b7b] text-white">!</span>Риски</div>
                                       <ul className="mt-4 space-y-3 text-[0.98rem] leading-8 text-[#6f5a42]">
-                                        {displayRisks.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
+                                        {fallbackRisks.map((item, idx) => (<li key={idx} className="flex gap-3"><span className="mt-[11px] h-2 w-2 shrink-0 rounded-full bg-[#cc8b7b]" /><span>{item}</span></li>))}
                                       </ul>
                                     </div>
                                   </div>
