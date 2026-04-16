@@ -785,7 +785,6 @@ export default function ProjectResultsStandalonePage() {
                                 </div>
                               </div>
                             </div>
-
                             {testSections.length ? (
                               <div className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
                                 <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>
