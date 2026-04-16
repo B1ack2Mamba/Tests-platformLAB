@@ -1,2 +1,8 @@
-Replace pages/dashboard/index.tsx in your project with this file.
-This fixes the compile error and reduces the minimum resize only for the two certificate image widgets.
+Замените файлы поверх проекта:
+- pages/dashboard/index.tsx
+- public/dashboard-frame-wood.png
+
+Что добавлено:
+- новая деревянная рамка как отдельный image-widget на рабочем столе
+- рамку можно двигать, увеличивать и уменьшать в режиме редактирования сцены
+- сохранена точечная минималка только для двух сертификатов
