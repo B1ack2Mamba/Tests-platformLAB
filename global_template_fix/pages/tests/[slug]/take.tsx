@@ -532,7 +532,7 @@ function ForcedPairForm({ test }: { test: ForcedPairTestV1 }) {
       await saveInviteAttemptIfNeeded({ test, result: res });
 
       // 2) если тест платный — нужна сессия
-      if (test.has_interpretation && priceRub(test) > 0) {
+      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
         if (!user || !session) {
           setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
           router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
@@ -708,7 +708,7 @@ function PairSplitForm({ test }: { test: PairSplitTestV1 }) {
       }
       await saveInviteAttemptIfNeeded({ test, result: res });
 
-      if (test.has_interpretation && priceRub(test) > 0) {
+      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
         if (!user || !session) {
           setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
           router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
@@ -1257,7 +1257,7 @@ function USKForm({ test }: { test: USKTestV1 }) {
       await saveInviteAttemptIfNeeded({ test, result: res });
 
       // Paid interpretation (if enabled)
-      if (test.has_interpretation && priceRub(test) > 0) {
+      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
         if (!user || !session) {
           setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
           router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
@@ -1423,7 +1423,7 @@ function SituationalGuidanceForm({ test }: { test: SituationalGuidanceTestV1 }) 
       await saveInviteAttemptIfNeeded({ test, result: res });
 
       // Paid interpretation (if ever enabled)
-      if (test.has_interpretation && priceRub(test) > 0) {
+      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
         if (!user || !session) {
           setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
           router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
