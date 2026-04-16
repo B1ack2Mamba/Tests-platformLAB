@@ -51,6 +51,9 @@ type EvaluationPayload = {
   completed: number;
   total: number;
   unlocked_package_mode?: EvaluationPackage | null;
+  stage?: "summary" | "tests" | "competencies" | "full";
+  has_more?: boolean;
+  batch?: { current: number; total: number };
   evaluation: {
     mode: string;
     sections: Array<{ kind: string; title: string; body: string }>;
@@ -202,13 +205,44 @@ export default function ProjectResultsStandalonePage() {
     }
   }
 
-  async function loadEvaluation(mode: EvaluationPackage, opts?: { customRequest?: string; refresh?: boolean }) {
+  async function loadEvaluation(mode: EvaluationPackage, opts?: { customRequest?: string }) {
     if (!session?.access_token || !projectId) return;
     setEvaluationLoading((prev) => ({ ...prev, [mode]: true }));
-    try {
+    setError("");
+    const appendPayload = (incoming: EvaluationPayload, replace = false) => {
+      setEvaluationByMode((prev) => {
+        const prevPayload = replace ? null : prev[mode];
+        const prevSections = prevPayload?.evaluation?.sections || [];
+        const incomingSections = incoming.evaluation?.sections || [];
+        const sectionMap = new Map<string, { kind: string; title: string; body: string }>();
+        for (const section of [...prevSections, ...incomingSections]) {
+          const key = `${section.kind}:${section.title}`;
+          sectionMap.set(key, section);
+        }
+        return {
+          ...prev,
+          [mode]: {
+            ...incoming,
+            evaluation: incoming.evaluation
+              ? {
+                  ...incoming.evaluation,
+                  sections: Array.from(sectionMap.values()),
+                }
+              : prevPayload?.evaluation || null,
+          },
+        };
+      });
+    };
+
+    const buildUrl = (stage: string, batchStart?: number) => {
       const url = new URL(`/api/commercial/projects/evaluation`, window.location.origin);
       url.searchParams.set("id", projectId);
       url.searchParams.set("mode", mode);
+      url.searchParams.set("stage", stage);
+      if (typeof batchStart === "number") {
+        url.searchParams.set("batch_start", String(batchStart));
+        url.searchParams.set("batch_size", "2");
+      }
       if (mode === "premium_ai_plus" && opts?.customRequest?.trim()) {
         url.searchParams.set("custom_request", opts.customRequest.trim());
       }
@@ -217,15 +251,39 @@ export default function ProjectResultsStandalonePage() {
         if (fitRequested && fitProfileId) url.searchParams.set("fit_profile_id", fitProfileId);
         if (fitRequested && fitRequest.trim()) url.searchParams.set("fit_request", fitRequest.trim());
       }
-      if (opts?.refresh) {
-        url.searchParams.set("refresh", "1");
-      }
-      const resp = await fetch(url.toString(), {
+      return url.toString();
+    };
+
+    try {
+      const summaryResp = await fetch(buildUrl(mode === "basic" ? "full" : "summary"), {
         headers: { authorization: `Bearer ${session.access_token}` },
       });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить уровень анализа");
-      setEvaluationByMode((prev) => ({ ...prev, [mode]: json as EvaluationPayload }));
+      const summaryJson = await summaryResp.json().catch(() => ({}));
+      if (!summaryResp.ok || !summaryJson?.ok) throw new Error(summaryJson?.error || "Не удалось загрузить уровень анализа");
+      appendPayload(summaryJson as EvaluationPayload, true);
+
+      if (mode !== "basic") {
+        let batchStart = 0;
+        for (;;) {
+          const testsResp = await fetch(buildUrl("tests", batchStart), {
+            headers: { authorization: `Bearer ${session.access_token}` },
+          });
+          const testsJson = await testsResp.json().catch(() => ({}));
+          if (!testsResp.ok || !testsJson?.ok) throw new Error(testsJson?.error || "Не удалось загрузить интерпретации тестов");
+          appendPayload(testsJson as EvaluationPayload);
+          if (!(testsJson as EvaluationPayload).has_more) break;
+          batchStart += 2;
+        }
+      }
+
+      if (mode === "premium_ai_plus") {
+        const competencyResp = await fetch(buildUrl("competencies"), {
+          headers: { authorization: `Bearer ${session.access_token}` },
+        });
+        const competencyJson = await competencyResp.json().catch(() => ({}));
+        if (!competencyResp.ok || !competencyJson?.ok) throw new Error(competencyJson?.error || "Не удалось загрузить компетенции");
+        appendPayload(competencyJson as EvaluationPayload);
+      }
     } catch (err: any) {
       setError(err?.message || "Не удалось загрузить уровень анализа");
     } finally {
@@ -402,16 +460,7 @@ export default function ProjectResultsStandalonePage() {
                 <div className="flex flex-wrap gap-2 lg:justify-end">
                   <button
                     type="button"
-                    onClick={async () => {
-                      const payload = await loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." });
-                      if (payload?.project?.unlocked_package_mode) {
-                        setEvaluationByMode({});
-                        const mode = activeEvaluationMode || payload.project.unlocked_package_mode;
-                        if (mode) {
-                          await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest, refresh: true } : { refresh: true });
-                        }
-                      }
-                    }}
+                    onClick={() => loadResults(true, { announce: lastCollectedAt ? "Анализ пересобран по всей информации проекта." : "Анализ собран по всей информации проекта." })}
                     disabled={collecting || !data?.fully_done}
                     className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)] disabled:opacity-60"
                   >

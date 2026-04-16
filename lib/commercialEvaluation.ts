@@ -52,7 +52,9 @@ type BuildOptions = {
   fitEnabled?: boolean;
   fitRequest?: string | null;
   fitProfileId?: string | null;
-  includeCompetencyBodies?: boolean;
+  stage?: "summary" | "tests" | "competencies" | "full";
+  batchStart?: number;
+  batchSize?: number;
 };
 
 type CompetencySignal = {
@@ -545,6 +547,7 @@ export async function buildCommercialEvaluation(
 ) {
   const mode = ((overrideMode || project.package_mode || "basic") as EvaluationPackage);
   const packageDef = getEvaluationPackageDefinition(mode);
+  const stage = options?.stage || "full";
   const sections: EvaluationSection[] = [];
   const complete = attempts.length > 0;
 
@@ -579,38 +582,28 @@ export async function buildCommercialEvaluation(
     return { mode, sections };
   }
 
-  const keysBySlug = options?.interpretationKeysBySlug || {};
-  const premiumByTest: Array<{ title: string; body: string }> = [];
-  for (const attempt of attempts) {
-    const keys = keysBySlug[attempt.test_slug] ?? DEFAULT_TEST_INTERPRETATIONS[attempt.test_slug] ?? null;
-    const body = await buildPremiumInterpretation(project, attempt, keys);
-    premiumByTest.push({ title: attempt.test_title || attempt.test_slug, body });
-    sections.push({
-      kind: "test",
-      title: attempt.test_title || attempt.test_slug,
-      body,
-    });
-  }
+  const fitMatrix = mode === "premium_ai_plus" && options?.fitEnabled
+    ? await resolveFitMatrixServer({
+        goal: project.goal as AssessmentGoal,
+        fitProfileId: options?.fitProfileId || null,
+        fitRequest: options?.fitRequest || null,
+        targetRole: project.target_role || null,
+      })
+    : null;
+  const signalIds = fitMatrix ? Object.keys(fitMatrix.weights) : undefined;
+  const rawCompetencySignals = mode === "premium_ai_plus" ? buildCompetencySignals(project, attempts, signalIds) : [];
+  const competencySignals = mode === "premium_ai_plus" ? [...rawCompetencySignals].sort((a, b) => b.score - a.score).slice(0, 6) : [];
+  const profileContext = mode === "premium_ai_plus" ? buildProfileContext(project) : "";
 
-  if (mode === "premium_ai_plus") {
-    const fitMatrix = options?.fitEnabled
-      ? await resolveFitMatrixServer({
-          goal: project.goal as AssessmentGoal,
-          fitProfileId: options?.fitProfileId || null,
-          fitRequest: options?.fitRequest || null,
-          targetRole: project.target_role || null,
-        })
-      : null;
-    const signalIds = fitMatrix ? Object.keys(fitMatrix.weights) : undefined;
-    const rawCompetencySignals = buildCompetencySignals(project, attempts, signalIds);
-    const competencySignals = [...rawCompetencySignals]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
-    const profileContext = buildProfileContext(project);
+  const includeSummary = stage === "summary" || stage === "full";
+  const includeTests = stage === "tests" || stage === "full";
+  const includeCompetencies = mode === "premium_ai_plus" && (stage === "competencies" || stage === "full");
+
+  if (includeSummary && mode === "premium_ai_plus") {
     const synthesisPrompt = await buildAiPlusPrompt({
       project,
       attempts,
-      premiumByTest,
+      premiumByTest: [],
       competencySignals,
       customRequest: options?.aiPlusRequest || null,
       fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
@@ -619,63 +612,19 @@ export async function buildCommercialEvaluation(
     const synthesis = await callDeepseek(
       "Ты помогаешь специалисту по оценке персонала собирать краткий профессиональный профиль по данным нескольких тестов.",
       synthesisPrompt,
-      1800
+      1400
     ).catch(() => null);
 
-    sections.unshift({
-      kind: "portrait",
-      title: "Ключевые показатели",
-      body: buildCompactIndicatorText(competencySignals),
+    sections.push({
+      kind: "summary",
+      title: "Фокус анализа",
+      body: buildFocusIntro(project, competencySignals),
     });
-
-    if (options?.includeCompetencyBodies !== false) {
-      const promptMap = await loadCompetencyPromptMap(competencySignals.map((item) => item.id));
-      const routeMap = new Map(getCompetencyRoutes(competencySignals.map((item) => item.id)).map((route) => [route.id, route] as const));
-      const competencyBodies = await Promise.all(
-        competencySignals.map(async (item) => {
-          const route = routeMap.get(item.id);
-          if (!route) return { item, body: `${item.status} — ${item.score}/100. ${item.short}
-
-${item.details}` };
-          const relevantSlugs = getCompetencyRecommendedTests([item.id], attempts.map((attempt) => attempt.test_slug), "standard");
-          const relevantAttempts = attempts.filter((attempt) => relevantSlugs.includes(attempt.test_slug));
-          const aiBody = await buildCompetencyAiDetail({
-            project,
-            route,
-            signal: item,
-            relevantAttempts,
-            premiumByTest,
-            profileContext,
-            customRequest: options?.aiPlusRequest || null,
-            fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
-            promptConfig: promptMap[item.id]?.is_active === false ? null : (promptMap[item.id] || null),
-          });
-          return {
-            item,
-            body: aiBody ? `${item.status} — ${item.score}/100. ${item.short}
-
-${aiBody}` : `${item.status} — ${item.score}/100. ${item.short}
-
-${item.details}`,
-          };
-        })
-      );
-
-      for (const entry of [...competencyBodies].reverse()) {
-        sections.unshift({
-          kind: "development",
-          title: entry.item.title,
-          body: entry.body,
-        });
-      }
-    }
-
-    sections.unshift({
+    sections.push({
       kind: "portrait",
-      title: "Контекст профиля",
-      body: profileContext,
+      title: "Короткий вывод",
+      body: synthesis ? cleanText(synthesis) : buildPortraitFallback(project, attempts),
     });
-
     if (options?.fitEnabled) {
       const correspondence = await buildCorrespondenceIndex(
         project,
@@ -684,7 +633,7 @@ ${item.details}`,
         options?.fitRequest || null,
         options?.fitProfileId || null
       );
-      sections.unshift({
+      sections.push({
         kind: "portrait",
         title: correspondence.title,
         body: `${correspondence.body}
@@ -692,17 +641,52 @@ ${item.details}`,
 Ориентир: ${correspondence.requestedLabel}.`,
       });
     }
-
-    sections.unshift({
+    sections.push({
       kind: "portrait",
-      title: "Короткий вывод",
-      body: synthesis ? cleanText(synthesis) : buildPortraitFallback(project, attempts),
+      title: "Контекст профиля",
+      body: profileContext,
     });
-    sections.unshift({
+  }
+
+  if (includeSummary && mode === "premium") {
+    sections.push({
       kind: "summary",
       title: "Фокус анализа",
-      body: buildFocusIntro(project, competencySignals),
+      body: `Интерпретация собрана по ${attempts.length} завершённым тестам. Подробности по каждой методике загружаются отдельными шагами, чтобы страница не зависала на длинной генерации.`,
     });
+  }
+
+  if (includeTests) {
+    const keysBySlug = options?.interpretationKeysBySlug || {};
+    const batchStart = Math.max(0, Number(options?.batchStart || 0));
+    const batchSize = Math.max(1, Number(options?.batchSize || attempts.length));
+    const slice = attempts.slice(batchStart, batchStart + batchSize);
+    for (const attempt of slice) {
+      const keys = keysBySlug[attempt.test_slug] ?? DEFAULT_TEST_INTERPRETATIONS[attempt.test_slug] ?? null;
+      const body = await buildPremiumInterpretation(project, attempt, keys);
+      sections.push({
+        kind: "test",
+        title: attempt.test_title || attempt.test_slug,
+        body,
+      });
+    }
+  }
+
+  if (includeCompetencies) {
+    sections.push({
+      kind: "portrait",
+      title: "Ключевые показатели",
+      body: buildCompactIndicatorText(competencySignals),
+    });
+    for (const item of competencySignals) {
+      sections.push({
+        kind: "development",
+        title: item.title,
+        body: `${item.status} — ${item.score}/100. ${item.short}
+
+${item.details}`,
+      });
+    }
   }
 
   return { mode, sections };
