@@ -106,6 +106,23 @@ function getIndexTone(value: string): "green" | "sand" | "peach" {
   return "peach";
 }
 
+function getIndexSemanticKey(title: string | null | undefined): "current_role" | "future_role" | "goal_or_competency" | "other" {
+  const source = normalizeTitle(title);
+  if (/текущ/.test(source)) return "current_role";
+  if (/будущ|целева|предполагаем/.test(source)) return "future_role";
+  if (/компет|цел/.test(source)) return "goal_or_competency";
+  return "other";
+}
+
+function getIndexDisplayLabel(title: string | null | undefined): string {
+  const source = normalizeTitle(title);
+  if (/текущ/.test(source)) return "Текущая роль";
+  if (/будущ|целева|предполагаем/.test(source)) return "Будущая роль";
+  if (/компет/.test(source)) return "Компетенция";
+  if (/цел/.test(source)) return "Цель";
+  return String(title || "Индекс");
+}
+
 function formatCollectedAt(value: string | null | undefined): string | null {
   if (!value) return null;
   const d = new Date(value);
@@ -523,27 +540,35 @@ export default function ProjectResultsStandalonePage() {
   const displayRisks = risksSection ? parseCompactList(risksSection.body) : parsedSummaryOutline.risks;
   const displayImportant = importantSection ? cleanSectionBody(importantSection.body) : parsedSummaryOutline.important;
 
-  const compactIndexes: CompactIndexItem[] = overviewSections
-    .filter((item) => /индекс/.test(normalizeTitle(item.title)))
-    .slice(0, 3)
-    .map((item) => {
-      const title = normalizeTitle(item.title);
+  const compactIndexesSource = overviewSections.filter((item) => /индекс/.test(normalizeTitle(item.title)));
+  const compactIndexesByKey = new Map<string, CompactIndexItem>();
+
+  for (const item of compactIndexesSource) {
+    const semanticKey = getIndexSemanticKey(item.title);
+    if (semanticKey === "other") continue;
+    if (semanticKey === "goal_or_competency" && /выбранн.*цели/.test(normalizeTitle(item.title))) {
+      continue;
+    }
+    if (!compactIndexesByKey.has(semanticKey)) {
       const value = parseIndexValue(item.body);
-      let label = item.title;
-      if (/текущ/.test(title)) label = "Текущая роль";
-      else if (/будущ|целева|предполагаем/.test(title)) label = "Будущая роль";
-      else if (/компет/.test(title)) label = "Компетенция";
-      else if (/цел/.test(title)) label = "Цель";
-      return {
-        label,
+      compactIndexesByKey.set(semanticKey, {
+        label: getIndexDisplayLabel(item.title),
         sublabel: compactText(item.body, 54),
         value,
         tone: getIndexTone(value),
         body: item.body,
-      };
-    });
+      });
+    }
+  }
 
-  const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, risksSection, focusSection, contextSection, importantSection, ...compactIndexes.map((x) => overviewSections.find((s) => s.body === x.body && s.title !== undefined) as any)].includes(item as any));
+  const compactIndexes: CompactIndexItem[] = [
+    compactIndexesByKey.get("goal_or_competency"),
+    compactIndexesByKey.get("current_role"),
+    compactIndexesByKey.get("future_role"),
+  ].filter(Boolean) as CompactIndexItem[];
+
+  const compactIndexBodies = new Set(compactIndexes.map((item) => item.body));
+  const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, risksSection, focusSection, contextSection, importantSection].includes(item as any) && !compactIndexBodies.has(item.body));
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
@@ -619,12 +644,14 @@ export default function ProjectResultsStandalonePage() {
                           <div className="mt-6 text-[1.02rem] leading-9 text-[#6f5a42]">{item.description}</div>
                           {item.bullets?.length || isAiPlus ? (
                             <ul className="mt-6 space-y-3 text-sm leading-7 text-[#6f5a42]">
-                              {item.bullets?.slice(0, 2).map((bullet) => (
+                              {Array.from(new Set([
+                                ...(item.bullets?.slice(0, 2) || []),
+                                ...(isAiPlus && !(item.bullets || []).some((bullet) => /индекс\s+соответствия\s+по\s+выбранной\s+цели/i.test(String(bullet)))
+                                  ? ["индекс соответствия по выбранной цели"]
+                                  : []),
+                              ])).map((bullet) => (
                                 <li key={bullet} className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>{bullet}</span></li>
                               ))}
-                              {isAiPlus ? (
-                                <li className="flex items-start gap-2.5"><span className="mt-2.5 h-1.5 w-1.5 rounded-full bg-[#d2bb92]" /> <span>индекс соответствия по выбранной цели</span></li>
-                              ) : null}
                             </ul>
                           ) : null}
                           <div className="mt-auto pt-6">
