@@ -6,8 +6,14 @@ import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
 import { isEvaluationPackage, isPackageAccessible, type EvaluationPackage } from "@/lib/commercialGoals";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 
+const MAX_BATCH_SIZE = 3;
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  }
   const authed = await requireUser(req, res);
   if (!authed) return;
 
@@ -20,8 +26,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const fitProfileId = typeof req.query.fit_profile_id === "string" ? req.query.fit_profile_id.trim() : "";
   const stageRaw = typeof req.query.stage === "string" ? req.query.stage.trim() : "summary";
   const stage = stageRaw === "tests" || stageRaw === "competencies" || stageRaw === "full" ? stageRaw : "summary";
-  const batchStart = typeof req.query.batch_start === "string" ? Number(req.query.batch_start) : 0;
-  const batchSize = typeof req.query.batch_size === "string" ? Number(req.query.batch_size) : 2;
+  const batchStartRaw = typeof req.query.batch_start === "string" ? Number(req.query.batch_start) : 0;
+  const batchSizeRaw = typeof req.query.batch_size === "string" ? Number(req.query.batch_size) : 2;
+  const batchStart = Number.isFinite(batchStartRaw) ? Math.max(0, Math.trunc(batchStartRaw)) : 0;
+  const batchSize = Number.isFinite(batchSizeRaw) ? Math.max(1, Math.min(MAX_BATCH_SIZE, Math.trunc(batchSizeRaw))) : 2;
   if (!id) return res.status(400).json({ ok: false, error: "id is required" });
 
   try {
@@ -66,7 +74,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ ok: false, error: "Этот уровень результата ещё не открыт" });
     }
 
-    const slugs = Array.from(new Set(attempts.map((item) => String(item.test_slug || "")).filter(Boolean)));
+    const needsInterpretationKeys = stage === "tests" || stage === "full";
+    const slugs = needsInterpretationKeys
+      ? Array.from(new Set(attempts.map((item) => String(item.test_slug || "")).filter(Boolean)))
+      : [];
     const keysBySlug: Record<string, any> = {};
     if (slugs.length) {
       const { data: keyRows, error: keyErr } = await authed.supabaseAdmin

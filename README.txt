@@ -1,22 +1,27 @@
-Updated demo-project logic:
+Production-oriented cleanup for evaluation/results flow.
 
-1. Demo project now uses an explicit slug list instead of a broad type filter.
-2. 16PF-B is excluded intentionally.
-3. Included demo slugs:
-   - 16pf-a
-   - negotiation-style
-   - motivation-cards
-   - belbin
-   - situational-guidance
-   - time-management
-   - learning-typology
-   - usk
-   - color-types
-   - emin
+Files:
+- pages/api/commercial/projects/evaluation.ts
+- pages/projects/[projectId]/results.tsx
 
-4. Important behavior change:
-   if a generator for one of these slugs is missing, the route throws an error
-   instead of silently skipping the test. That makes the missing branch obvious.
+What changed:
+1. Frontend no longer keeps stacking duplicate evaluation requests for the same mode.
+   - previous in-flight request is aborted before a new one starts
+   - stale responses are ignored
+   - requests use cache: no-store
 
-Apply the patch in:
-pages/api/admin/demo-project-create.ts
+2. Frontend now aborts evaluation requests on unmount.
+
+3. Premium AI+ cache on the page is invalidated when AI+/fit parameters change,
+   so the page does not keep showing stale evaluation for new inputs.
+
+4. API now:
+   - sends Cache-Control: private, no-store
+   - sanitizes batch_start / batch_size
+   - caps batch_size server-side
+   - skips loading test_interpretations when the current stage does not need test bodies
+
+Intent:
+- reduce repeated work on /api/commercial/projects/evaluation
+- make staged loading more stable under real usage
+- avoid wasteful queries in summary/competency stages

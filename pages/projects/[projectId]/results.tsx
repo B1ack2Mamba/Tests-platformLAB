@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ThinkingStatus } from "@/components/ThinkingStatus";
 import {
@@ -250,6 +250,9 @@ export default function ProjectResultsStandalonePage() {
   const [fitProfiles, setFitProfiles] = useState<FitRoleProfile[]>(() => getFitRoleProfiles());
   const [showAiPlusPrompt, setShowAiPlusPrompt] = useState(false);
 
+  const evaluationAbortRef = useRef<Partial<Record<EvaluationPackage, AbortController>>>({});
+  const evaluationRequestIdRef = useRef<Partial<Record<EvaluationPackage, number>>>({});
+
   async function loadResults(explicitCollect: boolean, options?: { showSkeleton?: boolean; announce?: string }) {
     if (!session?.access_token || !projectId) return null;
     if (options?.showSkeleton) setBusy(true);
@@ -298,9 +301,19 @@ export default function ProjectResultsStandalonePage() {
 
   async function loadEvaluation(mode: EvaluationPackage, opts?: { customRequest?: string }) {
     if (!session?.access_token || !projectId) return;
+
+    evaluationAbortRef.current[mode]?.abort();
+    const controller = new AbortController();
+    evaluationAbortRef.current[mode] = controller;
+    const requestId = (evaluationRequestIdRef.current[mode] || 0) + 1;
+    evaluationRequestIdRef.current[mode] = requestId;
+
+    const isStale = () => controller.signal.aborted || evaluationRequestIdRef.current[mode] !== requestId;
+
     setEvaluationLoading((prev) => ({ ...prev, [mode]: true }));
     setError("");
     const appendPayload = (incoming: EvaluationPayload, replace = false) => {
+      if (isStale()) return;
       setEvaluationByMode((prev) => {
         const prevPayload = replace ? null : prev[mode];
         const prevSections = prevPayload?.evaluation?.sections || [];
@@ -348,20 +361,26 @@ export default function ProjectResultsStandalonePage() {
     try {
       const summaryResp = await fetch(buildUrl(mode === "basic" ? "full" : "summary"), {
         headers: { authorization: `Bearer ${session.access_token}` },
+        signal: controller.signal,
+        cache: "no-store",
       });
       const summaryJson = await summaryResp.json().catch(() => ({}));
       if (!summaryResp.ok || !summaryJson?.ok) throw new Error(summaryJson?.error || "Не удалось загрузить уровень анализа");
       appendPayload(summaryJson as EvaluationPayload, true);
+      if (isStale()) return;
 
       if (mode !== "basic") {
         let batchStart = 0;
         for (;;) {
           const testsResp = await fetch(buildUrl("tests", batchStart), {
             headers: { authorization: `Bearer ${session.access_token}` },
+            signal: controller.signal,
+            cache: "no-store",
           });
           const testsJson = await testsResp.json().catch(() => ({}));
           if (!testsResp.ok || !testsJson?.ok) throw new Error(testsJson?.error || "Не удалось загрузить интерпретации тестов");
           appendPayload(testsJson as EvaluationPayload);
+          if (isStale()) return;
           if (!(testsJson as EvaluationPayload).has_more) break;
           batchStart += 2;
         }
@@ -370,15 +389,20 @@ export default function ProjectResultsStandalonePage() {
       if (mode === "premium_ai_plus") {
         const competencyResp = await fetch(buildUrl("competencies"), {
           headers: { authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal,
+          cache: "no-store",
         });
         const competencyJson = await competencyResp.json().catch(() => ({}));
         if (!competencyResp.ok || !competencyJson?.ok) throw new Error(competencyJson?.error || "Не удалось загрузить компетенции");
         appendPayload(competencyJson as EvaluationPayload);
       }
     } catch (err: any) {
+      if (err?.name === "AbortError" || isStale()) return;
       setError(err?.message || "Не удалось загрузить уровень анализа");
     } finally {
-      setEvaluationLoading((prev) => ({ ...prev, [mode]: false }));
+      if (evaluationRequestIdRef.current[mode] === requestId) {
+        setEvaluationLoading((prev) => ({ ...prev, [mode]: false }));
+      }
     }
   }
 
@@ -420,6 +444,14 @@ export default function ProjectResultsStandalonePage() {
       setSaving(false);
     }
   }
+
+  useEffect(() => {
+    return () => {
+      for (const controller of Object.values(evaluationAbortRef.current)) {
+        controller?.abort();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -468,12 +500,19 @@ export default function ProjectResultsStandalonePage() {
     if (!isPackageAccessible(data.project.unlocked_package_mode, activeEvaluationMode)) return;
     if (evaluationByMode[activeEvaluationMode] || evaluationLoading[activeEvaluationMode]) return;
     loadEvaluation(activeEvaluationMode, activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
-  }, [activeEvaluationMode, data?.fully_done, data?.project.unlocked_package_mode, aiPlusRequest]);
+  }, [activeEvaluationMode, data?.fully_done, data?.project.unlocked_package_mode, aiPlusRequest, fitRequested, fitProfileId, fitRequest]);
 
   const blueprint = data?.blueprint || null;
   const coverage = blueprint?.summary.promptCoverage || null;
   const unlockedMode = data?.project.unlocked_package_mode || null;
   const projectCoveredBySubscription = false;
+  useEffect(() => {
+    setEvaluationByMode((prev) => ({
+      ...prev,
+      premium_ai_plus: undefined,
+    }));
+  }, [aiPlusRequest, fitRequested, fitProfileId, fitRequest]);
+
   const availablePackages = useMemo(
     () => EVALUATION_PACKAGES.filter((item) => isPackageAccessible(unlockedMode, item.key)).map((item) => item.key),
     [unlockedMode]

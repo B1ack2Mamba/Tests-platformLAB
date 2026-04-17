@@ -45,6 +45,36 @@ import {
   type BelbinAllocations,
 } from "@/lib/score";
 
+type DbTestRow = {
+  slug: string | null;
+  title: string | null;
+  type: string | null;
+  json: unknown;
+  is_published?: boolean | null;
+};
+
+type DemoBody = {
+  goal?: unknown;
+  package_mode?: unknown;
+  person_name?: unknown;
+  current_position?: unknown;
+  target_role?: unknown;
+  include_unpublished?: unknown;
+};
+
+const DEMO_TEST_SLUGS = [
+  "16pf-a",
+  "negotiation-style",
+  "motivation-cards",
+  "belbin",
+  "situational-guidance",
+  "time-management",
+  "learning-typology",
+  "usk",
+  "color-types",
+  "emin",
+] as const;
+
 function randomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -74,8 +104,8 @@ function splitTotalRandom(total: number, parts: number) {
   return shuffle(out);
 }
 
-function normalizeDbTest(row: any): AnyTest | null {
-  const raw = row?.json as any;
+function normalizeDbTest(row: DbTestRow): AnyTest | null {
+  const raw = row?.json as Record<string, unknown> | null;
   const slug = String(row?.slug || raw?.slug || "").trim();
   if (!slug) return null;
   return {
@@ -144,7 +174,13 @@ function generateTimeManagementResult(test: TimeManagementTestV1) {
 
 function generateLearningTypologyResult(test: LearningTypologyTestV1) {
   const choices: LearningTypologyChoice[] = ["A", "B", "C", "D"];
-  const answers = test.questions.map((q) => pickOne(q.options.map((opt) => opt.code).filter((code) => choices.includes(code as LearningTypologyChoice)) as LearningTypologyChoice[]));
+  const answers = test.questions.map((q) =>
+    pickOne(
+      q.options
+        .map((opt) => opt.code)
+        .filter((code) => choices.includes(code as LearningTypologyChoice)) as LearningTypologyChoice[],
+    ),
+  );
   return scoreLearningTypology(test, answers);
 }
 
@@ -159,39 +195,37 @@ function generate16PFResult(test: PF16TestV1) {
 }
 
 function buildRandomResult(test: AnyTest) {
-  switch (test.type) {
-    case "forced_pair_v1":
-    case "forced_pair":
+  switch (test.slug) {
+    case "negotiation-style":
       return generateForcedPairResult(test as ForcedPairTestV1);
-    case "pair_split_v1":
-    case "pair_sum5_v1":
+    case "motivation-cards":
       return generatePairSplitResult(test as PairSplitTestV1);
-    case "color_types_v1":
-      return generateColorTypesResult(test as ColorTypesTestV1);
-    case "usk_v1":
-      return generateUSKResult(test as USKTestV1);
-    case "situational_guidance_v1":
+    case "situational-guidance":
       return generateSituationalGuidanceResult(test as SituationalGuidanceTestV1);
-    case "belbin_v1":
-      return generateBelbinResult(test as BelbinTestV1);
-    case "emin_v1":
-      return generateEminResult(test as EminTestV1);
-    case "time_management_v1":
+    case "time-management":
       return generateTimeManagementResult(test as TimeManagementTestV1);
-    case "learning_typology_v1":
-      return generateLearningTypologyResult(test as LearningTypologyTestV1);
-    case "16pf_v1":
+    case "usk":
+      return generateUSKResult(test as USKTestV1);
+    case "16pf-a":
       return generate16PFResult(test as PF16TestV1);
+    case "belbin":
+      return generateBelbinResult(test as BelbinTestV1);
+    case "color-types":
+      return generateColorTypesResult(test as ColorTypesTestV1);
+    case "emin":
+      return generateEminResult(test as EminTestV1);
+    case "learning-typology":
+      return generateLearningTypologyResult(test as LearningTypologyTestV1);
     default:
-      throw new Error(`Неподдерживаемый тип теста для demo-проекта: ${String((test as any)?.type || "unknown")}`);
+      throw new Error(`Demo generator is not implemented for slug: ${String(test.slug || "unknown")}`);
   }
 }
 
-function normalizeGoal(value: any): AssessmentGoal {
+function normalizeGoal(value: unknown): AssessmentGoal {
   return isAssessmentGoal(value) ? value : "general_assessment";
 }
 
-function normalizePackage(value: any): EvaluationPackage {
+function normalizePackage(value: unknown): EvaluationPackage {
   return isEvaluationPackage(value) ? value : "premium_ai_plus";
 }
 
@@ -207,7 +241,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ ok: false, error: "Доступ только для администратора" });
   }
 
-  const body = typeof req.body === "object" && req.body ? req.body : {};
+  const body: DemoBody = typeof req.body === "object" && req.body ? (req.body as DemoBody) : {};
   const goal = normalizeGoal(body.goal);
   const packageMode = normalizePackage(body.package_mode);
   const personName = String(body.person_name || "Демо-кандидат").trim() || "Демо-кандидат";
@@ -221,17 +255,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data: testRows, error: testsError } = await authed.supabaseAdmin
       .from("tests")
       .select("slug, title, type, json, is_published")
+      .in("slug", [...DEMO_TEST_SLUGS]);
 
     if (testsError) throw testsError;
 
-    const tests = (testRows || [])
-      .filter((row: any) => includeUnpublished || row?.is_published !== false)
-      .map((row: any) => normalizeDbTest(row))
-      .filter((test): test is AnyTest => Boolean(test))
-      .filter((test) => ["forced_pair_v1","forced_pair","pair_split_v1","pair_sum5_v1","color_types_v1","usk_v1","situational_guidance_v1","belbin_v1","emin_v1","time_management_v1","learning_typology_v1","16pf_v1"].includes(String(test.type || "")));
+    const tests = DEMO_TEST_SLUGS
+      .map((slug) =>
+        (testRows || [])
+          .filter((row: DbTestRow) => includeUnpublished || row?.is_published !== false)
+          .map((row: DbTestRow) => normalizeDbTest(row))
+          .filter((test: AnyTest | null): test is AnyTest => Boolean(test))
+          .find((test) => test.slug === slug),
+      )
+      .filter((test): test is AnyTest => Boolean(test));
 
     if (!tests.length) {
       return res.status(400).json({ ok: false, error: "Не найдено опубликованных тестов для demo-проекта" });
+    }
+
+    const missingSlugs = DEMO_TEST_SLUGS.filter((slug) => !tests.some((test) => test.slug === slug));
+    if (missingSlugs.length) {
+      return res.status(400).json({
+        ok: false,
+        error: `В demo-наборе отсутствуют тесты: ${missingSlugs.join(", ")}`,
+      });
     }
 
     const summaryText = [
@@ -270,7 +317,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .insert({
         workspace_id: workspace.workspace_id,
         created_by: authed.user.id,
-        person_id: (person as any).id,
+        person_id: person.id,
         goal,
         package_mode: packageMode,
         title: projectTitle,
@@ -284,7 +331,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (projectError) throw projectError;
 
     const projectTests = tests.map((test, index) => ({
-      project_id: (project as any).id,
+      project_id: project.id,
       test_slug: test.slug,
       test_title: getTestDisplayTitle(test.slug, test.title),
       sort_order: index,
@@ -295,7 +342,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const attempts = tests.map((test) => ({
       id: randomUUID(),
-      project_id: (project as any).id,
+      project_id: project.id,
       test_slug: test.slug,
       test_title: getTestDisplayTitle(test.slug, test.title),
       result: buildRandomResult(test),
@@ -307,17 +354,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { error: statusError } = await authed.supabaseAdmin
       .from("commercial_projects")
       .update({ status: "completed" })
-      .eq("id", (project as any).id);
+      .eq("id", project.id);
 
     if (statusError) throw statusError;
 
     return res.status(200).json({
       ok: true,
-      project_id: (project as any).id,
-      invite_token: (project as any).invite_token || null,
+      project_id: project.id,
+      invite_token: project.invite_token || null,
       tests_count: tests.length,
     });
-  } catch (error: any) {
-    return res.status(400).json({ ok: false, error: error?.message || "Не удалось создать demo-проект" });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Не удалось создать demo-проект";
+    return res.status(400).json({ ok: false, error: message });
   }
 }
