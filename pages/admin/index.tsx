@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
@@ -16,6 +17,7 @@ type PromoCodeRow = {
 };
 
 export default function AdminPage() {
+  const router = useRouter();
   const { user, session, loading, envOk } = useSession();
   const [promoCodes, setPromoCodes] = useState<PromoCodeRow[]>([]);
   const [promoCodeValue, setPromoCodeValue] = useState("");
@@ -25,6 +27,45 @@ export default function AdminPage() {
   const [promoMessage, setPromoMessage] = useState("");
 
   const canUseAdmin = isAdminEmail(user?.email);
+
+  const [demoBusy, setDemoBusy] = useState(false);
+  const [demoMessage, setDemoMessage] = useState("");
+  const [demoName, setDemoName] = useState("Демо-кандидат");
+  const [demoCurrentPosition, setDemoCurrentPosition] = useState("Менеджер");
+  const [demoTargetRole, setDemoTargetRole] = useState("Руководитель проекта");
+
+  async function createDemoProject() {
+    if (!session || !canUseAdmin) return;
+    setDemoBusy(true);
+    setDemoMessage("");
+    try {
+      const resp = await fetch("/api/admin/demo-project-create", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          person_name: demoName,
+          current_position: demoCurrentPosition,
+          target_role: demoTargetRole,
+          goal: "general_assessment",
+          package_mode: "premium_ai_plus",
+        }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось создать demo-проект");
+      setDemoMessage(`Создан demo-проект: ${json.tests_count || 0} тестов готовы.`);
+      if (json?.project_id) {
+        router.push(`/projects/${json.project_id}/results`);
+        return;
+      }
+    } catch (e: any) {
+      setDemoMessage(e?.message || "Ошибка создания demo-проекта");
+    } finally {
+      setDemoBusy(false);
+    }
+  }
 
   async function loadPromos() {
     if (!session || !canUseAdmin) return;
@@ -150,6 +191,52 @@ export default function AdminPage() {
                 AI-шаблоны компетенций
                 <div className="mt-1 text-xs font-normal text-slate-500">Практические промпты по каждой компетенции</div>
               </Link>
+            </div>
+          </section>
+
+
+          <section className="card">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Demo AI-проект</div>
+                <div className="mt-1 text-sm text-slate-500">Создаёт проект через админ-панель, где все опубликованные тесты уже пройдены случайным, но валидным образом. Нужно для проверки, как ИИ справляется с анализом всех тестов сразу, без ручного прокликивания.</div>
+              </div>
+              <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-800">Пакет: Премиум AI+</div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="rounded-2xl border border-emerald-100 bg-white p-4">
+                <div className="grid gap-3">
+                  <label className="grid gap-1">
+                    <span className="text-xs text-slate-600">Имя участника</span>
+                    <input className="input" value={demoName} onChange={(e) => setDemoName(e.target.value)} placeholder="Демо-кандидат" />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1">
+                      <span className="text-xs text-slate-600">Текущая должность</span>
+                      <input className="input" value={demoCurrentPosition} onChange={(e) => setDemoCurrentPosition(e.target.value)} placeholder="Менеджер" />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-slate-600">Будущая предполагаемая должность</span>
+                      <input className="input" value={demoTargetRole} onChange={(e) => setDemoTargetRole(e.target.value)} placeholder="Руководитель проекта" />
+                    </label>
+                  </div>
+                  <button type="button" className="btn btn-primary" onClick={createDemoProject} disabled={demoBusy}>
+                    {demoBusy ? "Создаём demo-проект…" : "Создать demo-проект со всеми тестами"}
+                  </button>
+                  {demoMessage ? <div className="text-sm text-slate-700">{demoMessage}</div> : null}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-white/85 p-4 text-sm leading-6 text-slate-600">
+                <div className="text-sm font-semibold text-slate-900">Что получится</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  <li>создаётся человек и проект внутри твоего workspace;</li>
+                  <li>в проект добавляются все опубликованные тесты;</li>
+                  <li>для каждого теста генерируются валидные случайные ответы и реальный result через боевую score-логику;</li>
+                  <li>проект сразу помечается как completed и открывается на странице результатов.</li>
+                </ul>
+              </div>
             </div>
           </section>
 

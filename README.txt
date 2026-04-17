@@ -1,1 +1,8 @@
-Replace pages/projects/[projectId]/results.tsx
+Заменить файлы в проекте:
+- pages/api/admin/demo-project-create.ts
+- pages/admin/index.tsx
+
+Что добавлено:
+- в админ-панель блок создания demo AI-проекта
+- API, который создаёт проект с уже пройденными случайным образом валидными тестами
+- проект сразу открывается на странице результатов
