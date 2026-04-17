@@ -1,0 +1,82 @@
+--- a/pages/api/admin/demo-project-create.ts
++++ b/pages/api/admin/demo-project-create.ts
+@@
+-// Previous demo generator selected tests by supported TYPE and accidentally
+-// still included 16pf-b.
++// Demo generator should select tests by explicit SLUG, not only by TYPE.
++// Also exclude 16pf-b because it is not used.
++
++const DEMO_TEST_SLUGS = [
++  "16pf-a",
++  "negotiation-style",
++  "motivation-cards",
++  "belbin",
++  "situational-guidance",
++  "time-management",
++  "learning-typology",
++  "usk",
++  "color-types",
++  "emin",
++] as const;
+@@
+-  const { data: tests } = await supabase
+-    .from("tests")
+-    .select("id, slug, title, type, json, price_rub, is_published")
+-    .eq("is_published", true);
++  const { data: tests } = await supabase
++    .from("tests")
++    .select("id, slug, title, type, json, price_rub, is_published")
++    .eq("is_published", true)
++    .in("slug", DEMO_TEST_SLUGS as unknown as string[]);
+@@
+-  const supported = (tests ?? []).filter((test) =>
+-    SUPPORTED_TYPES.has(test.type)
+-  );
++  // Keep only the exact slugs used in the product demo set.
++  // This avoids accidental inclusion of 16pf-b and ensures the 5 missing tests
++  // are requested explicitly.
++  const supported = DEMO_TEST_SLUGS
++    .map((slug) => (tests ?? []).find((test) => test.slug === slug))
++    .filter(Boolean);
+@@
+-  for (const test of supported) {
+-    const attemptPayload = await buildRandomDemoAttempt(test);
++  for (const test of supported) {
++    const attemptPayload = await buildRandomDemoAttempt(test);
+     if (!attemptPayload) {
+-      continue;
++      // Do not silently skip. Surface the exact slug so we notice unsupported
++      // generators immediately during admin demo creation.
++      throw new Error(`Demo generator is not implemented for slug: ${test.slug}`);
+     }
+@@
+-async function buildRandomDemoAttempt(test: TestRow) {
+-  switch (test.type) {
++async function buildRandomDemoAttempt(test: TestRow) {
++  switch (test.slug) {
++    case "negotiation-style":
++      return buildForcedPairAttempt(test);
++    case "motivation-cards":
++      return buildPairSum5Attempt(test);
++    case "situational-guidance":
++      return buildSituationalGuidanceAttempt(test);
++    case "time-management":
++      return buildTimeManagementAttempt(test);
++    case "usk":
++      return buildUskAttempt(test);
+     case "16pf-a":
+-    case "16pf-b":
+       return build16pfAttempt(test);
+     case "belbin":
+       return buildBelbinAttempt(test);
+@@
+     case "emin":
+       return buildEminAttempt(test);
+     case "learning-typology":
+       return buildLearningTypologyAttempt(test);
+-    default:
+-      return null;
++    default:
++      return null;
+   }
+ }
