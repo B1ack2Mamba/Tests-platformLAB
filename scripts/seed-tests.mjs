@@ -16,13 +16,16 @@ const files = fs.readdirSync(testsDir).filter((f) => f.endsWith('.json'));
 for (const file of files) {
   const raw = fs.readFileSync(path.join(testsDir, file), 'utf-8');
   const test = JSON.parse(raw);
+  const priceRub = Number(
+    test?.price_rub ?? test?.pricing?.take_rub ?? test?.pricing?.interpretation_rub ?? 99
+  );
   const row = {
     slug: test.slug,
     title: test.title,
     description: test.description || null,
     type: test.type,
     json: test,
-    price_rub: Number(test?.pricing?.interpretation_rub || 0),
+    price_rub: priceRub,
     is_published: true,
   };
   const { error } = await supabase.from('tests').upsert(row, { onConflict: 'slug' });

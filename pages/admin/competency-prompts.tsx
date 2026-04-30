@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Layout } from "@/components/Layout";
@@ -109,11 +110,13 @@ export default function CompetencyPromptsAdminPage() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!session?.access_token || !canUseAdmin) return;
     loadRows();
   }, [session?.access_token, canUseAdmin]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!activeRow) return;
     const draft = readPracticalDraft(activeRow.competency_id);
@@ -201,7 +204,7 @@ export default function CompetencyPromptsAdminPage() {
       ) : loading ? (
         <div className="card text-sm text-zinc-600">Загрузка…</div>
       ) : !user ? (
-        <div className="card text-sm text-zinc-600">Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.</div>
+        <div className="card text-sm text-zinc-600">Нужен вход. Перейди в <Link className="underline" href="/auth">/auth</Link>.</div>
       ) : !canUseAdmin ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           Доступ запрещён. Админы: <span className="font-mono">{ADMIN_EMAILS.join(", ")}</span>

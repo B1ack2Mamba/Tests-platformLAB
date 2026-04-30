@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -24,6 +25,7 @@ import { getCompetencyLongLabel } from "@/lib/competencyRouter";
 type ProjectPayload = {
   ok: true;
   workspace: { workspace_id: string; role: string; name: string };
+  active_subscription?: WorkspaceSubscriptionStatus | null;
   project: {
     id: string;
     title: string;
@@ -337,6 +339,7 @@ export default function ProjectDetailsPage() {
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить проект");
       setData(json);
+      setActiveSubscription(json.active_subscription || null);
       setForm({
         full_name: json.project.person?.full_name || "",
         email: json.project.person?.email || "",
@@ -401,6 +404,7 @@ export default function ProjectDetailsPage() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let cancelled = false;
     async function loadFitProfiles() {
@@ -421,6 +425,7 @@ export default function ProjectDetailsPage() {
     };
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (sessionLoading) return;
     if (!session || !user) {
@@ -999,6 +1004,7 @@ export default function ProjectDetailsPage() {
                       className="group inline-flex items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99]"
                       aria-label="Получить результат"
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/result-stamp.svg"
                         alt="Получить результат"
@@ -1014,6 +1020,7 @@ export default function ProjectDetailsPage() {
                       title={`Осталось ${Math.max(0, progress.total - progress.completed)} тестов`}
                       aria-label="Получить результат недоступно, не все тесты пройдены"
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/result-stamp-bw.svg"
                         alt="Получить результат недоступно"

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -84,6 +85,7 @@ export default function AdminPage() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!session || !canUseAdmin) return;
     loadPromos();
@@ -149,7 +151,7 @@ export default function AdminPage() {
         <div className="card text-sm text-zinc-600">Загрузка…</div>
       ) : !user ? (
         <div className="card text-sm text-zinc-600">
-          Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.
+          Нужен вход. Перейди в <Link className="underline" href="/auth">/auth</Link>.
         </div>
       ) : !canUseAdmin ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

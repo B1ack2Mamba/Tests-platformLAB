@@ -21,7 +21,7 @@ values (
   "description": "Тест помогает понять, какие факторы сильнее всего мотивируют вас в работе: условия (гигиенические) или содержание и рост (мотивационные). В каждой паре распределите 5 баллов между двумя утверждениями.",
   "type": "pair_sum5_v1",
   "pricing": {
-    "interpretation_rub": 399,
+    "interpretation_rub": 99,
     "details_rub": 49
   },
   "questions": [
@@ -404,7 +404,7 @@ values (
   }
 }
 $$::jsonb,
-  399,
+  99,
   true
 )
 on conflict (slug) do update

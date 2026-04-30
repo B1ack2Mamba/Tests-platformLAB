@@ -15,14 +15,17 @@ export function useSession() {
     }
 
     let mounted = true;
+
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session ?? null);
       setLoading(false);
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
+      setSession(nextSession);
+      setLoading(false);
     });
 
     return () => {

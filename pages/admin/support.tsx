@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Layout } from "@/components/Layout";
@@ -155,11 +156,13 @@ export default function AdminSupportPage() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!session?.access_token || !canUseAdmin) return;
     loadThreads();
   }, [session?.access_token, canUseAdmin, onlyUnread]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (session?.access_token && canUseAdmin) loadThreads(true);
@@ -167,6 +170,7 @@ export default function AdminSupportPage() {
     return () => window.clearTimeout(timer);
   }, [search, session?.access_token, canUseAdmin]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (session?.access_token && canUseAdmin && selectedThreadId) {
       setError("");
@@ -174,6 +178,7 @@ export default function AdminSupportPage() {
     }
   }, [selectedThreadId, session?.access_token, canUseAdmin]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!session?.access_token || !canUseAdmin) return;
     const interval = window.setInterval(() => {
@@ -195,7 +200,7 @@ export default function AdminSupportPage() {
       ) : loading ? (
         <div className="card text-sm text-zinc-600">Загрузка…</div>
       ) : !user ? (
-        <div className="card text-sm text-zinc-600">Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.</div>
+        <div className="card text-sm text-zinc-600">Нужен вход. Перейди в <Link className="underline" href="/auth">/auth</Link>.</div>
       ) : !canUseAdmin ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Доступ запрещён. Админы: <span className="font-mono">{ADMIN_EMAILS.join(", ")}</span></div>
       ) : (

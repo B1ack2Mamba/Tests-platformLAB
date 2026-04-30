@@ -5,6 +5,7 @@ import { Layout } from "@/components/Layout";
 import { LineChart } from "@/components/LineChart";
 import { useSession } from "@/lib/useSession";
 import type { ScoreResult } from "@/lib/score";
+import { interpretationToDisplayText } from "@/lib/testInterpretationText";
 
 function levelColor(level: string) {
   const l = String(level || "").toLowerCase();
@@ -27,6 +28,7 @@ export default function AttemptResultPage() {
   const router = useRouter();
   const attemptId = typeof router.query.attemptId === "string" ? router.query.attemptId : "";
   const [data, setData] = useState<Payload | null>(null);
+  const [authorContent, setAuthorContent] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -54,9 +56,37 @@ export default function AttemptResultPage() {
     })();
   }, [attemptId, router, session, sessionLoading, user]);
 
+  useEffect(() => {
+    if (!attemptId || !data?.test_slug || !session?.access_token) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch("/api/tests/interpretation", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ attempt_id: attemptId, test_slug: data.test_slug }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok || cancelled) return;
+        setAuthorContent(json.content ?? null);
+      } catch {
+        // Best-effort only.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attemptId, data?.test_slug, session?.access_token]);
+
   const chartData = useMemo(() => data?.result?.ranked?.map((r) => ({ tag: r.tag, percent: r.percent })) || [], [data]);
   const result = data?.result;
   const isNumericPrimary = result?.kind === "usk_v1" || result?.kind === "16pf_v1";
+  const interpretationText = useMemo(() => interpretationToDisplayText(authorContent), [authorContent]);
 
   return (
     <Layout title={data?.test_title || "Результат"}>
@@ -111,6 +141,13 @@ export default function AttemptResultPage() {
               <Link href={`/tests/${data.test_slug}`} className="btn btn-secondary">К тесту</Link>
             </div>
           </div>
+
+          {interpretationText ? (
+            <div className="mt-4 card">
+              <div className="mb-3 text-sm font-medium text-zinc-900">Полный результат</div>
+              <div className="whitespace-pre-wrap text-sm leading-6 text-zinc-800">{interpretationText}</div>
+            </div>
+          ) : null}
         </>
       )}
     </Layout>

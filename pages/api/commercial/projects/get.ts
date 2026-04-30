@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { getTestDisplayTitle } from "@/lib/testTitles";
+import { getActiveWorkspaceSubscription } from "@/lib/serverWorkspaceSubscription";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -15,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
-    const [{ data, error }, { data: subscriptionCoverage, error: subscriptionError }] = await Promise.all([
+    const [{ data, error }, { data: subscriptionCoverage, error: subscriptionError }, activeSubscription] = await Promise.all([
       authed.supabaseAdmin
       .from("commercial_projects")
       .select(`
@@ -43,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .select("subscription_id")
         .eq("project_id", id)
         .maybeSingle(),
+      getActiveWorkspaceSubscription(authed.supabaseAdmin, workspace.workspace_id),
     ]);
 
     if (error) throw error;
@@ -54,6 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       ok: true,
       workspace,
+      active_subscription: activeSubscription,
       project: {
         id: (data as any).id,
         title: (data as any).title,

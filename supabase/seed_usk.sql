@@ -17,7 +17,7 @@ values (
   "description": "Опросник локуса контроля. Шкала ответов от −3 до +3. Итоги по 7 шкалам интернальности (стены 1–10).",
   "type": "usk_v1",
   "pricing": {
-    "interpretation_rub": 0,
+    "interpretation_rub": 99,
     "details_rub": 49
   },
   "has_interpretation": false,

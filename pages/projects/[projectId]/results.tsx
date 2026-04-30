@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -226,6 +227,46 @@ type SubscriptionStatusResp = {
   active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
+function buildEvaluationCacheKey(params: {
+  projectId: string;
+  mode: EvaluationPackage;
+  customRequest?: string;
+  fitRequested?: boolean;
+  fitProfileId?: string;
+  fitRequest?: string;
+}) {
+  const { projectId, mode, customRequest, fitRequested, fitProfileId, fitRequest } = params;
+  return [
+    "commercial-project-evaluation",
+    projectId,
+    mode,
+    (customRequest || "").trim(),
+    fitRequested ? "fit:1" : "fit:0",
+    (fitProfileId || "").trim(),
+    (fitRequest || "").trim(),
+  ].join(":");
+}
+
+function readCachedEvaluation(cacheKey: string): EvaluationPayload | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as EvaluationPayload | null;
+    if (!parsed?.ok) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedEvaluation(cacheKey: string, payload: EvaluationPayload) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch {}
+}
+
 export default function ProjectResultsStandalonePage() {
   const router = useRouter();
   const { session, user, loading, envOk } = useSession();
@@ -312,6 +353,24 @@ export default function ProjectResultsStandalonePage() {
 
     setEvaluationLoading((prev) => ({ ...prev, [mode]: true }));
     setError("");
+    const cacheKey = buildEvaluationCacheKey({
+      projectId,
+      mode,
+      customRequest: mode === "premium_ai_plus" ? opts?.customRequest || aiPlusRequest : "",
+      fitRequested: mode === "premium_ai_plus" ? fitRequested : false,
+      fitProfileId: mode === "premium_ai_plus" ? fitProfileId : "",
+      fitRequest: mode === "premium_ai_plus" ? fitRequest : "",
+    });
+    const cachedPayload = readCachedEvaluation(cacheKey);
+    if (cachedPayload?.evaluation?.sections?.length) {
+      setEvaluationByMode((prev) => ({
+        ...prev,
+        [mode]: cachedPayload,
+      }));
+    }
+    const hasExistingSections = Boolean(
+      cachedPayload?.evaluation?.sections?.length || evaluationByMode[mode]?.evaluation?.sections?.length
+    );
     const appendPayload = (incoming: EvaluationPayload, replace = false) => {
       if (isStale()) return;
       setEvaluationByMode((prev) => {
@@ -323,17 +382,19 @@ export default function ProjectResultsStandalonePage() {
           const key = `${section.kind}:${section.title}`;
           sectionMap.set(key, section);
         }
+        const nextPayload = {
+          ...incoming,
+          evaluation: incoming.evaluation
+            ? {
+                ...incoming.evaluation,
+                sections: Array.from(sectionMap.values()),
+              }
+            : prevPayload?.evaluation || null,
+        };
+        writeCachedEvaluation(cacheKey, nextPayload);
         return {
           ...prev,
-          [mode]: {
-            ...incoming,
-            evaluation: incoming.evaluation
-              ? {
-                  ...incoming.evaluation,
-                  sections: Array.from(sectionMap.values()),
-                }
-              : prevPayload?.evaluation || null,
-          },
+          [mode]: nextPayload,
         };
       });
     };
@@ -366,7 +427,7 @@ export default function ProjectResultsStandalonePage() {
       });
       const summaryJson = await summaryResp.json().catch(() => ({}));
       if (!summaryResp.ok || !summaryJson?.ok) throw new Error(summaryJson?.error || "Не удалось загрузить уровень анализа");
-      appendPayload(summaryJson as EvaluationPayload, true);
+      appendPayload(summaryJson as EvaluationPayload, !hasExistingSections);
       if (isStale()) return;
 
       if (mode !== "basic") {
@@ -446,13 +507,15 @@ export default function ProjectResultsStandalonePage() {
   }
 
   useEffect(() => {
+    const abortControllers = evaluationAbortRef.current;
     return () => {
-      for (const controller of Object.values(evaluationAbortRef.current)) {
+      for (const controller of Object.values(abortControllers)) {
         controller?.abort();
       }
     };
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let cancelled = false;
     async function loadFitProfiles() {
@@ -471,6 +534,7 @@ export default function ProjectResultsStandalonePage() {
     };
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!router.isReady || !session?.access_token || !projectId) return;
     const shouldCollect = router.query.collect === "1";
@@ -507,11 +571,23 @@ export default function ProjectResultsStandalonePage() {
   const unlockedMode = data?.project.unlocked_package_mode || null;
   const projectCoveredBySubscription = false;
   useEffect(() => {
-    setEvaluationByMode((prev) => ({
-      ...prev,
-      premium_ai_plus: undefined,
-    }));
-  }, [aiPlusRequest, fitRequested, fitProfileId, fitRequest]);
+    if (!projectId) return;
+    const cacheKey = buildEvaluationCacheKey({
+      projectId,
+      mode: "premium_ai_plus",
+      customRequest: aiPlusRequest,
+      fitRequested,
+      fitProfileId,
+      fitRequest,
+    });
+    const cachedPayload = readCachedEvaluation(cacheKey);
+    if (cachedPayload?.evaluation?.sections?.length) {
+      setEvaluationByMode((prev) => ({
+        ...prev,
+        premium_ai_plus: cachedPayload,
+      }));
+    }
+  }, [aiPlusRequest, fitProfileId, fitRequest, fitRequested, projectId]);
 
   const availablePackages = useMemo(
     () => EVALUATION_PACKAGES.filter((item) => isPackageAccessible(unlockedMode, item.key)).map((item) => item.key),
@@ -556,7 +632,7 @@ export default function ProjectResultsStandalonePage() {
   if (!session || !user) {
     return (
       <Layout title="Страница результатов">
-        <div className="card text-sm text-zinc-600">Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.</div>
+        <div className="card text-sm text-zinc-600">Нужен вход. Перейди в <Link className="underline" href="/auth">/auth</Link>.</div>
       </Layout>
     );
   }
@@ -651,6 +727,7 @@ export default function ProjectResultsStandalonePage() {
             </div>
 
             <div className="absolute right-5 top-5 grid h-[126px] w-[126px] place-items-center sm:right-8 sm:top-4 sm:h-[170px] sm:w-[170px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={data?.fully_done ? "/result-stamp.svg" : "/result-stamp-bw.svg"}
                 alt={data?.fully_done ? "Результат собран" : "Результат ожидает"}
@@ -793,10 +870,13 @@ export default function ProjectResultsStandalonePage() {
 
                     <div className="mt-5">
                       <div className="min-w-0">
-                        {evaluationLoading[activeEvaluationMode] ? (
-                          <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
-                        ) : activeSections.length ? (
+                        {activeSections.length ? (
                           <div className="rounded-[28px] border border-[#e2d1b6] bg-white/72 p-6 shadow-[0_10px_22px_rgba(93,71,39,0.04)]">
+                            {evaluationLoading[activeEvaluationMode] ? (
+                              <div className="mb-5 rounded-[22px] border border-[#dce8d3] bg-[#f7fbf3] p-4">
+                                <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
+                              </div>
+                            ) : null}
                             <div className="border-b border-[#ead9bf] pb-4 font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
 
                             <div className="mt-5 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -911,6 +991,8 @@ export default function ProjectResultsStandalonePage() {
                               </div>
                             ) : null}
                           </div>
+                        ) : evaluationLoading[activeEvaluationMode] ? (
+                          <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />
                         ) : (
                           <div className="rounded-[24px] border border-[#e1d3bf] bg-[#fcf7ef] p-4 text-sm text-[#6f6454]">Результат для этого уровня пока не собран. Выбери уровень и нажми сборку.</div>
                         )}

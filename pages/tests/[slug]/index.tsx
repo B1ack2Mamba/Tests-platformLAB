@@ -21,6 +21,26 @@ function attemptIdKey(slug: string) {
 export default function TestDetail({ test }: { test: AnyTest | null }) {
   const router = useRouter();
   const { user } = useSession();
+  const [attempts, setAttempts] = useState<LocalAttempt[]>([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!test) return;
+    const userId = user?.id || "guest";
+    const refresh = () => setAttempts(loadAttempts(userId, test.slug));
+    refresh();
+
+    const onFocus = () => refresh();
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [user?.id, test]);
 
   // Safety guard: should never happen (SSR provides test), but prevents build/runtime crashes.
   if (!test) {
@@ -37,26 +57,6 @@ export default function TestDetail({ test }: { test: AnyTest | null }) {
       </Layout>
     );
   }
-
-  const [attempts, setAttempts] = useState<LocalAttempt[]>([]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const userId = user?.id || "guest";
-    const refresh = () => setAttempts(loadAttempts(userId, test.slug));
-    refresh();
-
-    const onFocus = () => refresh();
-    const onVis = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [user?.id, test.slug]);
 
   const openAttempt = (a: LocalAttempt) => {
     const userId = user?.id || "guest";
@@ -76,35 +76,29 @@ export default function TestDetail({ test }: { test: AnyTest | null }) {
   };
 
   return (
-    <Layout title={test?.title ?? "Тест"}>
+    <Layout title={test.title}>
       <div className="card">
-        {!test ? (
-          <div className="text-sm text-zinc-900">Тест не найден</div>
-        ) : (
-          <>
-            <div className="text-sm text-zinc-600">Вопросов: {test.questions.length}</div>
+        <>
+          <div className="text-sm text-zinc-600">Вопросов: {test.questions.length}</div>
 
-            {test.description ? (
-              <div className="mt-3 text-sm text-zinc-800 whitespace-pre-wrap leading-relaxed">
-                {test.description}
-              </div>
-            ) : null}
-
-            {test.instructions ? (
-              <div className="mt-4 rounded-2xl border border-white/50 bg-white/45 p-4">
-                <div className="text-sm font-medium text-zinc-900">Инструкция</div>
-                <div className="mt-2 text-sm text-zinc-800 whitespace-pre-wrap leading-relaxed">
-                  {test.instructions}
-                </div>
-              </div>
-            ) : null}
-          </>
-        )}
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {test ? (
-<TestTakeAction slug={test.slug} />
+          {test.description ? (
+            <div className="mt-3 text-sm text-zinc-800 whitespace-pre-wrap leading-relaxed">
+              {test.description}
+            </div>
           ) : null}
+
+          {test.instructions ? (
+            <div className="mt-4 rounded-2xl border border-white/50 bg-white/45 p-4">
+              <div className="text-sm font-medium text-zinc-900">Инструкция</div>
+              <div className="mt-2 text-sm text-zinc-800 whitespace-pre-wrap leading-relaxed">
+                {test.instructions}
+              </div>
+            </div>
+          ) : null}
+        </>
+        
+        <div className="mt-4 flex flex-wrap gap-2">
+          <TestTakeAction slug={test.slug} />
           <Link href="/assessments" className="btn btn-secondary">
             К каталогу
           </Link>

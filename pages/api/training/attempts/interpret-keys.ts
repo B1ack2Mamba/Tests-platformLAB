@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { isSpecialistUser } from "@/lib/specialist";
 import type { ScoreResult } from "@/lib/score";
 import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
+import { buildHerzbergPrompt, isHerzbergMotivationResult } from "@/lib/herzbergInterpretation";
 
 type Audience = "staff" | "client";
 
@@ -301,6 +302,14 @@ function buildKeysPrompt(args: {
   lines.push("");
 
   const normalizedKeys = normalizeKeysObject(keys);
+
+  if (isHerzbergMotivationResult(result, testTitle)) {
+    return buildHerzbergPrompt({
+      testTitle,
+      result,
+      audience,
+    });
+  }
 
   
   // Belbin: provide a dedicated compact packet + a strict structure for the answer.

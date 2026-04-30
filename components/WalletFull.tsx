@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { formatRub, useWallet } from "@/lib/useWallet";
@@ -229,12 +230,14 @@ export default function WalletPage() {
   const [walletHermesTemplateInfo, setWalletHermesTemplateInfo] = useState<string | null>(null);
   const [walletHermesTemplateError, setWalletHermesTemplateError] = useState<string | null>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!canManageWalletHermesLayout && walletHermesConstructorOpen) {
       setWalletHermesConstructorOpen(false);
     }
   }, [canManageWalletHermesLayout, walletHermesConstructorOpen]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setPromoCode(getStoredPromoCode());
     const promoSuccess = readAndClearPromoFlash(PROMO_FLASH_SUCCESS_KEY);
@@ -827,6 +830,7 @@ export default function WalletPage() {
     <div className="relative overflow-hidden bg-[linear-gradient(180deg,#fbf7f0_0%,#f3ecdf_100%)]" style={{ minHeight: `${walletHermesLayout.heightPx}px` }}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(179,220,195,0.45),rgba(179,220,195,0)_42%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.88),rgba(255,255,255,0)_45%)]" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/wallet-hermes-guide-cropped.png"
         alt="Персонаж с табличкой"

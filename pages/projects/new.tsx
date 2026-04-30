@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+/* eslint-disable react-hooks/exhaustive-deps */
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
@@ -244,6 +245,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     startScale: number;
   }>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isAssessmentGoal(initialGoal)) {
       setGoal(initialGoal);

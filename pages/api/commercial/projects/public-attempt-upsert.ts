@@ -36,6 +36,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (projectError) throw projectError;
     if (!project) return res.status(404).json({ ok: false, error: "Проект по ссылке не найден" });
 
+    const { data: assignedTests, error: assignedTestsError } = await supabaseAdmin
+      .from("commercial_project_tests")
+      .select("test_slug")
+      .eq("project_id", (project as any).id);
+
+    if (assignedTestsError) throw assignedTestsError;
+
+    const assignedSlugs = new Set((assignedTests || []).map((item: any) => String(item.test_slug || "").trim()).filter(Boolean));
+    if (!assignedSlugs.has(testSlug)) {
+      return res.status(400).json({ ok: false, error: "Этот тест не назначен для проекта" });
+    }
+
     const { error: attemptError } = await supabaseAdmin
       .from("commercial_project_attempts")
       .upsert(
@@ -50,18 +62,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (attemptError) throw attemptError;
 
-    const [{ count: testsCount, error: testsCountError }, { count: attemptsCount, error: attemptsCountError }] = await Promise.all([
-      supabaseAdmin.from("commercial_project_tests").select("id", { count: "exact", head: true }).eq("project_id", (project as any).id),
-      supabaseAdmin.from("commercial_project_attempts").select("id", { count: "exact", head: true }).eq("project_id", (project as any).id),
-    ]);
+    const { data: attemptRows, error: attemptsError } = await supabaseAdmin
+      .from("commercial_project_attempts")
+      .select("test_slug")
+      .eq("project_id", (project as any).id);
 
-    if (testsCountError) throw testsCountError;
-    if (attemptsCountError) throw attemptsCountError;
+    if (attemptsError) throw attemptsError;
 
-    const nextStatus = testsCount && attemptsCount && attemptsCount >= testsCount ? "completed" : "in_progress";
+    const completedAssignedCount = new Set(
+      (attemptRows || [])
+        .map((item: any) => String(item.test_slug || "").trim())
+        .filter((slug) => assignedSlugs.has(slug))
+    ).size;
+    const testsCount = assignedSlugs.size;
+    const nextStatus = testsCount > 0 && completedAssignedCount >= testsCount ? "completed" : "in_progress";
     await supabaseAdmin.from("commercial_projects").update({ status: nextStatus }).eq("id", (project as any).id);
 
-    return res.status(200).json({ ok: true, status: nextStatus, progress: { completed: attemptsCount || 0, total: testsCount || 0 } });
+    return res.status(200).json({
+      ok: true,
+      status: nextStatus,
+      progress: { completed: completedAssignedCount, total: testsCount },
+    });
   } catch (error: any) {
     return res.status(400).json({ ok: false, error: error?.message || "Не удалось сохранить результат участника" });
   }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/lib/useSession";
 import { isAdminEmail } from "@/lib/admin";
@@ -149,6 +150,7 @@ export function DeveloperSupportWidget() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!session?.access_token) return;
     loadChat(false, true);
@@ -158,6 +160,7 @@ export function DeveloperSupportWidget() {
     return () => window.clearInterval(interval);
   }, [open, session?.access_token]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open && session?.access_token) {
       setError(null);

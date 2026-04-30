@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -26,6 +27,7 @@ export default function TrainingResults() {
   const [reveal, setReveal] = useState(false);
   const [result, setResult] = useState<ScoreResult | null>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!router.isReady) return;
     if (!attemptId) return;
@@ -143,7 +145,7 @@ export default function TrainingResults() {
                           <td className="py-3 pr-4">
                             {result.kind === "pair_sum5_v1" ? (
                               <>
-                                <div className="font-medium text-zinc-900">Фактор "{r.tag}"</div>
+                                <div className="font-medium text-zinc-900">Фактор &quot;{r.tag}&quot;</div>
                                 <div className="mt-0.5 text-xs text-zinc-600">{r.style}</div>
                               </>
                             ) : result.kind === "16pf_v1" ? (

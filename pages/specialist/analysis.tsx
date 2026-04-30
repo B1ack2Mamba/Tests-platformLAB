@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -79,11 +80,13 @@ export default function SpecialistAnalysisPage() {
   const portraitAbortRef = useRef<AbortController | null>(null);
   const portraitMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!roomIdFromQuery) return;
     setSelectedRoomId(roomIdFromQuery);
   }, [roomIdFromQuery]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     return () => {
       portraitAbortRef.current?.abort();

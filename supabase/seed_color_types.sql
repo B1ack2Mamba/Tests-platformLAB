@@ -21,7 +21,7 @@ values (
   "description": "6 ситуаций для самоанализа. В результате — три показателя: Зелёный / Красный / Синий.",
   "type": "color_types_v1",
   "pricing": {
-    "interpretation_rub": 0,
+    "interpretation_rub": 99,
     "details_rub": 49
   },
   "questions": [

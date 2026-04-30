@@ -18,7 +18,7 @@ values (
   "instructions": "Отвечай быстро и честно — здесь нет правильных ответов.\n\nДля каждой ситуации выбери один вариант (A, B, C или D), который лучше всего описывает твои действия.",
   "type": "situational_guidance_v1",
   "pricing": {
-    "interpretation_rub": 0,
+    "interpretation_rub": 99,
     "details_rub": 49
   },
   "has_interpretation": false,

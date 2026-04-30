@@ -88,6 +88,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </Head>
 
+      {/* eslint-disable-next-line @next/next/no-before-interactive-script-outside-document */}
       <Script id="lk-sw-prehydrate-cleanup" strategy="beforeInteractive">{`
         (function () {
           try {

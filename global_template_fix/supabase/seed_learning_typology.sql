@@ -18,7 +18,7 @@ values (
   "instructions": "Выберите по одному варианту в каждом пункте. Вопросы показывают, какой стиль обучения и освоения опыта выражен у вас сильнее.",
   "type": "learning_typology_v1",
   "pricing": {
-    "interpretation_rub": 0,
+    "interpretation_rub": 99,
     "details_rub": 49
   },
   "has_interpretation": false,

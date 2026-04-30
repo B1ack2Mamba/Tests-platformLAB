@@ -51,8 +51,6 @@ function priceRub(test: AnyTest) {
 
 function buttonLabel(test: AnyTest) {
   if (isInviteMode()) return "Завершить";
-  const p = priceRub(test);
-  if (test.has_interpretation && p > 0) return `Показать результат — ${p} ₽`;
   return "Показать результат";
 }
 
@@ -282,24 +280,25 @@ async function persistResult({
 }
 
 async function buyAndAttachAuthor({
-  test,
+  testSlug,
+  attemptId,
   accessToken,
 }: {
-  test: AnyTest;
+  testSlug: string;
+  attemptId: string;
   accessToken: string;
 }): Promise<any> {
-  const opId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-  const resp = await fetch("/api/purchases/author", {
+  const resp = await fetch("/api/tests/interpretation", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ test_slug: test.slug, op_id: opId }),
+    body: JSON.stringify({ test_slug: testSlug, attempt_id: attemptId }),
   });
   const json = await resp.json();
   if (!resp.ok || !json?.ok) {
-    throw new Error(json?.error || "Ошибка получения авторской расшифровки");
+    throw new Error(json?.error || "Ошибка загрузки полной интерпретации");
   }
   return json.content ?? null;
 }
@@ -531,27 +530,21 @@ function ForcedPairForm({ test }: { test: ForcedPairTestV1 }) {
       }
       await saveInviteAttemptIfNeeded({ test, result: res });
 
-      // 2) если тест платный — нужна сессия
-      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
-        if (!user || !session) {
-          setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
-          router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
-          return;
-        }
+      if (attempt?.id && session?.access_token && !isInviteMode()) {
+        const author = await buyAndAttachAuthor({
+          testSlug: test.slug,
+          attemptId: attempt.id,
+          accessToken: session.access_token,
+        });
 
-        const author = await buyAndAttachAuthor({ test, accessToken: session.access_token });
-
-        // 2.1) помечаем конкретную попытку как уже оплаченную (повторный просмотр бесплатный)
-        if (attempt?.id) {
-          updateAttempt(userId, test.slug, attempt.id, {
-            paid_author: { at: Date.now(), content: author },
-          });
-        }
+        updateAttempt(userId, test.slug, attempt.id, {
+          paid_author: { at: Date.now(), content: author },
+        });
 
         if (typeof window !== "undefined") {
           storeResultForViewer(test.slug, res);
           storeAuthorForViewer(test.slug, author);
-          if (attempt?.id) storeAttemptIdForViewer(test.slug, attempt.id);
+          storeAttemptIdForViewer(test.slug, attempt.id);
           clearDraftAfterSubmit(test.slug);
         }
       } else {
@@ -722,23 +715,19 @@ function PairSplitForm({ test }: { test: PairSplitTestV1 }) {
       }
       await saveInviteAttemptIfNeeded({ test, result: res });
 
-      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
-        if (!user || !session) {
-          setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
-          router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
-          return;
-        }
+      if (attempt?.id && session?.access_token && !isInviteMode()) {
+        const author = await buyAndAttachAuthor({
+          testSlug: test.slug,
+          attemptId: attempt.id,
+          accessToken: session.access_token,
+        });
 
-        const author = await buyAndAttachAuthor({ test, accessToken: session.access_token });
-
-        if (attempt?.id) {
-          updateAttempt(userId, test.slug, attempt.id, { paid_author: { at: Date.now(), content: author } });
-        }
+        updateAttempt(userId, test.slug, attempt.id, { paid_author: { at: Date.now(), content: author } });
 
         if (typeof window !== "undefined") {
           storeResultForViewer(test.slug, res);
           storeAuthorForViewer(test.slug, author);
-          if (attempt?.id) storeAttemptIdForViewer(test.slug, attempt.id);
+          storeAttemptIdForViewer(test.slug, attempt.id);
           clearDraftAfterSubmit(test.slug);
         }
       } else {
@@ -1270,26 +1259,21 @@ function USKForm({ test }: { test: USKTestV1 }) {
       }
       await saveInviteAttemptIfNeeded({ test, result: res });
 
-      // Paid interpretation (if enabled)
-      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
-        if (!user || !session) {
-          setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
-          router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
-          return;
-        }
+      if (attempt?.id && session?.access_token && !isInviteMode()) {
+        const author = await buyAndAttachAuthor({
+          testSlug: test.slug,
+          attemptId: attempt.id,
+          accessToken: session.access_token,
+        });
 
-        const author = await buyAndAttachAuthor({ test, accessToken: session.access_token });
-
-        if (attempt?.id) {
-          updateAttempt(userId, test.slug, attempt.id, {
-            paid_author: { at: Date.now(), content: author },
-          });
-        }
+        updateAttempt(userId, test.slug, attempt.id, {
+          paid_author: { at: Date.now(), content: author },
+        });
 
         if (typeof window !== "undefined") {
           storeResultForViewer(test.slug, res);
           storeAuthorForViewer(test.slug, author);
-          if (attempt?.id) storeAttemptIdForViewer(test.slug, attempt.id);
+          storeAttemptIdForViewer(test.slug, attempt.id);
           clearDraftAfterSubmit(test.slug);
         }
       } else {
@@ -1436,12 +1420,19 @@ function SituationalGuidanceForm({ test }: { test: SituationalGuidanceTestV1 }) 
       }
       await saveInviteAttemptIfNeeded({ test, result: res });
 
-      // Paid interpretation (if ever enabled)
-      if (test.has_interpretation && priceRub(test) > 0 && !isInviteMode()) {
-        if (!user || !session) {
-          setError("Для показа результата нужно войти. После входа нажми «Показать результат» ещё раз.");
-          router.push(`/auth?next=${encodeURIComponent(`/tests/${test.slug}/take`)}`);
-          return;
+      if (attempt?.id && session?.access_token && !isInviteMode()) {
+        const author = await buyAndAttachAuthor({
+          testSlug: test.slug,
+          attemptId: attempt.id,
+          accessToken: session.access_token,
+        });
+
+        updateAttempt(userId, test.slug, attempt.id, {
+          paid_author: { at: Date.now(), content: author },
+        });
+
+        if (typeof window !== "undefined") {
+          storeAuthorForViewer(test.slug, author);
         }
       }
 

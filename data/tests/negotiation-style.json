@@ -2,6 +2,10 @@
   "slug": "negotiation-style",
   "title": "Ваш переговорный стиль",
   "type": "forced_pair_v1",
+  "pricing": {
+    "interpretation_rub": 99,
+    "details_rub": 49
+  },
   "questions": [
     {
       "order": 1,

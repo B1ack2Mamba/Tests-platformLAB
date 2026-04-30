@@ -104,7 +104,7 @@ export default function ImportPage() {
       <Layout title="Импорт теста (JSON)">
       <div className="mb-4 flex justify-end"><Link href="/admin" className="btn btn-secondary btn-sm">К админ-панели</Link></div>
         <div className="card text-sm text-zinc-600">
-          Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.
+          Нужен вход. Перейди в <Link className="underline" href="/auth">/auth</Link>.
         </div>
       </Layout>
     );

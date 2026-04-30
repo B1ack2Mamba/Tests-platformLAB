@@ -1,5 +1,6 @@
 import { aiInterpretation } from "@/lib/aiInterpretation";
 import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
+import { buildHerzbergPrompt, isHerzbergMotivationResult } from "@/lib/herzbergInterpretation";
 import {
   getEvaluationPackageDefinition,
   getGoalDefinition,
@@ -372,6 +373,15 @@ function buildPremiumPrompt(args: {
   keys: any;
 }) {
   const { project, attempt, keys } = args;
+
+  if (isHerzbergMotivationResult(attempt.result, attempt.test_title || attempt.test_slug)) {
+    return buildHerzbergPrompt({
+      testTitle: attempt.test_title || attempt.test_slug,
+      result: attempt.result,
+      audience: "staff",
+    });
+  }
+
   return [
     "Сделай профессиональную интерпретацию одного психометрического теста для специалиста по оценке персонала.",
     `Цель оценки: ${goalLabel(project.goal)}.`,
@@ -403,11 +413,10 @@ async function buildAiPlusPrompt(args: {
   attempts: AttemptLike[];
   premiumByTest: Array<{ title: string; body: string }>;
   competencySignals: CompetencySignal[];
-  customRequest?: string | null;
   fitRequest?: string | null;
   fitProfileId?: string | null;
 }) {
-  const { project, attempts, premiumByTest, competencySignals, customRequest, fitRequest, fitProfileId } = args;
+  const { project, attempts, premiumByTest, competencySignals, fitRequest, fitProfileId } = args;
   const testsBlock = attempts.map((attempt, index) => {
     const premium = premiumByTest.find((item) => item.title === (attempt.test_title || attempt.test_slug));
     return [
@@ -429,7 +438,6 @@ async function buildAiPlusPrompt(args: {
     project.notes ? `Заметки специалиста: ${trimText(project.notes, 900)}` : "",
     fitProfileId ? `Ролевая матрица: ${(await getServerFitProfileById(fitProfileId))?.label || fitProfileId}.` : "",
     fitRequest ? `Индекс соответствия нужен относительно запроса: ${fitRequest}.` : "",
-    customRequest ? `Дополнительный акцент: ${customRequest}.` : "",
     "",
     "Короткие сигналы по фокусу оценки:",
     competencyBlock,
@@ -443,6 +451,42 @@ async function buildAiPlusPrompt(args: {
     "- Ответ короткий и структурный: 1) общий вывод 2) сильные стороны 3) риски 4) что особенно важно с учётом профиля человека.",
     "- Не пересказывай каждый тест подробно, а собирай синтез только по сути.",
   ].filter(Boolean).join("\n");
+}
+
+async function buildAiPlusFollowupPrompt(args: {
+  project: ProjectLike;
+  attempts: AttemptLike[];
+  premiumByTest: Array<{ title: string; body: string }>;
+  competencySignals: CompetencySignal[];
+  customRequest: string;
+  fitRequest?: string | null;
+  fitProfileId?: string | null;
+}) {
+  const { project, attempts, premiumByTest, competencySignals, customRequest, fitRequest, fitProfileId } = args;
+  const basePrompt = await buildAiPlusPrompt({
+    project,
+    attempts,
+    premiumByTest,
+    competencySignals,
+    fitRequest,
+    fitProfileId,
+  });
+
+  return [
+    basePrompt,
+    "",
+    `Дополнительный запрос специалиста: ${customRequest}.`,
+    "",
+    "Сделай отдельное дополнение к уже существующему общему профилю.",
+    "Не переписывай весь итог заново и не повторяй уже сказанное без необходимости.",
+    "Дай отдельный прикладной блок по этому запросу.",
+    "Структура ответа:",
+    "1. Что видно по запросу",
+    "2. На чём это основано в данных",
+    "3. Практический вывод для руководителя / HR",
+    "4. Что здесь остаётся гипотезой",
+    "Если данных недостаточно, скажи это прямо и не додумывай.",
+  ].join("\n");
 }
 
 async function buildPremiumInterpretation(project: ProjectLike, attempt: AttemptLike, keys: any) {
@@ -605,7 +649,6 @@ export async function buildCommercialEvaluation(
       attempts,
       premiumByTest: [],
       competencySignals,
-      customRequest: options?.aiPlusRequest || null,
       fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
       fitProfileId: options?.fitEnabled ? options?.fitProfileId || null : null,
     });
@@ -625,6 +668,29 @@ export async function buildCommercialEvaluation(
       title: "Короткий вывод",
       body: synthesis ? cleanText(synthesis) : buildPortraitFallback(project, attempts),
     });
+    if (options?.aiPlusRequest?.trim()) {
+      const followupPrompt = await buildAiPlusFollowupPrompt({
+        project,
+        attempts,
+        premiumByTest: [],
+        competencySignals,
+        customRequest: options.aiPlusRequest.trim(),
+        fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
+        fitProfileId: options?.fitEnabled ? options?.fitProfileId || null : null,
+      });
+      const followup = await callDeepseek(
+        "Ты помогаешь специалисту по оценке персонала дополнять уже собранный профиль отдельным прикладным ракурсом по запросу.",
+        followupPrompt,
+        1200
+      ).catch(() => null);
+      sections.push({
+        kind: "portrait",
+        title: "Уточнение по запросу",
+        body: followup
+          ? cleanText(followup)
+          : `Запрошенный дополнительный фокус: ${options.aiPlusRequest.trim()}. Данных для отдельного AI-дополнения сейчас недостаточно или внешний сервис недоступен.`,
+      });
+    }
     if (options?.fitEnabled) {
       const correspondence = await buildCorrespondenceIndex(
         project,

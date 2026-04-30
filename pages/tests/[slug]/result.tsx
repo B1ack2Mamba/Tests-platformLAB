@@ -7,6 +7,7 @@ import type { AnyTest } from "@/lib/testTypes";
 import type { ScoreResult } from "@/lib/score";
 import { useSession } from "@/lib/useSession";
 import { getAttempt } from "@/lib/localHistory";
+import { interpretationToDisplayText } from "@/lib/testInterpretationText";
 
 function resultKey(slug: string) {
   return `attempt:${slug}:result`;
@@ -14,6 +15,10 @@ function resultKey(slug: string) {
 
 function attemptIdKey(slug: string) {
   return `attempt:${slug}:id`;
+}
+
+function authorKey(slug: string) {
+  return `attempt:${slug}:author`;
 }
 
 function levelColor(level: string) {
@@ -25,18 +30,27 @@ function levelColor(level: string) {
 }
 
 export default function TestResult({ test }: { test: AnyTest }) {
-  const { user } = useSession();
+  const { user, session } = useSession();
   const [result, setResult] = useState<ScoreResult | null>(null);
+  const [authorContent, setAuthorContent] = useState<any>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const raw = window.sessionStorage.getItem(resultKey(test.slug));
+    const rawAuthor = window.sessionStorage.getItem(authorKey(test.slug));
     if (raw) {
       try {
         setResult(JSON.parse(raw));
       } catch {
         setResult(null);
+      }
+    }
+    if (rawAuthor) {
+      try {
+        setAuthorContent(JSON.parse(rawAuthor));
+      } catch {
+        setAuthorContent(null);
       }
     }
 
@@ -46,8 +60,41 @@ export default function TestResult({ test }: { test: AnyTest }) {
       const userId = user?.id || "guest";
       const a = getAttempt(userId, test.slug, attemptId);
       if (a && !raw) setResult(a.result);
+      if (a?.paid_author?.content && !rawAuthor) setAuthorContent(a.paid_author.content);
     }
   }, [test.slug, user?.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (authorContent || !session?.access_token) return;
+
+    const attemptId = window.sessionStorage.getItem(attemptIdKey(test.slug));
+    if (!attemptId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch("/api/tests/interpretation", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ test_slug: test.slug, attempt_id: attemptId }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json?.ok || cancelled) return;
+        setAuthorContent(json.content ?? null);
+        window.sessionStorage.setItem(authorKey(test.slug), JSON.stringify(json.content ?? null));
+      } catch {
+        // Best-effort only.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authorContent, session?.access_token, test.slug]);
 
   const chartData = useMemo(() => {
     if (!result?.ranked?.length) return [];
@@ -57,6 +104,7 @@ export default function TestResult({ test }: { test: AnyTest }) {
   const isNumericPrimary = useMemo(() => {
     return result?.kind === "usk_v1" || result?.kind === "16pf_v1";
   }, [result?.kind]);
+  const interpretationText = useMemo(() => interpretationToDisplayText(authorContent), [authorContent]);
 
   const sgMeta = useMemo(() => {
     if (!result || result.kind !== "situational_guidance_v1") return null;
@@ -88,19 +136,6 @@ export default function TestResult({ test }: { test: AnyTest }) {
         <div className="card">
           <div className="text-sm text-zinc-900">Результат не найден.</div>
           <div className="mt-2 text-sm text-zinc-600">Открой результат заново из истории.</div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link href={`/tests/${test.slug}`} className="btn btn-secondary">
-              ← К тесту
-            </Link>
-            <Link href="/assessments" className="btn btn-secondary">
-              К каталогу
-            </Link>
-          </div>
-        </div>
-      ) : result.kind === "16pf_v1" ? (
-        <div className="card">
-          <div className="text-sm font-medium text-zinc-900">Тест завершён</div>
-          <div className="mt-2 text-sm text-zinc-600">Результаты 16PF (сырые баллы, стэны и уровни) доступны только специалисту.</div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link href={`/tests/${test.slug}`} className="btn btn-secondary">
               ← К тесту
@@ -215,7 +250,7 @@ export default function TestResult({ test }: { test: AnyTest }) {
                         <td className="py-3 pr-4">
                           {result.kind === "pair_sum5_v1" ? (
                             <>
-                              <div className="font-medium text-zinc-900">Фактор "{r.tag}"</div>
+                              <div className="font-medium text-zinc-900">Фактор &quot;{r.tag}&quot;</div>
                               <div className="mt-0.5 text-xs text-zinc-600">{r.style}</div>
                             </>
                           ) : (
@@ -264,6 +299,13 @@ export default function TestResult({ test }: { test: AnyTest }) {
               </Link>
             </div>
           </div>
+
+          {interpretationText ? (
+            <div className="mt-4 card">
+              <div className="mb-3 text-sm font-medium text-zinc-900">Полный результат</div>
+              <div className="whitespace-pre-wrap text-sm leading-6 text-zinc-800">{interpretationText}</div>
+            </div>
+          ) : null}
         </>
       )}
     </Layout>

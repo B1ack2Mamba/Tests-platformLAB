@@ -63,7 +63,7 @@ export default function CreditPage() {
         <div className="card text-sm text-zinc-600">Загрузка…</div>
       ) : !user ? (
         <div className="card text-sm text-zinc-600">
-          Нужен вход. Перейди в <a className="underline" href="/auth">/auth</a>.
+          Нужен вход. Перейди в <Link className="underline" href="/auth">/auth</Link>.
         </div>
       ) : !isAdminEmail(user.email) ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -81,7 +81,7 @@ export default function CreditPage() {
           </div>
           {!uid ? (
             <div className="mt-2 text-xs text-zinc-600">
-              Перейди в <a className="underline" href="/auth">/auth</a> и войди по email.
+              Перейди в <Link className="underline" href="/auth">/auth</Link> и войди по email.
             </div>
           ) : null}
         </div>

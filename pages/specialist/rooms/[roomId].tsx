@@ -425,7 +425,7 @@ function Digits({ result }: { result: ScoreResult }) {
           <div>
             {kind === "pair_sum5_v1" ? (
               <>
-                <div className="text-sm font-medium">Фактор "{r.tag}"</div>
+                <div className="text-sm font-medium">Фактор &quot;{r.tag}&quot;</div>
                 <div className="mt-0.5 text-xs text-zinc-600">{r.style}</div>
               </>
             ) : (

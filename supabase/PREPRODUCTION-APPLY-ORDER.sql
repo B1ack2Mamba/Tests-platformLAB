@@ -1,6 +1,35 @@
--- Run these files separately in this order:
--- 1) training_room_sessions.sql
--- 2) training_rooms_personal_data_consent.sql
--- 3) training_room_join_queue.sql
--- 4) training_rooms_hardening.sql
--- This file is a reminder only.
+-- Apply database files in this order for a full preproduction environment.
+-- Core
+-- 1) schema.sql
+-- 2) commercial_schema.sql
+-- 3) commercial_goals_workflow.sql
+-- 4) commercial_package_logic_update.sql
+--
+-- Auth and training
+-- 5) auth_name_logins.sql
+-- 6) training_rooms.sql
+-- 7) training_room_sessions.sql
+-- 8) training_rooms_personal_data_consent.sql
+-- 9) training_room_join_queue.sql
+-- 10) training_rooms_hardening.sql
+-- 11) training_rooms_digits_mode.sql
+-- 12) training_rooms_analysis_prompt.sql
+-- 13) test_take_unlocks.sql
+--
+-- Wallet and payments
+-- 14) paywall.sql
+-- 15) yookassa.sql
+-- 16) yookassa_amount_guard_hotfix.sql
+-- 17) yookassa_idempotency_fix.sql
+-- 18) wallet_debit.sql
+--
+-- Commercial add-ons
+-- 19) commercial_fit_profiles.sql
+-- 20) commercial_competency_prompts.sql
+-- 21) commercial_invites_and_public_attempts.sql
+-- 22) commercial_monthly_subscriptions.sql
+-- 23) commercial_paid_evaluation_unlocks.sql
+-- 24) commercial_promo_codes.sql
+-- 25) commercial_support_chat.sql
+--
+-- Optional follow-up patches depend on the feature set you use.

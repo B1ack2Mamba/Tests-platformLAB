@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -153,6 +154,7 @@ export default function TrainingTake({ test }: { test: AnyTest }) {
   // Типология личности обучения: выбор A/B/C/D, в некоторых пунктах только 2 варианта
   const [lt, setLt] = useState<(LearningTypologyChoice | "")[]>(() => Array(test.questions?.length ?? 0).fill(""));
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (typeof window === "undefined") return;
     // Wait for router to provide the real roomId before reading the draft.

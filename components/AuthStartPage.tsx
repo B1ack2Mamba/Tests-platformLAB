@@ -78,32 +78,68 @@ const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
 
-function getPendingPromoCode() {
+function safeLocalStorageGet(key: string) {
   if (typeof window === "undefined") return "";
-  return (window.localStorage.getItem(PENDING_PROMO_CODE_KEY) || "").trim().toUpperCase();
+  try {
+    return window.localStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function safeLocalStorageSet(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore blocked storage environments.
+  }
+}
+
+function safeLocalStorageRemove(key: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore blocked storage environments.
+  }
+}
+
+function getPendingPromoCode() {
+  return safeLocalStorageGet(PENDING_PROMO_CODE_KEY).trim().toUpperCase();
 }
 
 function setPendingPromoCode(code: string) {
-  if (typeof window === "undefined") return;
   const value = code.trim().toUpperCase();
   if (!value) return;
-  window.localStorage.setItem(PENDING_PROMO_CODE_KEY, value);
+  safeLocalStorageSet(PENDING_PROMO_CODE_KEY, value);
 }
 
 function clearPendingPromoCode() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(PENDING_PROMO_CODE_KEY);
+  safeLocalStorageRemove(PENDING_PROMO_CODE_KEY);
 }
 
 function setPromoFlashSuccess(message: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(PROMO_FLASH_SUCCESS_KEY, message);
-  window.localStorage.removeItem(PROMO_FLASH_ERROR_KEY);
+  safeLocalStorageSet(PROMO_FLASH_SUCCESS_KEY, message);
+  safeLocalStorageRemove(PROMO_FLASH_ERROR_KEY);
 }
 
 function setPromoFlashError(message: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(PROMO_FLASH_ERROR_KEY, message);
+  safeLocalStorageSet(PROMO_FLASH_ERROR_KEY, message);
+}
+
+async function syncCommercialProfile(accessToken: string, fullName: string, companyName: string) {
+  await fetch("/api/commercial/profile/upsert", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      full_name: fullName.trim(),
+      company_name: companyName.trim(),
+    }),
+  }).catch(() => null);
 }
 
 export default function AuthStartPage() {
@@ -125,6 +161,20 @@ export default function AuthStartPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const autoRedeemAttemptRef = useRef<string>("");
+  const profileSyncAttemptRef = useRef<string>("");
+
+  useEffect(() => {
+    if (sessionLoading || !session?.access_token || !user) return;
+
+    const metadata = (user.user_metadata || {}) as { full_name?: string; company_name?: string };
+    const fullName = String(metadata.full_name || "").trim();
+    const companyName = String(metadata.company_name || "").trim();
+    const syncKey = `${user.id}:${fullName}:${companyName}`;
+    if (profileSyncAttemptRef.current === syncKey) return;
+    profileSyncAttemptRef.current = syncKey;
+
+    syncCommercialProfile(session.access_token, fullName, companyName);
+  }, [sessionLoading, session, user]);
 
   useEffect(() => {
     if (sessionLoading || !user || !session) return;
@@ -206,11 +256,9 @@ export default function AuthStartPage() {
       });
       if (error) throw error;
 
-      await fetch("/api/commercial/profile/upsert", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ full_name: fullName.trim(), company_name: companyName.trim(), email: email.trim() }),
-      }).catch(() => null);
+      if (data.session?.access_token) {
+        await syncCommercialProfile(data.session.access_token, fullName, companyName);
+      }
 
       if (promoCode.trim()) {
         const normalizedPromo = promoCode.trim().toUpperCase();

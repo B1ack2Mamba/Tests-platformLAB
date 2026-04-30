@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -51,11 +52,16 @@ type WorkspacePayload = {
   projects: ProjectRow[];
 };
 
-type SubscriptionStatusResp = {
-  ok: boolean;
-  error?: string;
-  active_subscription?: WorkspaceSubscriptionStatus | null;
-};
+type DashboardBootstrapPayload = DashboardPayload &
+  WorkspacePayload & {
+    ok: true;
+    active_subscription: WorkspaceSubscriptionStatus | null;
+    shared_scene_standard?: {
+      positions?: DeskPositions;
+      widgets?: SceneWidget[];
+      trayGuideText?: string;
+    } | null;
+  };
 
 type DeskPosition = {
   x: number;
@@ -156,6 +162,7 @@ const LAPTOP_PANEL_ID = "scene:deskLaptopPanel";
 const SHARED_SCENE_POSITION_IDS = new Set([ROOM_SWITCH_STANDARD_ID, LAPTOP_DEVICE_ID, LAPTOP_PANEL_ID]);
 const TRAY_GUIDE_ID = "guide:tray";
 const TRASH_GUIDE_ID = "guide:trash";
+const DESK_TEMPLATE_IDS = new Set([FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, TRAY_GUIDE_ID, TRASH_GUIDE_ID]);
 const DEFAULT_LAPTOP_POSITION: DeskPosition = { x: 936, y: 432, width: 372, height: 248, z: 24, rotation: -5.4, tiltX: 0, tiltY: 0 };
 const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 226, height: 132, z: 26, rotation: -5.4, tiltX: 0, tiltY: 0 };
 const CERTIFICATE_PSI_PROFILE_ID = "certificate-psi-profile";
@@ -240,6 +247,17 @@ function getInitials(value: string) {
 function getEntityTilt(seedSource: string, spread = 4) {
   const seed = Array.from(seedSource).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return ((seed % (spread * 2 + 1)) - spread) * 1.2;
+}
+
+function DesktopLoadingOverlay() {
+  return (
+    <div className="dashboard-desktop-loader absolute inset-0 z-[220] flex items-center justify-center">
+      <div className="dashboard-desktop-loader-card">
+        <div className="dashboard-desktop-loader-spinner" aria-hidden="true" />
+        <div className="text-sm font-semibold text-slate-900">Собираем рабочий стол</div>
+      </div>
+    </div>
+  );
 }
 
 function getStickyNoteTone(goal: AssessmentGoal) {
@@ -546,6 +564,7 @@ function stripSharedScenePositions(source: DeskPositions): DeskPositions {
   const next: DeskPositions = {};
   for (const [key, value] of Object.entries(source || {})) {
     if (SHARED_SCENE_POSITION_IDS.has(key)) continue;
+    if (DESK_TEMPLATE_IDS.has(key)) continue;
     next[key] = value;
   }
   return next;
@@ -661,13 +680,12 @@ export default function DashboardPage() {
   const [sharedSceneWidgets, setSharedSceneWidgets] = useState<SceneWidget[]>([]);
   const [sharedTrayGuideText, setSharedTrayGuideText] = useState("");
   const [sharedSceneReady, setSharedSceneReady] = useState(false);
+  const [deskVisualReady, setDeskVisualReady] = useState(false);
   const [isRoomLightDimmed, setIsRoomLightDimmed] = useState(false);
   const [roomSwitchPosition, setRoomSwitchPosition] = useState(DEFAULT_ROOM_SWITCH_ZONE);
   const roomSwitchInteractionRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
   const suppressRoomSwitchClickRef = useRef(false);
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -705,51 +723,42 @@ export default function DashboardPage() {
     setError("");
     setSharedSceneReady(false);
     try {
-      const [profileResp, workspaceResp, sharedTemplatesResp] = await Promise.all([
-        fetch("/api/commercial/profile/me", {
-          headers: { authorization: `Bearer ${session.access_token}` },
-        }),
-        fetch("/api/commercial/projects/list", {
-          headers: { authorization: `Bearer ${session.access_token}` },
-        }),
-        fetch("/api/commercial/scene-template", {
-          headers: { authorization: `Bearer ${session.access_token}` },
-        }),
-      ]);
+      const resp = await fetch("/api/commercial/dashboard/bootstrap", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = (await resp.json().catch(() => ({}))) as Partial<DashboardBootstrapPayload> & { error?: string };
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить кабинет");
 
-      const profileJson = await profileResp.json().catch(() => ({}));
-      const workspaceJson = await workspaceResp.json().catch(() => ({}));
-      const sharedTemplatesJson = await sharedTemplatesResp.json().catch(() => ({}));
-      if (!profileResp.ok || !profileJson?.ok) throw new Error(profileJson?.error || "Не удалось загрузить кабинет");
-      if (!workspaceResp.ok || !workspaceJson?.ok) throw new Error(workspaceJson?.error || "Не удалось загрузить проекты");
-      if (sharedTemplatesResp.ok && sharedTemplatesJson?.ok) {
-        const parsedStandard = pickSceneStandard(sharedTemplatesJson?.standard || sharedTemplatesJson || {});
-        const nextSharedPositions = (parsedStandard.positions || {}) as DeskPositions;
-        const nextSharedWidgets = (parsedStandard.widgets || []) as SceneWidget[];
-        setSharedDeskPositions(nextSharedPositions);
-        setSharedSceneWidgets(nextSharedWidgets);
-        setSharedTrayGuideText(parsedStandard.trayGuideText || "");
-        writeGlobalDeskTemplates(nextSharedPositions);
-      } else {
-        setSharedDeskPositions({});
-        setSharedSceneWidgets([]);
-        setSharedTrayGuideText("");
-      }
+      const parsedStandard = pickSceneStandard(json.shared_scene_standard || {});
+      const nextSharedPositions = (parsedStandard.positions || {}) as DeskPositions;
+      const nextSharedWidgets = (parsedStandard.widgets || []) as SceneWidget[];
+      setSharedDeskPositions(nextSharedPositions);
+      setSharedSceneWidgets(nextSharedWidgets);
+      setSharedTrayGuideText(parsedStandard.trayGuideText || "");
+      writeGlobalDeskTemplates(nextSharedPositions);
       setSharedSceneReady(true);
 
-      setData(profileJson as DashboardPayload & { ok: true });
-      setWorkspace(workspaceJson as WorkspacePayload);
+      setData({ profile: json.profile ?? null, stats: json.stats ?? { attempts_count: 0, unique_tests_count: 0 } });
+      setWorkspace({
+        ok: true,
+        workspace: json.workspace!,
+        folders: json.folders || [],
+        projects: json.projects || [],
+      });
+      setActiveSubscription(json.active_subscription || null);
     } catch (e: any) {
       setSharedDeskPositions({});
       setSharedSceneWidgets([]);
       setSharedTrayGuideText("");
       setSharedSceneReady(true);
+      setActiveSubscription(null);
       setError(e?.message || "Ошибка");
     } finally {
       setLoading(false);
     }
-  }, [session, user?.email]);
+  }, [session]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (sessionLoading) return;
     if (!session || !user) {
@@ -758,32 +767,6 @@ export default function DashboardPage() {
     }
     loadDashboard();
   }, [router, session, sessionLoading, user, loadDashboard]);
-
-  const loadSubscriptionStatus = useCallback(async () => {
-    if (!session?.access_token) {
-      setActiveSubscription(null);
-      return;
-    }
-    setSubscriptionLoading(true);
-    try {
-      const resp = await fetch("/api/commercial/subscriptions/status", {
-        headers: { authorization: `Bearer ${session.access_token}` },
-      });
-      const json = (await resp.json().catch(() => ({}))) as SubscriptionStatusResp;
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить тариф");
-      setActiveSubscription(json.active_subscription || null);
-      setSubscriptionError(null);
-    } catch (err: any) {
-      setSubscriptionError(err?.message || "Не удалось загрузить тариф");
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    if (!session?.access_token) return;
-    loadSubscriptionStatus();
-  }, [loadSubscriptionStatus, session?.access_token]);
 
   const displayName = data?.profile?.full_name || (user?.user_metadata as any)?.full_name || user?.email || "Пользователь";
   const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user?.user_metadata as any)?.company_name || "Рабочее пространство";
@@ -844,6 +827,28 @@ export default function DashboardPage() {
       if (raw === "desktop" || raw === "sheet") setClassicViewMode(raw);
     } catch {}
   }, [workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    setDeskVisualReady(false);
+  }, [classicViewMode, desktopVariant, loading, sharedSceneReady, workspace?.workspace?.workspace_id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (loading || !sharedSceneReady || !workspace?.workspace?.workspace_id) return;
+
+    let rafOne = 0;
+    let rafTwo = 0;
+    rafOne = window.requestAnimationFrame(() => {
+      rafTwo = window.requestAnimationFrame(() => {
+        setDeskVisualReady(true);
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafOne);
+      window.cancelAnimationFrame(rafTwo);
+    };
+  }, [classicViewMode, desktopVariant, loading, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -1376,6 +1381,7 @@ export default function DashboardPage() {
     } catch (e: any) {
       showTemplateFeedback("error", e?.message || "Не удалось сохранить общий стандарт");
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildCurrentSceneStandard, canManageGlobalTemplates, deskPositions, sceneWidgets, session?.access_token, showTemplateFeedback, trayGuideText]);
 
   const applyDeskTemplateToExistingItems = useCallback((kind: "folder" | "project") => {
@@ -1435,6 +1441,7 @@ export default function DashboardPage() {
     setTrashEntries((prev) => prev.filter((item) => !(item.kind === entry.kind && item.id === entry.id)));
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleSceneWidgetAction = useCallback(
     (action: SceneWidgetAction | undefined) => {
       if (action === "createProject") {
@@ -1730,6 +1737,7 @@ export default function DashboardPage() {
     const merged = mergeDeskPositions(folders, folderBuckets.uncategorized, { ...sharedDeskPositions, ...globalTemplates, ...saved });
     setDeskLayer(Object.values(merged).reduce((max, item) => Math.max(max, item.z || 0), 300));
     setDeskPositions(merged);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desktopVariant, workspace?.workspace?.workspace_id, folders, folderBuckets.uncategorized, sharedDeskPositions]);
 
   useEffect(() => {
@@ -1784,6 +1792,7 @@ export default function DashboardPage() {
       },
     }));
     pendingCreatedFolderRef.current = null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskLayer, deskPositions, folders]);
 
   const bringDeskItemToFront = useCallback((itemId: string) => {
@@ -1869,6 +1878,7 @@ export default function DashboardPage() {
     }));
   }, [deskLayer, deskPositions, folders, isInsideGuideRect, laptopPanelPosition]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleDeskDrop = useCallback((e: any) => {
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -2134,6 +2144,7 @@ export default function DashboardPage() {
     if (trashHoverTimer.current) window.clearTimeout(trashHoverTimer.current);
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const now = Date.now();
     const expired = trashEntries.filter((item) => item.expiresAt <= now);
@@ -2161,6 +2172,7 @@ export default function DashboardPage() {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return !isInsideGuideRect(pos.x, pos.y);
   });
+  const showDesktopLoader = loading || !sharedSceneReady || !deskVisualReady;
 
   if (desktopVariant === "classic") {
     return (
@@ -2207,6 +2219,7 @@ export default function DashboardPage() {
           ) : null}
 
           <div className="dashboard-classic-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#d4d9e4] bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.14)]" onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
+            {showDesktopLoader ? <DesktopLoadingOverlay /> : null}
             <div className="dashboard-classic-surface absolute inset-0" />
             {classicViewMode === "sheet" ? (
               <div className="absolute inset-0 z-[2] p-5">
@@ -2496,6 +2509,7 @@ export default function DashboardPage() {
         ) : null}
 
         <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
+          {showDesktopLoader ? <DesktopLoadingOverlay /> : null}
           <div className="dashboard-office-scene-backdrop absolute inset-0" />
           <div className="dashboard-office-scene-vignette absolute inset-0" />
           <div
@@ -2557,6 +2571,7 @@ export default function DashboardPage() {
                 transform: isRoomLightDimmed ? "translateY(2px) scale(0.992)" : "translateY(0) scale(1)",
               }}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/room-light-switch-office.png"
                 alt=""
@@ -2650,7 +2665,10 @@ export default function DashboardPage() {
                     }}
                   >
                     {widget.kind === "image" ? (
-                      <img className="dashboard-scene-widget-image-el" src={widget.src} alt="Схема на доске" draggable={false} />
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img className="dashboard-scene-widget-image-el" src={widget.src} alt="Схема на доске" draggable={false} />
+                      </>
                     ) : (
                       <span className="dashboard-scene-widget-label">{widget.text}</span>
                     )}
@@ -2690,6 +2708,7 @@ export default function DashboardPage() {
                 setSelectedWidgetId(null);
               }}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/dashboard-laptop-transparent.png"
                 alt="Ноутбук на столе"
@@ -3587,6 +3606,7 @@ function SceneImagePreviewModal({ src, title, onClose }: SceneImagePreviewModalP
         </button>
         <div className="overflow-hidden rounded-[28px] border border-[#d8ccb7] bg-[#f7f3eb] p-4 shadow-[0_32px_70px_-32px_rgba(31,22,11,0.4)]">
           <div className="mb-3 text-center text-sm font-semibold uppercase tracking-[0.24em] text-[#7b5b3b]">{title}</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
             alt={title}
