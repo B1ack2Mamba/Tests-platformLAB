@@ -467,6 +467,15 @@ export default function ProjectResultsStandalonePage() {
     }
   }
 
+  async function refreshActiveEvaluation() {
+    if (!activeEvaluationMode) return;
+    await loadEvaluation(
+      activeEvaluationMode,
+      activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined
+    );
+    setInfo("Результат обновлён по текущим данным проекта.");
+  }
+
   async function unlockPackage(mode: EvaluationPackage) {
     if (!session?.access_token || !data?.project.id) return;
     setSaving(true);
@@ -842,6 +851,14 @@ export default function ProjectResultsStandalonePage() {
                           );
                         })}
                       </div>
+                      <button
+                        type="button"
+                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] disabled:opacity-60"
+                        disabled={!activeEvaluationMode || !!evaluationLoading[activeEvaluationMode]}
+                        onClick={() => refreshActiveEvaluation()}
+                      >
+                        {activeEvaluationMode && evaluationLoading[activeEvaluationMode] ? "Обновляем…" : "Обновить результат"}
+                      </button>
                     </div>
 
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
