@@ -26,40 +26,40 @@ function splitCsv(value) {
 
 function assetsLabel(registry, signals) {
   return [
-    registry?.["Определение"] ? "definition" : "",
-    registry?.["Core-семейства"] ? "core_families" : "",
-    registry?.["Linked goals"] ? "linked_goals" : "",
-    registry?.["Rule of thumb"] ? "rule_of_thumb" : "",
-    signals?.["Core-signals"] ? "core_signals" : "",
-    signals?.["Supportive-signals"] ? "supportive_signals" : "",
-    signals?.["Contra-signals"] ? "contra_signals" : "",
-    signals?.["Core route"] ? "core_route" : "",
-    signals?.["Standard route"] ? "standard_route" : "",
+    registry?.["Определение"] ? "Есть определение компетенции" : "",
+    registry?.["Core-семейства"] ? "Есть ключевые группы тестов" : "",
+    registry?.["Linked goals"] ? "Есть связь с целями оценки" : "",
+    registry?.["Rule of thumb"] ? "Есть краткое правило интерпретации" : "",
+    signals?.["Core-signals"] ? "Есть основные подтверждающие признаки" : "",
+    signals?.["Supportive-signals"] ? "Есть дополнительные подтверждающие признаки" : "",
+    signals?.["Contra-signals"] ? "Есть признаки, которые снижают уверенность" : "",
+    signals?.["Core route"] ? "Есть основной маршрут оценки" : "",
+    signals?.["Standard route"] ? "Есть стандартный маршрут оценки" : "",
   ]
     .filter(Boolean)
-    .join(", ");
+    .join("; ");
 }
 
 function requiredAdditions(registry, signals) {
   const additions = [
-    "machine-readable weights for core/supportive/contra",
-    "explicit downgrade rules for contra-signals",
-    "competency-specific high/medium/low thresholds",
-    "false positive / false negative notes",
-    "observable behaviors / interview probes",
+    "зафиксировать численные веса для основных, дополнительных и сдерживающих признаков",
+    "описать, когда сдерживающие признаки должны понижать уровень компетенции",
+    "задать отдельные пороги низкого, среднего и высокого уровня именно для этой компетенции",
+    "дописать, где возможны ложноположительные и ложноотрицательные выводы",
+    "добавить наблюдаемые поведенческие маркеры и вопросы для интервью",
   ];
-  if (!signals?.["Что бы вы изменили"]) additions.unshift("fill review suggestion in Signals");
-  if (!signals?.["Причина / риск"]) additions.unshift("fill risk note in Signals");
-  if (!registry?.["Комментарий"]) additions.push("add competency note / business context");
+  if (!signals?.["Что бы вы изменили"]) additions.unshift("заполнить поле с предлагаемым улучшением по этой компетенции");
+  if (!signals?.["Причина / риск"]) additions.unshift("заполнить поле с причиной, риском или ограничением вывода");
+  if (!registry?.["Комментарий"]) additions.push("при необходимости добавить бизнес-комментарий или контекст применения");
   return additions.join("; ");
 }
 
 function whereToWrite(registry, signals) {
   const targets = [];
-  if (!signals?.["Что бы вы изменили"]) targets.push("Signals -> Что бы вы изменили");
-  if (!signals?.["Причина / риск"]) targets.push("Signals -> Причина / риск");
-  targets.push("Calibration -> Предлагаемое изменение");
-  targets.push("ChangeLog -> после утверждения");
+  if (!signals?.["Что бы вы изменили"]) targets.push("Лист Signals -> колонка «Что бы вы изменили»");
+  if (!signals?.["Причина / риск"]) targets.push("Лист Signals -> колонка «Причина / риск»");
+  targets.push("Лист Calibration -> колонка «Предлагаемое изменение»");
+  targets.push("Лист ChangeLog -> после утверждения изменений");
   return targets.join(" | ");
 }
 
@@ -75,41 +75,41 @@ const rows = registryRows.map((registry) => {
     where: whereToWrite(registry, signals),
     priority:
       !signals["Что бы вы изменили"] || !signals["Причина / риск"]
-        ? "Сначала закрыть review-поля в Signals"
-        : "Сначала перевести сигналы в исполняемые rules",
+        ? "Сначала дописать методические комментарии и риски"
+        : "Сначала перевести признаки в чёткие исполняемые правила",
   };
 });
 
 const globalRows = [
   {
-    area: "Scoring",
-    need: "Завести исполняемые веса core/supportive/contra и downgrade по contra-signals.",
-    write_to: "Signals + Calibration",
+    area: "Правила расчёта",
+    need: "Задать понятные веса для основных, дополнительных и сдерживающих признаков, а также правила понижения уровня при сильных ограничивающих сигналах.",
+    write_to: "Листы Signals и Calibration",
   },
   {
-    area: "Thresholds",
-    need: "Для каждой компетенции зафиксировать условия High / Medium / Low и minimum evidence gate.",
-    write_to: "Registry -> Rule of thumb, затем Calibration",
+    area: "Пороги уровней",
+    need: "Для каждой компетенции отдельно определить, что считать низким, средним и высоким уровнем, и какой минимум данных нужен для уверенного вывода.",
+    write_to: "Лист Registry, затем лист Calibration",
   },
   {
-    area: "Coverage",
-    need: "Отметить, где допустим verdict только при 2+ независимых семействах и какие семьи считать backbone.",
-    write_to: "Registry + RouterRules",
+    area: "Достаточность данных",
+    need: "Отметить, для каких компетенций вывод допустим только при 2 и более независимых группах тестов, и какие группы считаются обязательной опорой.",
+    write_to: "Листы Registry и RouterRules",
   },
   {
-    area: "Quality risks",
-    need: "Дополнить false positive / false negative комментарии по каждой компетенции.",
-    write_to: "Signals -> Причина / риск",
+    area: "Риски качества",
+    need: "По каждой компетенции дописать, где система может ошибочно завысить или занизить уровень.",
+    write_to: "Лист Signals -> колонка «Причина / риск»",
   },
   {
-    area: "Interview layer",
-    need: "Добавить поведенческие маркеры и 2-4 вопроса интервью на подтверждение компетенции.",
-    write_to: "Signals / отдельный workbook next version",
+    area: "Интервью и наблюдение",
+    need: "Добавить поведенческие маркеры и 2-4 проверочных вопроса интервью для подтверждения компетенции.",
+    write_to: "Лист Signals или отдельная следующая версия workbook",
   },
   {
-    area: "Approval flow",
-    need: "Каждое утверждённое изменение переносить в ChangeLog с эффектом и владельцем.",
-    write_to: "ChangeLog",
+    area: "Фиксация решений",
+    need: "Каждое утверждённое изменение переносить в ChangeLog с описанием эффекта и ответственным.",
+    write_to: "Лист ChangeLog",
   },
 ];
 
@@ -131,7 +131,7 @@ const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<title>Competency Calibration Audit</title>
+<title>Аудит методических дополнений по компетенциям</title>
 <style>
 body { font-family: Arial, sans-serif; }
 table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
@@ -140,14 +140,21 @@ th { background: #f0f0f0; }
 </style>
 </head>
 <body>
-<h1>Аудит дополнений для competency calibration workbook</h1>
+<h1>Аудит методических дополнений по компетенциям</h1>
 <table>
 <tr><th>Параметр</th><th>Значение</th></tr>
 <tr><td>Источник</td><td>${escapeHtml(workbook.source)}</td></tr>
 <tr><td>Сгенерировано</td><td>${escapeHtml(workbook.generated_at)}</td></tr>
 <tr><td>Компетенций</td><td>${rows.length}</td></tr>
-<tr><td>Signals rows</td><td>${signalRows.length}</td></tr>
+<tr><td>Строк с методическими признаками</td><td>${signalRows.length}</td></tr>
 </table>
+
+<p>
+Этот файл показывает, что уже есть по каждой компетенции и чего не хватает для более точного и устойчивого вывода.
+Если в таблице встречаются слова «основные признаки», это значит самые сильные подтверждения компетенции.
+«Дополнительные признаки» усиливают вывод, но сами по себе не должны решать исход.
+«Сдерживающие признаки» показывают ограничения и должны понижать уверенность, если выражены сильно.
+</p>
 
 <h2>Глобально нужно дополнить</h2>
 <table>
@@ -161,7 +168,7 @@ ${globalTableRows}
 <th>ID</th>
 <th>Кластер</th>
 <th>Компетенция</th>
-<th>Core-семейства</th>
+<th>Ключевые группы тестов</th>
 <th>Что уже есть</th>
 <th>Что обязательно дополнить</th>
 <th>Куда писать</th>
