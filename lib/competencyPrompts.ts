@@ -32,6 +32,7 @@ export const COMPETENCY_PROMPT_PLACEHOLDERS = [
   { key: "profile_context", label: "Готовый профильный контекст" },
   { key: "test_results_block", label: "Короткие результаты релевантных тестов" },
   { key: "premium_interpretations_block", label: "Короткие AI / key-интерпретации по релевантным тестам" },
+  { key: "competency_evidence_packet", label: "Методический пакет competency calibration" },
 ] as const;
 
 export const DEFAULT_COMPETENCY_SYSTEM_PROMPT = "Ты помогаешь специалисту по оценке персонала коротко и предметно интерпретировать одну компетенцию на основе нескольких тестов. Никакой воды, только практический вывод по данным.";
@@ -66,6 +67,9 @@ export function getDefaultCompetencyPromptTemplate(route: CompetencyRoute) {
     "",
     "Короткие интерпретации по этим тестам:",
     "{{premium_interpretations_block}}",
+    "",
+    "Методический пакет по компетенции:",
+    "{{competency_evidence_packet}}",
     "",
     "Формат ответа:",
     "1. Вердикт по компетенции — 2–3 предложения.",

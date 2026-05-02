@@ -1,4 +1,8 @@
 import { aiInterpretation } from "@/lib/aiInterpretation";
+import {
+  buildCompetencyEvidencePromptPacket,
+  evaluateCompetencyCoverage,
+} from "@/lib/competencyCalibration";
 import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
 import { buildHerzbergPrompt, isHerzbergMotivationResult } from "@/lib/herzbergInterpretation";
 import {
@@ -325,6 +329,10 @@ async function buildCompetencyAiDetail(args: {
     profile_context: profileContext,
     test_results_block: buildRelevantTestResultsBlock(relevantAttempts),
     premium_interpretations_block: buildRelevantPremiumBlock(relevantAttempts, premiumByTest),
+    competency_evidence_packet: buildCompetencyEvidencePromptPacket(
+      route.id,
+      relevantAttempts.map((attempt) => attempt.test_slug)
+    ),
   });
 
   const finalPrompt = [
@@ -686,7 +694,11 @@ function buildCompetencySignals(project: ProjectLike, attempts: AttemptLike[], e
       ? relevantAttempts.map((item) => extractSignal(item.result)).reduce((sum, value) => sum + value, 0) / relevantAttempts.length
       : 52;
     const coverageBoost = Math.min(6, relevantAttempts.length * 2);
-    const score = Math.round(clamp(35, avgSignal + coverageBoost, 95));
+    const coverage = evaluateCompetencyCoverage(route.id, relevantAttempts.map((item) => item.test_slug));
+    let score = Math.round(clamp(35, avgSignal + coverageBoost, 95));
+    if (!coverage.hasMinimumCoverage) {
+      score = Math.min(score, 59);
+    }
     const statusInfo = describeStatus(score);
     const evidence = [...new Set(relevantAttempts.flatMap((item) => getTopLabels(item.result, 2)))].slice(0, 4);
     const profileLink = project.target_role?.trim() || project.current_position?.trim() || goalLabel(project.goal);
@@ -695,6 +707,10 @@ function buildCompetencySignals(project: ProjectLike, attempts: AttemptLike[], e
       `${statusInfo.label}: ${score}/100.`,
       statusInfo.meaning,
       `Компетенция читается через методики: ${relevantAttempts.map((item) => item.test_title || item.test_slug).join(", ") || "нет завершённых тестов из этого контура"}.`,
+      `Независимых семейств данных: ${coverage.independentFamilies}. ${coverage.hasMinimumCoverage ? "Методический минимум покрытия выполнен." : "Методический минимум покрытия пока не выполнен, поэтому verdict предварительный."}`,
+      coverage.coveredCoreFamilies.length
+        ? `Покрытые core-семейства: ${coverage.coveredCoreFamilies.join(", ")}.`
+        : "Core-семейства этой компетенции пока не покрыты полностью.",
       evidence.length ? `Повторяющиеся сигналы: ${evidence.join(", ")}.` : "Повторяющиеся сигналы пока слабые: часть нужных методик ещё не завершена или результаты неоднозначны.",
       `Как читать для текущего запроса (${profileLink}): ${route.fitGate}`,
     ].join("\n\n");
