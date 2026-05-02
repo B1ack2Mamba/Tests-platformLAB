@@ -1,3 +1,7 @@
+import {
+  getCompetencyWorkbookPromptNotes,
+  getCompetencyWorkbookSystemPrompt,
+} from "@/lib/competencyCalibration";
 import { COMPETENCY_ROUTES, getCompetencyRoutes, type CompetencyRoute } from "@/lib/competencyRouter";
 
 export type CompetencyPromptRow = {
@@ -71,6 +75,9 @@ export function getDefaultCompetencyPromptTemplate(route: CompetencyRoute) {
     "Методический пакет по компетенции:",
     "{{competency_evidence_packet}}",
     "",
+    "Практические правила и поведенческие маркеры:",
+    "{{practical_experience}}",
+    "",
     "Формат ответа:",
     "1. Вердикт по компетенции — 2–3 предложения.",
     "2. Что подтверждает компетенцию — 3–5 коротких буллетов.",
@@ -85,9 +92,9 @@ export function buildDefaultCompetencyPromptRows(): CompetencyPromptRow[] {
     competency_id: route.id,
     competency_name: route.name,
     competency_cluster: route.cluster,
-    system_prompt: DEFAULT_COMPETENCY_SYSTEM_PROMPT,
+    system_prompt: getCompetencyWorkbookSystemPrompt(route.id) || DEFAULT_COMPETENCY_SYSTEM_PROMPT,
     prompt_template: getDefaultCompetencyPromptTemplate(route),
-    notes: null,
+    notes: getCompetencyWorkbookPromptNotes(route.id) || null,
     sort_order: index + 1,
     is_active: true,
   }));

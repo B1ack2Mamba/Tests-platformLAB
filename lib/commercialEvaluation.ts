@@ -346,10 +346,6 @@ ${trimText(overallReport, 1800)}`
     "- Сначала явно укажи уровень: низкий, средний или высокий.",
     "- Сразу поясни, что этот уровень значит в рабочем поведении и для текущей цели / роли.",
     "- Не дублируй общий отчёт и не уходи в длинные списки.",
-    promptConfig?.notes?.trim()
-      ? `Практические правила и накопленный опыт специалиста по этой компетенции:
-${promptConfig.notes.trim()}`
-      : "",
   ].filter(Boolean).join("\n\n");
 
   const text = await callDeepseek(systemPrompt, finalPrompt, 900).catch(() => null);

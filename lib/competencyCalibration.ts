@@ -1,4 +1,5 @@
-import workbook from "@/data/competency-calibration/workbook.json";
+import completedWorkbook from "@/data/competency-calibration/completed-workbook.json";
+import legacyWorkbook from "@/data/competency-calibration/workbook.json";
 
 type WorkbookRow = Record<string, string>;
 
@@ -14,7 +15,12 @@ type WorkbookShape = {
   sheets: Record<string, CalibrationSheet>;
 };
 
-const DATA = workbook as WorkbookShape;
+const LEGACY_DATA = legacyWorkbook as WorkbookShape;
+const COMPLETED_DATA = completedWorkbook as WorkbookShape;
+const DATA =
+  COMPLETED_DATA?.sheets?.Signals?.rows?.length && (COMPLETED_DATA?.sheets?.["Компетенции"]?.rows?.length || COMPLETED_DATA?.sheets?.Registry?.rows?.length)
+    ? COMPLETED_DATA
+    : LEGACY_DATA;
 
 const TEST_SLUG_TO_FAMILY: Record<string, string> = {
   "16pf-a": "16PF",
@@ -30,8 +36,12 @@ const TEST_SLUG_TO_FAMILY: Record<string, string> = {
   "color-types": "Цветотипы",
 };
 
-function rows(sheetName: string) {
-  return DATA.sheets[sheetName]?.rows || [];
+function rows(...sheetNames: string[]) {
+  for (const sheetName of sheetNames) {
+    const result = DATA.sheets[sheetName]?.rows;
+    if (result?.length) return result;
+  }
+  return [];
 }
 
 function splitCsv(value: string) {
@@ -41,12 +51,15 @@ function splitCsv(value: string) {
     .filter(Boolean);
 }
 
-const REGISTRY_ROWS = rows("Registry");
+const REGISTRY_ROWS = rows("Компетенции", "Registry");
 const SIGNAL_ROWS = rows("Signals");
 const FAMILY_ROWS = rows("Families");
 const QA_BUNDLE_ROWS = rows("QA_Bundles");
+const RULE_ROWS = rows("Rules");
+const PROMPT_PATCH_ROWS = rows("PromptPatches");
 const REGISTRY_MAP = new Map(REGISTRY_ROWS.map((row) => [row["ID"], row] as const));
 const SIGNAL_MAP = new Map(SIGNAL_ROWS.map((row) => [row["ID"], row] as const));
+const PROMPT_PATCH_MAP = new Map(PROMPT_PATCH_ROWS.map((row) => [row["competency_id"], row] as const));
 
 export function getCalibrationWorkbookMeta() {
   return {
@@ -71,6 +84,10 @@ export function getCalibrationBundles() {
   return QA_BUNDLE_ROWS;
 }
 
+export function getCalibrationRules() {
+  return RULE_ROWS;
+}
+
 export function getCalibrationMinimumIndependentFamilies() {
   return 2;
 }
@@ -82,6 +99,7 @@ export function getTestFamilyBySlug(slug: string | null | undefined) {
 export function getCompetencyCalibrationPacket(id: string) {
   const registry = getCalibrationRegistryRow(id);
   const signals = getCalibrationSignalRow(id);
+  const promptPatch = PROMPT_PATCH_MAP.get(id) || null;
   if (!registry && !signals) return null;
 
   return {
@@ -100,7 +118,21 @@ export function getCompetencyCalibrationPacket(id: string) {
     standardRoute: splitCsv(signals?.["Standard route"] || ""),
     changeRequest: signals?.["Что бы вы изменили"] || "",
     riskComment: signals?.["Причина / риск"] || "",
+    promptNotes: promptPatch?.["notes / practical_experience для Supabase"] || "",
+    promptSystem: promptPatch?.system_prompt || "",
   };
+}
+
+export function getCompetencyPromptPatchRow(id: string) {
+  return PROMPT_PATCH_MAP.get(id) || null;
+}
+
+export function getCompetencyWorkbookPromptNotes(id: string) {
+  return getCompetencyPromptPatchRow(id)?.["notes / practical_experience для Supabase"] || "";
+}
+
+export function getCompetencyWorkbookSystemPrompt(id: string) {
+  return getCompetencyPromptPatchRow(id)?.system_prompt || "";
 }
 
 export function buildCompetencyEvidencePromptPacket(
@@ -127,6 +159,8 @@ export function buildCompetencyEvidencePromptPacket(
     packet.contraSignals ? `Contra-signals: ${packet.contraSignals}` : "",
     packet.coreRoute.length ? `Core route: ${packet.coreRoute.join(", ")}.` : "",
     packet.standardRoute.length ? `Standard route: ${packet.standardRoute.join(", ")}.` : "",
+    packet.changeRequest ? `Методическое уточнение: ${packet.changeRequest}` : "",
+    packet.riskComment ? `Риск ложного вывода: ${packet.riskComment}` : "",
     presentFamilies.length
       ? `Покрытие по текущим пройденным тестам: ${presentFamilies.join(", ")}.`
       : "Покрытие по текущим пройденным тестам: пока нет релевантных семейств.",
