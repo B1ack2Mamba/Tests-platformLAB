@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { Layout } from "@/components/Layout";
 import { getGoalDefinition } from "@/lib/commercialGoals";
-import { getTestDisplayTitle } from "@/lib/testTitles";
+import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 
 type InvitePageProps = {
   notFound?: boolean;
@@ -35,6 +35,7 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
   const total = project.tests.length;
   const fullyDone = total > 0 && completed >= total;
   const packageLabel = project.package_mode === "basic" ? "База" : project.package_mode === "premium_ai_plus" ? "Премиум AI+" : "Премиум";
+  const totalMinutes = getTotalEstimatedMinutes(project.tests.map((test) => test.test_slug));
 
   return (
     <Layout title={project.title || "Оценка сотрудника"}>
@@ -52,6 +53,7 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
             {goal ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-800">{goal.shortTitle}</span> : null}
             {project.target_role ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Будущая предполагаемая должность: {project.target_role}</span> : null}
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Пройдено: {completed} / {total}</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Общее время: примерно {formatEstimatedMinutes(totalMinutes)}</span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Режим: {packageLabel}</span>
           </div>
           <div className="mt-4 text-sm leading-6 text-slate-700">
@@ -71,6 +73,7 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
                       <div>
                         <div className="text-xs text-slate-500">Тест {index + 1}</div>
                         <div className="mt-1 text-base font-semibold text-slate-950">{test.test_title}</div>
+                        <div className="mt-1 text-xs font-medium text-slate-500">{formatEstimatedMinutes(getTestEstimatedMinutes(test.test_slug))}</div>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-medium ${done ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>
                         {done ? "Завершён" : "Ожидает"}

@@ -74,7 +74,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ ok: false, error: "Этот уровень результата ещё не открыт" });
     }
 
-    const needsInterpretationKeys = stage === "tests" || stage === "full";
+    const needsInterpretationKeys =
+      stage === "tests" ||
+      stage === "full" ||
+      (modeToBuild === "premium_ai_plus" && (stage === "summary" || stage === "competencies"));
     const slugs = needsInterpretationKeys
       ? Array.from(new Set(attempts.map((item) => String(item.test_slug || "")).filter(Boolean)))
       : [];

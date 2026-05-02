@@ -600,6 +600,7 @@ export default function ProjectResultsStandalonePage() {
   }, [activeEvaluationMode, evaluationByMode]);
   const overviewSections = useMemo(() => activeSections.filter((item) => item.kind !== "test"), [activeSections]);
   const testSections = useMemo(() => activeSections.filter((item) => item.kind === "test"), [activeSections]);
+  const competencySections = useMemo(() => activeSections.filter((item) => item.kind === "development"), [activeSections]);
 
 
 
@@ -970,6 +971,21 @@ export default function ProjectResultsStandalonePage() {
                                 </div>
                               </div>
                             </div>
+                            {testSections.length ? (
+                              activeEvaluationMode === "premium_ai_plus" && competencySections.length ? (
+                                <div className="mt-6 rounded-[24px] border border-[#dce8d3] bg-[#f7fbf3] p-5">
+                                  <div className="text-lg font-semibold text-[#355033]">Выбранные компетенции</div>
+                                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                    {competencySections.map((section, index) => (
+                                      <div key={`${section.title}:${index}`} className="rounded-[20px] border border-[#cfe0c7] bg-white/85 p-4">
+                                        <div className="text-[1rem] font-semibold text-[#2f4e2f]">{section.title}</div>
+                                        <div className="mt-2 whitespace-pre-line text-sm leading-7 text-[#5c694f]">{cleanSectionBody(section.body)}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null
+                            ) : null}
                             {testSections.length ? (
                               <div className="mt-6 rounded-[24px] border border-[#ead9bf] bg-[#fffdf8] p-5">
                                 <div className="text-lg font-semibold text-[#4d3b24]">Подробности по отдельным тестам</div>

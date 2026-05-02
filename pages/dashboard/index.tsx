@@ -10,6 +10,7 @@ import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail, isGlobalTemplateOwnerEmail } from "@/lib/admin";
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
 import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
+import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 
 type DashboardPayload = {
   profile: {
@@ -135,6 +136,8 @@ type WidgetInteractionState = {
 
 const DESK_WIDTH = 1400;
 const DESK_HEIGHT = 760;
+const OFFICE_SCENE_WIDTH = 1400;
+const OFFICE_SCENE_HEIGHT = 920;
 const DESK_FOLDER_WIDTH = 164;
 const DESK_FOLDER_HEIGHT = 142;
 const DESK_SHEET_WIDTH = 184;
@@ -443,6 +446,10 @@ function getTrashStorageKey(workspaceId: string) {
   return `${TRASH_STORAGE_PREFIX}${workspaceId}`;
 }
 
+function isGlobalSchemeWidget(id: string) {
+  return !id.startsWith("folder:") && !id.startsWith("project:");
+}
+
 function buildSchemeSceneWidgets(params: {
   displayName: string;
   workspaceName: string;
@@ -479,6 +486,24 @@ function getPreviewableSceneWidgetTitle(widget: SceneWidget): string {
   if (widget.id === CERTIFICATE_PSI_PROFILE_ID) return "Свидетельство о государственной регистрации программы";
   if (widget.id === CERTIFICATE_COGITO_ID) return "Сертификат Когито-Центр";
   return "Сертификат";
+}
+
+function serializeSceneWidgets(source: SceneWidget[]) {
+  return source.map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    text: item.text,
+    src: item.src,
+    action: item.action,
+    tone: item.tone,
+    x: item.x,
+    y: item.y,
+    width: item.width,
+    height: item.height,
+    rotation: item.rotation,
+    fontSize: item.fontSize,
+    z: item.z,
+  }));
 }
 
 
@@ -685,6 +710,8 @@ export default function DashboardPage() {
   const [roomSwitchPosition, setRoomSwitchPosition] = useState(DEFAULT_ROOM_SWITCH_ZONE);
   const roomSwitchInteractionRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
   const suppressRoomSwitchClickRef = useRef(false);
+  const officeSceneRef = useRef<HTMLDivElement | null>(null);
+  const [officeSceneScale, setOfficeSceneScale] = useState(1);
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
 
   const balance_rub = useMemo(() => {
@@ -804,6 +831,31 @@ export default function DashboardPage() {
     }),
     [balanceText, data?.profile?.email, desktopVariant, displayName, greeneryLabel, investedText, user?.email, workspaceName]
   );
+  const persistableSceneWidgets = useMemo(
+    () => (sceneWidgets.length ? sceneWidgets : sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets),
+    [defaultSceneWidgets, sceneWidgets, sharedSceneWidgets]
+  );
+
+  useEffect(() => {
+    if (desktopVariant !== "scheme") return;
+    const node = officeSceneRef.current;
+    if (!node) return;
+
+    const recalc = () => {
+      const width = node.clientWidth || OFFICE_SCENE_WIDTH;
+      const nextScale = Math.min(1, width / OFFICE_SCENE_WIDTH);
+      setOfficeSceneScale(nextScale > 0 ? nextScale : 1);
+    };
+
+    recalc();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(recalc) : null;
+    observer?.observe(node);
+    window.addEventListener("resize", recalc);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", recalc);
+    };
+  }, [desktopVariant]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -938,21 +990,7 @@ export default function DashboardPage() {
               z: Number(sharedPosition?.z ?? 182),
             },
           },
-          widgets: sceneWidgets.map((item) => ({
-            id: item.id,
-            kind: item.kind,
-            text: item.text,
-            action: item.action,
-            tone: item.tone,
-            src: item.src,
-            x: item.x,
-            y: item.y,
-            width: item.width,
-            height: item.height,
-            rotation: item.rotation,
-            fontSize: item.fontSize,
-            z: item.z,
-          })),
+          widgets: serializeSceneWidgets(persistableSceneWidgets),
           trayGuideText,
         };
 
@@ -981,7 +1019,7 @@ export default function DashboardPage() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [canEditScene, roomSwitchPosition.x, roomSwitchPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+  }, [canEditScene, persistableSceneWidgets, roomSwitchPosition.x, roomSwitchPosition.y, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
 
   useEffect(() => {
     if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
@@ -1025,21 +1063,7 @@ export default function DashboardPage() {
               z: Number(currentPanel.z ?? sharedPanel.z ?? DEFAULT_LAPTOP_PANEL_POSITION.z ?? 26),
             },
           },
-          widgets: sceneWidgets.map((item) => ({
-            id: item.id,
-            kind: item.kind,
-            text: item.text,
-            action: item.action,
-            tone: item.tone,
-            src: item.src,
-            x: item.x,
-            y: item.y,
-            width: item.width,
-            height: item.height,
-            rotation: item.rotation,
-            fontSize: item.fontSize,
-            z: item.z,
-          })),
+          widgets: serializeSceneWidgets(persistableSceneWidgets),
           trayGuideText,
         };
 
@@ -1068,7 +1092,7 @@ export default function DashboardPage() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [canEditScene, laptopPanelPosition.height, laptopPanelPosition.rotation, laptopPanelPosition.width, laptopPanelPosition.x, laptopPanelPosition.y, laptopPosition.height, laptopPosition.rotation, laptopPosition.width, laptopPosition.x, laptopPosition.y, sceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+  }, [canEditScene, laptopPanelPosition.height, laptopPanelPosition.rotation, laptopPanelPosition.width, laptopPanelPosition.x, laptopPanelPosition.y, laptopPosition.height, laptopPosition.rotation, laptopPosition.width, laptopPosition.x, laptopPosition.y, persistableSceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
@@ -1109,7 +1133,7 @@ export default function DashboardPage() {
       const needsMarkerSceneUpgrade = !hasLegacyBoardLayout && !hasMarkerScheme;
       sourceWidgets = hasLegacyBoardLayout || needsMarkerSceneUpgrade
         ? (sharedSceneWidgets.some((item) => item.id === "board-scheme") ? sharedSceneWidgets : defaultSceneWidgets)
-        : (saved.length ? saved : (sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets));
+        : (sharedSceneWidgets.length ? sharedSceneWidgets : (saved.length ? saved : defaultSceneWidgets));
     }
 
     const normalizedWidgets = sourceWidgets
@@ -1138,6 +1162,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined" || !sceneWidgets.length) return;
+    if (desktopVariant === "scheme") {
+      window.localStorage.removeItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id, desktopVariant));
+      return;
+    }
     window.localStorage.setItem(getSceneWidgetsStorageKey(workspace.workspace.workspace_id, desktopVariant), JSON.stringify(sceneWidgets));
   }, [desktopVariant, sceneWidgets, sharedSceneReady, workspace?.workspace?.workspace_id]);
 
@@ -1146,8 +1174,8 @@ export default function DashboardPage() {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady || typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(getTrayGuideTextStorageKey(workspace.workspace.workspace_id));
-      if (raw && raw.trim()) setTrayGuideText(raw);
-      else if (sharedTrayGuideText) setTrayGuideText(sharedTrayGuideText);
+      if (sharedTrayGuideText) setTrayGuideText(sharedTrayGuideText);
+      else if (raw && raw.trim()) setTrayGuideText(raw);
       else setTrayGuideText("Создать новую папку проектов");
     } catch {
       setTrayGuideText(sharedTrayGuideText || "Создать новую папку проектов");
@@ -1240,23 +1268,9 @@ export default function DashboardPage() {
       ...(deskPositions[LAPTOP_DEVICE_ID] ? { [LAPTOP_DEVICE_ID]: deskPositions[LAPTOP_DEVICE_ID] } : {}),
       ...(deskPositions[LAPTOP_PANEL_ID] ? { [LAPTOP_PANEL_ID]: deskPositions[LAPTOP_PANEL_ID] } : {}),
     },
-    widgets: sceneWidgets.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      text: item.text,
-      src: item.src,
-      action: item.action,
-      tone: item.tone,
-      x: item.x,
-      y: item.y,
-      width: item.width,
-      height: item.height,
-      rotation: item.rotation,
-      fontSize: item.fontSize,
-      z: item.z,
-    })),
+    widgets: serializeSceneWidgets(persistableSceneWidgets),
     trayGuideText,
-  }), [deskPositions, sceneWidgets, sharedDeskPositions, trayGuideText]);
+  }), [deskPositions, persistableSceneWidgets, sharedDeskPositions, trayGuideText]);
 
   const saveSceneStandardForAll = useCallback(async () => {
     if (!session?.access_token || !canManageGlobalTemplates) {
@@ -1476,8 +1490,8 @@ export default function DashboardPage() {
     const handleMove = (e: MouseEvent) => {
       const current = widgetInteractionRef.current;
       if (!current) return;
-      const dx = e.clientX - current.startX;
-      const dy = e.clientY - current.startY;
+      const dx = (e.clientX - current.startX) / officeSceneScale;
+      const dy = (e.clientY - current.startY) / officeSceneScale;
       if (current.mode === "drag") {
         updateSceneWidget(current.id, {
           x: clampDesk(current.widget.x + dx, 40, DESK_WIDTH - current.widget.width - 40),
@@ -1505,7 +1519,7 @@ export default function DashboardPage() {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [sceneEditMode, updateSceneWidget]);
+  }, [officeSceneScale, sceneEditMode, updateSceneWidget]);
 
   const startDeskItemInteraction = useCallback((e: any, itemId: string, kind: DeskItemKind, mode: DeskItemInteractionMode, position: DeskPosition) => {
     if (!sceneEditMode || !canEditScene) return;
@@ -1520,8 +1534,8 @@ export default function DashboardPage() {
     const handleMove = (e: MouseEvent) => {
       const currentSwitch = roomSwitchInteractionRef.current;
       if (currentSwitch) {
-        const dx = e.clientX - currentSwitch.startX;
-        const dy = e.clientY - currentSwitch.startY;
+        const dx = (e.clientX - currentSwitch.startX) / officeSceneScale;
+        const dy = (e.clientY - currentSwitch.startY) / officeSceneScale;
         if (!currentSwitch.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) currentSwitch.moved = true;
         setRoomSwitchPosition({
           x: clampDesk(currentSwitch.startLeft + dx, 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
@@ -1533,8 +1547,8 @@ export default function DashboardPage() {
       }
       const current = deskInteractionRef.current;
       if (!current) return;
-      const dx = e.clientX - current.startX;
-      const dy = e.clientY - current.startY;
+      const dx = (e.clientX - current.startX) / officeSceneScale;
+      const dy = (e.clientY - current.startY) / officeSceneScale;
       const isFolder = current.kind === "folder";
       const isGuide = current.kind === "guide";
       const isDevice = current.kind === "device";
@@ -1563,7 +1577,7 @@ export default function DashboardPage() {
         const minX = current.kind === "project" ? -baseWidth * 0.5 : isDevice ? -baseWidth * 0.2 : 0;
         const minY = current.kind === "project" ? -baseHeight * 0.5 : isDevice ? -baseHeight * 0.12 : 0;
         const maxX = current.kind === "project" ? DESK_WIDTH - baseWidth * 0.5 : isDevice ? DESK_WIDTH - baseWidth * 0.8 : DESK_WIDTH - baseWidth;
-        const maxY = current.kind === "project" ? DESK_HEIGHT - baseHeight * 0.5 : isDevice ? DESK_HEIGHT - baseHeight * 0.8 : DESK_HEIGHT - baseHeight;
+        const maxY = current.kind === "project" ? OFFICE_SCENE_HEIGHT : isDevice ? DESK_HEIGHT - baseHeight * 0.8 : DESK_HEIGHT - baseHeight;
         updateDeskItem(current.id, {
           x: clampDesk((current.position.x ?? 0) + dx, minX, maxX),
           y: clampDesk((current.position.y ?? 0) + dy, minY, maxY),
@@ -1590,7 +1604,7 @@ export default function DashboardPage() {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [sceneEditMode, updateDeskItem]);
+  }, [officeSceneScale, sceneEditMode, updateDeskItem]);
 
   const trashedProjectIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "project").map((item) => item.id)), [trashEntries]);
   const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((item) => item.kind === "folder").map((item) => item.id)), [trashEntries]);
@@ -1826,7 +1840,7 @@ export default function DashboardPage() {
     const minX = kind === "project" ? -itemWidth * 0.5 : 24;
     const minY = kind === "project" ? -itemHeight * 0.5 : 24;
     const maxX = kind === "project" ? DESK_WIDTH - itemWidth * 0.5 : DESK_WIDTH - itemWidth - 24;
-    const maxY = kind === "project" ? DESK_HEIGHT - itemHeight * 0.5 : DESK_HEIGHT - itemHeight - 24;
+    const maxY = kind === "project" ? OFFICE_SCENE_HEIGHT : DESK_HEIGHT - itemHeight - 24;
     let nextX = clampDesk(x, minX, maxX);
     let nextY = clampDesk(y, minY, maxY);
 
@@ -1884,12 +1898,14 @@ export default function DashboardPage() {
     const rect = e.currentTarget.getBoundingClientRect();
     const draggedProjectId = e.dataTransfer.getData("text/project-id") || draggingProjectId;
     const draggedFolderId = e.dataTransfer.getData("text/folder-id") || "";
+    const sceneX = (e.clientX - rect.left) / officeSceneScale;
+    const sceneY = (e.clientY - rect.top) / officeSceneScale;
 
     if (draggedProjectId) {
       const wasInFolder = !folderBuckets.uncategorized.some((project) => project.id === draggedProjectId);
       const itemId = `project:${draggedProjectId}`;
       bringDeskItemToFront(itemId);
-      placeDeskItem(itemId, "project", e.clientX - rect.left - DESK_SHEET_WIDTH / 2, e.clientY - rect.top - DESK_SHEET_HEIGHT / 2);
+      placeDeskItem(itemId, "project", sceneX - DESK_SHEET_WIDTH / 2, sceneY - DESK_SHEET_HEIGHT / 2);
       if (wasInFolder) {
         moveProject(draggedProjectId, null);
       }
@@ -1901,11 +1917,11 @@ export default function DashboardPage() {
     if (draggedFolderId) {
       const itemId = `folder:${draggedFolderId}`;
       bringDeskItemToFront(itemId);
-      placeDeskItem(itemId, "folder", e.clientX - rect.left - DESK_FOLDER_WIDTH / 2, e.clientY - rect.top - DESK_FOLDER_HEIGHT / 2);
+      placeDeskItem(itemId, "folder", sceneX - DESK_FOLDER_WIDTH / 2, sceneY - DESK_FOLDER_HEIGHT / 2);
       setDraggingFolderId(null);
       clearTrashHover();
     }
-  }, [bringDeskItemToFront, clearTrashHover, draggingProjectId, folderBuckets.uncategorized, moveProject, placeDeskItem]);
+  }, [bringDeskItemToFront, clearTrashHover, draggingProjectId, folderBuckets.uncategorized, moveProject, officeSceneScale, placeDeskItem]);
 
   async function createFolderNamed(nameValue: string, iconKey: FolderIconKey = newFolderIcon) {
     const name = nameValue.trim();
@@ -2508,8 +2524,20 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="dashboard-office-scene relative min-h-[920px] overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]">
+        <div
+          ref={officeSceneRef}
+          className="dashboard-office-scene relative overflow-hidden rounded-[34px] border border-[#4f3420]/10 bg-white shadow-[0_30px_70px_-44px_rgba(53,34,17,0.28)]"
+          style={{ height: `${Math.max(520, OFFICE_SCENE_HEIGHT * officeSceneScale)}px` }}
+        >
           {showDesktopLoader ? <DesktopLoadingOverlay /> : null}
+          <div
+            className="absolute left-0 top-0 origin-top-left"
+            style={{
+              width: `${OFFICE_SCENE_WIDTH}px`,
+              height: `${OFFICE_SCENE_HEIGHT}px`,
+              transform: `scale(${officeSceneScale})`,
+            }}
+          >
           <div className="dashboard-office-scene-backdrop absolute inset-0" />
           <div className="dashboard-office-scene-vignette absolute inset-0" />
           <div
@@ -3075,6 +3103,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      </div>
 
       {activeFolder ? (
         <FolderModal
@@ -3633,6 +3662,7 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
   const isDone = total > 0 && completed >= total;
   const assessmentLine = isDone ? "Общая оценка сформирована" : completed > 0 ? "Общая оценка в процессе" : "Общая оценка ещё не собрана";
   const roleLine = project.target_role || project.person?.current_position || "Не указана";
+  const totalEstimatedMinutes = getTotalEstimatedMinutes((project.tests || []).map((test) => test.test_slug));
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
@@ -3679,6 +3709,7 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
                 <div className="dashboard-project-preview-table">
                   <div><span>Статус</span><strong>{assessmentLine}</strong></div>
                   <div><span>Тестов в наборе</span><strong>{total}</strong></div>
+                  <div><span>Общее время</span><strong>{formatEstimatedMinutes(totalEstimatedMinutes)}</strong></div>
                   <div><span>Завершено попыток</span><strong>{completed}</strong></div>
                   <div><span>Пакет</span><strong>{project.package_mode || "standard"}</strong></div>
                 </div>
@@ -3691,7 +3722,13 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
                         .slice()
                         .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
                         .map((test) => (
-                          <li key={`${project.id}-${test.test_slug}`}>{test.test_title || test.test_slug}</li>
+                          <li key={`${project.id}-${test.test_slug}`}>
+                            {(test.test_title || test.test_slug)}
+                            {(() => {
+                              const minutes = getTestEstimatedMinutes(test.test_slug);
+                              return minutes ? ` (${formatEstimatedMinutes(minutes)})` : "";
+                            })()}
+                          </li>
                         ))}
                     </ul>
                   ) : (

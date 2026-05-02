@@ -67,6 +67,12 @@ type CompetencySignal = {
   details: string;
 };
 
+type TestNarrative = {
+  slug: string;
+  title: string;
+  body: string;
+};
+
 function rowsFromResult(result: any) {
   return Array.isArray(result?.ranked) ? result.ranked : [];
 }
@@ -180,6 +186,103 @@ function buildRelevantPremiumBlock(attempts: AttemptLike[], premiumByTest: Array
   return chunks.length ? chunks.join("\n\n---\n\n") : "Дополнительных интерпретаций по релевантным тестам пока нет.";
 }
 
+function collectInterpretationHints(value: any, path = "", acc: string[] = [], depth = 0) {
+  if (acc.length >= 18 || depth > 4 || value == null) return acc;
+  if (typeof value === "string") {
+    const text = value.replace(/\s+/g, " ").trim();
+    if (text) acc.push(path ? `${path}: ${text}` : text);
+    return acc;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    acc.push(path ? `${path}: ${String(value)}` : String(value));
+    return acc;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectInterpretationHints(item, path, acc, depth + 1);
+      if (acc.length >= 18) break;
+    }
+    return acc;
+  }
+  if (typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      const nextPath = path ? `${path}.${key}` : key;
+      collectInterpretationHints(item, nextPath, acc, depth + 1);
+      if (acc.length >= 18) break;
+    }
+  }
+  return acc;
+}
+
+function buildPromptMaterialBrief(keys: any) {
+  if (!keys) return "Для этого теста нет отдельного пакета интерпретационных материалов, поэтому вывод опирается на числовые результаты.";
+  const lines = collectInterpretationHints(keys)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 14);
+  return lines.length ? lines.map((line) => `• ${line}`).join("\n") : trimText(safeJson(keys), 1200);
+}
+
+function buildPromptDrivenTestNarratives(
+  project: ProjectLike,
+  attempts: AttemptLike[],
+  interpretationKeysBySlug: Record<string, any>
+): TestNarrative[] {
+  return attempts.map((attempt) => {
+    const title = attempt.test_title || attempt.test_slug;
+    const keys = interpretationKeysBySlug[attempt.test_slug] ?? DEFAULT_TEST_INTERPRETATIONS[attempt.test_slug] ?? null;
+    return {
+      slug: attempt.test_slug,
+      title,
+      body: [
+        "Короткие показатели:",
+        formatTopRows(attempt.result),
+        "",
+        "Опорные материалы интерпретации теста:",
+        buildPromptMaterialBrief(keys),
+      ].join("\n"),
+    };
+  });
+}
+
+function parseNamedBlocks(text: string) {
+  const normalized = cleanText(text).replace(/\r/g, "");
+  const headings = [
+    "Общий вывод",
+    "Сильные стороны",
+    "Минусы и ограничения",
+    "Риски",
+    "Что особенно важно для цели оценки",
+  ];
+  const pattern = new RegExp(`(?:^|\\n)(${headings.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\s*:?(?=\\n|$)`, "g");
+  const matches = [...normalized.matchAll(pattern)];
+  if (!matches.length) {
+    return {
+      summary: normalized,
+      strengths: "",
+      limitations: "",
+      risks: "",
+      important: "",
+    };
+  }
+
+  const blocks: Record<string, string> = {};
+  for (let index = 0; index < matches.length; index += 1) {
+    const title = matches[index][1];
+    const start = (matches[index].index || 0) + matches[index][0].length;
+    const end = index + 1 < matches.length ? (matches[index + 1].index || normalized.length) : normalized.length;
+    blocks[title] = normalized.slice(start, end).trim();
+  }
+
+  return {
+    summary: blocks["Общий вывод"] || normalized,
+    strengths: blocks["Сильные стороны"] || "",
+    limitations: blocks["Минусы и ограничения"] || "",
+    risks: blocks["Риски"] || "",
+    important: blocks["Что особенно важно для цели оценки"] || "",
+  };
+}
+
 async function buildCompetencyAiDetail(args: {
   project: ProjectLike;
   route: CompetencyRoute;
@@ -187,11 +290,12 @@ async function buildCompetencyAiDetail(args: {
   relevantAttempts: AttemptLike[];
   premiumByTest: Array<{ title: string; body: string }>;
   profileContext: string;
+  overallReport?: string;
   customRequest?: string | null;
   fitRequest?: string | null;
   promptConfig?: CompetencyPromptRow | null;
 }) {
-  const { project, route, signal, relevantAttempts, premiumByTest, profileContext, customRequest, fitRequest, promptConfig } = args;
+  const { project, route, signal, relevantAttempts, premiumByTest, profileContext, overallReport, customRequest, fitRequest, promptConfig } = args;
   const template = String(promptConfig?.prompt_template || "").trim();
   if (!template) return null;
 
@@ -225,6 +329,15 @@ async function buildCompetencyAiDetail(args: {
 
   const finalPrompt = [
     prompt,
+    overallReport?.trim()
+      ? `Общий интегральный отчёт по проекту:
+${trimText(overallReport, 1800)}`
+      : "",
+    "Формат финального ответа по компетенции:",
+    "- Максимум 2–3 предложения.",
+    "- Сначала явно укажи уровень: низкий, средний или высокий.",
+    "- Сразу поясни, что этот уровень значит в рабочем поведении и для текущей цели / роли.",
+    "- Не дублируй общий отчёт и не уходи в длинные списки.",
     promptConfig?.notes?.trim()
       ? `Практические правила и накопленный опыт специалиста по этой компетенции:
 ${promptConfig.notes.trim()}`
@@ -240,10 +353,25 @@ function goalLabel(goal: string) {
 }
 
 function describeStatus(score: number) {
-  if (score >= 74) return { label: "Сильное совпадение", tone: "сильная опора" };
-  if (score >= 60) return { label: "Рабочее совпадение", tone: "рабочая опора" };
-  if (score >= 48) return { label: "Неустойчиво", tone: "смешанный сигнал" };
-  return { label: "Зона риска", tone: "есть заметные ограничения" };
+  if (score >= 74) {
+    return {
+      label: "Высокий уровень",
+      tone: "выраженная опора",
+      meaning: "Компетенция проявляется уверенно, заметно поддерживает рабочую роль и обычно не требует срочной коррекции.",
+    };
+  }
+  if (score >= 60) {
+    return {
+      label: "Средний уровень",
+      tone: "рабочий уровень",
+      meaning: "Компетенция проявляется достаточно для большинства рабочих задач, но в сложных ситуациях может требовать поддержки или развития.",
+    };
+  }
+  return {
+    label: "Низкий уровень",
+    tone: "зона развития",
+    meaning: "Компетенция выражена слабо и может ограничивать результативность, если роль сильно опирается именно на этот навык.",
+  };
 }
 
 async function buildCorrespondenceIndex(
@@ -417,20 +545,18 @@ async function buildAiPlusPrompt(args: {
   fitProfileId?: string | null;
 }) {
   const { project, attempts, premiumByTest, competencySignals, fitRequest, fitProfileId } = args;
-  const testsBlock = attempts.map((attempt, index) => {
-    const premium = premiumByTest.find((item) => item.title === (attempt.test_title || attempt.test_slug));
-    return [
-      `${index + 1}. ${attempt.test_title || attempt.test_slug}`,
-      "Числовые результаты:",
-      formatTopRows(attempt.result),
-      premium?.body ? `Интерпретация по тесту:\n${trimText(cleanText(premium.body), 1200)}` : "",
-    ].filter(Boolean).join("\n");
-  }).join("\n\n---\n\n");
+  const testsBlock = (premiumByTest.length ? premiumByTest : attempts.map((attempt) => ({
+    title: attempt.test_title || attempt.test_slug,
+    body: formatTopRows(attempt.result),
+  }))).map((item, index) => [
+    `${index + 1}. ${item.title}`,
+    trimText(cleanText(item.body), 1600),
+  ].join("\n")).join("\n\n---\n\n");
 
   const competencyBlock = competencySignals.map((item) => `${item.title}: ${item.status}; ${item.short}`).join("\n");
 
   return [
-    "Собери короткий синтез для специалиста по оценке персонала.",
+    "Собери общий профессиональный отчёт для специалиста по оценке персонала.",
     `Цель оценки: ${goalLabel(project.goal)}.`,
     project.person_name ? `Участник: ${project.person_name}.` : "",
     project.current_position ? `Текущая позиция: ${project.current_position}.` : "",
@@ -442,14 +568,20 @@ async function buildAiPlusPrompt(args: {
     "Короткие сигналы по фокусу оценки:",
     competencyBlock,
     "",
-    "Материалы по пройденным тестам:",
+    "Материалы по пройденным тестам и их интерпретационным пакетам:",
     testsBlock,
     "",
     "Требования к ответу:",
     "- Пиши по-русски, без воды.",
     "- Никаких markdown-решёток и таблиц.",
-    "- Ответ короткий и структурный: 1) общий вывод 2) сильные стороны 3) риски 4) что особенно важно с учётом профиля человека.",
-    "- Не пересказывай каждый тест подробно, а собирай синтез только по сути.",
+    "- Опирайся на материалы интерпретации каждого теста и собирай по ним общую картину.",
+    "- Не пересказывай каждый тест подряд, а собирай повторяющиеся сигналы, плюсы, минусы и риски.",
+    "- Верни ответ строго в блоках с этими заголовками:",
+    "Общий вывод",
+    "Сильные стороны",
+    "Минусы и ограничения",
+    "Риски",
+    "Что особенно важно для цели оценки",
   ].filter(Boolean).join("\n");
 }
 
@@ -558,9 +690,10 @@ function buildCompetencySignals(project: ProjectLike, attempts: AttemptLike[], e
     const statusInfo = describeStatus(score);
     const evidence = [...new Set(relevantAttempts.flatMap((item) => getTopLabels(item.result, 2)))].slice(0, 4);
     const profileLink = project.target_role?.trim() || project.current_position?.trim() || goalLabel(project.goal);
-    const short = `${statusInfo.tone}; опора: ${evidence.length ? evidence.join(", ") : "данные тестов"}.`;
+    const short = `${statusInfo.tone}; ${statusInfo.meaning} Опора: ${evidence.length ? evidence.join(", ") : "данные тестов"}.`;
     const details = [
       `${statusInfo.label}: ${score}/100.`,
+      statusInfo.meaning,
       `Компетенция читается через методики: ${relevantAttempts.map((item) => item.test_title || item.test_slug).join(", ") || "нет завершённых тестов из этого контура"}.`,
       evidence.length ? `Повторяющиеся сигналы: ${evidence.join(", ")}.` : "Повторяющиеся сигналы пока слабые: часть нужных методик ещё не завершена или результаты неоднозначны.",
       `Как читать для текущего запроса (${profileLink}): ${route.fitGate}`,
@@ -579,8 +712,29 @@ function buildCompetencySignals(project: ProjectLike, attempts: AttemptLike[], e
 
 function buildCompactIndicatorText(items: CompetencySignal[]) {
   return items
-    .map((item) => `• ${item.title} — ${item.status.toLowerCase()} (${item.score}/100): ${item.short}`)
+    .map((item) => `• ${item.title} — ${item.status.toLowerCase()} (${item.score}/100): ${item.short.replace(/\s*Опора:/i, " Опора:")}`)
     .join("\n");
+}
+
+function buildCompetencyShortResult(item: CompetencySignal, project: ProjectLike, attempts: AttemptLike[]) {
+  const availableSlugs = Array.from(new Set(attempts.map((attempt) => attempt.test_slug).filter(Boolean)));
+  const recommendedSlugs = getCompetencyRecommendedTests([item.id], availableSlugs, "standard");
+  const relevantTests = attempts
+    .filter((attempt) => recommendedSlugs.includes(attempt.test_slug))
+    .map((attempt) => attempt.test_title || attempt.test_slug)
+    .filter(Boolean);
+  const shortParts = item.short.split(/Опора:/i);
+  const meaning = shortParts[0]?.replace(/;+\s*/g, " ").trim() || "Компетенция проявляется на рабочем уровне.";
+  const evidence = shortParts[1]?.replace(/\.$/, "").trim() || "данные тестов";
+  const focusTarget = project.target_role?.trim() || project.current_position?.trim() || goalLabel(project.goal);
+
+  return [
+    `${item.status}: ${item.score}/100.`,
+    relevantTests.length
+      ? `Это читается по тестам ${relevantTests.join(", ")}; сильнее всего поддерживают вывод ${evidence || "повторяющиеся паттерны в результатах"}.`
+      : `По этой компетенции пока мало прямых тестовых сигналов, поэтому вывод предварительный и требует осторожной интерпретации.`,
+    `Для текущего запроса по профилю «${focusTarget}» это означает: ${meaning}`,
+  ].join(" ");
 }
 
 export async function buildCommercialEvaluation(
@@ -634,20 +788,31 @@ export async function buildCommercialEvaluation(
         targetRole: project.target_role || null,
       })
     : null;
-  const signalIds = fitMatrix ? Object.keys(fitMatrix.weights) : undefined;
+  const selectedCompetencyIds = project.routing_meta?.mode === "competency" && project.routing_meta.competencyIds?.length
+    ? project.routing_meta.competencyIds
+    : null;
+  const signalIds = selectedCompetencyIds || (fitMatrix ? Object.keys(fitMatrix.weights) : undefined);
   const rawCompetencySignals = mode === "premium_ai_plus" ? buildCompetencySignals(project, attempts, signalIds) : [];
-  const competencySignals = mode === "premium_ai_plus" ? [...rawCompetencySignals].sort((a, b) => b.score - a.score).slice(0, 6) : [];
+  const competencySignals = mode === "premium_ai_plus"
+    ? selectedCompetencyIds?.length
+      ? rawCompetencySignals
+      : [...rawCompetencySignals].sort((a, b) => b.score - a.score).slice(0, 6)
+    : [];
   const profileContext = mode === "premium_ai_plus" ? buildProfileContext(project) : "";
 
   const includeSummary = stage === "summary" || stage === "full";
   const includeTests = stage === "tests" || stage === "full";
   const includeCompetencies = mode === "premium_ai_plus" && (stage === "competencies" || stage === "full");
+  const interpretationKeysBySlug = options?.interpretationKeysBySlug || {};
+  const promptDrivenNarratives = mode === "premium_ai_plus"
+    ? buildPromptDrivenTestNarratives(project, attempts, interpretationKeysBySlug)
+    : [];
 
   if (includeSummary && mode === "premium_ai_plus") {
     const synthesisPrompt = await buildAiPlusPrompt({
       project,
       attempts,
-      premiumByTest: [],
+      premiumByTest: promptDrivenNarratives,
       competencySignals,
       fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
       fitProfileId: options?.fitEnabled ? options?.fitProfileId || null : null,
@@ -663,16 +828,45 @@ export async function buildCommercialEvaluation(
       title: "Фокус анализа",
       body: buildFocusIntro(project, competencySignals),
     });
+    const parsedSynthesis = synthesis ? parseNamedBlocks(synthesis) : null;
     sections.push({
       kind: "portrait",
-      title: "Короткий вывод",
-      body: synthesis ? cleanText(synthesis) : buildPortraitFallback(project, attempts),
+      title: "Общий вывод",
+      body: parsedSynthesis?.summary || buildPortraitFallback(project, attempts),
     });
+    if (parsedSynthesis?.strengths) {
+      sections.push({
+        kind: "portrait",
+        title: "Сильные стороны",
+        body: parsedSynthesis.strengths,
+      });
+    }
+    if (parsedSynthesis?.limitations) {
+      sections.push({
+        kind: "portrait",
+        title: "Минусы и ограничения",
+        body: parsedSynthesis.limitations,
+      });
+    }
+    if (parsedSynthesis?.risks) {
+      sections.push({
+        kind: "portrait",
+        title: "Риски",
+        body: parsedSynthesis.risks,
+      });
+    }
+    if (parsedSynthesis?.important) {
+      sections.push({
+        kind: "portrait",
+        title: "Что особенно важно для цели оценки",
+        body: parsedSynthesis.important,
+      });
+    }
     if (options?.aiPlusRequest?.trim()) {
       const followupPrompt = await buildAiPlusFollowupPrompt({
         project,
         attempts,
-        premiumByTest: [],
+        premiumByTest: promptDrivenNarratives,
         competencySignals,
         customRequest: options.aiPlusRequest.trim(),
         fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
@@ -744,13 +938,33 @@ export async function buildCommercialEvaluation(
       title: "Ключевые показатели",
       body: buildCompactIndicatorText(competencySignals),
     });
+    const promptMap = await loadCompetencyPromptMap(selectedCompetencyIds?.length ? selectedCompetencyIds : competencySignals.map((item) => item.id));
+    const overallReportBlock = sections
+      .filter((item) => item.kind === "portrait" || item.kind === "summary")
+      .map((item) => `${item.title}\n${item.body}`)
+      .join("\n\n");
     for (const item of competencySignals) {
+      const route = getCompetencyRoutes([item.id])[0] || null;
+      const relevantSlugs = getCompetencyRecommendedTests([item.id], Array.from(new Set(attempts.map((attempt) => attempt.test_slug).filter(Boolean))), "standard");
+      const relevantAttempts = attempts.filter((attempt) => relevantSlugs.includes(attempt.test_slug));
+      const aiBody = route
+        ? await buildCompetencyAiDetail({
+            project,
+            route,
+            signal: item,
+            relevantAttempts,
+            premiumByTest: promptDrivenNarratives,
+            profileContext,
+            overallReport: overallReportBlock,
+            customRequest: options?.aiPlusRequest || null,
+            fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
+            promptConfig: promptMap[item.id] || null,
+          }).catch(() => null)
+        : null;
       sections.push({
         kind: "development",
         title: item.title,
-        body: `${item.status} — ${item.score}/100. ${item.short}
-
-${item.details}`,
+        body: aiBody || buildCompetencyShortResult(item, project, attempts),
       });
     }
   }

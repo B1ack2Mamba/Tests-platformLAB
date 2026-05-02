@@ -22,7 +22,7 @@ import {
 } from "@/lib/competencyRouter";
 import { getAllTests } from "@/lib/loadTests";
 import type { AnyTest } from "@/lib/testTypes";
-import { getTestDisplayTitle } from "@/lib/testTitles";
+import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 
 type WorkspacePayload = {
   ok: true;
@@ -165,11 +165,13 @@ function CompetencyToggle({
 
 function TestToggleRow({
   title,
+  duration,
   active,
   note,
   onToggle,
 }: {
   title: string;
+  duration?: string;
   active: boolean;
   note: string;
   onToggle: () => void;
@@ -192,7 +194,10 @@ function TestToggleRow({
         ✓
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-[#3d3124]">{title}</span>
+        <span className="block text-sm font-medium text-[#3d3124]">
+          {title}
+          {duration ? <span className="ml-2 text-xs font-semibold text-[#7b6650]">· {duration}</span> : null}
+        </span>
         <span className="mt-1 block text-xs leading-5 text-[#6a5640]">{note}</span>
       </span>
     </button>
@@ -365,6 +370,8 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     [autoSelectedTests, testMap]
   );
   const hasCustomTestSelection = useMemo(() => !sameSlugSet(selectedTests, autoSelectedTests), [autoSelectedTests, selectedTests]);
+  const selectedTestsTotalMinutes = useMemo(() => getTotalEstimatedMinutes(selectedTests), [selectedTests]);
+  const autoSelectedTestsTotalMinutes = useMemo(() => getTotalEstimatedMinutes(autoSelectedTests), [autoSelectedTests]);
 
   function toggleCompetency(id: string) {
     setSelectedCompetencyIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -884,6 +891,9 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                           <span className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-[11px] font-semibold text-[#2f4c32]">
                             {testsLabel(selectedTestCards.length)}
                           </span>
+                          <span className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-[11px] font-semibold text-[#2f4c32]">
+                            Примерно {formatEstimatedMinutes(selectedTestsTotalMinutes)}
+                          </span>
                         </div>
                       </div>
 
@@ -900,8 +910,16 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                                 className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-xs font-medium text-[#2f4c32]"
                               >
                                 {test.title}
+                                {(() => {
+                                  const minutes = getTestEstimatedMinutes(test.slug);
+                                  return minutes ? ` · ${formatEstimatedMinutes(minutes)}` : "";
+                                })()}
                               </span>
                             ))}
+                          </div>
+
+                          <div className="mt-2 text-[13px] font-medium text-[#507154]">
+                            Общее время набора: примерно {formatEstimatedMinutes(autoSelectedTestsTotalMinutes)}.
                           </div>
 
                           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -930,6 +948,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                             <TestToggleRow
                               key={test.slug}
                               title={test.title}
+                              duration={formatEstimatedMinutes(getTestEstimatedMinutes(test.slug))}
                               active={selectedTests.includes(test.slug)}
                               note={testNote(test.slug)}
                               onToggle={() => toggleTest(test.slug)}

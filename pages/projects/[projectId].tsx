@@ -21,6 +21,7 @@ import { formatMonthlySubscriptionPeriod, type WorkspaceSubscriptionStatus } fro
 import { getFitRoleProfiles, type FitRoleProfile } from "@/lib/fitProfiles";
 import type { ProjectRoutingMeta } from "@/lib/projectRoutingMeta";
 import { getCompetencyLongLabel } from "@/lib/competencyRouter";
+import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 
 type ProjectPayload = {
   ok: true;
@@ -656,6 +657,10 @@ export default function ProjectDetailsPage() {
 
   const goal = useMemo(() => getGoalDefinition(data?.project.goal), [data?.project.goal]);
   const completedSet = useMemo(() => new Set((data?.project.attempts || []).map((item) => item.test_slug)), [data?.project.attempts]);
+  const totalEstimatedMinutes = useMemo(
+    () => getTotalEstimatedMinutes((data?.project.tests || []).map((test) => test.test_slug)),
+    [data?.project.tests]
+  );
   const unlockedMode = data?.project.unlocked_package_mode || null;
   const projectCoveredBySubscription = Boolean(data?.project.subscription_applied);
   const shareUrl = useMemo(() => {
@@ -1038,13 +1043,23 @@ export default function ProjectDetailsPage() {
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.testsContentX}px, ${detailsTemplate.testsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.testsTextScale})` }}>
             <div className="absolute inset-x-[34px] top-[30px]">
-                <div className="text-2xl font-semibold">Назначенные тесты</div>
+                <div className="text-2xl font-semibold">
+                  Назначенные тесты
+                  <span className="ml-3 text-sm font-medium text-[#6b5943]">· примерно {formatEstimatedMinutes(totalEstimatedMinutes)}</span>
+                </div>
                 <div className="mt-4 grid gap-2.5">
                   {(data?.project.tests || []).map((test) => {
                     const done = completedSet.has(test.test_slug);
                     return (
                       <div key={test.test_slug} className="flex items-center justify-between gap-3 rounded-[18px] px-2 py-2.5">
-                        <div className="text-[1.02rem] font-semibold leading-6 text-[#2d2a22]">{test.test_title}</div>
+                        <div className="min-w-0 flex-1 pr-2">
+                          <div className="text-[1.02rem] font-semibold leading-6 text-[#2d2a22]">
+                            {test.test_title}
+                            <span className="ml-2 whitespace-nowrap text-xs font-medium text-[#7b6650]">
+                              {formatEstimatedMinutes(getTestEstimatedMinutes(test.test_slug))}
+                            </span>
+                          </div>
+                        </div>
                         <span className={`rounded-full px-4 py-2 text-sm font-medium ${done ? "border border-[#bfd7b8] bg-[#edf7e7] text-[#446047]" : "border border-[#d9c4a4] bg-[#fff8ec] text-[#6b5943]"}`}>{done ? "Готово" : "Не пройден"}</span>
                       </div>
                     );
