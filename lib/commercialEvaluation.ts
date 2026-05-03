@@ -26,6 +26,7 @@ import {
   resolveFitMatrixServer,
 } from "@/lib/serverFitProfiles";
 import type { ProjectRoutingMeta } from "@/lib/projectRoutingMeta";
+import { buildRegistryCommentContext } from "@/lib/candidateAnalysis/candidateReport";
 
 type AttemptLike = {
   test_slug: string;
@@ -41,6 +42,7 @@ type ProjectLike = {
   person_email?: string | null;
   current_position?: string | null;
   notes?: string | null;
+  registry_comment?: string | null;
   target_role?: string | null;
   routing_meta?: ProjectRoutingMeta | null;
 };
@@ -578,6 +580,8 @@ async function buildAiPlusPrompt(args: {
     project.current_position ? `Текущая позиция: ${project.current_position}.` : "",
     project.target_role ? `Целевая роль: ${project.target_role}.` : "",
     project.notes ? `Заметки специалиста: ${trimText(project.notes, 900)}` : "",
+    project.registry_comment ? `Комментарии Registry / HR-калибровка:
+${buildRegistryCommentContext(project)}` : "",
     fitProfileId ? `Ролевая матрица: ${(await getServerFitProfileById(fitProfileId))?.label || fitProfileId}.` : "",
     fitRequest ? `Индекс соответствия нужен относительно запроса: ${fitRequest}.` : "",
     "",
@@ -657,6 +661,9 @@ function buildProfileContext(project: ProjectLike) {
   if (project.current_position?.trim()) lines.push(`Текущая позиция: ${project.current_position.trim()}.`);
   if (project.target_role?.trim()) lines.push(`Целевая роль / ориентир: ${project.target_role.trim()}.`);
   if (project.notes?.trim()) lines.push(`Комментарий специалиста: ${trimText(project.notes.trim(), 420)}`);
+  if (project.registry_comment?.trim()) {
+    lines.push(`Registry-комментарий / калибровка роли: ${trimText(project.registry_comment.trim(), 520)}\nЭтот комментарий меняет фокус требований, но не считается самостоятельным доказательством компетенций.`);
+  }
   if (!lines.length) return "Дополнительный профиль не заполнен: анализ опирается прежде всего на результаты тестов.";
   lines.push("Эти данные используются как контекст для интерпретации, но не как самостоятельное доказательство компетенций.");
   return lines.join("\n\n");

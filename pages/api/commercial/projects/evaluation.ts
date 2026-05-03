@@ -5,6 +5,7 @@ import { buildCommercialEvaluation } from "@/lib/commercialEvaluation";
 import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
 import { isEvaluationPackage, isPackageAccessible, type EvaluationPackage } from "@/lib/commercialGoals";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
+import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
 const MAX_BATCH_SIZE = 3;
 
@@ -34,9 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
-    const { data, error } = await authed.supabaseAdmin
-      .from("commercial_projects")
-      .select(`
+    const baseSelect = `
         id,
         title,
         goal,
@@ -47,10 +46,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         commercial_people(full_name, email, current_position, notes),
         commercial_project_tests(test_slug),
         commercial_project_attempts(test_slug, test_title, result, created_at)
+      `;
+    const initialProject = await authed.supabaseAdmin
+      .from("commercial_projects")
+      .select(`
+        id,
+        title,
+        goal,
+        package_mode,
+        unlocked_package_mode,
+        target_role,
+        registry_comment,
+        summary,
+        commercial_people(full_name, email, current_position, notes),
+        commercial_project_tests(test_slug),
+        commercial_project_attempts(test_slug, test_title, result, created_at)
       `)
       .eq("workspace_id", workspace.workspace_id)
       .eq("id", id)
       .maybeSingle();
+    let data: any = initialProject.data;
+    let error: any = initialProject.error;
+    if (isRegistrySchemaMissing(error)) {
+      const fallback = await authed.supabaseAdmin
+        .from("commercial_projects")
+        .select(baseSelect)
+        .eq("workspace_id", workspace.workspace_id)
+        .eq("id", id)
+        .maybeSingle();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) throw error;
     if (!data) return res.status(404).json({ ok: false, error: "Проект не найден" });
@@ -109,6 +135,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         person_email: (data as any).commercial_people?.email || null,
         current_position: (data as any).commercial_people?.current_position || null,
         notes: (data as any).commercial_people?.notes || null,
+        registry_comment: (data as any).registry_comment || null,
         routing_meta: parsedSummary.meta,
       },
       attempts,

@@ -4,6 +4,7 @@ import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { getTestDisplayTitle } from "@/lib/testTitles";
 import { getActiveWorkspaceSubscription } from "@/lib/serverWorkspaceSubscription";
+import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -28,6 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         unlocked_package_paid_at,
         unlocked_package_price_kopeks,
         target_role,
+        registry_comment,
+        registry_comment_updated_at,
         status,
         summary,
         invite_token,
@@ -47,39 +50,70 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       getActiveWorkspaceSubscription(authed.supabaseAdmin, workspace.workspace_id),
     ]);
 
-    if (error) throw error;
-    if (subscriptionError) throw subscriptionError;
-    if (!data) return res.status(404).json({ ok: false, error: "Проект не найден" });
+    let projectData: any = data;
+    let projectError: any = error;
+    if (isRegistrySchemaMissing(projectError)) {
+      const fallback = await authed.supabaseAdmin
+        .from("commercial_projects")
+        .select(`
+          id,
+          title,
+          goal,
+          package_mode,
+          unlocked_package_mode,
+          unlocked_package_paid_at,
+          unlocked_package_price_kopeks,
+          target_role,
+          status,
+          summary,
+          invite_token,
+          created_at,
+          commercial_people(id, full_name, email, current_position, notes),
+          commercial_project_tests(test_slug, test_title, sort_order),
+          commercial_project_attempts(test_slug, test_title, result, created_at)
+        `)
+        .eq("workspace_id", workspace.workspace_id)
+        .eq("id", id)
+        .maybeSingle();
+      projectData = fallback.data;
+      projectError = fallback.error;
+    }
 
-    const parsedSummary = parseProjectSummary((data as any).summary);
+    if (projectError) throw projectError;
+    if (subscriptionError) throw subscriptionError;
+    if (!projectData) return res.status(404).json({ ok: false, error: "Проект не найден" });
+
+    const parsedSummary = parseProjectSummary((projectData as any).summary);
 
     return res.status(200).json({
       ok: true,
       workspace,
       active_subscription: activeSubscription,
       project: {
-        id: (data as any).id,
-        title: (data as any).title,
-        goal: (data as any).goal,
-        package_mode: (data as any).package_mode,
-        unlocked_package_mode: (data as any).unlocked_package_mode || null,
-        unlocked_package_paid_at: (data as any).unlocked_package_paid_at || null,
-        unlocked_package_price_kopeks: Number((data as any).unlocked_package_price_kopeks || 0),
+        id: (projectData as any).id,
+        title: (projectData as any).title,
+        goal: (projectData as any).goal,
+        package_mode: (projectData as any).package_mode,
+        unlocked_package_mode: (projectData as any).unlocked_package_mode || null,
+        unlocked_package_paid_at: (projectData as any).unlocked_package_paid_at || null,
+        unlocked_package_price_kopeks: Number((projectData as any).unlocked_package_price_kopeks || 0),
         subscription_applied: Boolean((subscriptionCoverage as any)?.subscription_id),
-        target_role: (data as any).target_role,
-        status: (data as any).status,
+        target_role: (projectData as any).target_role,
+        registry_comment: (projectData as any).registry_comment || null,
+        registry_comment_updated_at: (projectData as any).registry_comment_updated_at || null,
+        status: (projectData as any).status,
         summary: parsedSummary.text || null,
         routing_meta: parsedSummary.meta,
-        created_at: (data as any).created_at,
-        invite_token: (data as any).invite_token || null,
-        person: (data as any).commercial_people || null,
-        tests: ((data as any).commercial_project_tests || [])
+        created_at: (projectData as any).created_at,
+        invite_token: (projectData as any).invite_token || null,
+        person: (projectData as any).commercial_people || null,
+        tests: ((projectData as any).commercial_project_tests || [])
           .map((item: any) => ({
             ...item,
             test_title: getTestDisplayTitle(item?.test_slug, item?.test_title),
           }))
           .sort((a: any, b: any) => a.sort_order - b.sort_order),
-        attempts: ((data as any).commercial_project_attempts || []).map((item: any) => ({
+        attempts: ((projectData as any).commercial_project_attempts || []).map((item: any) => ({
           ...item,
           test_title: getTestDisplayTitle(item?.test_slug, item?.test_title),
         })),

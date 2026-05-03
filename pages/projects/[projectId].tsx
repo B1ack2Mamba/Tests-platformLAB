@@ -37,6 +37,8 @@ type ProjectPayload = {
     unlocked_package_price_kopeks: number;
     subscription_applied?: boolean;
     target_role: string | null;
+    registry_comment?: string | null;
+    registry_comment_updated_at?: string | null;
     status: string;
     summary: string | null;
     routing_meta?: ProjectRoutingMeta | null;
@@ -327,6 +329,7 @@ export default function ProjectDetailsPage() {
     goal: "role_fit" as AssessmentGoal,
     target_role: "",
     notes: "",
+    registry_comment: "",
   });
 
   async function loadProject() {
@@ -348,6 +351,7 @@ export default function ProjectDetailsPage() {
         goal: json.project.goal,
         target_role: json.project.target_role || "",
         notes: json.project.person?.notes || "",
+        registry_comment: json.project.registry_comment || "",
       });
     } catch (err: any) {
       setError(err?.message || "Ошибка");
@@ -752,6 +756,7 @@ export default function ProjectDetailsPage() {
           goal: form.goal,
           target_role: form.target_role,
           notes: form.notes,
+          registry_comment: form.registry_comment,
         }),
       });
       const json = await resp.json().catch(() => ({}));
@@ -926,6 +931,7 @@ export default function ProjectDetailsPage() {
                         </div>
                         <input className="input" value={form.target_role} onChange={(e) => setForm((prev) => ({ ...prev, target_role: e.target.value }))} placeholder="Будущая предполагаемая должность" />
                         <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Комментарий специалиста" />
+                        <textarea className="input min-h-[112px]" value={form.registry_comment} onChange={(e) => setForm((prev) => ({ ...prev, registry_comment: e.target.value }))} placeholder="Registry-комментарий: что важно для роли, какие риски и требования надо учесть при пересчёте анализа" />
                         <div className="flex flex-wrap gap-2">
                           <button type="button" className="rounded-2xl border border-[#7ca36f] bg-[#a8d19d] px-4 py-2 text-sm font-semibold text-[#264029]" onClick={saveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
                           <button type="button" className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]" onClick={() => setEditing(false)}>Отменить</button>
@@ -950,6 +956,10 @@ export default function ProjectDetailsPage() {
                         <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Комментарий</div>
                           <div className="mt-2 text-sm leading-6 text-[#6f6454]">{data?.project.person?.notes || "Комментарий пока не добавлен."}</div>
+                        </div>
+                        <div className="rounded-[20px] border border-[#e1d3bf] bg-white/55 px-4 py-3.5">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Registry-комментарий</div>
+                          <div className="mt-2 whitespace-pre-line text-sm leading-6 text-[#6f6454]">{data?.project.registry_comment || "Registry-калибровка пока не добавлена."}</div>
                         </div>
                       </div>
                     )}

@@ -32,6 +32,8 @@ type ResultsPagePayload = {
     package_mode: string | null;
     unlocked_package_mode: EvaluationPackage | null;
     target_role: string | null;
+    registry_comment: string | null;
+    registry_comment_updated_at: string | null;
     routing_meta: {
       mode: "goal" | "competency";
       competencyIds?: string[];
@@ -234,8 +236,9 @@ function buildEvaluationCacheKey(params: {
   fitRequested?: boolean;
   fitProfileId?: string;
   fitRequest?: string;
+  registryVersion?: string | null;
 }) {
-  const { projectId, mode, customRequest, fitRequested, fitProfileId, fitRequest } = params;
+  const { projectId, mode, customRequest, fitRequested, fitProfileId, fitRequest, registryVersion } = params;
   return [
     "commercial-project-evaluation",
     projectId,
@@ -244,6 +247,7 @@ function buildEvaluationCacheKey(params: {
     fitRequested ? "fit:1" : "fit:0",
     (fitProfileId || "").trim(),
     (fitRequest || "").trim(),
+    registryVersion || "registry:none",
   ].join(":");
 }
 
@@ -360,6 +364,7 @@ export default function ProjectResultsStandalonePage() {
       fitRequested: mode === "premium_ai_plus" ? fitRequested : false,
       fitProfileId: mode === "premium_ai_plus" ? fitProfileId : "",
       fitRequest: mode === "premium_ai_plus" ? fitRequest : "",
+      registryVersion: mode === "premium_ai_plus" ? data?.project.registry_comment_updated_at || data?.project.registry_comment || null : null,
     });
     const cachedPayload = readCachedEvaluation(cacheKey);
     if (cachedPayload?.evaluation?.sections?.length) {
@@ -588,6 +593,7 @@ export default function ProjectResultsStandalonePage() {
       fitRequested,
       fitProfileId,
       fitRequest,
+      registryVersion: data?.project.registry_comment_updated_at || data?.project.registry_comment || null,
     });
     const cachedPayload = readCachedEvaluation(cacheKey);
     if (cachedPayload?.evaluation?.sections?.length) {

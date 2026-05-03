@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { buildProjectResultsBlueprint } from "@/lib/projectResultsBlueprint";
+import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
 type ResponseBody =
   | {
@@ -20,6 +21,8 @@ type ResponseBody =
         package_mode: string | null;
         unlocked_package_mode: string | null;
         target_role: string | null;
+        registry_comment: string | null;
+        registry_comment_updated_at: string | null;
         routing_meta: ReturnType<typeof parseProjectSummary>["meta"];
         person: {
           full_name: string | null;
@@ -40,9 +43,7 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
-    const { data, error } = await authed.supabaseAdmin
-      .from("commercial_projects")
-      .select(`
+    const baseSelect = `
         id,
         title,
         goal,
@@ -54,10 +55,39 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
         commercial_people(full_name, email, current_position),
         commercial_project_tests(test_slug, test_title, sort_order),
         commercial_project_attempts(test_slug, test_title, result, created_at)
+      `;
+    const initialProject = await authed.supabaseAdmin
+      .from("commercial_projects")
+      .select(`
+        id,
+        title,
+        goal,
+        status,
+        package_mode,
+        unlocked_package_mode,
+        target_role,
+        registry_comment,
+        registry_comment_updated_at,
+        summary,
+        commercial_people(full_name, email, current_position),
+        commercial_project_tests(test_slug, test_title, sort_order),
+        commercial_project_attempts(test_slug, test_title, result, created_at)
       `)
       .eq("workspace_id", workspace.workspace_id)
       .eq("id", id)
       .maybeSingle();
+    let data: any = initialProject.data;
+    let error: any = initialProject.error;
+    if (isRegistrySchemaMissing(error)) {
+      const fallback = await authed.supabaseAdmin
+        .from("commercial_projects")
+        .select(baseSelect)
+        .eq("workspace_id", workspace.workspace_id)
+        .eq("id", id)
+        .maybeSingle();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) throw error;
     if (!data) return res.status(404).json({ ok: false, error: "Проект не найден" });
@@ -127,6 +157,8 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
         package_mode: ((data as any).package_mode as string | null) || null,
         unlocked_package_mode: ((data as any).unlocked_package_mode as string | null) || null,
         target_role: ((data as any).target_role as string | null) || null,
+        registry_comment: ((data as any).registry_comment as string | null) || null,
+        registry_comment_updated_at: ((data as any).registry_comment_updated_at as string | null) || null,
         routing_meta: parsedSummary.meta,
         person: (data as any).commercial_people
           ? {

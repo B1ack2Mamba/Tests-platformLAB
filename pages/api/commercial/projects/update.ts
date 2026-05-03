@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { getGoalDefinition, isAssessmentGoal, type AssessmentGoal } from "@/lib/commercialGoals";
+import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
 function normalizeGoal(value: any): AssessmentGoal | null {
   return isAssessmentGoal(value) ? value : null;
@@ -20,6 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const currentPositionRaw = String(body.current_position ?? "").trim();
   const targetRoleRaw = String(body.target_role ?? "").trim();
   const notesRaw = String(body.notes ?? "").trim();
+  const registryCommentRaw = String(body.registry_comment ?? "").trim();
   const goal = normalizeGoal(body.goal);
 
   if (!projectId) return res.status(400).json({ ok: false, error: "project_id is required" });
@@ -46,6 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const currentPosition = currentPositionRaw || null;
     const targetRole = targetRoleRaw || null;
     const notes = notesRaw || null;
+    const registryComment = registryCommentRaw || null;
 
     const { error: personError } = await authed.supabaseAdmin
       .from("commercial_people")
@@ -61,15 +64,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (personError) throw personError;
 
     const title = `${goalDef.shortTitle} · ${personName}`;
-    const { error: updateProjectError } = await authed.supabaseAdmin
+    let { error: updateProjectError } = await authed.supabaseAdmin
       .from("commercial_projects")
       .update({
         goal,
         title,
         target_role: targetRole,
+        registry_comment: registryComment,
+        registry_comment_updated_at: registryComment ? new Date().toISOString() : null,
+        registry_comment_updated_by: registryComment ? authed.user.id : null,
       })
       .eq("workspace_id", workspace.workspace_id)
       .eq("id", projectId);
+    if (isRegistrySchemaMissing(updateProjectError)) {
+      const fallback = await authed.supabaseAdmin
+        .from("commercial_projects")
+        .update({
+          goal,
+          title,
+          target_role: targetRole,
+        })
+        .eq("workspace_id", workspace.workspace_id)
+        .eq("id", projectId);
+      updateProjectError = fallback.error;
+    }
 
     if (updateProjectError) throw updateProjectError;
 
