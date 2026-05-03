@@ -1,0 +1,28 @@
+Candidate analysis calibration update
+
+New files:
+- lib/candidateAnalysis/calibration.ts
+- pages/api/commercial/projects/calibration-case.ts
+- pages/api/commercial/projects/calibration-report.ts
+- supabase/commercial_candidate_calibration_cases.sql
+- docs/CODEX_CALIBRATION_UPDATE.md
+- CALIBRATION_UPDATE_MANIFEST.txt
+
+Changed files:
+- supabase/PREPRODUCTION-APPLY-ORDER.sql
+
+Purpose:
+- Store manual expert benchmark scores for candidates.
+- Compare project baseline/calibrated scores against manual Excel-style analysis.
+- Return hit/near/watch/needs_calibration quality labels.
+- Generate correction hints for rules/weights.
+
+Required Supabase migrations:
+1. supabase/commercial_registry_candidate_analysis.sql
+2. supabase/commercial_candidate_calibration_cases.sql
+
+Required checks:
+- npm install
+- npm run typecheck
+- npm run lint
+- npm run build

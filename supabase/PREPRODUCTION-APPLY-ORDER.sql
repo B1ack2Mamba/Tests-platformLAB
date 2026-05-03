@@ -32,5 +32,6 @@
 -- 24) commercial_promo_codes.sql
 -- 25) commercial_support_chat.sql
 -- 26) commercial_registry_candidate_analysis.sql
+-- 27) commercial_candidate_calibration_cases.sql
 --
 -- Optional follow-up patches depend on the feature set you use.
