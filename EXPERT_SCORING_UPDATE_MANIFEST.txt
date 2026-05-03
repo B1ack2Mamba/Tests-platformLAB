@@ -1,0 +1,26 @@
+Expert competency scoring update
+
+Added:
+- docs/CODEX_EXPERT_SCORING_UPDATE.md
+- EXPERT_SCORING_UPDATE_MANIFEST.txt
+
+Updated:
+- lib/candidateAnalysis/featureExtractor.ts
+- lib/candidateAnalysis/competencyScoring.ts
+- lib/commercialEvaluation.ts
+
+Purpose:
+- Make competency scoring deterministic and closer to the manual Excel-style analysis.
+- Extract raw and derived test signals before AI synthesis.
+- Score C01-C31 with workbook rules + expert patches + caps/floors/contra penalties.
+- Use deterministic scores in normal AI+ evaluation as well as candidate-analysis endpoints.
+
+Validation performed in this environment:
+- Focused TypeScript check with local shims for missing external packages passed.
+
+Before deploy:
+1. npm install
+2. npm run typecheck
+3. npm run lint
+4. npm run build
+5. If not already applied, run supabase/commercial_registry_candidate_analysis.sql before deploying code that selects registry_comment fields.
