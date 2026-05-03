@@ -343,8 +343,9 @@ ${trimText(overallReport, 1800)}`
       : "",
     "Формат финального ответа по компетенции:",
     "- Максимум 2–3 предложения.",
-    "- Сначала явно укажи уровень: низкий, средний или высокий.",
-    "- Сразу поясни, что этот уровень значит в рабочем поведении и для текущей цели / роли.",
+    "- Если данных достаточно и компетенция подтверждена несколькими источниками, сначала явно укажи уровень: низкий, средний или высокий.",
+    "- Если данных недостаточно для подтверждения компетенции, не называй уровень и не пиши «низкий» только из-за нехватки покрытия. Вместо этого прямо скажи: данных пока недостаточно для уверенного вывода, но отдельно укажи, какие сильные сигналы уже есть.",
+    "- Сразу поясни, что это значит в рабочем поведении и для текущей цели / роли.",
     "- Не дублируй общий отчёт и не уходи в длинные списки.",
   ].filter(Boolean).join("\n\n");
 
@@ -356,12 +357,21 @@ function goalLabel(goal: string) {
   return getGoalDefinition(goal)?.shortTitle || "Оценка";
 }
 
-function describeStatus(score: number) {
+function describeStatus(score: number, options?: { hasMinimumCoverage?: boolean }) {
+  if (options?.hasMinimumCoverage === false) {
+    return {
+      label: "Недостаточно данных для уверенного вывода",
+      tone: "предварительный сигнал",
+      meaning: "По отдельным тестам уже могут быть сильные сигналы, но пока недостаточно независимых источников, чтобы уверенно присвоить уровень компетенции.",
+      coverageComplete: false,
+    };
+  }
   if (score >= 74) {
     return {
       label: "Высокий уровень",
       tone: "выраженная опора",
       meaning: "Компетенция проявляется уверенно, заметно поддерживает рабочую роль и обычно не требует срочной коррекции.",
+      coverageComplete: true,
     };
   }
   if (score >= 60) {
@@ -369,12 +379,14 @@ function describeStatus(score: number) {
       label: "Средний уровень",
       tone: "рабочий уровень",
       meaning: "Компетенция проявляется достаточно для большинства рабочих задач, но в сложных ситуациях может требовать поддержки или развития.",
+      coverageComplete: true,
     };
   }
   return {
     label: "Низкий уровень",
     tone: "зона развития",
     meaning: "Компетенция выражена слабо и может ограничивать результативность, если роль сильно опирается именно на этот навык.",
+    coverageComplete: true,
   };
 }
 
@@ -695,12 +707,12 @@ function buildCompetencySignals(project: ProjectLike, attempts: AttemptLike[], e
     if (!coverage.hasMinimumCoverage) {
       score = Math.min(score, 59);
     }
-    const statusInfo = describeStatus(score);
+    const statusInfo = describeStatus(score, { hasMinimumCoverage: coverage.hasMinimumCoverage });
     const evidence = [...new Set(relevantAttempts.flatMap((item) => getTopLabels(item.result, 2)))].slice(0, 4);
     const profileLink = project.target_role?.trim() || project.current_position?.trim() || goalLabel(project.goal);
     const short = `${statusInfo.tone}; ${statusInfo.meaning} Опора: ${evidence.length ? evidence.join(", ") : "данные тестов"}.`;
     const details = [
-      `${statusInfo.label}: ${score}/100.`,
+      statusInfo.coverageComplete ? `${statusInfo.label}: ${score}/100.` : `${statusInfo.label}.`,
       statusInfo.meaning,
       `Компетенция читается через методики: ${relevantAttempts.map((item) => item.test_title || item.test_slug).join(", ") || "нет завершённых тестов из этого контура"}.`,
       `Независимых семейств данных: ${coverage.independentFamilies}. ${coverage.hasMinimumCoverage ? "Методический минимум покрытия выполнен." : "Методический минимум покрытия пока не выполнен, поэтому verdict предварительный."}`,
@@ -724,7 +736,11 @@ function buildCompetencySignals(project: ProjectLike, attempts: AttemptLike[], e
 
 function buildCompactIndicatorText(items: CompetencySignal[]) {
   return items
-    .map((item) => `• ${item.title} — ${item.status.toLowerCase()} (${item.score}/100): ${item.short.replace(/\s*Опора:/i, " Опора:")}`)
+    .map((item) =>
+      /недостаточно данных/i.test(item.status)
+        ? `• ${item.title} — ${item.status.toLowerCase()}: ${item.short.replace(/\s*Опора:/i, " Опора:")}`
+        : `• ${item.title} — ${item.status.toLowerCase()} (${item.score}/100): ${item.short.replace(/\s*Опора:/i, " Опора:")}`
+    )
     .join("\n");
 }
 
@@ -741,7 +757,7 @@ function buildCompetencyShortResult(item: CompetencySignal, project: ProjectLike
   const focusTarget = project.target_role?.trim() || project.current_position?.trim() || goalLabel(project.goal);
 
   return [
-    `${item.status}: ${item.score}/100.`,
+    /недостаточно данных/i.test(item.status) ? `${item.status}.` : `${item.status}: ${item.score}/100.`,
     relevantTests.length
       ? `Это читается по тестам ${relevantTests.join(", ")}; сильнее всего поддерживают вывод ${evidence || "повторяющиеся паттерны в результатах"}.`
       : `По этой компетенции пока мало прямых тестовых сигналов, поэтому вывод предварительный и требует осторожной интерпретации.`,
