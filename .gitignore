@@ -13,3 +13,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .vercel
+.tmpbin
+exports
+supabase/.temp
+tsconfig.tsbuildinfo
+Tests-platformLAB-main
+*.zip
+*.xlsx
+*.patch
