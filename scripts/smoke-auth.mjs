@@ -91,34 +91,54 @@ const DEFAULT_CHECKS = [
   {
     path: "/api/commercial/profile/me",
     label: "profile",
+    method: "GET",
     expected: ['"ok":true', '"profile"', '"stats"'],
   },
   {
     path: "/api/commercial/dashboard/bootstrap",
     label: "dashboard-bootstrap",
+    method: "GET",
     expected: ['"ok":true', '"workspace"', '"projects"'],
   },
   {
     path: "/api/commercial/subscriptions/status",
     label: "subscription-status",
+    method: "GET",
     expected: ['"ok":true', '"workspace"', '"active_subscription"'],
+  },
+  {
+    path: `/api/commercial/projects/get?id=${encodeURIComponent(
+      readEnv("SMOKE_PROJECT_ID", "1080efe5-1250-44bc-aead-a6e927a2dfe9")
+    )}`,
+    label: "project-get",
+    method: "GET",
+    expected: ['"ok":true', '"project"', '"tests"'],
+  },
+  {
+    path: `/api/commercial/projects/results-map?id=${encodeURIComponent(
+      readEnv("SMOKE_PROJECT_ID", "1080efe5-1250-44bc-aead-a6e927a2dfe9")
+    )}`,
+    label: "results-map-collect",
+    method: "POST",
+    expected: ['"ok":true', '"project"', '"collect_mode":"collect"'],
   },
 ];
 
-async function fetchCheck(path) {
+async function fetchCheck(check) {
   const bearer = await getBearerToken();
-  const url = `${APP_URL}${path}`;
+  const url = `${APP_URL}${check.path}`;
   const startedAt = Date.now();
   const response = await fetch(url, {
-    method: "GET",
+    method: check.method || "GET",
     headers: {
       authorization: `Bearer ${bearer}`,
       "cache-control": "no-cache",
+      "content-type": "application/json",
     },
   });
   const body = await response.text();
   return {
-    path,
+    path: check.path,
     url,
     ok: response.ok,
     status: response.status,
@@ -139,10 +159,10 @@ async function main() {
 
   for (const check of DEFAULT_CHECKS) {
     try {
-      const result = await fetchCheck(check.path);
+      const result = await fetchCheck(check);
       const expectationError = assertExpectedText(check, result.body);
       const bodyPreview = result.body.replace(/\s+/g, " ").slice(0, 180);
-      console.log(`${result.ok ? "OK" : "FAIL"} ${result.status} ${check.label} ${check.path} ${result.ms}ms`);
+      console.log(`${result.ok ? "OK" : "FAIL"} ${result.status} ${check.label} ${check.method || "GET"} ${check.path} ${result.ms}ms`);
       if (!result.ok) {
         failures.push(`${check.label} ${check.path}: HTTP ${result.status}. Preview: ${bodyPreview}`);
       } else if (expectationError) {
