@@ -1,5 +1,91 @@
-const APP_URL = (process.env.APP_URL || "https://tests-platform-lab.vercel.app").replace(/\/+$/, "");
-const BEARER = String(process.env.SMOKE_BEARER_TOKEN || process.env.BEARER_TOKEN || "").trim();
+import fs from "node:fs";
+import path from "node:path";
+
+const APP_URL = readEnv("APP_URL", "https://tests-platform-lab.vercel.app").replace(/\/+$/, "");
+
+function loadDotEnvFile(filePath) {
+  const values = {};
+  if (!fs.existsSync(filePath)) return values;
+  const raw = fs.readFileSync(filePath, "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    values[key] = rawValue.trim().replace(/^['"]|['"]$/g, "");
+  }
+  return values;
+}
+
+const LOCAL_ENV = {
+  ...loadDotEnvFile(path.join(process.cwd(), ".env")),
+  ...loadDotEnvFile(path.join(process.cwd(), ".env.local")),
+  ...process.env,
+};
+
+function readEnv(key, fallback = "") {
+  return String(LOCAL_ENV[key] ?? fallback).trim();
+}
+
+async function resolveBearerToken() {
+  const direct = readEnv("SMOKE_BEARER_TOKEN") || readEnv("BEARER_TOKEN");
+  if (direct) return direct;
+
+  const email = readEnv("SMOKE_USER_EMAIL");
+  const password = readEnv("SMOKE_USER_PASSWORD");
+  const supabaseUrl = readEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseKey = readEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") || readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (email && password && supabaseUrl && supabaseKey) {
+    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: {
+        apikey: supabaseKey,
+        authorization: `Bearer ${supabaseKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body?.access_token) {
+      throw new Error(`Email auth failed: ${body?.error_description || body?.msg || response.statusText}`);
+    }
+    return String(body.access_token);
+  }
+
+  const firstName = readEnv("SMOKE_USER_FIRST_NAME");
+  const lastName = readEnv("SMOKE_USER_LAST_NAME");
+  const namePassword = readEnv("SMOKE_USER_PASSWORD");
+
+  if (firstName && lastName && namePassword) {
+    const response = await fetch(`${APP_URL}/api/auth/name-login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        first_name: firstName,
+        last_name: lastName,
+        password: namePassword,
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body?.session?.access_token) {
+      throw new Error(`Name auth failed: ${body?.error || response.statusText}`);
+    }
+    return String(body.session.access_token);
+  }
+
+  throw new Error(
+    "Missing auth smoke credentials. Set SMOKE_BEARER_TOKEN, or SMOKE_USER_EMAIL/SMOKE_USER_PASSWORD, or SMOKE_USER_FIRST_NAME/SMOKE_USER_LAST_NAME/SMOKE_USER_PASSWORD."
+  );
+}
+
+let bearerPromise = null;
+
+async function getBearerToken() {
+  if (!bearerPromise) bearerPromise = resolveBearerToken();
+  return bearerPromise;
+}
 
 const DEFAULT_CHECKS = [
   {
@@ -20,12 +106,13 @@ const DEFAULT_CHECKS = [
 ];
 
 async function fetchCheck(path) {
+  const bearer = await getBearerToken();
   const url = `${APP_URL}${path}`;
   const startedAt = Date.now();
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      authorization: `Bearer ${BEARER}`,
+      authorization: `Bearer ${bearer}`,
       "cache-control": "no-cache",
     },
   });
@@ -47,11 +134,6 @@ function assertExpectedText(check, body) {
 }
 
 async function main() {
-  if (!BEARER) {
-    console.error("Missing SMOKE_BEARER_TOKEN or BEARER_TOKEN for auth smoke.");
-    process.exit(1);
-  }
-
   const failures = [];
   console.log(`Auth smoke target: ${APP_URL}`);
 
