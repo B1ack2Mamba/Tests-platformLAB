@@ -837,15 +837,48 @@ export default function ProjectResultsStandalonePage() {
   function exportPdf() {
     if (typeof window === "undefined") return;
     const html = buildExportHtml();
-    const win = window.open("", "_blank", "noopener,noreferrer");
-    if (!win) return;
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    win.onload = () => {
-      win.print();
+    const safeName = (data?.project.person?.full_name || data?.project.title || "report").replace(/[\\/:*?\"<>|]+/g, "_");
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.setAttribute("aria-hidden", "true");
+    document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      window.setTimeout(() => {
+        iframe.remove();
+      }, 800);
     };
+
+    iframe.onload = () => {
+      const frameWindow = iframe.contentWindow;
+      if (!frameWindow) {
+        cleanup();
+        return;
+      }
+      frameWindow.document.title = `${safeName}-report`;
+      frameWindow.focus();
+      window.setTimeout(() => {
+        try {
+          frameWindow.print();
+        } finally {
+          cleanup();
+        }
+      }, 250);
+    };
+
+    const frameDocument = iframe.contentDocument;
+    if (!frameDocument) {
+      cleanup();
+      return;
+    }
+    frameDocument.open();
+    frameDocument.write(html);
+    frameDocument.close();
   }
 
   return (
