@@ -897,24 +897,6 @@ export default function ProjectResultsStandalonePage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
-                  {activeSections.length ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={exportDoc}
-                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)]"
-                      >
-                        Скачать DOC
-                      </button>
-                      <button
-                        type="button"
-                        onClick={exportPdf}
-                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)]"
-                      >
-                        Скачать PDF
-                      </button>
-                    </>
-                  ) : null}
                   <Link href={`/projects/${projectId}`} className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)]">
                     Назад к проекту
                   </Link>
@@ -1037,14 +1019,34 @@ export default function ProjectResultsStandalonePage() {
                           );
                         })}
                       </div>
-                      <button
-                        type="button"
-                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] disabled:opacity-60"
-                        disabled={!activeEvaluationMode || !!evaluationLoading[activeEvaluationMode]}
-                        onClick={() => refreshActiveEvaluation()}
-                      >
-                        {activeEvaluationMode && evaluationLoading[activeEvaluationMode] ? "Обновляем…" : "Обновить результат"}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] disabled:opacity-60"
+                          disabled={!activeEvaluationMode || !!evaluationLoading[activeEvaluationMode]}
+                          onClick={() => refreshActiveEvaluation()}
+                        >
+                          {activeEvaluationMode && evaluationLoading[activeEvaluationMode] ? "Обновляем…" : "Обновить результат"}
+                        </button>
+                        {activeSections.length ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={exportDoc}
+                              className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                            >
+                              Скачать DOC
+                            </button>
+                            <button
+                              type="button"
+                              onClick={exportPdf}
+                              className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
+                            >
+                              Печать PDF
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
 
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
