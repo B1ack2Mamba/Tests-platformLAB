@@ -838,6 +838,8 @@ export default function ProjectResultsStandalonePage() {
     if (typeof window === "undefined") return;
     const html = buildExportHtml();
     const safeName = (data?.project.person?.full_name || data?.project.title || "report").replace(/[\\/:*?\"<>|]+/g, "_");
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
     iframe.style.right = "0";
@@ -850,6 +852,7 @@ export default function ProjectResultsStandalonePage() {
 
     const cleanup = () => {
       window.setTimeout(() => {
+        window.URL.revokeObjectURL(url);
         iframe.remove();
       }, 800);
     };
@@ -870,15 +873,7 @@ export default function ProjectResultsStandalonePage() {
         }
       }, 250);
     };
-
-    const frameDocument = iframe.contentDocument;
-    if (!frameDocument) {
-      cleanup();
-      return;
-    }
-    frameDocument.open();
-    frameDocument.write(html);
-    frameDocument.close();
+    iframe.src = url;
   }
 
   return (
