@@ -11,6 +11,14 @@ function hasAny(text: string, patterns: readonly RegExp[]) {
   return patterns.some((pattern) => pattern.test(text));
 }
 
+function isHardRequirementComment(text: string) {
+  return /критич|обязател|must[-\s]?have|строг|необходим|отсекающ|без\s+этого\s+нельзя|нельзя\s+без/.test(text);
+}
+
+function isImportantRequirementComment(text: string) {
+  return isHardRequirementComment(text) || /важн|приоритет|ключев|главн|особенно|нужн|требует|требован/.test(text);
+}
+
 function unique(values: readonly string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -113,11 +121,15 @@ export function applyRegistryCalibrationToMatrix(matrix: ResolvedFitMatrix, comm
   const weights = { ...matrix.weights };
   const critical = new Set(matrix.critical || []);
   const explanation = [...(matrix.explanation || [])];
+  const normalizedComment = normalize(comment);
+  const hardRequirement = isHardRequirementComment(normalizedComment);
+  const importantRequirement = isImportantRequirementComment(normalizedComment);
+  const compoundDemand = intents.length >= 3;
 
   for (const intent of intents) {
     mergeWeights(weights, intent.weightAdjustments);
-    intent.criticalCompetencies.forEach((id) => critical.add(id));
-    explanation.push(`Registry: ${intent.label}.`);
+    if (hardRequirement || importantRequirement || compoundDemand) intent.criticalCompetencies.forEach((id) => critical.add(id));
+    explanation.push(`Registry: ${intent.label}${hardRequirement ? " (жёсткое требование)" : importantRequirement || compoundDemand ? " (важное требование)" : " (мягкая калибровка веса)"}.`);
   }
 
   return {
@@ -165,22 +177,22 @@ export function buildRegistryCompetencyAdjustments(features: CandidateFeatures, 
   const ids = new Set(intents.map((item) => item.id));
 
   if (ids.has("quality")) {
-    if (low16(features, "Q3")) pushAdjustment(adjustments, "C16", -7, "Registry подчёркивает качество, а 16PF Q3 низко: риск самоконтроля и финальной проверки.");
+    if (low16(features, "Q3")) pushAdjustment(adjustments, "C16", -6, "Registry подчёркивает качество, а 16PF Q3 низко: риск самоконтроля и финальной проверки.");
     if (low16(features, "G")) pushAdjustment(adjustments, "C16", -6, "Registry подчёркивает качество, а 16PF G низко: риск нормативности и следования стандартам.");
     if (lowBelbin(features, "CF")) pushAdjustment(adjustments, "C16", -7, "Registry подчёркивает качество, а Belbin CF низко: слабее роль контролёра/критика.");
-    if (lowColor(features, "BLUE")) pushAdjustment(adjustments, "C03", -4, "Registry подчёркивает проверку решений, а синий структурный контур выражен слабо.");
+    if (lowColor(features, "BLUE")) pushAdjustment(adjustments, "C03", -5, "Registry подчёркивает проверку решений, а синий структурный контур выражен слабо.");
   }
 
   if (ids.has("autonomy")) {
-    if (low16(features, "Q2")) pushAdjustment(adjustments, "C15", -9, "Registry подчёркивает автономность, а 16PF Q2 низко: риск зависимости от группы/контекста.");
+    if (low16(features, "Q2")) pushAdjustment(adjustments, "C15", -8, "Registry подчёркивает автономность, а 16PF Q2 низко: риск зависимости от группы/контекста.");
     if (lowUsk(features, "IO")) pushAdjustment(adjustments, "C10", -6, "Registry подчёркивает самостоятельное владение результатом, а общая интернальность УСК низкая.");
-    if (low16(features, "C")) pushAdjustment(adjustments, "C15", -4, "Registry подчёркивает самостоятельность, а эмоциональная устойчивость 16PF C низкая.");
+    if (low16(features, "C")) pushAdjustment(adjustments, "C15", -5, "Registry подчёркивает самостоятельность, а эмоциональная устойчивость 16PF C низкая.");
   }
 
   if (ids.has("rules")) {
     if (low16(features, "G")) pushAdjustment(adjustments, "C08", -8, "Registry подчёркивает регламентность, а 16PF G низко: риск слабого следования правилам.");
     if (low16(features, "Q3")) pushAdjustment(adjustments, "C08", -6, "Registry подчёркивает дисциплину, а 16PF Q3 низко: риск самоконтроля.");
-    if (lowBelbin(features, "CW")) pushAdjustment(adjustments, "C08", -4, "Registry подчёркивает операционную дисциплину, а Belbin CW низко: слабее исполнительский контур.");
+    if (lowBelbin(features, "CW")) pushAdjustment(adjustments, "C08", -5, "Registry подчёркивает операционную дисциплину, а Belbin CW низко: слабее исполнительский контур.");
   }
 
   if (ids.has("analytics")) {
@@ -207,9 +219,27 @@ export function buildRegistryCompetencyAdjustments(features: CandidateFeatures, 
     if (lowBelbin(features, "PL")) pushAdjustment(adjustments, "C04", -4, "Registry усиливает развитие/идеи, а Belbin PL низко: генерация идей слабее.");
   }
 
+  const strictExecutionDemand = ids.has("quality") && ids.has("autonomy") && ids.has("rules");
+  if (strictExecutionDemand) {
+    if (low16(features, "Q2")) pushAdjustment(adjustments, "C15", -5, "Связка Registry качество+автономность+регламентность усиливает штраф за низкий Q2: зависимость от внешней опоры критичнее для такого запроса.");
+    if (low16(features, "G")) {
+      pushAdjustment(adjustments, "C08", -5, "Связка Registry качество+автономность+регламентность усиливает штраф за низкий G: слабое следование нормам становится ключевым риском.");
+      pushAdjustment(adjustments, "C16", -4, "Низкий G одновременно бьёт по качеству: стандарты и правила могут удерживаться нестабильно.");
+    }
+    if (low16(features, "Q3")) {
+      pushAdjustment(adjustments, "C08", -4, "Низкий Q3 при строгом Registry-фокусе снижает прогноз по дисциплине и самоконтролю.");
+      pushAdjustment(adjustments, "C16", -4, "Низкий Q3 при фокусе на качестве снижает надёжность финальной проверки.");
+    }
+    if (lowBelbin(features, "CF")) {
+      pushAdjustment(adjustments, "C16", -5, "Низкий Belbin CF при фокусе на контроле ошибок делает риск качества системным, а не второстепенным.");
+      pushAdjustment(adjustments, "C03", -4, "Низкий Belbin CF ослабляет критическую проверку решений под требования Registry.");
+    }
+  }
+
+  const cap = strictExecutionDemand ? -14 : -10;
   return Array.from(adjustments.entries()).map(([competencyId, value]) => ({
     competencyId,
-    delta: Math.max(-14, Math.min(8, value.delta)),
+    delta: Math.max(cap, Math.min(6, value.delta)),
     reason: unique(value.reasons).join(" "),
   }));
 }

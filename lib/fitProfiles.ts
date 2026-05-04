@@ -114,6 +114,18 @@ export const FIT_ROLE_PROFILES: FitRoleProfile[] = [
   }
 ];
 
+const DEFAULT_ROLE_FIT_WEIGHTS: FitWeightMap = {
+  // Universal commercial/role-fit fallback.
+  // It is used only when no explicit role, target_role or fit_request is provided.
+  // The goal is to avoid accidentally evaluating a broad "31 competencies" case as an analyst-only contour.
+  C17: 4, C18: 4, C20: 4, C21: 4, C22: 4, C24: 4,
+  C25: 4, C26: 4, C30: 4,
+  C11: 4, C12: 4, C13: 4, C14: 4,
+  C19: 3, C27: 3, C28: 3, C29: 3, C31: 3, C05: 3,
+  C01: 2, C02: 2, C04: 2, C09: 2, C10: 2,
+  C03: 1, C06: 1, C07: 1, C08: 1, C15: 1, C16: 1, C23: 1,
+};
+
 export const FIT_EXPECTATION_TAGS: FitExpectationTag[] = [
   { id: "autonomy", label: "Самостоятельность", keywords: ["самостоятель", "автоном", "без микроменеджмента", "сам организует", "инициатив"], weights: { C15: 5, C10: 4, C08: 4, C09: 3 }, critical: ["C15", "C10"] },
   { id: "leadership", label: "Лидерство", keywords: ["лидер", "вести людей", "вести команду", "руководить", "управленчес"], weights: { C25: 5, C26: 4, C28: 4, C30: 3 }, critical: ["C25"] },
@@ -215,19 +227,28 @@ ${args.fitRequest || ""}`);
     explanation.push(`Ожидание: ${tag.label}.`);
   }
 
+  const usedUniversalRoleFitFallback = !Object.keys(weights).length && args.goal === "role_fit";
+
   if (!Object.keys(weights).length) {
-    const fallback = getCompetenciesForGoal(args.goal).slice(0, 6);
-    for (const item of fallback) {
-      weights[item.id] = 3;
-      critical.add(item.id);
+    if (args.goal === "role_fit") {
+      mergeWeights(weights, DEFAULT_ROLE_FIT_WEIGHTS, 1);
+      explanation.push("Явный профиль не распознан, взят универсальный role-fit контур по всем 31 компетенциям с акцентом на коммуникацию, командность, управление и эмоциональную устойчивость.");
+    } else {
+      const fallback = getCompetenciesForGoal(args.goal).slice(0, 6);
+      for (const item of fallback) {
+        weights[item.id] = 3;
+        critical.add(item.id);
+      }
+      explanation.push(`Явный профиль не распознан, взят стандартный контур цели «${args.goal}».`);
     }
-    explanation.push(`Явный профиль не распознан, взят стандартный контур цели «${args.goal}».`);
   }
 
   const label = matchedProfiles.length
     ? matchedProfiles.map((item) => item.shortLabel).join(" + ")
     : matchedExpectations.length
     ? matchedExpectations.map((item) => item.label).slice(0, 3).join(" + ")
+    : usedUniversalRoleFitFallback
+    ? "Универсальный role-fit"
     : "Контур цели";
 
   return {

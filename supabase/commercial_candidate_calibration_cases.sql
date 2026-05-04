@@ -10,6 +10,7 @@ create table if not exists public.commercial_candidate_calibration_cases (
   benchmark_label text,
   fit_profile_id text,
   fit_request text,
+  registry_comment_override text,
   manual_baseline_index integer check (manual_baseline_index is null or (manual_baseline_index >= 0 and manual_baseline_index <= 100)),
   manual_calibrated_index integer check (manual_calibrated_index is null or (manual_calibrated_index >= 0 and manual_calibrated_index <= 100)),
   manual_domains jsonb not null default '{}'::jsonb,
@@ -26,8 +27,13 @@ create table if not exists public.commercial_candidate_calibration_cases (
   constraint commercial_candidate_calibration_cases_unique unique (workspace_id, benchmark_key)
 );
 
+alter table public.commercial_candidate_calibration_cases
+  add column if not exists registry_comment_override text;
+
 comment on table public.commercial_candidate_calibration_cases is
   'Human/expert benchmark scores for candidate-analysis calibration. Used to compare project scoring with manual expert review.';
+comment on column public.commercial_candidate_calibration_cases.registry_comment_override is
+  'Optional Registry comment used only for replaying a manual calibrated benchmark when the project itself has no registry_comment.';
 comment on column public.commercial_candidate_calibration_cases.manual_baseline_index is
   'Manual expert index before Registry calibration, 0-100.';
 comment on column public.commercial_candidate_calibration_cases.manual_calibrated_index is

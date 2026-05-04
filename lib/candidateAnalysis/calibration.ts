@@ -1,6 +1,7 @@
 import type {
   CandidateRegistryAnalysis,
   DomainKey,
+  DomainScores,
 } from "@/lib/candidateAnalysis/types";
 
 export type ManualCalibrationBenchmark = {
@@ -9,6 +10,7 @@ export type ManualCalibrationBenchmark = {
   benchmarkLabel?: string | null;
   fitProfileId?: string | null;
   fitRequest?: string | null;
+  registryCommentOverride?: string | null;
   manualBaselineIndex?: number | null;
   manualCalibratedIndex?: number | null;
   manualDomains?: Partial<Record<DomainKey, number>> | null;
@@ -173,6 +175,9 @@ function correctionHints(analysis: CandidateRegistryAnalysis, diffs: Calibration
   const calibrated = diffs.find((item) => item.metric === "calibrated_index");
 
   if (calibrated?.delta != null) {
+    if (!analysis.registryCalibration.hasComment) {
+      hints.push("Manual calibrated index задан, но в расчёте нет Registry-комментария: добавь registry_comment в проект или registry_comment_override в calibration case, иначе сравнение calibrated некорректно.");
+    }
     if (calibrated.delta >= 6) {
       hints.push("Движок завышает итоговый calibrated index: проверь штрафы contra-сигналов, critical penalties и веса Registry-калибровки.");
     } else if (calibrated.delta <= -6) {

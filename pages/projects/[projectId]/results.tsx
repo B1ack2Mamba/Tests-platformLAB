@@ -137,6 +137,39 @@ function cleanSectionBody(body: string | null | undefined): string {
   return String(body || "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+function escapeHtml(value: string | null | undefined): string {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function bodyToHtml(body: string | null | undefined): string {
+  const cleaned = cleanSectionBody(body);
+  if (!cleaned) return "";
+  return cleaned
+    .split(/\n{2,}/)
+    .map((block) => {
+      const trimmed = block.trim();
+      if (!trimmed) return "";
+      const lines = trimmed.split("\n").map((line) => line.trim()).filter(Boolean);
+      const allList = lines.every((line) => /^[-•*]/.test(line));
+      if (allList) {
+        const items = lines
+          .map((line) => line.replace(/^[-•*\s]+/, "").trim())
+          .filter(Boolean)
+          .map((line) => `<li>${escapeHtml(line)}</li>`)
+          .join("");
+        return `<ul>${items}</ul>`;
+      }
+      return `<p>${escapeHtml(trimmed).replace(/\n/g, "<br/>")}</p>`;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
 function splitSectionBody(body: string | null | undefined): { preview: string; details: string } {
   const cleaned = cleanSectionBody(body);
   if (!cleaned) return { preview: "", details: "" };
@@ -706,6 +739,115 @@ export default function ProjectResultsStandalonePage() {
   const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, risksSection, focusSection, contextSection, importantSection].includes(item as any) && !compactIndexBodies.has(item.body));
   const fallbackRisks = displayRisks.length ? displayRisks : remainingOverviewCards.filter((item) => inferSectionTone(item.title) === "warning").flatMap((item) => parseCompactList(item.body)).slice(0, 6);
 
+  function buildExportHtml() {
+    const projectTitle = data?.project.title || "Результаты проекта";
+    const personName = data?.project.person?.full_name || "Участник проекта";
+    const modeTitle = activeEvaluationMode ? getEvaluationPackageDefinition(activeEvaluationMode)?.title || activeEvaluationMode : "Результат";
+    const indexHtml = compactIndexes.length
+      ? `<div class="indexes">${compactIndexes
+          .map((item) => `<div class="index-card"><div class="index-label">${escapeHtml(item.label)}</div><div class="index-value">${escapeHtml(item.value)}</div>${item.sublabel ? `<div class="index-sub">${escapeHtml(item.sublabel)}</div>` : ""}</div>`)
+          .join("")}</div>`
+      : "";
+    const competencyHtml = competencySections.length
+      ? `<section><h2>Выбранные компетенции</h2>${competencySections
+          .map((section) => `<article class="card"><h3>${escapeHtml(section.title)}</h3>${bodyToHtml(section.body)}</article>`)
+          .join("")}</section>`
+      : "";
+    const testsHtml = testSections.length
+      ? `<section><h2>Подробности по отдельным тестам</h2>${testSections
+          .map((section) => `<article class="card"><h3>${escapeHtml(section.title)}</h3>${bodyToHtml(section.body)}</article>`)
+          .join("")}</section>`
+      : "";
+    const extrasHtml = remainingOverviewCards.length
+      ? `<section><h2>Дополнительные разделы</h2>${remainingOverviewCards
+          .map((section) => `<article class="card"><h3>${escapeHtml(section.title)}</h3>${bodyToHtml(section.body)}</article>`)
+          .join("")}</section>`
+      : "";
+
+    return `<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(projectTitle)} — отчёт</title>
+  <style>
+    body { font-family: Georgia, "Times New Roman", serif; color:#2f2418; margin:40px; line-height:1.6; }
+    h1,h2,h3 { color:#4d3b24; margin:0 0 12px; }
+    h1 { font-size:28px; }
+    h2 { font-size:22px; margin-top:28px; }
+    h3 { font-size:18px; margin-top:0; }
+    p { margin:0 0 12px; }
+    ul { margin:0 0 14px 20px; padding:0; }
+    li { margin:0 0 8px; }
+    .meta { color:#6f5a42; margin-bottom:24px; }
+    .card { border:1px solid #d9c4a4; border-radius:16px; padding:16px 18px; margin:0 0 16px; background:#fffdfa; }
+    .indexes { display:flex; flex-wrap:wrap; gap:12px; margin:18px 0 26px; }
+    .index-card { border:1px solid #d9c4a4; border-radius:14px; padding:12px 14px; min-width:170px; background:#f9f3e8; }
+    .index-label { font-size:14px; color:#6f5a42; }
+    .index-value { font-size:28px; font-weight:700; color:#4d3b24; line-height:1.1; margin-top:6px; }
+    .index-sub { font-size:12px; color:#8a775f; margin-top:6px; }
+    @media print { body { margin:18mm; } .card { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(projectTitle)}</h1>
+  <div class="meta">
+    <div><strong>Участник:</strong> ${escapeHtml(personName)}</div>
+    <div><strong>Уровень:</strong> ${escapeHtml(modeTitle)}</div>
+    ${collectedLabel ? `<div><strong>Собрано:</strong> ${escapeHtml(collectedLabel)}</div>` : ""}
+  </div>
+  ${indexHtml}
+  <section>
+    <h2>Короткий вывод</h2>
+    <div class="card">${bodyToHtml(displaySummary)}</div>
+  </section>
+  ${
+    displayStrengths.length || fallbackRisks.length
+      ? `<section>
+    <h2>Сильные стороны и риски</h2>
+    <div class="card">
+      ${displayStrengths.length ? `<h3>Сильные стороны</h3><ul>${displayStrengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+      ${fallbackRisks.length ? `<h3>Риски</h3><ul>${fallbackRisks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+    </div>
+  </section>`
+      : ""
+  }
+  ${displayImportant ? `<section><h2>Что особенно важно</h2><div class="card">${bodyToHtml(displayImportant)}</div></section>` : ""}
+  ${competencyHtml}
+  ${testsHtml}
+  ${extrasHtml}
+</body>
+</html>`;
+  }
+
+  function exportDoc() {
+    if (typeof window === "undefined") return;
+    const html = buildExportHtml();
+    const blob = new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (data?.project.person?.full_name || data?.project.title || "report").replace(/[\\/:*?\"<>|]+/g, "_");
+    a.href = url;
+    a.download = `${safeName}-report.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  function exportPdf() {
+    if (typeof window === "undefined") return;
+    const html = buildExportHtml();
+    const win = window.open("", "_blank", "noopener,noreferrer");
+    if (!win) return;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.onload = () => {
+      win.print();
+    };
+  }
+
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
       <div className="mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4">
@@ -727,6 +869,24 @@ export default function ProjectResultsStandalonePage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
+                  {activeSections.length ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={exportDoc}
+                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)]"
+                      >
+                        Скачать DOC
+                      </button>
+                      <button
+                        type="button"
+                        onClick={exportPdf}
+                        className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)]"
+                      >
+                        Скачать PDF
+                      </button>
+                    </>
+                  ) : null}
                   <Link href={`/projects/${projectId}`} className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2.5 text-sm font-medium text-[#5b4731] shadow-[0_4px_12px_rgba(93,71,39,0.05)]">
                     Назад к проекту
                   </Link>
@@ -895,39 +1055,23 @@ export default function ProjectResultsStandalonePage() {
                             ) : null}
                             <div className="border-b border-[#ead9bf] pb-4 font-serif text-[2rem] leading-tight text-[#4d3b24]">Итоговый аналитический вывод</div>
 
-                            <div className="mt-5 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-                              <aside className="space-y-4">
-                                {compactIndexes.length ? (
-                                  <div className="rounded-[24px] border border-[#dce8d3] bg-[#f7fbf3] p-4">
-                                    <div className="text-sm font-semibold uppercase tracking-[0.14em] text-[#7c8f73]">Индексы</div>
-                                    <div className="mt-3 space-y-3">
-                                      {compactIndexes.map((item, idx) => (
-                                        <div key={`${item.label}:${idx}`} className="flex items-center gap-3">
-                                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#c6dbb9] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#f4e3c4] text-[#6d5330]" : "border-[#ebcdb7] bg-[#f3d9bf] text-[#7b4c35]"}`}>{item.value}</div>
-                                          <div className="min-w-0">
-                                            <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
-                                            {item.sublabel ? <div className="mt-0.5 text-xs leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
-                                          </div>
+                            <div className="mt-5 space-y-5">
+                              {compactIndexes.length ? (
+                                <div className="rounded-[24px] border border-[#dce8d3] bg-[#f7fbf3] p-4">
+                                  <div className="text-sm font-semibold uppercase tracking-[0.14em] text-[#7c8f73]">Индексы</div>
+                                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                    {compactIndexes.map((item, idx) => (
+                                      <div key={`${item.label}:${idx}`} className="flex items-center gap-3 rounded-[18px] border border-[#d8e5cf] bg-white/80 px-3 py-3">
+                                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-[1rem] font-semibold ${item.tone === "green" ? "border-[#c6dbb9] bg-[#dcead7] text-[#3f5a37]" : item.tone === "sand" ? "border-[#e8d6b6] bg-[#f4e3c4] text-[#6d5330]" : "border-[#ebcdb7] bg-[#f3d9bf] text-[#7b4c35]"}`}>{item.value}</div>
+                                        <div className="min-w-0">
+                                          <div className="text-[0.95rem] font-semibold leading-5 text-[#4d3b24]">{item.label}</div>
+                                          {item.sublabel ? <div className="mt-0.5 text-xs leading-5 text-[#8a775f]">{item.sublabel}</div> : null}
                                         </div>
-                                      ))}
-                                    </div>
+                                      </div>
+                                    ))}
                                   </div>
-                                ) : null}
-
-                                {focusSection ? (
-                                  <div className="rounded-[22px] border border-[#ead9bf] bg-[#fffdf8] p-4">
-                                    <div className="font-serif text-[1.1rem] text-[#4d3b24]">Фокус</div>
-                                    <div className="mt-2 text-sm leading-7 text-[#6f5a42]">{compactText(focusSection.body, 140)}</div>
-                                  </div>
-                                ) : null}
-
-                                {contextSection ? (
-                                  <div className="rounded-[22px] border border-[#ead9bf] bg-[#fffdf8] p-4">
-                                    <div className="font-serif text-[1.1rem] text-[#4d3b24]">Контекст</div>
-                                    <div className="mt-2 text-sm leading-7 text-[#6f5a42]">{compactText(contextSection.body, 110)}</div>
-                                  </div>
-                                ) : null}
-                              </aside>
+                                </div>
+                              ) : null}
 
                               <div className="rounded-[26px] border border-[#ead9bf] bg-[#fffdf8] p-4 sm:p-5">
                                 <div className="flex items-center gap-3">
