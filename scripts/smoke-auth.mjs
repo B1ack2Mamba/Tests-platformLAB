@@ -1,8 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const APP_URL = readEnv("APP_URL", "https://tests-platform-lab.vercel.app").replace(/\/+$/, "");
-
 function loadDotEnvFile(filePath) {
   const values = {};
   if (!fs.existsSync(filePath)) return values;
@@ -27,6 +25,8 @@ const LOCAL_ENV = {
 function readEnv(key, fallback = "") {
   return String(LOCAL_ENV[key] ?? fallback).trim();
 }
+
+const APP_URL = readEnv("APP_URL", "https://tests-platform-lab.vercel.app").replace(/\/+$/, "");
 
 async function resolveBearerToken() {
   const direct = readEnv("SMOKE_BEARER_TOKEN") || readEnv("BEARER_TOKEN");
