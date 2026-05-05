@@ -161,7 +161,7 @@ export default function AdminStatusPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">Авторизованный smoke</div>
-                    <div className="mt-1 text-xs text-slate-500">Профиль, кабинет, подписка, проект, results-map, AI evaluation, unlock access, test access</div>
+                    <div className="mt-1 text-xs text-slate-500">Профиль, кабинет, подписка, проект, results-map, AI evaluation, unlock access, test access, purchase access</div>
                   </div>
                   <span className={`rounded-full border px-3 py-1 text-xs font-medium ${toneChip(report.smoke_auth.ok)}`}>
                     {report.smoke_auth.ok ? "Все проверки пройдены" : "Есть ошибки"}

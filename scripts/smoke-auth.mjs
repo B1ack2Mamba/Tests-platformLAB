@@ -149,6 +149,12 @@ const DEFAULT_CHECKS = [
     method: "GET",
     expected: ['"ok":true', '"price_rub"', '"balance_kopeks"'],
   },
+  {
+    path: `/api/commercial/subscriptions/purchase-access?plan_key=${encodeURIComponent(readEnv("SMOKE_PLAN_KEY", "monthly_30"))}`,
+    label: "subscription-purchase-access",
+    method: "GET",
+    expected: ['"ok":true', '"plan"', '"can_purchase"', '"balance_kopeks"'],
+  },
 ];
 
 async function fetchCheck(check) {
