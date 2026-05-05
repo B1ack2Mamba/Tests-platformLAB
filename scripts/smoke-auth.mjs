@@ -122,6 +122,17 @@ const DEFAULT_CHECKS = [
     method: "POST",
     expected: ['"ok":true', '"project"', '"collect_mode":"collect"'],
   },
+  {
+    path:
+      `/api/commercial/projects/evaluation?id=${encodeURIComponent(
+        readEnv("SMOKE_PROJECT_ID", "1080efe5-1250-44bc-aead-a6e927a2dfe9")
+      )}` +
+      `&mode=${encodeURIComponent(readEnv("SMOKE_EVALUATION_MODE", "premium_ai_plus"))}` +
+      `&stage=${encodeURIComponent(readEnv("SMOKE_EVALUATION_STAGE", "summary"))}`,
+    label: "evaluation-summary",
+    method: "GET",
+    expected: ['"ok":true', '"evaluation"', '"unlocked_package_mode":"premium_ai_plus"'],
+  },
 ];
 
 async function fetchCheck(check) {
