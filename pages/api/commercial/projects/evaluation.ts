@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { buildCommercialEvaluation } from "@/lib/commercialEvaluation";
@@ -10,6 +11,7 @@ import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 const MAX_BATCH_SIZE = 3;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const requestId = ensureRequestId(req, res);
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -93,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const modeToBuild = requestedMode || unlockedMode;
 
     if (!modeToBuild) {
-      return res.status(200).json({ ok: true, fully_done, completed, total, evaluation: null, unlocked_package_mode: unlockedMode });
+      return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, evaluation: null, unlocked_package_mode: unlockedMode });
     }
 
     if (!isPackageAccessible(unlockedMode, modeToBuild)) {
@@ -156,8 +158,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const currentBatch = stage === "tests" ? Math.floor(Math.max(0, batchStart) / Math.max(1, batchSize)) + 1 : 1;
     const hasMore = stage === "tests" ? Math.max(0, batchStart) + Math.max(1, batchSize) < attempts.length : false;
 
-    return res.status(200).json({ ok: true, fully_done, completed, total, evaluation, unlocked_package_mode: unlockedMode, stage, has_more: hasMore, batch: { current: currentBatch, total: totalBatches } });
+    return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, evaluation, unlocked_package_mode: unlockedMode, stage, has_more: hasMore, batch: { current: currentBatch, total: totalBatches } });
   } catch (error: any) {
-    return res.status(400).json({ ok: false, error: error?.message || "Не удалось собрать оценку" });
+    logApiError("commercial.projects.evaluation", requestId, error, { project_id: id, stage, mode: requestedMode || null });
+    return res.status(400).json({ ok: false, request_id: requestId, error: error?.message || "Не удалось собрать оценку" });
   }
 }

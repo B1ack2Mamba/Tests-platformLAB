@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { getTestDisplayTitle } from "@/lib/testTitles";
@@ -8,6 +9,7 @@ import { pickSceneStandard } from "@/lib/globalDeskTemplate";
 const SETTING_KEY = "desk_templates";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const requestId = ensureRequestId(req, res);
   if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
 
   const authed = await requireUser(req, res);
@@ -78,6 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       ok: true,
+      request_id: requestId,
       profile: profile || {
         email: authed.user.email,
         full_name: (authed.user.user_metadata as any)?.full_name || null,
@@ -112,6 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       shared_scene_standard: standard,
     });
   } catch (error: any) {
-    return res.status(400).json({ ok: false, error: error?.message || "Не удалось загрузить кабинет" });
+    logApiError("commercial.dashboard.bootstrap", requestId, error);
+    return res.status(400).json({ ok: false, request_id: requestId, error: error?.message || "Не удалось загрузить кабинет" });
   }
 }

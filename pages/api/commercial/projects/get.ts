@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
@@ -7,6 +8,7 @@ import { getActiveWorkspaceSubscription } from "@/lib/serverWorkspaceSubscriptio
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const requestId = ensureRequestId(req, res);
   if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
 
   const authed = await requireUser(req, res);
@@ -87,6 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       ok: true,
+      request_id: requestId,
       workspace,
       active_subscription: activeSubscription,
       project: {
@@ -120,6 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
   } catch (error: any) {
-    return res.status(400).json({ ok: false, error: error?.message || "Не удалось загрузить проект" });
+    logApiError("commercial.projects.get", requestId, error, { project_id: id });
+    return res.status(400).json({ ok: false, request_id: requestId, error: error?.message || "Не удалось загрузить проект" });
   }
 }

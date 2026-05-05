@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
@@ -8,6 +9,7 @@ import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 type ResponseBody =
   | {
       ok: true;
+      request_id: string;
       fully_done: boolean;
       completed: number;
       total: number;
@@ -32,14 +34,15 @@ type ResponseBody =
       };
       blueprint: ReturnType<typeof buildProjectResultsBlueprint> | null;
     }
-  | { ok: false; error: string };
+  | { ok: false; request_id: string; error: string };
 
 async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseBody>, explicitCollect: boolean) {
+  const requestId = ensureRequestId(req, res);
   const authed = await requireUser(req, res);
   if (!authed) return;
 
   const id = typeof req.query.id === "string" ? req.query.id : "";
-  if (!id) return res.status(400).json({ ok: false, error: "id is required" });
+  if (!id) return res.status(400).json({ ok: false, request_id: requestId, error: "id is required" });
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
@@ -90,7 +93,7 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
     }
 
     if (error) throw error;
-    if (!data) return res.status(404).json({ ok: false, error: "Проект не найден" });
+    if (!data) return res.status(404).json({ ok: false, request_id: requestId, error: "Проект не найден" });
 
     const parsedSummary = parseProjectSummary((data as any).summary);
     const tests = (((data as any).commercial_project_tests || []) as Array<any>).map((item) => ({
@@ -144,6 +147,7 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
 
     return res.status(200).json({
       ok: true,
+      request_id: requestId,
       fully_done,
       completed,
       total,
@@ -171,13 +175,15 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
       blueprint,
     });
   } catch (error: any) {
-    return res.status(400).json({ ok: false, error: error?.message || "Не удалось собрать страницу результатов" });
+    logApiError("commercial.projects.results-map", requestId, error, { project_id: id, collect: explicitCollect });
+    return res.status(400).json({ ok: false, request_id: requestId, error: error?.message || "Не удалось собрать страницу результатов" });
   }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<ResponseBody>) {
   if (req.method !== "GET" && req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "Method not allowed" });
+    const requestId = ensureRequestId(req, res);
+    return res.status(405).json({ ok: false, request_id: requestId, error: "Method not allowed" });
   }
   return buildResponse(req, res, req.method === "POST");
 }
