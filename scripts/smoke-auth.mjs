@@ -133,29 +133,47 @@ const DEFAULT_CHECKS = [
     method: "GET",
     expected: ['"ok":true', '"evaluation"', '"unlocked_package_mode":"premium_ai_plus"'],
   },
+  {
+    path: `/api/tests/take-access?slug=${encodeURIComponent(readEnv("SMOKE_TEST_SLUG", "negotiation-style"))}`,
+    label: "test-take-access",
+    method: "GET",
+    expected: ['"ok":true', '"price_rub"', '"balance_kopeks"'],
+  },
 ];
 
 async function fetchCheck(check) {
   const bearer = await getBearerToken();
   const url = `${APP_URL}${check.path}`;
   const startedAt = Date.now();
-  const response = await fetch(url, {
-    method: check.method || "GET",
-    headers: {
-      authorization: `Bearer ${bearer}`,
-      "cache-control": "no-cache",
-      "content-type": "application/json",
-    },
-  });
-  const body = await response.text();
-  return {
-    path: check.path,
-    url,
-    ok: response.ok,
-    status: response.status,
-    ms: Date.now() - startedAt,
-    body,
-  };
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: check.method || "GET",
+        headers: {
+          authorization: `Bearer ${bearer}`,
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+        },
+      });
+      const body = await response.text();
+      return {
+        path: check.path,
+        url,
+        ok: response.ok,
+        status: response.status,
+        ms: Date.now() - startedAt,
+        body,
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt === 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
+  throw lastError;
 }
 
 function assertExpectedText(check, body) {

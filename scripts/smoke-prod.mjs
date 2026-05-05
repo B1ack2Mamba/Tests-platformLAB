@@ -25,19 +25,31 @@ const DEFAULT_CHECKS = [
 async function fetchCheck(path) {
   const url = `${APP_URL}${path}`;
   const startedAt = Date.now();
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { "cache-control": "no-cache" },
-  });
-  const body = await response.text();
-  return {
-    path,
-    url,
-    ok: response.ok,
-    status: response.status,
-    ms: Date.now() - startedAt,
-    body,
-  };
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "cache-control": "no-cache" },
+      });
+      const body = await response.text();
+      return {
+        path,
+        url,
+        ok: response.ok,
+        status: response.status,
+        ms: Date.now() - startedAt,
+        body,
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt === 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
+  throw lastError;
 }
 
 function assertExpectedText(check, body) {
