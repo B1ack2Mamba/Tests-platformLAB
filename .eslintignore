@@ -1,0 +1,11 @@
+.next
+node_modules
+Tests-platformLAB-main
+global_template_fix
+exports
+supabase/.temp
+.tmpbin
+*.patch
+*.zip
+*.xlsx
+tsconfig.tsbuildinfo
