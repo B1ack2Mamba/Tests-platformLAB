@@ -193,6 +193,10 @@ export default function AdminPage() {
                 AI-шаблоны компетенций
                 <div className="mt-1 text-xs font-normal text-slate-500">Практические промпты по каждой компетенции</div>
               </Link>
+              <Link href="/admin/status" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
+                Операционный статус
+                <div className="mt-1 text-xs font-normal text-slate-500">Health, smoke и AI-контур на одном экране</div>
+              </Link>
             </div>
           </section>
 
