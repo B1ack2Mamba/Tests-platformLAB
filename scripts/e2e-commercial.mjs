@@ -109,21 +109,31 @@ async function main() {
     assert(resultsMap.response.ok && resultsMap.json?.ok, `Results map failed: ${resultsMap.text}`);
     console.log("OK results-map");
 
-    const evaluation = await apiFetch(
-      `/api/commercial/projects/evaluation?id=${encodeURIComponent(projectId)}&mode=premium_ai_plus&stage=summary`,
-      { method: "GET" },
-      bearer
-    );
-    assert(evaluation.response.ok && evaluation.json?.ok && evaluation.json?.evaluation, `Evaluation failed: ${evaluation.text}`);
-    console.log("OK evaluation-summary");
-
     const unlockAccess = await apiFetch(
       `/api/commercial/projects/unlock-access?id=${encodeURIComponent(projectId)}&package_mode=premium_ai_plus`,
       { method: "GET" },
       bearer
     );
-    assert(unlockAccess.response.ok && unlockAccess.json?.ok && Object.prototype.hasOwnProperty.call(unlockAccess.json, "can_unlock"), `Unlock access failed: ${unlockAccess.text}`);
+    assert(
+      unlockAccess.response.ok &&
+        unlockAccess.json?.ok &&
+        unlockAccess.json?.can_unlock === true &&
+        unlockAccess.json?.fully_done === true,
+      `Unlock access failed: ${unlockAccess.text}`
+    );
     console.log("OK unlock-access");
+
+    const evaluationLocked = await apiFetch(
+      `/api/commercial/projects/evaluation?id=${encodeURIComponent(projectId)}&mode=premium_ai_plus&stage=summary`,
+      { method: "GET" },
+      bearer
+    );
+    assert(
+      !evaluationLocked.response.ok &&
+        /не открыт/i.test(String(evaluationLocked.json?.error || evaluationLocked.text || "")),
+      `Expected locked evaluation, got: ${evaluationLocked.text}`
+    );
+    console.log("OK evaluation-locked");
 
     console.log("Commercial e2e passed.");
   } finally {
