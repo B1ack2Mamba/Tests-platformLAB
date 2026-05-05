@@ -134,6 +134,16 @@ const DEFAULT_CHECKS = [
     expected: ['"ok":true', '"evaluation"', '"unlocked_package_mode":"premium_ai_plus"'],
   },
   {
+    path:
+      `/api/commercial/projects/unlock-access?id=${encodeURIComponent(
+        readEnv("SMOKE_PROJECT_ID", "1080efe5-1250-44bc-aead-a6e927a2dfe9")
+      )}` +
+      `&package_mode=${encodeURIComponent(readEnv("SMOKE_EVALUATION_MODE", "premium_ai_plus"))}`,
+    label: "unlock-access",
+    method: "GET",
+    expected: ['"ok":true', '"can_unlock"', '"upgrade_price_rub"'],
+  },
+  {
     path: `/api/tests/take-access?slug=${encodeURIComponent(readEnv("SMOKE_TEST_SLUG", "negotiation-style"))}`,
     label: "test-take-access",
     method: "GET",

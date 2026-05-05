@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
+import { RECOVERY_CHECKLIST } from "@/lib/recoveryChecklist";
 import { type ReleaseStatusReport } from "@/lib/releaseStatus";
 import { useSession } from "@/lib/useSession";
 
@@ -160,7 +161,7 @@ export default function AdminStatusPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">Авторизованный smoke</div>
-                    <div className="mt-1 text-xs text-slate-500">Профиль, кабинет, подписка, проект, results-map, AI evaluation, test access</div>
+                    <div className="mt-1 text-xs text-slate-500">Профиль, кабинет, подписка, проект, results-map, AI evaluation, unlock access, test access</div>
                   </div>
                   <span className={`rounded-full border px-3 py-1 text-xs font-medium ${toneChip(report.smoke_auth.ok)}`}>
                     {report.smoke_auth.ok ? "Все проверки пройдены" : "Есть ошибки"}
@@ -195,6 +196,24 @@ export default function AdminStatusPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </section>
+
+              <section className="card">
+                <div className="text-sm font-semibold text-slate-900">Recovery checklist</div>
+                <div className="mt-1 text-xs text-slate-500">Что делать, если какой-то блок в статусе стал красным.</div>
+                <div className="mt-4 grid gap-3">
+                  {RECOVERY_CHECKLIST.map((item) => (
+                    <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="text-sm font-medium text-slate-900">{item.title}</div>
+                      <div className="mt-1 text-sm text-slate-500">{item.symptoms}</div>
+                      <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                        {item.actions.map((action) => (
+                          <div key={action}>• {action}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
             </>

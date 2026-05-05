@@ -125,6 +125,12 @@ export function getAuthStatusChecks(): ReleaseStatusCheck[] {
       expected: ['"ok":true', '"evaluation"', '"unlocked_package_mode":"premium_ai_plus"'],
     },
     {
+      path: `/api/commercial/projects/unlock-access?id=${projectId}&package_mode=${evaluationMode}`,
+      label: "unlock-access",
+      method: "GET",
+      expected: ['"ok":true', '"can_unlock"', '"upgrade_price_rub"'],
+    },
+    {
       path: `/api/tests/take-access?slug=${testSlug}`,
       label: "test-take-access",
       method: "GET",
