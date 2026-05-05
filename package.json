@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "smoke:prod": "node scripts/smoke-prod.mjs",
     "smoke:auth": "node scripts/smoke-auth.mjs",
+    "status:prod": "node scripts/release-status.mjs",
     "smoke:local": "APP_URL=http://127.0.0.1:3000 node scripts/smoke-prod.mjs",
     "preflight": "npm run typecheck && npm run lint && npm run build && npm run smoke:prod",
     "preflight:auth": "npm run preflight && npm run smoke:auth",
