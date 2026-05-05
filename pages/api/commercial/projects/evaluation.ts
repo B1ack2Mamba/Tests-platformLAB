@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { requireUser } from "@/lib/serverAuth";
-import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
+import { canAccessCommercialProject } from "@/lib/commercialProjectAccess";
 import { buildCommercialEvaluation } from "@/lib/commercialEvaluation";
 import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
 import { isEvaluationPackage, isPackageAccessible, type EvaluationPackage } from "@/lib/commercialGoals";
@@ -36,7 +36,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!id) return res.status(400).json({ ok: false, error: "id is required" });
 
   try {
-    const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
+    const access = await canAccessCommercialProject(authed.supabaseAdmin, authed.user, id);
+    if (!access.found) return res.status(404).json({ ok: false, request_id: requestId, error: "Проект не найден" });
+    if (!access.allowed) return res.status(403).json({ ok: false, request_id: requestId, error: "Нет доступа к проекту" });
     const baseSelect = `
         id,
         title,
@@ -64,7 +66,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         commercial_project_tests(test_slug),
         commercial_project_attempts(test_slug, test_title, result, created_at)
       `)
-      .eq("workspace_id", workspace.workspace_id)
       .eq("id", id)
       .maybeSingle();
     let data: any = initialProject.data;
@@ -73,7 +74,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const fallback = await authed.supabaseAdmin
         .from("commercial_projects")
         .select(baseSelect)
-        .eq("workspace_id", workspace.workspace_id)
         .eq("id", id)
         .maybeSingle();
       data = fallback.data;

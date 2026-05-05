@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { requireUser } from "@/lib/serverAuth";
-import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
+import { canAccessCommercialProject } from "@/lib/commercialProjectAccess";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { buildProjectResultsBlueprint } from "@/lib/projectResultsBlueprint";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
@@ -45,7 +45,9 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
   if (!id) return res.status(400).json({ ok: false, request_id: requestId, error: "id is required" });
 
   try {
-    const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
+    const access = await canAccessCommercialProject(authed.supabaseAdmin, authed.user, id);
+    if (!access.found) return res.status(404).json({ ok: false, request_id: requestId, error: "Проект не найден" });
+    if (!access.allowed) return res.status(403).json({ ok: false, request_id: requestId, error: "Нет доступа к проекту" });
     const baseSelect = `
         id,
         title,
@@ -76,7 +78,6 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
         commercial_project_tests(test_slug, test_title, sort_order),
         commercial_project_attempts(test_slug, test_title, result, created_at)
       `)
-      .eq("workspace_id", workspace.workspace_id)
       .eq("id", id)
       .maybeSingle();
     let data: any = initialProject.data;
@@ -85,7 +86,6 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
       const fallback = await authed.supabaseAdmin
         .from("commercial_projects")
         .select(baseSelect)
-        .eq("workspace_id", workspace.workspace_id)
         .eq("id", id)
         .maybeSingle();
       data = fallback.data;
