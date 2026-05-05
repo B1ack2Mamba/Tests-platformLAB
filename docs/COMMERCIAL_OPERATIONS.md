@@ -16,6 +16,10 @@
   - удаляет временный проект
 - `npm run status:prod`
   - сводный JSON-статус по health, public smoke и auth smoke
+- `npm run alert:prod`
+  - шлёт Telegram-уведомление только если status упал
+- `npm run heartbeat:prod`
+  - шлёт короткое Telegram `OK`-сообщение
 - `npm run readiness:prod`
   - полный боевой прогон перед релизом
 
@@ -45,3 +49,11 @@
 
 - Если задача про доступность, логин, кабинет, AI, unlock, проекты и стабильность релиза — это боевой контур.
 - Если задача про эталоны, benchmark, delta, profile tuning и manual calibration — это калибровочный контур.
+
+## Alerting env
+
+- `TELEGRAM_SUPPORT_BOT_TOKEN`
+- `TELEGRAM_SUPPORT_CHAT_ID`
+- `TELEGRAM_ALERT_THREAD_ID` — опционально, если heartbeat/alerts должны идти в отдельную тему
+- `STATUS_ALERT_ON_OK=1` — отправлять heartbeat даже при зелёном статусе
+- `STATUS_ALERT_DRY_RUN=1` — не отправлять сообщение, только показать текст локально

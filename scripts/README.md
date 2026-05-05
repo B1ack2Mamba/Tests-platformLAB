@@ -6,6 +6,7 @@
 - `smoke-auth.mjs`
 - `release-status.mjs`
 - `e2e-commercial.mjs`
+- `status-alert.mjs`
 
 ## Load / Utility
 

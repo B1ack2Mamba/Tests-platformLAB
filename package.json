@@ -11,6 +11,8 @@
     "smoke:prod": "node scripts/smoke-prod.mjs",
     "smoke:auth": "node scripts/smoke-auth.mjs",
     "status:prod": "node scripts/release-status.mjs",
+    "alert:prod": "node scripts/status-alert.mjs",
+    "heartbeat:prod": "STATUS_ALERT_ON_OK=1 node scripts/status-alert.mjs",
     "e2e:commercial": "node scripts/e2e-commercial.mjs",
     "smoke:local": "APP_URL=http://127.0.0.1:3000 node scripts/smoke-prod.mjs",
     "preflight": "npm run typecheck && npm run lint && npm run build && npm run smoke:prod",
