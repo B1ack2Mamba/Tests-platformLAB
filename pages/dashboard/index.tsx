@@ -64,6 +64,57 @@ type DashboardBootstrapPayload = DashboardPayload &
     } | null;
   };
 
+type CandidateComparisonPayload = {
+  ok: true;
+  summary: string;
+  competency_summary?: string;
+  ranking: Array<{
+    project_id: string | null;
+    name: string;
+    baseline_index: number;
+    calibrated_index: number;
+    delta: number;
+    best_for: string[];
+    main_risks: string[];
+    comparison_line: string;
+  }>;
+  domain_leaders: Array<{
+    domain: string;
+    label: string;
+    leader_project_id: string | null;
+    leader_name: string | null;
+    leader_score: number | null;
+    runner_up_project_id: string | null;
+    runner_up_name: string | null;
+    runner_up_score: number | null;
+    gap: number | null;
+    lead_type: string;
+    top_three: Array<{ project_id: string | null; name: string; score: number }>;
+  }>;
+  competency_leaders: Array<{
+    competency_id: string;
+    competency_name: string;
+    competency_cluster: string;
+    leader_project_id: string | null;
+    leader_name: string | null;
+    leader_score: number | null;
+    gap: number | null;
+    lead_type: string;
+    top_three: Array<{ project_id: string | null; name: string; score: number; level?: string | null; confidence?: string | null }>;
+  }>;
+  winner_board: Array<{
+    project_id: string | null;
+    name: string;
+    calibrated_index: number;
+    baseline_index: number;
+    total_wins: number;
+    domain_wins: number;
+    competency_wins: number;
+    lead_competencies: string[];
+    lead_domains: string[];
+  }>;
+};
+
 type DeskPosition = {
   x: number;
   y: number;
@@ -714,6 +765,10 @@ export default function DashboardPage() {
   const officeSceneRef = useRef<HTMLDivElement | null>(null);
   const [officeSceneScale, setOfficeSceneScale] = useState(1);
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [assemblyFolderId, setAssemblyFolderId] = useState<string | null>(null);
+  const [assemblyLoading, setAssemblyLoading] = useState(false);
+  const [assemblyError, setAssemblyError] = useState("");
+  const [assemblyComparison, setAssemblyComparison] = useState<CandidateComparisonPayload | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -1694,6 +1749,10 @@ export default function DashboardPage() {
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,
     [activeFolderId, folderBuckets.byFolder]
   );
+  const assemblyFolder = useMemo(
+    () => folderBuckets.byFolder.find((item) => item.folder.id === assemblyFolderId) || null,
+    [assemblyFolderId, folderBuckets.byFolder]
+  );
   const totalAttempts = useMemo(
     () => projects.reduce((sum, item) => sum + (item.attempts_count || 0), 0),
     [projects]
@@ -1732,6 +1791,52 @@ export default function DashboardPage() {
     const stillExists = folderBuckets.byFolder.some((item) => item.folder.id === activeFolderId);
     if (!stillExists) setActiveFolderId(null);
   }, [activeFolderId, folderBuckets.byFolder]);
+
+  useEffect(() => {
+    if (desktopVariant !== "assembly") return;
+    if (assemblyFolderId && folderBuckets.byFolder.some((item) => item.folder.id === assemblyFolderId)) return;
+    setAssemblyFolderId(folderBuckets.byFolder[0]?.folder.id || null);
+  }, [assemblyFolderId, desktopVariant, folderBuckets.byFolder]);
+
+  const loadAssemblyComparison = useCallback(async (folderId: string) => {
+    if (!session?.access_token) return;
+    const bucket = folderBuckets.byFolder.find((item) => item.folder.id === folderId) || null;
+    if (!bucket) {
+      setAssemblyComparison(null);
+      setAssemblyError("Папка не найдена.");
+      return;
+    }
+    if (bucket.projects.length < 2) {
+      setAssemblyComparison(null);
+      setAssemblyError("Для общего анализа в папке нужно минимум два проекта.");
+      return;
+    }
+    setAssemblyLoading(true);
+    setAssemblyError("");
+    try {
+      const resp = await fetch("/api/commercial/projects/candidate-comparison", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ project_ids: bucket.projects.map((item) => item.id) }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось собрать общий анализ папки");
+      setAssemblyComparison(json as CandidateComparisonPayload);
+    } catch (e: any) {
+      setAssemblyComparison(null);
+      setAssemblyError(e?.message || "Не удалось собрать общий анализ папки");
+    } finally {
+      setAssemblyLoading(false);
+    }
+  }, [folderBuckets.byFolder, session?.access_token]);
+
+  useEffect(() => {
+    if (desktopVariant !== "assembly" || !assemblyFolderId) return;
+    void loadAssemblyComparison(assemblyFolderId);
+  }, [assemblyFolderId, desktopVariant, loadAssemblyComparison]);
 
   useEffect(() => {
     if (!previewProject) return;
@@ -2195,8 +2300,248 @@ export default function DashboardPage() {
     return !isInsideGuideRect(pos.x, pos.y);
   });
   const showDesktopLoader = loading || !sharedSceneReady || !deskVisualReady;
+  const assemblyLeader = assemblyComparison?.winner_board?.[0] || null;
+  const assemblyAverageIndex = assemblyComparison?.ranking?.length
+    ? Math.round(assemblyComparison.ranking.reduce((sum, item) => sum + item.calibrated_index, 0) / Math.max(1, assemblyComparison.ranking.length))
+    : null;
+  const assemblyTopCompetency = assemblyComparison?.competency_leaders?.[0] || null;
 
-  if (desktopVariant === "classic" || desktopVariant === "assembly") {
+  if (desktopVariant === "assembly") {
+    return (
+      <Layout title="Кабинет специалиста">
+        <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
+          </div>
+
+          <div className="mb-4 rounded-[22px] border border-[#d9c8aa] bg-[linear-gradient(180deg,#fff8ef_0%,#f4ead9_100%)] px-4 py-3 text-sm text-[#60442c] shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)]">
+            Отдельный режим общей оценки папки. Здесь собирается анализ сразу по всем проектам внутри выбранной папки с поиском лидеров по кандидатам, доменам и компетенциям.
+          </div>
+
+          <div className="mb-4 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-[24px] border border-[#d8e4ef] bg-[linear-gradient(180deg,#ffffff_0%,#eef5fb_100%)] px-5 py-4 shadow-[0_18px_34px_-26px_rgba(37,63,89,0.18)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#6f879d]">Кандидатов в папке</div>
+              <div className="mt-2 text-[30px] font-semibold leading-none text-[#223548]">{assemblyFolder?.projects.length || 0}</div>
+              <div className="mt-2 text-sm text-[#62788d]">Для уверенного сравнения лучше держать в одной папке 3–7 проектов.</div>
+            </div>
+            <div className="rounded-[24px] border border-[#dbe6d6] bg-[linear-gradient(180deg,#ffffff_0%,#f0f8ee_100%)] px-5 py-4 shadow-[0_18px_34px_-26px_rgba(48,90,39,0.18)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#688160]">Средний calibrated index</div>
+              <div className="mt-2 text-[30px] font-semibold leading-none text-[#27402b]">{assemblyAverageIndex ?? "—"}</div>
+              <div className="mt-2 text-sm text-[#60755f]">Сводный ориентир по силе текущего набора кандидатов в выбранной папке.</div>
+            </div>
+            <div className="rounded-[24px] border border-[#ead8c2] bg-[linear-gradient(180deg,#fffdfa_0%,#f8ede0_100%)] px-5 py-4 shadow-[0_18px_34px_-26px_rgba(108,72,29,0.18)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8a6a41]">Главный лидер</div>
+              <div className="mt-2 text-[22px] font-semibold leading-tight text-[#5b4126]">{assemblyLeader?.name || "—"}</div>
+              <div className="mt-2 text-sm text-[#7b6143]">{assemblyLeader ? `${assemblyLeader.calibrated_index}/100 и ${assemblyLeader.total_wins} лидерских позиций` : "Появится после сборки анализа."}</div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-4 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Папки для общей оценки</div>
+              <div className="mt-3 space-y-2">
+                {folderBuckets.byFolder.length ? folderBuckets.byFolder.map(({ folder, projects }) => {
+                  const isActive = folder.id === assemblyFolderId;
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${isActive ? "border-[#7ca36f] bg-[#eef8ea] shadow-[0_14px_28px_-24px_rgba(48,90,39,0.28)]" : "border-[#d5deea] bg-white hover:border-[#b9c9db]"}`}
+                      onClick={() => setAssemblyFolderId(folder.id)}
+                    >
+                      <div className="text-sm font-semibold text-[#223548]">{folder.name}</div>
+                      <div className="mt-1 text-xs text-[#64788c]">{projects.length} {projects.length === 1 ? "проект" : projects.length < 5 ? "проекта" : "проектов"}</div>
+                    </button>
+                  );
+                }) : (
+                  <div className="rounded-[20px] border border-dashed border-[#cfdbe7] bg-white/75 px-4 py-5 text-sm text-[#6f8193]">
+                    Сначала создайте папку и положите в неё проекты.
+                  </div>
+                )}
+              </div>
+
+              {assemblyFolder?.projects.length ? (
+                <div className="mt-4 rounded-[22px] border border-[#dbe4ee] bg-white/80 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6f879d]">Состав папки</div>
+                  <div className="mt-3 space-y-2">
+                    {assemblyFolder.projects.map((project) => (
+                      <div key={project.id} className="rounded-[16px] border border-[#e4ebf3] bg-[#f9fbfe] px-3 py-2.5">
+                        <div className="text-sm font-semibold text-[#223548]">{project.person?.full_name || project.title}</div>
+                        <div className="mt-1 text-xs text-[#6b7f93]">
+                          {getGoalDefinition(project.goal)?.shortTitle || getGoalDefinition(project.goal)?.title || project.goal}
+                          {project.target_role ? ` · ${project.target_role}` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-5 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Общая оценка папки</div>
+                  <div className="mt-1 text-2xl font-semibold text-[#223548]">{assemblyFolder?.folder.name || "Выберите папку"}</div>
+                  <div className="mt-1 text-sm text-[#64788c]">
+                    {assemblyFolder ? `В анализ попадут все проекты этой папки: ${assemblyFolder.projects.length} шт.` : "Пока папка не выбрана."}
+                  </div>
+                </div>
+                {assemblyFolder ? (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadAssemblyComparison(assemblyFolder.folder.id)} disabled={assemblyLoading}>
+                    {assemblyLoading ? "Собираем…" : "Обновить анализ"}
+                  </button>
+                ) : null}
+              </div>
+
+              {assemblyError ? <div className="mt-4 rounded-[18px] border border-[#e6c8c3] bg-[#fff3f0] px-4 py-3 text-sm text-[#9a4e45]">{assemblyError}</div> : null}
+
+              {!assemblyError && !assemblyComparison && !assemblyLoading ? (
+                <div className="mt-4 rounded-[20px] border border-dashed border-[#cfdbe7] bg-white/75 px-4 py-5 text-sm text-[#6f8193]">
+                  Выберите папку с несколькими проектами, и система соберёт общий анализ кандидатов.
+                </div>
+              ) : null}
+
+              {assemblyComparison ? (
+                <div className="mt-4 space-y-4">
+                  <div className="rounded-[22px] border border-[#d9e6d0] bg-[#f7fcf4] p-4">
+                    <div className="text-sm font-semibold text-[#28462c]">Итог по папке</div>
+                    <div className="mt-2 text-sm leading-6 text-[#37523a]">{assemblyComparison.summary}</div>
+                    {assemblyComparison.competency_summary ? (
+                      <div className="mt-3 text-sm leading-6 text-[#4d644f]">{assemblyComparison.competency_summary}</div>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-[#223548]">Рейтинг кандидатов</div>
+                        <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Calibrated index</div>
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {assemblyComparison.ranking.map((item, index) => (
+                          <div key={`${item.project_id || item.name}:rank`} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-xs uppercase tracking-[0.18em] text-[#7d8ea0]">#{index + 1}</div>
+                                <div className="text-sm font-semibold text-[#223548]">{item.name}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-semibold text-[#223548]">{item.calibrated_index}/100</div>
+                                <div className="text-xs text-[#6c7d8f]">baseline {item.baseline_index}/100</div>
+                              </div>
+                            </div>
+                            <div className="mt-2 text-xs leading-5 text-[#5f7286]">{item.comparison_line}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-[#d9e4d5] bg-[linear-gradient(180deg,#ffffff_0%,#f3faf1_100%)] p-4">
+                      <div className="text-sm font-semibold text-[#223548]">Главный фокус по компетенциям</div>
+                      <div className="mt-3 rounded-[18px] border border-[#dce8d7] bg-white px-4 py-3">
+                        <div className="text-sm font-semibold text-[#2b472f]">{assemblyTopCompetency?.competency_name || "—"}</div>
+                        <div className="mt-1 text-xs text-[#70856f]">{assemblyTopCompetency?.competency_cluster || "Лидирующая компетенция папки"}</div>
+                        <div className="mt-3 flex items-end justify-between gap-3">
+                          <div className="text-sm text-[#355438]">{assemblyTopCompetency?.leader_name || "—"}</div>
+                          <div className="text-right">
+                            <div className="text-[28px] font-semibold leading-none text-[#28462c]">{assemblyTopCompetency?.leader_score ?? "—"}</div>
+                            <div className="mt-1 text-xs text-[#70856f]">gap {assemblyTopCompetency?.gap ?? "—"}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {assemblyComparison.competency_leaders.slice(1, 5).map((item) => (
+                          <div key={`${item.competency_id}:focus`} className="flex items-center justify-between gap-3 rounded-[16px] border border-[#e1eadf] bg-white px-3 py-2.5">
+                            <div>
+                              <div className="text-sm font-medium text-[#223548]">{item.competency_name}</div>
+                              <div className="text-xs text-[#6f8193]">{item.leader_name || "—"}</div>
+                            </div>
+                            <div className="text-right text-sm font-semibold text-[#28462c]">{item.leader_score ?? "—"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
+                      <div className="text-sm font-semibold text-[#223548]">Лидеры по кандидатам</div>
+                      <div className="mt-3 space-y-3">
+                        {assemblyComparison.winner_board.slice(0, 5).map((item, index) => (
+                          <div key={`${item.project_id || item.name}:winner`} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-xs uppercase tracking-[0.18em] text-[#7d8ea0]">#{index + 1}</div>
+                                <div className="text-sm font-semibold text-[#223548]">{item.name}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-semibold text-[#223548]">{item.calibrated_index}/100</div>
+                                <div className="text-xs text-[#6c7d8f]">{item.total_wins} лидерств</div>
+                              </div>
+                            </div>
+                            <div className="mt-2 text-xs text-[#5f7286]">Домены: {item.domain_wins} · Компетенции: {item.competency_wins}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
+                      <div className="text-sm font-semibold text-[#223548]">Лидеры по доменам</div>
+                      <div className="mt-3 space-y-3">
+                        {assemblyComparison.domain_leaders.map((item) => (
+                          <div key={item.domain} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-semibold text-[#223548]">{item.label}</div>
+                                <div className="mt-1 text-xs text-[#6c7d8f]">{item.leader_name || "—"}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-semibold text-[#223548]">{item.leader_score ?? "—"}</div>
+                                <div className="text-xs text-[#6c7d8f]">gap {item.gap ?? "—"}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
+                    <div className="text-sm font-semibold text-[#223548]">Топ лидеров по компетенциям</div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+                      {assemblyComparison.competency_leaders.slice(0, 12).map((item) => (
+                        <div key={item.competency_id} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">
+                          <div className="text-sm font-semibold text-[#223548]">{item.competency_name}</div>
+                          <div className="mt-1 text-xs text-[#7a8b9d]">{item.competency_cluster}</div>
+                          <div className="mt-3 flex items-end justify-between gap-3">
+                            <div className="text-xs text-[#5f7286]">{item.leader_name || "—"}</div>
+                            <div className="text-right">
+                              <div className="text-lg font-semibold text-[#223548]">{item.leader_score ?? "—"}</div>
+                              <div className="text-xs text-[#6c7d8f]">gap {item.gap ?? "—"}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (desktopVariant === "classic") {
     return (
       <Layout title="Кабинет специалиста">
         <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
@@ -2206,18 +2551,12 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
               <button type="button" className={`btn btn-sm ${desktopVariant === "classic" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
-              <button type="button" className={`btn btn-sm ${desktopVariant === "assembly" ? "btn-primary" : "btn-secondary"}`} onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
               <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Стол</button>
               <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
             </div>
             <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
           </div>
-
-          {desktopVariant === "assembly" ? (
-            <div className="mb-3 rounded-[22px] border border-[#d9c8aa] bg-[linear-gradient(180deg,#fff8ef_0%,#f4ead9_100%)] px-4 py-3 text-sm text-[#60442c] shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)]">
-              Отдельный режим сборки проектов. Здесь удобно раскладывать, группировать и собирать другие проекты на рабочем столе.
-            </div>
-          ) : null}
 
           {canEditScene && sceneEditMode && selectedDeskItem ? (
             <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">

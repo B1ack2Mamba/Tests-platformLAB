@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
-import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
+import { canAccessCommercialProject } from "@/lib/commercialProjectAccess";
 import { buildCandidateComparison } from "@/lib/candidateAnalysis/candidateComparison";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
@@ -28,7 +28,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!projectIds.length) return res.status(400).json({ ok: false, error: "project_ids is required" });
 
   try {
-    const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
+    const accessResults = await Promise.all(
+      projectIds.map((projectId) => canAccessCommercialProject(authed.supabaseAdmin, authed.user, projectId))
+    );
+    const missingProjectIds = projectIds.filter((projectId, index) => !accessResults[index]?.found);
+    if (missingProjectIds.length) {
+      return res.status(404).json({ ok: false, error: `Проекты не найдены: ${missingProjectIds.join(", ")}` });
+    }
+    const forbiddenProjectIds = projectIds.filter((projectId, index) => !accessResults[index]?.allowed);
+    if (forbiddenProjectIds.length) {
+      return res.status(403).json({ ok: false, error: `Нет доступа к проектам: ${forbiddenProjectIds.join(", ")}` });
+    }
     const baseSelect = `
         id,
         title,
@@ -52,7 +62,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         commercial_people(full_name, email, current_position, notes),
         commercial_project_attempts(test_slug, test_title, result, created_at)
       `)
-      .eq("workspace_id", workspace.workspace_id)
       .in("id", projectIds);
     let data: any = initialProjects.data;
     let error: any = initialProjects.error;
@@ -60,7 +69,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const fallback = await authed.supabaseAdmin
         .from("commercial_projects")
         .select(baseSelect)
-        .eq("workspace_id", workspace.workspace_id)
         .in("id", projectIds);
       data = fallback.data;
       error = fallback.error;
