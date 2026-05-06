@@ -946,6 +946,13 @@ export default function DashboardPage() {
   }, [desktopVariant, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
+    const forcedDesktop = typeof router.query.desktop === "string" ? router.query.desktop : "";
+    if (forcedDesktop !== "scheme") return;
+    setDesktopVariant("scheme");
+    setClassicViewMode("desktop");
+  }, [router.query.desktop]);
+
+  useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(getClassicViewModeStorageKey(workspace.workspace.workspace_id));
@@ -2370,9 +2377,9 @@ export default function DashboardPage() {
               <div className="mt-2 text-sm text-[#60755f]">Сводный ориентир по силе текущего набора кандидатов в выбранной папке.</div>
             </div>
             <div className="rounded-[24px] border border-[#ead8c2] bg-[linear-gradient(180deg,#fffdfa_0%,#f8ede0_100%)] px-5 py-4 shadow-[0_18px_34px_-26px_rgba(108,72,29,0.18)]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8a6a41]">Главный лидер</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8a6a41]">Лидер в целом</div>
               <div className="mt-2 text-[22px] font-semibold leading-tight text-[#5b4126]">{assemblyLeader?.name || "—"}</div>
-              <div className="mt-2 text-sm text-[#7b6143]">{assemblyLeader ? `${assemblyLeader.calibrated_index}/100 и ${assemblyLeader.total_wins} лидерских позиций` : "Появится после сборки анализа."}</div>
+              <div className="mt-2 text-sm text-[#7b6143]">{assemblyLeader ? `${assemblyLeader.calibrated_index}/100 и ${assemblyLeader.total_wins} лидерских позиций по всей папке` : "Появится после сборки анализа."}</div>
             </div>
           </div>
 
@@ -2484,8 +2491,9 @@ export default function DashboardPage() {
                 <div className="mt-4 space-y-4">
                   {assemblyComparison.best_candidate_ai ? (
                     <div className="rounded-[22px] border border-[#e4d2b8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6eee1_100%)] p-4">
-                      <div className="text-sm font-semibold text-[#6b4b24]">Лучший кандидат под должность</div>
+                      <div className="text-sm font-semibold text-[#6b4b24]">Лидер под должность</div>
                       <div className="mt-2 text-[24px] font-semibold leading-tight text-[#3f2b18]">{assemblyComparison.best_candidate_ai.winner_name}</div>
+                      <div className="mt-2 text-xs uppercase tracking-[0.18em] text-[#8b6e4e]">Кого система считает самым подходящим под ваш запрос и выбранные компетенции</div>
                       <div className="mt-3 text-sm leading-6 text-[#5e4630]">{assemblyComparison.best_candidate_ai.summary}</div>
                       {assemblyComparison.best_candidate_ai.rationale ? (
                         <div className="mt-3 text-sm leading-6 text-[#6a533b]">{assemblyComparison.best_candidate_ai.rationale}</div>
@@ -2527,7 +2535,8 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="rounded-[22px] border border-[#d9e4d5] bg-[linear-gradient(180deg,#ffffff_0%,#f3faf1_100%)] p-4">
-                      <div className="text-sm font-semibold text-[#223548]">Главный фокус по компетенциям</div>
+                      <div className="text-sm font-semibold text-[#223548]">Лидер по компетенциям</div>
+                      <div className="mt-1 text-xs text-[#70856f]">Кто сильнее всего выглядит по самой выраженной компетенции в этой папке</div>
                       <div className="mt-3 rounded-[18px] border border-[#dce8d7] bg-white px-4 py-3">
                         <div className="text-sm font-semibold text-[#2b472f]">{assemblyTopCompetency?.competency_name || "—"}</div>
                         <div className="mt-1 text-xs text-[#70856f]">{assemblyTopCompetency?.competency_cluster || "Лидирующая компетенция папки"}</div>
@@ -2555,7 +2564,8 @@ export default function DashboardPage() {
 
                   <div className="grid gap-4 xl:grid-cols-2">
                     <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
-                      <div className="text-sm font-semibold text-[#223548]">Лидеры по кандидатам</div>
+                      <div className="text-sm font-semibold text-[#223548]">Лидеры в целом</div>
+                      <div className="mt-1 text-xs text-[#6c7d8f]">Кто чаще всего выходит первым по совокупности силы профиля, доменов и компетенций</div>
                       <div className="mt-3 space-y-3">
                         {assemblyComparison.winner_board.slice(0, 5).map((item, index) => (
                           <div key={`${item.project_id || item.name}:winner`} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">
@@ -2576,7 +2586,8 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
-                      <div className="text-sm font-semibold text-[#223548]">Лидеры по доменам</div>
+                      <div className="text-sm font-semibold text-[#223548]">Самый сильный в конкретной зоне</div>
+                      <div className="mt-1 text-xs text-[#6c7d8f]">Отдельно показывает, кто лучший в каждом крупном блоке: мышление, коммуникация, управление и других</div>
                       <div className="mt-3 space-y-3">
                         {assemblyComparison.domain_leaders.map((item) => (
                           <div key={item.domain} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">
@@ -2611,7 +2622,8 @@ export default function DashboardPage() {
                   ) : null}
 
                   <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
-                    <div className="text-sm font-semibold text-[#223548]">Топ лидеров по компетенциям</div>
+                    <div className="text-sm font-semibold text-[#223548]">Кто сильнее в какой компетенции</div>
+                    <div className="mt-1 text-xs text-[#6c7d8f]">Удобно смотреть, кто лучше именно в конкретных навыках и рабочих паттернах</div>
                     <div className="mt-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
                       {assemblyComparison.competency_leaders.slice(0, 12).map((item) => (
                         <div key={item.competency_id} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">

@@ -39,7 +39,7 @@ export function Layout({
           </Link>
 
           <nav className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <Link href="/dashboard" className="btn btn-secondary btn-sm">Кабинет</Link>
+            <Link href="/dashboard?desktop=scheme" className="btn btn-secondary btn-sm">Кабинет</Link>
             <Link href="/wallet" className="btn btn-secondary btn-sm">Кошелёк</Link>
             <AdminNavNoSSR />
             <AuthNavNoSSR />
