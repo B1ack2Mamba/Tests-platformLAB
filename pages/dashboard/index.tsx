@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
+import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRouter";
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail, isGlobalTemplateOwnerEmail } from "@/lib/admin";
@@ -68,11 +69,14 @@ type CandidateComparisonPayload = {
   ok: true;
   summary: string;
   competency_summary?: string;
+  selected_competency_ids?: string[];
+  selected_competency_label?: string;
   ranking: Array<{
     project_id: string | null;
     name: string;
     baseline_index: number;
     calibrated_index: number;
+    focus_score?: number;
     delta: number;
     best_for: string[];
     main_risks: string[];
@@ -112,6 +116,17 @@ type CandidateComparisonPayload = {
     competency_wins: number;
     lead_competencies: string[];
     lead_domains: string[];
+  }>;
+  best_candidate_ai?: {
+    winner_name: string;
+    winner_project_id: string | null;
+    summary: string;
+    rationale?: string;
+  } | null;
+  candidate_briefs?: Array<{
+    project_id: string | null;
+    name: string;
+    summary: string;
   }>;
 };
 
@@ -769,6 +784,8 @@ export default function DashboardPage() {
   const [assemblyLoading, setAssemblyLoading] = useState(false);
   const [assemblyError, setAssemblyError] = useState("");
   const [assemblyComparison, setAssemblyComparison] = useState<CandidateComparisonPayload | null>(null);
+  const [assemblySelectedCompetencyIds, setAssemblySelectedCompetencyIds] = useState<string[]>([]);
+  const [assemblyFitRequest, setAssemblyFitRequest] = useState("");
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
@@ -1753,6 +1770,12 @@ export default function DashboardPage() {
     () => folderBuckets.byFolder.find((item) => item.folder.id === assemblyFolderId) || null,
     [assemblyFolderId, folderBuckets.byFolder]
   );
+  const assemblySuggestedCompetencies = useMemo(() => {
+    if (!assemblyFolder?.projects.length) return COMPETENCY_ROUTES;
+    const goalSet = new Set(assemblyFolder.projects.map((item) => item.goal));
+    const filtered = COMPETENCY_ROUTES.filter((route) => route.linkedGoals.some((goal) => goalSet.has(goal)));
+    return filtered.length ? filtered : COMPETENCY_ROUTES;
+  }, [assemblyFolder]);
   const totalAttempts = useMemo(
     () => projects.reduce((sum, item) => sum + (item.attempts_count || 0), 0),
     [projects]
@@ -1798,6 +1821,12 @@ export default function DashboardPage() {
     setAssemblyFolderId(folderBuckets.byFolder[0]?.folder.id || null);
   }, [assemblyFolderId, desktopVariant, folderBuckets.byFolder]);
 
+  useEffect(() => {
+    if (!assemblyFolder?.projects.length) return;
+    const suggestedRole = assemblyFolder.projects.find((item) => item.target_role)?.target_role || "";
+    setAssemblyFitRequest((prev) => prev || suggestedRole);
+  }, [assemblyFolder?.folder.id, assemblyFolder?.projects]);
+
   const loadAssemblyComparison = useCallback(async (folderId: string) => {
     if (!session?.access_token) return;
     const bucket = folderBuckets.byFolder.find((item) => item.folder.id === folderId) || null;
@@ -1820,7 +1849,11 @@ export default function DashboardPage() {
           "content-type": "application/json",
           authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ project_ids: bucket.projects.map((item) => item.id) }),
+        body: JSON.stringify({
+          project_ids: bucket.projects.map((item) => item.id),
+          selected_competency_ids: assemblySelectedCompetencyIds,
+          fit_request: assemblyFitRequest.trim(),
+        }),
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось собрать общий анализ папки");
@@ -1831,7 +1864,7 @@ export default function DashboardPage() {
     } finally {
       setAssemblyLoading(false);
     }
-  }, [folderBuckets.byFolder, session?.access_token]);
+  }, [assemblyFitRequest, assemblySelectedCompetencyIds, folderBuckets.byFolder, session?.access_token]);
 
   useEffect(() => {
     if (desktopVariant !== "assembly" || !assemblyFolderId) return;
@@ -2332,7 +2365,7 @@ export default function DashboardPage() {
               <div className="mt-2 text-sm text-[#62788d]">Для уверенного сравнения лучше держать в одной папке 3–7 проектов.</div>
             </div>
             <div className="rounded-[24px] border border-[#dbe6d6] bg-[linear-gradient(180deg,#ffffff_0%,#f0f8ee_100%)] px-5 py-4 shadow-[0_18px_34px_-26px_rgba(48,90,39,0.18)]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#688160]">Средний calibrated index</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#688160]">Средний итоговый индекс</div>
               <div className="mt-2 text-[30px] font-semibold leading-none text-[#27402b]">{assemblyAverageIndex ?? "—"}</div>
               <div className="mt-2 text-sm text-[#60755f]">Сводный ориентир по силе текущего набора кандидатов в выбранной папке.</div>
             </div>
@@ -2383,6 +2416,41 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ) : null}
+
+              <div className="mt-4 rounded-[22px] border border-[#dbe4ee] bg-white/80 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6f879d]">Фокус сравнения</div>
+                <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.18em] text-[#7b8ea0]">
+                  Должность или запрос
+                  <input
+                    value={assemblyFitRequest}
+                    onChange={(event) => setAssemblyFitRequest(event.target.value)}
+                    placeholder="Например: руководитель продаж, методолог, аккаунт-менеджер"
+                    className="mt-2 w-full rounded-[16px] border border-[#d5deea] bg-[#fbfdff] px-3 py-2.5 text-sm text-[#223548] outline-none transition focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
+                  />
+                </label>
+                <div className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#7b8ea0]">Компетенции для сравнения</div>
+                <div className="mt-3 grid gap-2">
+                  {assemblySuggestedCompetencies.map((route) => {
+                    const active = assemblySelectedCompetencyIds.includes(route.id);
+                    return (
+                      <button
+                        key={route.id}
+                        type="button"
+                        className={`rounded-[16px] border px-3 py-2.5 text-left transition ${active ? "border-[#7ca36f] bg-[#eef8ea]" : "border-[#dbe4ee] bg-[#fbfdff] hover:border-[#b9c9db]"}`}
+                        onClick={() => setAssemblySelectedCompetencyIds((prev) => prev.includes(route.id) ? prev.filter((item) => item !== route.id) : [...prev, route.id])}
+                      >
+                        <div className="text-sm font-semibold text-[#223548]">{route.name}</div>
+                        <div className="mt-1 text-xs text-[#6b7f93]">{route.cluster}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 text-xs leading-5 text-[#6b7f93]">
+                  {assemblySelectedCompetencyIds.length
+                    ? `Сейчас сравнение собрано по фокусу: ${getCompetencyLongLabel(assemblySelectedCompetencyIds)}.`
+                    : "Если компетенции не выбраны, система сравнивает кандидатов по общей силе профиля."}
+                </div>
+              </div>
             </div>
 
             <div className="rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-5 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
@@ -2393,6 +2461,9 @@ export default function DashboardPage() {
                   <div className="mt-1 text-sm text-[#64788c]">
                     {assemblyFolder ? `В анализ попадут все проекты этой папки: ${assemblyFolder.projects.length} шт.` : "Пока папка не выбрана."}
                   </div>
+                  {assemblyComparison?.selected_competency_label ? (
+                    <div className="mt-2 text-sm font-medium text-[#49627a]">Фокус по компетенциям: {assemblyComparison.selected_competency_label}</div>
+                  ) : null}
                 </div>
                 {assemblyFolder ? (
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadAssemblyComparison(assemblyFolder.folder.id)} disabled={assemblyLoading}>
@@ -2411,6 +2482,17 @@ export default function DashboardPage() {
 
               {assemblyComparison ? (
                 <div className="mt-4 space-y-4">
+                  {assemblyComparison.best_candidate_ai ? (
+                    <div className="rounded-[22px] border border-[#e4d2b8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6eee1_100%)] p-4">
+                      <div className="text-sm font-semibold text-[#6b4b24]">Лучший кандидат под должность</div>
+                      <div className="mt-2 text-[24px] font-semibold leading-tight text-[#3f2b18]">{assemblyComparison.best_candidate_ai.winner_name}</div>
+                      <div className="mt-3 text-sm leading-6 text-[#5e4630]">{assemblyComparison.best_candidate_ai.summary}</div>
+                      {assemblyComparison.best_candidate_ai.rationale ? (
+                        <div className="mt-3 text-sm leading-6 text-[#6a533b]">{assemblyComparison.best_candidate_ai.rationale}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="rounded-[22px] border border-[#d9e6d0] bg-[#f7fcf4] p-4">
                     <div className="text-sm font-semibold text-[#28462c]">Итог по папке</div>
                     <div className="mt-2 text-sm leading-6 text-[#37523a]">{assemblyComparison.summary}</div>
@@ -2423,7 +2505,7 @@ export default function DashboardPage() {
                     <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-[#223548]">Рейтинг кандидатов</div>
-                        <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Calibrated index</div>
+                        <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Итоговый индекс</div>
                       </div>
                       <div className="mt-3 space-y-3">
                         {assemblyComparison.ranking.map((item, index) => (
@@ -2431,11 +2513,11 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <div className="text-xs uppercase tracking-[0.18em] text-[#7d8ea0]">#{index + 1}</div>
-                                <div className="text-sm font-semibold text-[#223548]">{item.name}</div>
+                                <div className="text-lg font-semibold leading-tight text-[#152838]">{item.name}</div>
                               </div>
                               <div className="text-right">
-                                <div className="text-lg font-semibold text-[#223548]">{item.calibrated_index}/100</div>
-                                <div className="text-xs text-[#6c7d8f]">baseline {item.baseline_index}/100</div>
+                                <div className="text-lg font-semibold text-[#223548]">{item.focus_score ?? item.calibrated_index}/100</div>
+                                <div className="text-xs text-[#6c7d8f]">Базовый индекс {item.baseline_index}/100 · Итоговый {item.calibrated_index}/100</div>
                               </div>
                             </div>
                             <div className="mt-2 text-xs leading-5 text-[#5f7286]">{item.comparison_line}</div>
@@ -2453,7 +2535,7 @@ export default function DashboardPage() {
                           <div className="text-sm text-[#355438]">{assemblyTopCompetency?.leader_name || "—"}</div>
                           <div className="text-right">
                             <div className="text-[28px] font-semibold leading-none text-[#28462c]">{assemblyTopCompetency?.leader_score ?? "—"}</div>
-                            <div className="mt-1 text-xs text-[#70856f]">gap {assemblyTopCompetency?.gap ?? "—"}</div>
+                            <div className="mt-1 text-xs text-[#70856f]">Отрыв {assemblyTopCompetency?.gap ?? "—"}</div>
                           </div>
                         </div>
                       </div>
@@ -2480,7 +2562,7 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <div className="text-xs uppercase tracking-[0.18em] text-[#7d8ea0]">#{index + 1}</div>
-                                <div className="text-sm font-semibold text-[#223548]">{item.name}</div>
+                                <div className="text-lg font-semibold leading-tight text-[#152838]">{item.name}</div>
                               </div>
                               <div className="text-right">
                                 <div className="text-lg font-semibold text-[#223548]">{item.calibrated_index}/100</div>
@@ -2501,11 +2583,11 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <div className="text-sm font-semibold text-[#223548]">{item.label}</div>
-                                <div className="mt-1 text-xs text-[#6c7d8f]">{item.leader_name || "—"}</div>
+                                <div className="mt-1 text-base font-semibold leading-tight text-[#152838]">{item.leader_name || "—"}</div>
                               </div>
                               <div className="text-right">
                                 <div className="text-lg font-semibold text-[#223548]">{item.leader_score ?? "—"}</div>
-                                <div className="text-xs text-[#6c7d8f]">gap {item.gap ?? "—"}</div>
+                                <div className="text-xs text-[#6c7d8f]">Отрыв {item.gap ?? "—"}</div>
                               </div>
                             </div>
                           </div>
@@ -2513,6 +2595,20 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
+
+                  {assemblyComparison.candidate_briefs?.length ? (
+                    <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
+                      <div className="text-sm font-semibold text-[#223548]">Короткие различия по кандидатам</div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                        {assemblyComparison.candidate_briefs.map((item) => (
+                          <div key={`${item.project_id || item.name}:brief`} className="rounded-[18px] border border-[#e2ebf4] bg-[#f9fbfe] px-4 py-3">
+                            <div className="text-lg font-semibold leading-tight text-[#152838]">{item.name}</div>
+                            <div className="mt-2 text-sm leading-6 text-[#5f7286]">{item.summary}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="rounded-[22px] border border-[#d5deea] bg-white p-4">
                     <div className="text-sm font-semibold text-[#223548]">Топ лидеров по компетенциям</div>
@@ -2522,10 +2618,10 @@ export default function DashboardPage() {
                           <div className="text-sm font-semibold text-[#223548]">{item.competency_name}</div>
                           <div className="mt-1 text-xs text-[#7a8b9d]">{item.competency_cluster}</div>
                           <div className="mt-3 flex items-end justify-between gap-3">
-                            <div className="text-xs text-[#5f7286]">{item.leader_name || "—"}</div>
+                            <div className="text-base font-semibold leading-tight text-[#152838]">{item.leader_name || "—"}</div>
                             <div className="text-right">
                               <div className="text-lg font-semibold text-[#223548]">{item.leader_score ?? "—"}</div>
-                              <div className="text-xs text-[#6c7d8f]">gap {item.gap ?? "—"}</div>
+                              <div className="text-xs text-[#6c7d8f]">Отрыв {item.gap ?? "—"}</div>
                             </div>
                           </div>
                         </div>

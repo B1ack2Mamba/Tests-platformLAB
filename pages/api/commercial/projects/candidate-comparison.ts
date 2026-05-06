@@ -21,6 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const body = typeof req.body === "object" && req.body ? req.body : {};
   const projectIds = arrayOfStrings(body.project_ids).slice(0, 20);
+  const selectedCompetencyIds = arrayOfStrings(body.selected_competency_ids).slice(0, 12);
   const fitProfileId = String(body.fit_profile_id || "").trim();
   const fitRequest = String(body.fit_request || "").trim();
   const includeRegistry = body.include_registry !== false;
@@ -96,6 +97,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fitProfileId: fitProfileId || null,
       fitRequest: fitRequest || null,
       includeRegistry,
+      selectedCompetencyIds,
     });
 
     return res.status(200).json({ ok: true, ...comparison });
