@@ -95,9 +95,9 @@ type DeskItemInteractionState = {
 };
 
 type SceneWidgetKind = "text" | "button" | "image";
-type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "none";
+type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "openProjectAssembly" | "none";
 type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
-type DesktopVariant = "scheme" | "classic";
+type DesktopVariant = "scheme" | "classic" | "assembly";
 type ClassicViewMode = "desktop" | "sheet";
 type TrashItemKind = "folder" | "project";
 
@@ -464,6 +464,7 @@ function buildSchemeSceneWidgets(params: {
     { id: CERTIFICATE_COGITO_ID, kind: "image", text: "Сертификат Когито-Центр", src: "/dashboard-certificate-cogito.png", action: "none", tone: "scheme", x: 844, y: 118, width: 148, height: 210, rotation: 2.9, fontSize: 0, z: 27 },
     { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
     { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
+    { id: "open-project-assembly", kind: "button", text: "Сборка проектов", action: "openProjectAssembly", tone: "buttonPrimary", x: 496, y: 470, width: 402, height: 110, rotation: 0.1, fontSize: 30, z: 31 },
   ];
 }
 
@@ -821,7 +822,7 @@ export default function DashboardPage() {
     </div>
   ) : null;
   const defaultSceneWidgets = useMemo(
-    () => (desktopVariant === "classic" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
+    () => (desktopVariant === "classic" || desktopVariant === "assembly" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
       displayName,
       workspaceName,
       email: data?.profile?.email || user?.email || "email не указан",
@@ -861,7 +862,7 @@ export default function DashboardPage() {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id));
-      if (raw === "classic" || raw === "scheme") setDesktopVariant(raw);
+      if (raw === "classic" || raw === "scheme" || raw === "assembly") setDesktopVariant(raw);
     } catch {}
   }, [workspace?.workspace?.workspace_id]);
 
@@ -1115,7 +1116,7 @@ export default function DashboardPage() {
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
 
     let sourceWidgets: SceneWidget[] = [];
-    if (desktopVariant === "classic") {
+    if (desktopVariant === "classic" || desktopVariant === "assembly") {
       sourceWidgets = saved.length ? saved : defaultSceneWidgets;
     } else {
       const legacyWidgetIds = new Set([
@@ -1470,8 +1471,13 @@ export default function DashboardPage() {
         promptAndCreateFolder();
         return;
       }
+      if (action === "openProjectAssembly") {
+        setClassicViewMode("desktop");
+        setDesktopVariant("assembly");
+        return;
+      }
     },
-    [router, session, newFolderIcon, loadDashboard]
+    [router]
   );
 
   const startWidgetInteraction = useCallback(
@@ -2190,7 +2196,7 @@ export default function DashboardPage() {
   });
   const showDesktopLoader = loading || !sharedSceneReady || !deskVisualReady;
 
-  if (desktopVariant === "classic") {
+  if (desktopVariant === "classic" || desktopVariant === "assembly") {
     return (
       <Layout title="Кабинет специалиста">
         <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
@@ -2199,11 +2205,19 @@ export default function DashboardPage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
-              <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Рабочий стол</button>
+              <button type="button" className={`btn btn-sm ${desktopVariant === "classic" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
+              <button type="button" className={`btn btn-sm ${desktopVariant === "assembly" ? "btn-primary" : "btn-secondary"}`} onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
+              <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Стол</button>
               <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
             </div>
             <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
           </div>
+
+          {desktopVariant === "assembly" ? (
+            <div className="mb-3 rounded-[22px] border border-[#d9c8aa] bg-[linear-gradient(180deg,#fff8ef_0%,#f4ead9_100%)] px-4 py-3 text-sm text-[#60442c] shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)]">
+              Отдельный режим сборки проектов. Здесь удобно раскладывать, группировать и собирать другие проекты на рабочем столе.
+            </div>
+          ) : null}
 
           {canEditScene && sceneEditMode && selectedDeskItem ? (
             <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">
@@ -2376,19 +2390,33 @@ export default function DashboardPage() {
 
   return (
     <Layout title="Кабинет специалиста">
-      <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
-        {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+        <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+          {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setDesktopVariant((prev) => (prev === "scheme" ? "classic" : "scheme"))}
-            >
-              {desktopVariant === "scheme" ? "Рабочий стол" : "Схема на доске"}
-            </button>
-          </div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={`btn btn-sm ${desktopVariant === "scheme" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setDesktopVariant("scheme")}
+              >
+                Схема на доске
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setDesktopVariant("classic")}
+              >
+                Рабочий стол
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}
+              >
+                Сборка проектов
+              </button>
+            </div>
           <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
         </div>
 
