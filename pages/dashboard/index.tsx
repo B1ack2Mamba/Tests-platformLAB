@@ -1876,7 +1876,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (desktopVariant !== "assembly" || !assemblyFolderId) return;
     void loadAssemblyComparison(assemblyFolderId);
-  }, [assemblyFolderId, desktopVariant, loadAssemblyComparison]);
+  }, [assemblyFolderId, desktopVariant]);
 
   useEffect(() => {
     if (!previewProject) return;
