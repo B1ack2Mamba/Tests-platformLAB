@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 import { Layout } from "@/components/Layout";
+import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
 import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
@@ -79,6 +80,27 @@ const PLAN_VISUALS = [
     gradient: "bg-[linear-gradient(135deg,#e9decf_0%,#d4e1d1_42%,#a8d3bf_100%)]",
   },
 ] as const;
+
+const WALLET_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "wallet-topup-area",
+    title: "Где пополнить кошелёк",
+    body: "В этом блоке виден баланс. Можно завести депозит: пополнить кошелёк заранее и потом оплачивать отдельные проекты или месячный пакет с внутреннего баланса.",
+    placement: "bottom",
+  },
+  {
+    target: "wallet-plans",
+    title: "Пакеты проектов",
+    body: "Пакет открывает полные оценки на месяц. Можно оплатить с баланса или онлайн, если онлайн-оплата включена.",
+    placement: "top",
+  },
+  {
+    target: "wallet-recommended-plan",
+    title: "Какой пакет выбрать",
+    body: "Если нужен один проект без подписки, пополните депозит и откройте полный результат за 3000 ₽ в карточке проекта. Для регулярной работы чаще выгоднее пакет на 50 проектов.",
+    placement: "top",
+  },
+];
 
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
@@ -582,6 +604,7 @@ export default function WalletPage() {
 
   return (
     <Layout title="Кошелёк">
+      <OnboardingTour tourId="wallet-v1" steps={WALLET_ONBOARDING_STEPS} />
       {!user ? (
         <>
           <div className={FRAME_CARD}>
@@ -591,7 +614,7 @@ export default function WalletPage() {
         </>
       ) : (
         <div className="space-y-5">
-<div className={FRAME_CARD + " relative overflow-hidden px-6 py-6 sm:px-7 sm:py-7"}>
+<div data-onboarding-id="wallet-topup-area" className={FRAME_CARD + " relative overflow-hidden px-6 py-6 sm:px-7 sm:py-7"}>
   <div className="pointer-events-none absolute inset-y-0 right-0 w-[34%] bg-[radial-gradient(circle_at_right_center,rgba(180,223,198,0.32),rgba(180,223,198,0)_72%)]" />
   <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[124px] font-light leading-none text-[#d8ccb4]/40 select-none">☿</div>
   <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -627,7 +650,7 @@ export default function WalletPage() {
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]">
             <div className="space-y-5">
-              <div id="wallet-plans" className={FRAME_CARD + " px-5 py-5 sm:px-7"}>
+              <div data-onboarding-id="wallet-plans" className={FRAME_CARD + " px-5 py-5 sm:px-7"}>
 <div className="flex flex-col gap-3">
   <div>
     <div className="text-sm font-semibold text-[#315845]">Пакеты услуг</div>
@@ -635,17 +658,26 @@ export default function WalletPage() {
   </div>
 </div>
 
+                <div className="mt-5 rounded-[22px] border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-900">
+                  Можно работать без подписки: заведите депозит на кошелёк и единоразово откройте полный результат за 3000 ₽ в нужном проекте. Для регулярной работы оптимальный стартовый выбор — пакет на 50 проектов.
+                </div>
+
                 <div className="mt-5 grid gap-4 lg:grid-cols-3">
                   {MONTHLY_SUBSCRIPTION_PLANS.map((plan, index) => {
                     const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
                     const visual = PLAN_VISUALS[index % PLAN_VISUALS.length];
+                    const isRecommended = plan.key === "monthly_50";
                     return (
-                      <div key={plan.key} className={`overflow-hidden rounded-[30px] border shadow-[0_14px_28px_rgba(126,99,57,0.08)] ${isActive ? "border-[#b8dfc5] bg-[linear-gradient(180deg,#f6fcf8_0%,#edf7f1_100%)]" : "border-[#e4d7c0] bg-white/90"}`}>
+                      <div
+                        key={plan.key}
+                        data-onboarding-id={isRecommended ? "wallet-recommended-plan" : undefined}
+                        className={`overflow-hidden rounded-[30px] border shadow-[0_14px_28px_rgba(126,99,57,0.08)] ${isActive ? "border-[#b8dfc5] bg-[linear-gradient(180deg,#f6fcf8_0%,#edf7f1_100%)]" : isRecommended ? "border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#f0fbf3_100%)]" : "border-[#e4d7c0] bg-white/90"}`}
+                      >
 <div className={`relative h-36 overflow-hidden px-5 py-5 ${visual.gradient}`}>
   <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.82),rgba(255,255,255,0)_55%)]" />
   <div className="absolute -right-4 -top-5 text-[96px] font-semibold leading-none text-white/55">{visual.accent}</div>
   <div className="relative flex h-full flex-col justify-between">
-    <span className="inline-flex w-fit items-center rounded-full border border-white/70 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#57655b] shadow-[0_4px_10px_rgba(255,255,255,0.25)]">{visual.name}</span>
+    <span className="inline-flex w-fit items-center rounded-full border border-white/70 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#57655b] shadow-[0_4px_10px_rgba(255,255,255,0.25)]">{isRecommended ? "Рекомендуем" : visual.name}</span>
     <div>
       <div className="text-xl font-semibold leading-tight text-[#31493d] sm:text-[22px]">{plan.projectsLimit} проектов в месяц</div>
     </div>

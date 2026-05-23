@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
+import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { ThinkingStatus } from "@/components/ThinkingStatus";
 import {
   EVALUATION_PACKAGES,
@@ -62,6 +63,39 @@ type EvaluationPayload = {
     sections: Array<{ kind: string; title: string; body: string }>;
   } | null;
 };
+
+const PROJECT_RESULTS_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "project-results-packages",
+    title: "Уровни оценки",
+    body: "Здесь выбирается глубина результата: базовый вывод, AI-анализ или AI+ с расширенной калибровкой. Недоступный уровень можно открыть по тарифу или оплатой.",
+    placement: "bottom",
+  },
+  {
+    target: "project-results-status",
+    title: "Статус анализа",
+    body: "Этот блок показывает, сколько тестов, компетенций и связей попало в расчёт. По нему удобно понять полноту собранной оценки.",
+    placement: "left",
+  },
+  {
+    target: "project-results-tabs",
+    title: "Открытые результаты",
+    body: "После открытия уровня переключайтесь между доступными версиями анализа. Если данных стало больше, результат можно обновить.",
+    placement: "bottom",
+  },
+  {
+    target: "project-results-export",
+    title: "Экспорт отчёта",
+    body: "Когда результат собран, его можно скачать в DOC или отправить в печать PDF для передачи заказчику.",
+    placement: "left",
+  },
+  {
+    target: "project-results-ai-plus",
+    title: "Уточнение AI+",
+    body: "В AI+ можно задать дополнительный акцент: роль, управленческий потенциал, риски, соответствие цели или другой фокус отчёта.",
+    placement: "top",
+  },
+];
 
 
 
@@ -878,6 +912,7 @@ export default function ProjectResultsStandalonePage() {
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
+      <OnboardingTour tourId="project-results-v1" steps={PROJECT_RESULTS_ONBOARDING_STEPS} />
       <div className="mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4">
         {error ? <div className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
@@ -921,7 +956,7 @@ export default function ProjectResultsStandalonePage() {
               </div>
             ) : (
               <>
-                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.08fr)_220px] xl:items-stretch">
+                <div data-onboarding-id="project-results-packages" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.08fr)_220px] xl:items-stretch">
                   {EVALUATION_PACKAGES.map((item) => {
                     const unlocked = isPackageAccessible(unlockedMode, item.key);
                     const currentEval = evaluationByMode[item.key];
@@ -983,7 +1018,7 @@ export default function ProjectResultsStandalonePage() {
                     );
                   })}
 
-                  <aside className="rounded-[28px] border border-[#dfcfb5] bg-[linear-gradient(180deg,#fffdf9_0%,#fbf5ec_100%)] p-5 shadow-[0_10px_24px_rgba(93,71,39,0.04)]">
+                  <aside data-onboarding-id="project-results-status" className="rounded-[28px] border border-[#dfcfb5] bg-[linear-gradient(180deg,#fffdf9_0%,#fbf5ec_100%)] p-5 shadow-[0_10px_24px_rgba(93,71,39,0.04)]">
                     <div className="text-[1.15rem] font-semibold text-[#4d3b24]">Статус анализа</div>
                     <div className="mt-6 space-y-4 text-[1.02rem] leading-7 text-[#6f5a42]">
                       <div>Тестов: {blueprint?.tests.length || 0}</div>
@@ -998,7 +1033,7 @@ export default function ProjectResultsStandalonePage() {
                 {activeEvaluationMode && isPackageAccessible(unlockedMode, activeEvaluationMode) ? (
                   <div className="mt-6 rounded-[32px] border border-[#d7c4a6] bg-[linear-gradient(180deg,#fffdf9_0%,#f9f3e8_100%)] p-6 shadow-[0_14px_32px_rgba(93,71,39,0.05)]">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9bf] pb-4">
-                      <div className="flex flex-wrap items-center gap-8 text-[1.08rem] font-medium">
+                      <div data-onboarding-id="project-results-tabs" className="flex flex-wrap items-center gap-8 text-[1.08rem] font-medium">
                         {availablePackages.map((mode) => {
                           const selected = activeEvaluationMode === mode;
                           return (
@@ -1019,7 +1054,7 @@ export default function ProjectResultsStandalonePage() {
                           );
                         })}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div data-onboarding-id="project-results-export" className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731] disabled:opacity-60"
@@ -1050,7 +1085,7 @@ export default function ProjectResultsStandalonePage() {
                     </div>
 
                     {activeEvaluationMode === "premium_ai_plus" && showAiPlusPrompt ? (
-                      <div className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
+                      <div id="ai-refine-section" data-onboarding-id="project-results-ai-plus" className="mt-5 rounded-[22px] border border-[#e2d1b6] bg-[#fcf7ef] p-4">
                         <div className="text-sm font-semibold text-[#2d2a22]">Уточнение для AI+</div>
                         <div className="mt-1 text-sm text-[#8d7860]">Можно уточнить акцент итогового профиля и отдельно включить индекс соответствия.</div>
                         <div className="mt-3 grid gap-3">
@@ -1063,7 +1098,7 @@ export default function ProjectResultsStandalonePage() {
                         </div>
                       </div>
                     ) : activeEvaluationMode === "premium_ai_plus" ? (
-                      <div className="mt-4 flex justify-end">
+                      <div id="ai-refine-section" data-onboarding-id="project-results-ai-plus" className="mt-4 flex justify-end">
                         <button
                           type="button"
                           onClick={() => setShowAiPlusPrompt(true)}
