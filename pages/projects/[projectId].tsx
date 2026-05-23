@@ -997,11 +997,11 @@ export default function ProjectDetailsPage() {
               </div></div></div>
           </div>
 
-          <div data-onboarding-id="project-progress-counter" className="absolute left-0 top-0" style={{ width: counterWidth, height: counterHeight, transform: `translate(${detailsTemplate.counterX}px, ${detailsTemplate.counterY}px)` }}>
+          <div className="absolute left-0 top-0" style={{ width: counterWidth, height: counterHeight, transform: `translate(${detailsTemplate.counterX}px, ${detailsTemplate.counterY}px)` }}>
             {renderTemplateHandles("counter", "готово", "counterContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.counterContentX}px, ${detailsTemplate.counterContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.counterTextScale})` }}>
-                <div className="h-full rounded-[20px] border border-[#ddcbb0] bg-[#fff9ee]/95 px-5 py-4 text-right shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
+                <div data-onboarding-id="project-progress-counter" className="h-full rounded-[20px] border border-[#ddcbb0] bg-[#fff9ee]/95 px-5 py-4 text-right shadow-[0_8px_18px_rgba(93,71,39,0.08)]">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Готово тестов</div>
                   <div className="mt-2 text-[2.1rem] font-semibold leading-none text-[#2d2a22]">{progress.completed} / {progress.total}</div>
                 </div>
@@ -1011,14 +1011,14 @@ export default function ProjectDetailsPage() {
 
 
 
-          <div data-onboarding-id="project-share-access" className="absolute left-0 top-0" style={{ width: qrWidth, height: qrHeight, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px)` }}>
+          <div className="absolute left-0 top-0" style={{ width: qrWidth, height: qrHeight, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px)` }}>
             <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: qrWidth, height: qrHeight, transform: `scale(${detailsTemplate.qrScale})` }}>
               <div className="relative h-full w-full bg-no-repeat" style={{ backgroundImage: "url('/project-details-qr-template.png')", backgroundSize: "100% 100%" }} />
             </div>
             {renderTemplateHandles("qr", "QR", "qrContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.qrContentX}px, ${detailsTemplate.qrContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.qrTextScale})` }}>
-            <div className="absolute inset-x-[28px] top-[194px]">
+            <div data-onboarding-id="project-share-access" className="absolute inset-x-[28px] top-[194px]">
                 <div className="text-[1.12rem] font-semibold text-center">Доступ участника</div>
                 <div className="mt-3 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Ссылка</div>
@@ -1037,11 +1037,11 @@ export default function ProjectDetailsPage() {
 
 
 
-          <div data-onboarding-id="project-get-result" className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
+          <div className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
             {renderTemplateHandles("results", "результат", "resultsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
-                <div className="h-full bg-transparent px-3 py-2 flex items-center justify-center">
+                <div data-onboarding-id="project-get-result" className="h-full bg-transparent px-3 py-2 flex items-center justify-center">
                   {fullyDone ? (
                     <Link
                       href={`/projects/${data?.project.id}/results`}
@@ -1077,11 +1077,11 @@ export default function ProjectDetailsPage() {
               </div>
             </div>
           </div>
-          <div data-onboarding-id="project-tests-progress" className="absolute left-0 top-0" style={{ width: testsWidth, height: testsHeight, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
+          <div className="absolute left-0 top-0" style={{ width: testsWidth, height: testsHeight, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
             {renderTemplateHandles("tests", "тесты", "testsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.testsContentX}px, ${detailsTemplate.testsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.testsTextScale})` }}>
-            <div className="absolute inset-x-[34px] top-[30px]">
+            <div data-onboarding-id="project-tests-progress" className="absolute inset-x-[34px] top-[30px]">
                 <div className="text-2xl font-semibold">
                   Назначенные тесты
                   <span className="ml-3 text-sm font-medium text-[#6b5943]">· примерно {formatEstimatedMinutes(totalEstimatedMinutes)}</span>
