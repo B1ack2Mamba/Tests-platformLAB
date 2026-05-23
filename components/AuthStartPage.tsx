@@ -227,6 +227,14 @@ export default function AuthStartPage() {
     if (!r.ok || !data?.ok) throw new Error(data?.error || "Не удалось активировать промокод");
   }
 
+  function openPasswordReset() {
+    setMode("reset");
+    setError("");
+    setInfo("");
+    setPassword("");
+    setPassword2("");
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) return;
@@ -399,7 +407,16 @@ export default function AuthStartPage() {
               </label>
             ) : null}
 
-            {error ? <div className="text-sm text-red-600">{error}</div> : null}
+            {error ? (
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+                <div>{error}</div>
+                {mode === "login" ? (
+                  <button type="button" className="btn btn-secondary btn-sm mt-3" onClick={openPasswordReset}>
+                    Восстановить пароль
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {info ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-950 whitespace-pre-line">
                 {info}
@@ -411,8 +428,8 @@ export default function AuthStartPage() {
             </button>
 
             {mode === "login" ? (
-              <button type="button" className="text-left text-sm text-[#1f6b55] underline underline-offset-4" onClick={() => { setMode("reset"); setError(""); setInfo(""); }}>
-                Изменить или восстановить пароль
+              <button type="button" className="btn btn-secondary w-full" onClick={openPasswordReset}>
+                Забыли пароль? Восстановить
               </button>
             ) : null}
 

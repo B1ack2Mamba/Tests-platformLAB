@@ -17,6 +17,11 @@ const DeveloperSupportWidgetNoSSR = dynamic(
   { ssr: false, loading: () => null }
 );
 
+const GlobalHintsButtonNoSSR = dynamic(
+  () => import("@/components/GlobalHintsButton").then((m) => m.GlobalHintsButton),
+  { ssr: false, loading: () => null }
+);
+
 export function Layout({
   title,
   children,
@@ -53,6 +58,7 @@ export function Layout({
       </main>
 
       <DeveloperSupportWidgetNoSSR />
+      <GlobalHintsButtonNoSSR />
 
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-4 text-xs text-slate-500 sm:px-4 sm:py-5 md:flex-row md:items-center md:justify-between">

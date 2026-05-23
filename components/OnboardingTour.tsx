@@ -15,6 +15,7 @@ type HighlightRect = {
 };
 
 const PADDING = 10;
+const OPEN_EVENT = "app-open-onboarding-tour";
 
 function storageKey(tourId: string) {
   return `onboarding-tour:${tourId}:completed`;
@@ -75,13 +76,11 @@ function getPanelStyle(rect: HighlightRect | null, placement: OnboardingStep["pl
 export function OnboardingTour({
   tourId,
   steps,
-  startLabel = "Подсказки",
   startTarget = null,
   autoStart = true,
 }: {
   tourId: string;
   steps: OnboardingStep[];
-  startLabel?: string;
   startTarget?: string | null;
   autoStart?: boolean;
 }) {
@@ -157,18 +156,15 @@ export function OnboardingTour({
     setOpen(true);
   }
 
+  useEffect(() => {
+    window.addEventListener(OPEN_EVENT, restart);
+    return () => window.removeEventListener(OPEN_EVENT, restart);
+  });
+
   if (!ready || !steps.length || !step) return null;
 
   return (
     <>
-      <button
-        type="button"
-        className="fixed bottom-[82px] right-5 z-[900] rounded-full border border-emerald-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-900 shadow-lg backdrop-blur transition hover:border-emerald-300 hover:text-emerald-900"
-        onClick={restart}
-      >
-        {startLabel}
-      </button>
-
       {open ? (
         <div className="fixed inset-0 z-[890] pointer-events-none">
           <div className="absolute inset-0 bg-slate-950/40" />
@@ -243,4 +239,9 @@ export function OnboardingTour({
       ) : null}
     </>
   );
+}
+
+export function openOnboardingTour() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(OPEN_EVENT));
 }
