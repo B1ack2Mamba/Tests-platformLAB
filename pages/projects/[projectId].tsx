@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
+import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
 import { QRCodeBlock } from "@/components/QRCodeBlock";
 import { ThinkingStatus } from "@/components/ThinkingStatus";
@@ -154,6 +155,33 @@ function getPackageButtonLabel(
 
 const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v3";
+
+const PROJECT_DETAILS_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "project-share-access",
+    title: "Отправьте кандидату",
+    body: "Это доступ кандидата к тестам. Скопируйте ссылку и отправьте её в мессенджер или покажите QR-код: по нему кандидат откроет страницу прохождения.",
+    placement: "left",
+  },
+  {
+    target: "project-tests-progress",
+    title: "Прогресс по тестам",
+    body: "Здесь видно, какие тесты назначены и что кандидат уже прошёл. Когда напротив теста появляется «Готово», этот результат уже учтён в проекте.",
+    placement: "top",
+  },
+  {
+    target: "project-progress-counter",
+    title: "Сколько уже пройдено",
+    body: "Этот счётчик показывает общий прогресс кандидата: сколько тестов готово из всего набора. По нему быстро видно, можно ли уже ждать итоговую оценку.",
+    placement: "bottom",
+  },
+  {
+    target: "project-get-result",
+    title: "Получить результат",
+    body: "Когда кандидат завершит все тесты, эта печать станет активной. Нажмите её, чтобы перейти к странице оценки проекта и открыть итоговый результат.",
+    placement: "left",
+  },
+];
 
 type DetailsTemplateBlock = "main" | "profile" | "qr" | "tests" | "results" | "counter";
 type DetailsTemplateContentTarget = `${DetailsTemplateBlock}Content`;
@@ -874,6 +902,7 @@ export default function ProjectDetailsPage() {
 
   return (
     <Layout title={data?.project.title || "Проект оценки"}>
+      <OnboardingTour tourId="project-details-v1" steps={PROJECT_DETAILS_ONBOARDING_STEPS} />
       <div className="mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4">
         {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_10px_24px_rgba(124,45,18,0.08)]">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}
@@ -968,7 +997,7 @@ export default function ProjectDetailsPage() {
               </div></div></div>
           </div>
 
-          <div className="absolute left-0 top-0" style={{ width: counterWidth, height: counterHeight, transform: `translate(${detailsTemplate.counterX}px, ${detailsTemplate.counterY}px)` }}>
+          <div data-onboarding-id="project-progress-counter" className="absolute left-0 top-0" style={{ width: counterWidth, height: counterHeight, transform: `translate(${detailsTemplate.counterX}px, ${detailsTemplate.counterY}px)` }}>
             {renderTemplateHandles("counter", "готово", "counterContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.counterContentX}px, ${detailsTemplate.counterContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.counterTextScale})` }}>
@@ -982,7 +1011,7 @@ export default function ProjectDetailsPage() {
 
 
 
-          <div className="absolute left-0 top-0" style={{ width: qrWidth, height: qrHeight, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px)` }}>
+          <div data-onboarding-id="project-share-access" className="absolute left-0 top-0" style={{ width: qrWidth, height: qrHeight, transform: `translate(${detailsTemplate.qrX}px, ${detailsTemplate.qrY}px)` }}>
             <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: qrWidth, height: qrHeight, transform: `scale(${detailsTemplate.qrScale})` }}>
               <div className="relative h-full w-full bg-no-repeat" style={{ backgroundImage: "url('/project-details-qr-template.png')", backgroundSize: "100% 100%" }} />
             </div>
@@ -1008,7 +1037,7 @@ export default function ProjectDetailsPage() {
 
 
 
-          <div className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
+          <div data-onboarding-id="project-get-result" className="absolute left-0 top-0" style={{ width: resultsWidth, height: resultsHeight, transform: `translate(${detailsTemplate.resultsX}px, ${detailsTemplate.resultsY}px)` }}>
             {renderTemplateHandles("results", "результат", "resultsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
@@ -1048,7 +1077,7 @@ export default function ProjectDetailsPage() {
               </div>
             </div>
           </div>
-          <div className="absolute left-0 top-0" style={{ width: testsWidth, height: testsHeight, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
+          <div data-onboarding-id="project-tests-progress" className="absolute left-0 top-0" style={{ width: testsWidth, height: testsHeight, transform: `translate(${detailsTemplate.testsX}px, ${detailsTemplate.testsY}px)` }}>
             {renderTemplateHandles("tests", "тесты", "testsContent")}
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.testsContentX}px, ${detailsTemplate.testsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.testsTextScale})` }}>
