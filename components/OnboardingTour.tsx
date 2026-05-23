@@ -40,6 +40,23 @@ function hasTarget(target: string) {
   return !!document.querySelector<HTMLElement>(`[data-onboarding-id="${target}"]`);
 }
 
+function scrollTargetIntoView(target: string) {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+  const element = document.querySelector<HTMLElement>(`[data-onboarding-id="${target}"]`);
+  if (!element) return;
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+
+  const viewportPadding = 92;
+  const targetCenter = rect.top + rect.height / 2;
+  const viewportCenter = window.innerHeight / 2;
+  const isComfortablyVisible = rect.top >= viewportPadding && rect.bottom <= window.innerHeight - viewportPadding;
+
+  if (!isComfortablyVisible) {
+    window.scrollBy({ top: targetCenter - viewportCenter, behavior: "smooth" });
+  }
+}
+
 function getPanelStyle(rect: HighlightRect | null, placement: OnboardingStep["placement"]) {
   const maxWidth = 360;
   const gap = 14;
@@ -132,13 +149,14 @@ export function OnboardingTour({
 
   useEffect(() => {
     if (!open || !step) return;
-    const element = document.querySelector<HTMLElement>(`[data-onboarding-id="${step.target}"]`);
-    element?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    scrollTargetIntoView(step.target);
     const timer = window.setTimeout(refreshRect, 260);
+    const finalTimer = window.setTimeout(refreshRect, 720);
     window.addEventListener("resize", refreshRect);
     window.addEventListener("scroll", refreshRect, true);
     return () => {
       window.clearTimeout(timer);
+      window.clearTimeout(finalTimer);
       window.removeEventListener("resize", refreshRect);
       window.removeEventListener("scroll", refreshRect, true);
     };
