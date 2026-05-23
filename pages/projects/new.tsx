@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
+import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
 import {
   COMMERCIAL_GOALS,
@@ -53,6 +54,35 @@ const DEFAULT_PAGE_BUILDER_STATE: PageBuilderState = {
 
 const PAGE_BUILDER_STORAGE_KEY = "project-create-page-builder-v1";
 const PROJECT_CREATE_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
+const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
+const DASHBOARD_TRASH_HINT_SHOWN_KEY = "dashboard-trash-hint-shown";
+
+const PROJECT_CREATE_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "project-person-info",
+    title: "Кого оцениваем",
+    body: "Обязательно заполните имя и фамилию. Email, текущая должность, будущая роль и комментарий помогают сделать отчёт точнее, но проект можно создать и с базовыми данными.",
+    placement: "bottom",
+  },
+  {
+    target: "project-assessment-focus",
+    title: "Что проверяем",
+    body: "Для быстрого старта оставьте режим «По текущей цели» и выберите сценарий оценки. Если нужен точный профиль под компетенции, переключитесь на режим компетенций.",
+    placement: "top",
+  },
+  {
+    target: "project-tests-list",
+    title: "Набор тестов",
+    body: "Система сама подбирает тесты под выбранную цель или компетенции. Редактор нужен только когда вы сознательно хотите убрать или добавить отдельный тест.",
+    placement: "top",
+  },
+  {
+    target: "project-submit",
+    title: "Создание проекта",
+    body: "После нажатия появится карточка проекта со ссылкой и QR-кодом для клиента. Эту ссылку можно отправить кандидату для прохождения тестов.",
+    placement: "top",
+  },
+];
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -546,6 +576,11 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось создать проект");
+      try {
+        if (window.localStorage.getItem(DASHBOARD_TRASH_HINT_SHOWN_KEY) !== "1") {
+          window.localStorage.setItem(DASHBOARD_POST_PROJECT_TRASH_HINT_KEY, "1");
+        }
+      } catch {}
       router.push(`/projects/${json.project_id}`);
     } catch (err: any) {
       setError(err?.message || "Ошибка");
@@ -567,6 +602,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   return (
     <Layout title="Новый проект оценки">
+      <OnboardingTour tourId="project-create-v1" steps={PROJECT_CREATE_ONBOARDING_STEPS} />
       <div className="mx-auto px-2 pb-6 pt-2 sm:px-4">
         <div className="relative mx-auto min-h-[calc(100vh-40px)] max-w-[1280px] overflow-visible">
           <div className="flex min-h-[calc(100vh-40px)] items-start justify-center overflow-visible pt-4">
@@ -690,7 +726,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
               ) : null}
 
               <form onSubmit={onSubmit} className="grid gap-3.5">
-                <section className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
+                <section data-onboarding-id="project-person-info" className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[18px] font-semibold text-[#3d3124]">Шаг 1. Личная информация клиента</div>
@@ -754,7 +790,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   </div>
                 </section>
 
-                <section className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
+                <section data-onboarding-id="project-assessment-focus" className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[18px] font-semibold text-[#3d3124]">Шаг 2. Что проверяем</div>
@@ -871,7 +907,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </div>
                   )}
 
-                  <div className="mt-4">
+                  <div className="mt-4" data-onboarding-id="project-tests-list">
                     <div className="rounded-[22px] border border-[#a8d1a7] bg-[#edf6ea] p-3.5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -960,7 +996,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   </div>
                 </section>
 
-                <section className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
+                <section data-onboarding-id="project-submit" className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
                   <div className="flex flex-col items-center gap-3 text-center">
                     {error ? (
                       <div className="w-full max-w-3xl rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{error}</div>

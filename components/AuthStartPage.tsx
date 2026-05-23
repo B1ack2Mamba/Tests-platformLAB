@@ -71,12 +71,13 @@ function TextSide() {
   );
 }
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "reset";
 
 
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
+const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 
 function safeLocalStorageGet(key: string) {
   if (typeof window === "undefined") return "";
@@ -145,6 +146,7 @@ async function syncCommercialProfile(accessToken: string, fullName: string, comp
 export default function AuthStartPage() {
   const { supabase, user, session, loading: sessionLoading } = useSession();
   const router = useRouter();
+  const isPasswordReset = router.query.reset === "1";
   const next = useMemo(() => {
     const n = router.query.next;
     return typeof n === "string" ? n : "/dashboard";
@@ -164,6 +166,10 @@ export default function AuthStartPage() {
   const profileSyncAttemptRef = useRef<string>("");
 
   useEffect(() => {
+    if (isPasswordReset) setMode("reset");
+  }, [isPasswordReset]);
+
+  useEffect(() => {
     if (sessionLoading || !session?.access_token || !user) return;
 
     const metadata = (user.user_metadata || {}) as { full_name?: string; company_name?: string };
@@ -178,6 +184,7 @@ export default function AuthStartPage() {
 
   useEffect(() => {
     if (sessionLoading || !user || !session) return;
+    if (isPasswordReset || mode === "reset") return;
 
     const pendingPromo = getPendingPromoCode();
     if (!pendingPromo || !session.access_token) {
@@ -205,7 +212,7 @@ export default function AuthStartPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, session, sessionLoading, next, router]);
+  }, [user, session, sessionLoading, next, router, isPasswordReset, mode]);
 
   async function redeemPromoWithToken(code: string, accessToken: string) {
     const r = await fetch("/api/commercial/promo-codes/redeem", {
@@ -238,6 +245,31 @@ export default function AuthStartPage() {
         return;
       }
 
+      if (mode === "reset") {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_SUPABASE_URL);
+        const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/auth?reset=1` : undefined;
+
+        if (session?.access_token) {
+          if (password.length < 8) throw new Error("Новый пароль должен быть не короче 8 символов.");
+          if (password !== password2) throw new Error("Пароли не совпадают.");
+          const { error } = await supabase.auth.updateUser({ password });
+          if (error) throw error;
+          setInfo("Пароль изменён. Теперь можно войти с новым паролем.");
+          setError("");
+          setPassword("");
+          setPassword2("");
+          setMode("login");
+          await router.replace("/auth", undefined, { shallow: true });
+          return;
+        }
+
+        if (!email.trim()) throw new Error("Укажи email, к которому привязан кабинет.");
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        if (error) throw error;
+        setInfo("Отправили письмо для изменения пароля. Открой ссылку из письма и задай новый пароль.");
+        return;
+      }
+
       if (password.length < 8) throw new Error("Пароль должен быть не короче 8 символов.");
       if (password !== password2) throw new Error("Пароли не совпадают.");
       if (!fullName.trim()) throw new Error("Укажи имя и фамилию.");
@@ -266,20 +298,21 @@ export default function AuthStartPage() {
           try {
             await redeemPromoWithToken(normalizedPromo, data.session.access_token);
             clearPendingPromoCode();
-            setInfo("Аккаунт создан. Промокод успешно активирован.");
+            setInfo("Кабинет создан.\nПроверь почту и подтверди email, промокод активирован.");
           } catch (promoErr: any) {
             setPendingPromoCode(normalizedPromo);
-            setInfo("Аккаунт создан, но промокод пока не применился. Мы сохранили его, и ты сможешь повторить активацию позже в кошельке.");
+            setInfo("Кабинет создан.\nПроверь почту и подтверди email; промокод сохранён.");
             setError(promoErr?.message || "Не удалось активировать промокод сразу.");
           }
         } else {
           setPendingPromoCode(normalizedPromo);
-          setInfo("Аккаунт создан. Промокод сохранён и применится после первого входа. Если что-то пойдёт не так, он останется доступен в кошельке.");
+          setInfo("Кабинет создан.\nПроверь почту и подтверди email; промокод сохранён.");
         }
       } else {
-        setInfo("Аккаунт создан. Если подтверждение почты включено — подтверди email. Если нет — войди сразу.");
+        setInfo("Кабинет создан.\nПроверь почту и подтверди email, затем войди.");
       }
 
+      safeLocalStorageSet(DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY, "1");
       setMode("login");
     } catch (err: any) {
       setError(err?.message || "Ошибка");
@@ -296,11 +329,11 @@ export default function AuthStartPage() {
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#2e7a63]">Старт</div>
               <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-                {mode === "signup" ? "Создать кабинет" : "Войти в кабинет"}
+                {mode === "signup" ? "Создать кабинет" : mode === "reset" ? "Изменить пароль" : "Войти в кабинет"}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              <button type="button" onClick={() => setMode("signup")} className={`btn btn-sm w-full sm:w-auto ${mode === "signup" ? "btn-primary" : "btn-secondary"}`}>
+              <button type="button" onClick={() => { setMode("signup"); setInfo(""); }} className={`btn btn-sm w-full sm:w-auto ${mode === "signup" ? "btn-primary" : "btn-secondary"}`}>
                 Регистрация
               </button>
               <button type="button" onClick={() => setMode("login")} className={`btn btn-sm w-full sm:w-auto ${mode === "login" ? "btn-primary" : "btn-secondary"}`}>
@@ -333,29 +366,61 @@ export default function AuthStartPage() {
               </div>
             ) : null}
 
-            <label className="grid gap-1">
-              <span className="text-xs text-slate-700">Email</span>
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
-            </label>
+            {mode === "reset" && session?.access_token ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                Задай новый пароль для кабинета. После сохранения вернём тебя на вход.
+              </div>
+            ) : null}
 
-            <label className="grid gap-1">
-              <span className="text-xs text-slate-700">Пароль</span>
-              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
-            </label>
+            {mode === "reset" && !session?.access_token ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                Укажи email кабинета, и мы отправим ссылку для изменения пароля.
+              </div>
+            ) : null}
 
-            {mode === "signup" ? (
+            {mode !== "reset" || !session?.access_token ? (
               <label className="grid gap-1">
-                <span className="text-xs text-slate-700">Повторите пароль</span>
+                <span className="text-xs text-slate-700">Email</span>
+                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
+              </label>
+            ) : null}
+
+            {mode !== "reset" || session?.access_token ? (
+              <label className="grid gap-1">
+                <span className="text-xs text-slate-700">{mode === "reset" ? "Новый пароль" : "Пароль"}</span>
+                <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+              </label>
+            ) : null}
+
+            {mode === "signup" || (mode === "reset" && session?.access_token) ? (
+              <label className="grid gap-1">
+                <span className="text-xs text-slate-700">{mode === "reset" ? "Повторите новый пароль" : "Повторите пароль"}</span>
                 <input className="input" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} placeholder="••••••••" required />
               </label>
             ) : null}
 
             {error ? <div className="text-sm text-red-600">{error}</div> : null}
-            {info ? <div className="text-sm text-slate-700">{info}</div> : null}
+            {info ? (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-950 whitespace-pre-line">
+                {info}
+              </div>
+            ) : null}
 
             <button disabled={loading} type="submit" className="btn btn-primary w-full">
-              {loading ? "…" : mode === "signup" ? "Создать кабинет" : "Войти"}
+              {loading ? "…" : mode === "signup" ? "Создать кабинет" : mode === "reset" && session?.access_token ? "Сохранить новый пароль" : mode === "reset" ? "Отправить ссылку" : "Войти"}
             </button>
+
+            {mode === "login" ? (
+              <button type="button" className="text-left text-sm text-[#1f6b55] underline underline-offset-4" onClick={() => { setMode("reset"); setError(""); setInfo(""); }}>
+                Изменить или восстановить пароль
+              </button>
+            ) : null}
+
+            {mode === "reset" && !session?.access_token ? (
+              <button type="button" className="text-left text-sm text-slate-600 underline underline-offset-4" onClick={() => { setMode("login"); setError(""); setInfo(""); }}>
+                Вернуться ко входу
+              </button>
+            ) : null}
           </form>
         </div>
 

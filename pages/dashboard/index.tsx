@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
+import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
 import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
 import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRouter";
@@ -217,6 +218,9 @@ const ROOM_SWITCH_STORAGE_PREFIX = "commercialRoomSwitch:v1843:";
 const CLASSIC_VIEW_MODE_STORAGE_PREFIX = "commercialClassicViewMode:v1844:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
+const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
+const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
+const DASHBOARD_TRASH_HINT_SHOWN_KEY = "dashboard-trash-hint-shown";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
 const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
@@ -237,6 +241,33 @@ const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 22
 const CERTIFICATE_PSI_PROFILE_ID = "certificate-psi-profile";
 const CERTIFICATE_COGITO_ID = "certificate-cogito-centre";
 const CERTIFICATE_WIDGET_IDS = new Set([CERTIFICATE_PSI_PROFILE_ID, CERTIFICATE_COGITO_ID]);
+
+const DASHBOARD_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "dashboard-create-project",
+    title: "Создать проект",
+    body: "Нажмите кнопку «Создать проект». Она открывает форму, где вводятся данные кандидата, цель оценки и набор тестов.",
+    placement: "bottom",
+  },
+  {
+    target: "dashboard-trash",
+    title: "Корзина",
+    body: "Если удалить проект, он ещё 3 дня хранится в корзине. В любой момент за эти 3 дня его можно открыть здесь и восстановить.",
+    placement: "right",
+  },
+  {
+    target: "dashboard-create-folder",
+    title: "Создать папку",
+    body: "Эта стойка создаёт папку проектов. Папки нужны, чтобы собрать несколько кандидатов по одной вакансии или клиенту, а потом сравнить их общей оценкой.",
+    placement: "left",
+  },
+  {
+    target: "dashboard-wallet-link",
+    title: "Кошелёк и тариф",
+    body: "Здесь видно баланс и активный пакет. Нажмите «Кошелёк», чтобы пополнить баланс или подключить месячный пакет проектов.",
+    placement: "left",
+  },
+];
 
 
 type DeskRect = { left: number; top: number; right: number; bottom: number };
@@ -786,11 +817,27 @@ export default function DashboardPage() {
   const [assemblyComparison, setAssemblyComparison] = useState<CandidateComparisonPayload | null>(null);
   const [assemblySelectedCompetencyIds, setAssemblySelectedCompetencyIds] = useState<string[]>([]);
   const [assemblyFitRequest, setAssemblyFitRequest] = useState("");
+  const [dashboardTourStartTarget, setDashboardTourStartTarget] = useState<string | null>(null);
 
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
     return Math.floor(Number(wallet?.balance_kopeks ?? 0) / 100);
   }, [isUnlimited, wallet?.balance_kopeks]);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY) === "1") {
+        window.localStorage.removeItem(DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY);
+        window.localStorage.setItem(DASHBOARD_TRASH_HINT_SHOWN_KEY, "1");
+        setDashboardTourStartTarget("dashboard-create-project");
+        return;
+      }
+      if (window.localStorage.getItem(DASHBOARD_POST_PROJECT_TRASH_HINT_KEY) !== "1") return;
+      window.localStorage.removeItem(DASHBOARD_POST_PROJECT_TRASH_HINT_KEY);
+      window.localStorage.setItem(DASHBOARD_TRASH_HINT_SHOWN_KEY, "1");
+      setDashboardTourStartTarget("dashboard-trash");
+    } catch {}
+  }, []);
 
   const investedRub = useMemo(() => {
     if (isUnlimited) return 10000;
@@ -2837,6 +2884,7 @@ export default function DashboardPage() {
 
   return (
     <Layout title="Кабинет специалиста">
+        <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
         <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
@@ -3137,6 +3185,7 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={widget.id}
+                    data-onboarding-id={widget.id === "create-project" ? "dashboard-create-project" : undefined}
                     className={`dashboard-scene-widget dashboard-scene-widget-${widget.kind} dashboard-scene-widget-${widget.tone || "note"} ${sceneEditMode ? "dashboard-scene-widget-editing" : ""} ${isSelected ? "dashboard-scene-widget-selected" : ""}`}
                     style={{
                       left: `${widget.x}px`,
@@ -3270,6 +3319,7 @@ export default function DashboardPage() {
                     <div className="mt-1 text-[18px] font-semibold leading-none text-slate-900">{balanceText}</div>
                     <Link
                       href="/wallet"
+                      data-onboarding-id="dashboard-wallet-link"
                       onClick={(e) => { e.stopPropagation(); if (sceneEditMode) e.preventDefault(); }}
                       className={`mt-2 inline-flex h-7 w-full items-center justify-center border px-2 text-[10px] font-semibold transition ${sceneEditMode ? "pointer-events-none border-slate-300 bg-slate-200/70 text-slate-500" : "border-[#7f97ab] bg-[linear-gradient(180deg,#ffffff_0%,#dbe7f0_100%)] text-[#29435b] shadow-[inset_0_1px_0_rgba(255,255,255,0.96)] hover:bg-[linear-gradient(180deg,#ffffff_0%,#d2e0eb_100%)]"}`}
                     >
@@ -3311,6 +3361,7 @@ export default function DashboardPage() {
               const isSelected = selectedDeskItemId === TRASH_GUIDE_ID;
               return (
                 <div
+                  data-onboarding-id="dashboard-trash"
                   className={`dashboard-trash-zone absolute z-[14] ${trashHover ? 'dashboard-trash-zone-active' : ''} ${sceneEditMode ? 'dashboard-trash-zone-editing' : ''} ${isSelected ? 'dashboard-desk-entity-selected' : ''}`}
                   style={{ left: `${trashPosition.x}px`, top: `${trashPosition.y}px`, width: `${width}px`, height: `${height}px`, transform: getGuideTransform(trashPosition), transformOrigin: 'top left' }}
                   onClick={(e) => {
@@ -3399,6 +3450,7 @@ export default function DashboardPage() {
                   <div className={`dashboard-tray-guide-box ${sceneEditMode ? "dashboard-tray-guide-box-editing" : ""}`}>
                     <button
                       type="button"
+                      data-onboarding-id="dashboard-create-folder"
                       className="dashboard-tray-guide-inner"
                       style={{ clipPath: getGuideClipPath(guidePosition), pointerEvents: 'auto', cursor: sceneEditMode ? 'grab' : 'pointer' }}
                       onMouseDown={(e) => {
