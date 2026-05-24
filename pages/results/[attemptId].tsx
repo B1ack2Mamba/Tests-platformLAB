@@ -87,6 +87,11 @@ export default function AttemptResultPage() {
   const result = data?.result;
   const isNumericPrimary = result?.kind === "usk_v1" || result?.kind === "16pf_v1";
   const interpretationText = useMemo(() => interpretationToDisplayText(authorContent), [authorContent]);
+  const topResult = useMemo(() => {
+    return result?.ranked?.length
+      ? [...result.ranked].sort((a, b) => Number(b?.percent ?? b?.count ?? 0) - Number(a?.percent ?? a?.count ?? 0))[0]
+      : null;
+  }, [result]);
 
   return (
     <Layout title={data?.test_title || "Результат"}>
@@ -94,6 +99,31 @@ export default function AttemptResultPage() {
       {loading ? <div className="mb-4 card text-sm text-slate-600">Загрузка…</div> : null}
       {!data || !result ? null : (
         <>
+          <div className="mb-4 card">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Каталожный тест</div>
+                <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{data.test_title || data.test_slug}</div>
+                <div className="mt-2 text-sm text-slate-600">
+                  Один тест + краткая интерпретация из методички.
+                </div>
+              </div>
+              {topResult ? (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  <div className="text-xs uppercase tracking-wide text-emerald-700">Ведущий показатель</div>
+                  <div className="mt-1 font-semibold">{topResult.style}</div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {interpretationText ? (
+            <div className="mb-4 card">
+              <div className="mb-3 text-sm font-medium text-zinc-900">Краткая интерпретация из методички</div>
+              <div className="whitespace-pre-wrap text-sm leading-6 text-zinc-800">{interpretationText}</div>
+            </div>
+          ) : null}
+
           {chartData.length ? (
             <div className="mb-4 card">
               <div className="mb-3 text-sm font-medium text-zinc-900">Профиль</div>
@@ -142,12 +172,6 @@ export default function AttemptResultPage() {
             </div>
           </div>
 
-          {interpretationText ? (
-            <div className="mt-4 card">
-              <div className="mb-3 text-sm font-medium text-zinc-900">Полный результат</div>
-              <div className="whitespace-pre-wrap text-sm leading-6 text-zinc-800">{interpretationText}</div>
-            </div>
-          ) : null}
         </>
       )}
     </Layout>
