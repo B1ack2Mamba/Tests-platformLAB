@@ -81,8 +81,16 @@ type TestNarrative = {
 
 const DEFAULT_OPENAI_MODEL = "gpt-5.5";
 const DEFAULT_OPENAI_AI_PLUS_MODEL = "gpt-5.5-pro";
+const DEFAULT_DEEPSEEK_MODEL = "deepseek-reasoner";
 const RUSSIAN_TERMS_RULE =
   "- Не используй англицизмы в итоговом тексте: ownership заменяй на «личная ответственность», soft skills — на «гибкие навыки», performance — на «результативность», feedback — на «обратная связь», leadership — на «лидерство», team fit — на «соответствие команде».";
+
+function isLocalAiRuntime() {
+  if (process.env.AI_RUNTIME === "local") return true;
+  if (process.env.AI_RUNTIME === "production") return false;
+  if (process.env.VERCEL === "1") return false;
+  return process.env.NODE_ENV !== "production";
+}
 
 function rowsFromResult(result: any) {
   return Array.isArray(result?.ranked) ? result.ranked : [];
@@ -540,7 +548,39 @@ async function callOpenAI(system: string, prompt: string, maxTokens = 2600, mode
   return text;
 }
 
+async function callDeepseek(system: string, prompt: string, maxTokens = 2600, modelOverride?: string) {
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key) return null;
+  const base = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/$/, "");
+  const model = modelOverride || process.env.DEEPSEEK_AI_PLUS_MODEL || process.env.DEEPSEEK_MODEL || DEFAULT_DEEPSEEK_MODEL;
+  const r = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.35,
+      max_tokens: maxTokens,
+    }),
+  });
+  const j = await r.json().catch(() => null);
+  const text = String(j?.choices?.[0]?.message?.content || "").trim();
+  if (!r.ok || !text) throw new Error(j?.error?.message || `DeepSeek error (${r.status})`);
+  return text;
+}
+
 async function callAiPlusModel(system: string, prompt: string, maxTokens = 2600) {
+  if (!isLocalAiRuntime()) {
+    const deepseekText = await callDeepseek(system, prompt, maxTokens, process.env.DEEPSEEK_AI_PLUS_MODEL || DEFAULT_DEEPSEEK_MODEL);
+    if (deepseekText) return deepseekText;
+    throw new Error("DeepSeek reasoner is unavailable");
+  }
   const openAiText = await callOpenAI(
     system,
     prompt,
@@ -552,7 +592,12 @@ async function callAiPlusModel(system: string, prompt: string, maxTokens = 2600)
 }
 
 async function callCommercialAi(system: string, prompt: string, maxTokens = 2600) {
-  const openAiText = await callOpenAI(system, prompt, maxTokens);
+  if (!isLocalAiRuntime()) {
+    const deepseekText = await callDeepseek(system, prompt, maxTokens, process.env.DEEPSEEK_MODEL || DEFAULT_DEEPSEEK_MODEL);
+    if (deepseekText) return deepseekText;
+    throw new Error("DeepSeek reasoner is unavailable");
+  }
+  const openAiText = await callOpenAI(system, prompt, maxTokens, process.env.OPENAI_LOCAL_MODEL || DEFAULT_OPENAI_AI_PLUS_MODEL);
   if (openAiText) return openAiText;
   throw new Error("OpenAI model is unavailable");
 }
