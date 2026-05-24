@@ -224,6 +224,14 @@ function parseSummaryOutline(body: string | null | undefined): {
     return { summary: "", strengths: [], risks: [], important: "" };
   }
 
+  const hasStructuredOutline =
+    /(?:^|\n)\s*(?:\d+[).:]?|[1-4]\s*[—-])\s+\S/.test(cleaned) ||
+    /(?:^|\n)\s*(?:общий вывод|короткий вывод|сильные стороны|риски|что особенно важно)\s*[:\n]/i.test(cleaned);
+
+  if (!hasStructuredOutline) {
+    return { summary: cleaned, strengths: [], risks: [], important: "" };
+  }
+
   const sections = cleaned
     .split(/(?:^|\n)\s*(?:\d+[).:]?|[1-4]\s*[—-])\s*/)
     .map((part) => part.trim())

@@ -630,6 +630,71 @@ ${buildRegistryCommentContext(project)}` : "",
   ].filter(Boolean).join("\n");
 }
 
+function buildAiPlusCompactPrompt(project: ProjectLike, attempts: AttemptLike[], competencySignals: CompetencySignal[]) {
+  const testSignals = attempts
+    .map((attempt) => {
+      const labels = getTopLabels(attempt.result, 3);
+      return `${attempt.test_title || attempt.test_slug}: ${labels.length ? labels.join(", ") : formatTopRows(attempt.result)}`;
+    })
+    .slice(0, 12)
+    .join("\n");
+  return [
+    "Собери короткий AI+ профиль по уже рассчитанным сигналам. Не пересказывай каждый тест.",
+    `Цель оценки: ${goalLabel(project.goal)}.`,
+    project.person_name ? `Участник: ${project.person_name}.` : "",
+    project.current_position ? `Текущая позиция: ${project.current_position}.` : "",
+    project.target_role ? `Целевая роль: ${project.target_role}.` : "",
+    project.notes ? `Заметки специалиста: ${trimText(project.notes, 500)}` : "",
+    "",
+    "Ключевые компетенции:",
+    competencySignals.map((item) => `${item.title}: ${item.status}; ${item.short}`).join("\n"),
+    "",
+    "Топ-сигналы тестов:",
+    testSignals,
+    "",
+    "Верни ответ строго в блоках с этими заголовками, каждый заголовок отдельной строкой:",
+    "Общий вывод",
+    "Сильные стороны",
+    "Минусы и ограничения",
+    "Риски",
+    "Что особенно важно для цели оценки",
+  ].filter(Boolean).join("\n");
+}
+
+function buildAiPlusStructuredFallback(project: ProjectLike, attempts: AttemptLike[], competencySignals: CompetencySignal[]) {
+  const person = project.person_name || "Участник";
+  const role = project.target_role || project.current_position || goalLabel(project.goal);
+  const strongSignals = competencySignals
+    .filter((item) => !/недостаточно/i.test(item.status) && item.score >= 60)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+  const riskSignals = competencySignals
+    .filter((item) => /недостаточно/i.test(item.status) || item.score < 60)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 4);
+  const topTraits = [...new Set(attempts.flatMap((item) => getTopLabels(item.result, 2)).filter(Boolean))].slice(0, 6);
+  const strengths = (strongSignals.length ? strongSignals : competencySignals.slice(0, 3))
+    .map((item) => `• ${item.title}: ${item.short.replace(/\s*Опора:/i, " Опора:")}`)
+    .join("\n");
+  const risks = (riskSignals.length ? riskSignals : competencySignals.slice(-2))
+    .map((item) => `• ${item.title}: ${item.short.replace(/\s*Опора:/i, " Опора:")}`)
+    .join("\n");
+
+  return {
+    summary: [
+      `${person} оценивается относительно фокуса «${role}».`,
+      topTraits.length ? `Повторяющиеся тестовые акценты: ${topTraits.join(", ")}.` : "",
+      competencySignals.length ? `Наиболее важные компетентностные сигналы: ${competencySignals.slice(0, 3).map((item) => item.title).join(", ")}.` : "",
+    ].filter(Boolean).join(" "),
+    strengths,
+    limitations: riskSignals.length
+      ? riskSignals.map((item) => `• ${item.title}: вывод требует осторожной проверки по рабочим фактам и интервью.`).join("\n")
+      : "• Ограничения вывода связаны с тем, что часть сигналов требует подтверждения в рабочем контексте.",
+    risks,
+    important: `Для цели «${goalLabel(project.goal)}» важно сопоставить эти сигналы с фактическими требованиями роли, интервью и наблюдаемым поведением на задачах.`,
+  };
+}
+
 async function buildAiPlusFollowupPrompt(args: {
   project: ProjectLike;
   attempts: AttemptLike[];
@@ -883,7 +948,15 @@ export async function buildCommercialEvaluation(
       synthesisPrompt,
       1400,
       PREMIUM_AI_PLUS_DEEPSEEK_MODEL
-    ).catch(() => null);
+    ).catch(async () => {
+      const compactPrompt = buildAiPlusCompactPrompt(project, attempts, competencySignals);
+      return callDeepseek(
+        "Ты помогаешь специалисту по оценке персонала собирать краткий профессиональный профиль по данным компетенций и тестов.",
+        compactPrompt,
+        1200,
+        PREMIUM_AI_PLUS_DEEPSEEK_MODEL
+      ).catch(() => null);
+    });
 
     sections.push({
       kind: "summary",
@@ -891,37 +964,42 @@ export async function buildCommercialEvaluation(
       body: buildFocusIntro(project, competencySignals),
     });
     const parsedSynthesis = synthesis ? parseNamedBlocks(synthesis) : null;
+    const fallbackSynthesis = buildAiPlusStructuredFallback(project, attempts, competencySignals);
     sections.push({
       kind: "portrait",
       title: "Общий вывод",
-      body: parsedSynthesis?.summary || buildPortraitFallback(project, attempts),
+      body: parsedSynthesis?.summary || fallbackSynthesis.summary || buildPortraitFallback(project, attempts),
     });
-    if (parsedSynthesis?.strengths) {
+    const strengthsBody = parsedSynthesis?.strengths || fallbackSynthesis.strengths;
+    if (strengthsBody) {
       sections.push({
         kind: "portrait",
         title: "Сильные стороны",
-        body: parsedSynthesis.strengths,
+        body: strengthsBody,
       });
     }
-    if (parsedSynthesis?.limitations) {
+    const limitationsBody = parsedSynthesis?.limitations || fallbackSynthesis.limitations;
+    if (limitationsBody) {
       sections.push({
         kind: "portrait",
         title: "Минусы и ограничения",
-        body: parsedSynthesis.limitations,
+        body: limitationsBody,
       });
     }
-    if (parsedSynthesis?.risks) {
+    const risksBody = parsedSynthesis?.risks || fallbackSynthesis.risks;
+    if (risksBody) {
       sections.push({
         kind: "portrait",
         title: "Риски",
-        body: parsedSynthesis.risks,
+        body: risksBody,
       });
     }
-    if (parsedSynthesis?.important) {
+    const importantBody = parsedSynthesis?.important || fallbackSynthesis.important;
+    if (importantBody) {
       sections.push({
         kind: "portrait",
         title: "Что особенно важно для цели оценки",
-        body: parsedSynthesis.important,
+        body: importantBody,
       });
     }
     if (options?.aiPlusRequest?.trim()) {
