@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import crypto from "crypto";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
-import { getMonthlyPlanDefinition, isMonthlyPlanKey } from "@/lib/commercialSubscriptions";
+import { getActiveMonthlyPlanPriceRub, getMonthlyPlanDefinition, isMonthlyPlanKey } from "@/lib/commercialSubscriptions";
 import { chargeWallet } from "@/lib/serverWallet";
 import { activateWorkspaceSubscription } from "@/lib/serverCommercialSubscriptions";
 
@@ -40,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
-    const amountKopeks = Math.round(plan.monthlyPriceRub * 100);
+    const amountKopeks = Math.round(getActiveMonthlyPlanPriceRub(plan) * 100);
     const paymentId = `wallet-sub:${workspace.workspace_id}:${plan.key}:${crypto.randomUUID()}`;
 
     const charge = await chargeWallet(authed.supabaseAdmin, {

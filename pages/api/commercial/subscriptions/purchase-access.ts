@@ -1,7 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
-import { getMonthlyPlanDefinition, isMonthlyPlanKey } from "@/lib/commercialSubscriptions";
+import {
+  getActiveMonthlyPlanEffectiveProjectPriceRub,
+  getActiveMonthlyPlanPriceRub,
+  getMonthlyPlanDefinition,
+  isMonthlyPlanKey,
+} from "@/lib/commercialSubscriptions";
 import { requireUser } from "@/lib/serverAuth";
 import { getActiveWorkspaceSubscription } from "@/lib/serverWorkspaceSubscription";
 
@@ -32,7 +37,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (walletError) throw walletError;
 
     const balanceKopeks = Number((wallet as any)?.balance_kopeks ?? 0);
-    const priceKopeks = Math.round(plan.monthlyPriceRub * 100);
+    const activePriceRub = getActiveMonthlyPlanPriceRub(plan);
+    const priceKopeks = Math.round(activePriceRub * 100);
     const canPurchase = balanceKopeks >= priceKopeks;
 
     return res.status(200).json({
@@ -43,9 +49,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       plan: {
         key: plan.key,
         title: plan.title,
-        monthly_price_rub: plan.monthlyPriceRub,
+        monthly_price_rub: activePriceRub,
         projects_limit: plan.projectsLimit,
-        effective_project_price_rub: plan.effectiveProjectPriceRub,
+        effective_project_price_rub: getActiveMonthlyPlanEffectiveProjectPriceRub(plan),
         duration_days: plan.durationDays,
       },
       balance_kopeks: balanceKopeks,

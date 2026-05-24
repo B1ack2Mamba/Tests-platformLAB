@@ -8,9 +8,12 @@ import { useEffect, useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED, YOOKASSA_TEST_UI_ENABLED } from "@/lib/payments";
 import { isGlobalTemplateOwnerEmail } from "@/lib/admin";
 import {
-  CURRENT_PLAN_PRICES_HOLD_LABEL,
   MONTHLY_SUBSCRIPTION_PLANS,
   formatMonthlySubscriptionPeriod,
+  getActiveMonthlyPlanEffectiveProjectPriceRub,
+  getActiveMonthlyPlanPriceRub,
+  getMonthlyPlanPriceHoldLabel,
+  isMonthlyPlanPromoPriceActive,
   type WorkspaceSubscriptionStatus,
   type MonthlyPlanKey,
 } from "@/lib/commercialSubscriptions";
@@ -662,7 +665,7 @@ export default function WalletPage() {
                 <div className="mt-5 rounded-[22px] border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-900">
                   Можно работать без подписки: заведите депозит на кошелёк и единоразово откройте полный результат за 3000 ₽ в нужном проекте. Для регулярной работы оптимальный стартовый выбор — пакет на 50 проектов.
                   <div className="mt-2 rounded-2xl border border-emerald-200 bg-white/70 px-3 py-2">
-                    {CURRENT_PLAN_PRICES_HOLD_LABEL}
+                    {getMonthlyPlanPriceHoldLabel()}
                   </div>
                 </div>
 
@@ -671,6 +674,9 @@ export default function WalletPage() {
                     const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
                     const visual = PLAN_VISUALS[index % PLAN_VISUALS.length];
                     const isRecommended = plan.key === "monthly_50";
+                    const promoActive = isMonthlyPlanPromoPriceActive();
+                    const activePriceRub = getActiveMonthlyPlanPriceRub(plan);
+                    const activeProjectPriceRub = getActiveMonthlyPlanEffectiveProjectPriceRub(plan);
                     return (
                       <div
                         key={plan.key}
@@ -691,22 +697,24 @@ export default function WalletPage() {
 <div className="p-5">
   <div className="flex items-start justify-between gap-3">
     <div>
-      <div className="text-sm font-semibold text-slate-400 line-through decoration-[#c78484] decoration-2">
-        {plan.oldMonthlyPriceRub.toLocaleString("ru-RU")} ₽
-      </div>
-      <div className="text-2xl font-semibold tracking-[-0.02em] text-slate-950">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽</div>
+      {promoActive ? (
+        <div className="text-sm font-semibold text-slate-400 line-through decoration-[#c78484] decoration-2">
+          {plan.oldMonthlyPriceRub.toLocaleString("ru-RU")} ₽
+        </div>
+      ) : null}
+      <div className="text-2xl font-semibold tracking-[-0.02em] text-slate-950">{activePriceRub.toLocaleString("ru-RU")} ₽</div>
       <div className="mt-1 text-sm text-slate-500">текущая цена в месяц</div>
     </div>
-    <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-[#dff2e7] text-[#296244]" : "bg-[#f7f2e9] text-[#6e725f]"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
+    <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-[#dff2e7] text-[#296244]" : "bg-[#f7f2e9] text-[#6e725f]"}`}>{activeProjectPriceRub} ₽ за проект</span>
   </div>
   <div className="mt-5 grid gap-2">
                             <button
                               type="button"
                               className={ACTION_PRIMARY + " w-full py-2.5 text-[15px]"}
-                              disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100)}
+                              disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < activePriceRub * 100)}
                               onClick={() => buyMonthlyPlanFromWallet(plan.key)}
                             >
-                              {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю…" : `С баланса · ${plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽`}
+                              {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю…" : `С баланса · ${activePriceRub.toLocaleString("ru-RU")} ₽`}
                             </button>
                             {PAYMENTS_UI_ENABLED ? (
                               <button
@@ -731,7 +739,7 @@ export default function WalletPage() {
                                 Онлайн-оплата выключена. Пакет услуг можно оплатить с баланса.
                               </div>
                             )}
-                            {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < plan.monthlyPriceRub * 100 ? (
+                            {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < activePriceRub * 100 ? (
                               <div className="text-xs text-amber-700">На балансе пока меньше стоимости пакета услуг.</div>
                             ) : null}
                           </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CURRENT_PLAN_PRICES_HOLD_LABEL } from "@/lib/commercialSubscriptions";
+import { getMonthlyPlanPriceHoldLabel, isMonthlyPlanPromoPriceActive } from "@/lib/commercialSubscriptions";
 
 const tariffs = [
   { title: "Пакет услуг оценки — до 30 проектов / месяц", oldPrice: "29 900 ₽", price: "13 500 ₽" },
@@ -15,6 +15,8 @@ const Section = ({ id, title, children }: { id: string; title: string; children:
 );
 
 export default function OfferPage() {
+  const promoActive = isMonthlyPlanPromoPriceActive();
+
   return (
     <div className="min-h-screen bg-[#f3f1ec] px-4 py-8 text-[#223127] sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
@@ -59,14 +61,16 @@ export default function OfferPage() {
 
               <Section id="tariffs" title="2. Пакеты услуг и стоимость">
                 <div className="rounded-[22px] border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm font-medium text-emerald-900">
-                  {CURRENT_PLAN_PRICES_HOLD_LABEL}
+                  {getMonthlyPlanPriceHoldLabel()}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-1 xl:grid-cols-3">
                   {tariffs.map((tariff) => (
                     <div key={tariff.title} className="rounded-[22px] border border-[#e2cfaf] bg-white px-4 py-4">
                       <div className="text-sm font-semibold text-[#2a4631]">{tariff.title}</div>
-                      <div className="mt-2 text-sm font-semibold text-slate-400 line-through decoration-[#c78484] decoration-2">{tariff.oldPrice}</div>
-                      <div className="text-lg font-semibold text-[#8b6b32]">{tariff.price}</div>
+                      {promoActive ? (
+                        <div className="mt-2 text-sm font-semibold text-slate-400 line-through decoration-[#c78484] decoration-2">{tariff.oldPrice}</div>
+                      ) : null}
+                      <div className="text-lg font-semibold text-[#8b6b32]">{promoActive ? tariff.price : tariff.oldPrice}</div>
                     </div>
                   ))}
                 </div>

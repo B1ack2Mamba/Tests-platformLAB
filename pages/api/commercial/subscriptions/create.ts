@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import crypto from "crypto";
 import { requireUser } from "@/lib/serverAuth";
 import { ensureWorkspaceForUser } from "@/lib/commercialWorkspace";
-import { getMonthlyPlanDefinition, isMonthlyPlanKey } from "@/lib/commercialSubscriptions";
+import { getActiveMonthlyPlanPriceRub, getMonthlyPlanDefinition, isMonthlyPlanKey } from "@/lib/commercialSubscriptions";
 
 type OkResp = { ok: true; payment_id: string; confirmation_url: string };
 type ErrResp = { ok: false; error: string };
@@ -34,7 +34,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ ok: false, error: "У пользователя нет email для чека" });
   }
 
-  const amountValue = plan.monthlyPriceRub.toFixed(2);
+  const activePriceRub = getActiveMonthlyPlanPriceRub(plan);
+  const amountValue = activePriceRub.toFixed(2);
   const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
   const idempotenceKey = crypto.randomUUID();
   const returnUrl = `${appBaseUrl.replace(/\/$/, "")}/wallet?plan_paid=1`;
@@ -80,6 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         workspace_id: workspace.workspace_id,
         plan_key: plan.key,
         plan_title: plan.title,
+        monthly_price_rub: String(activePriceRub),
         projects_limit: String(plan.projectsLimit),
         duration_days: String(plan.durationDays),
       },

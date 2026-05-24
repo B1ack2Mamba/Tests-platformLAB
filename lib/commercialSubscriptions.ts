@@ -12,7 +12,9 @@ export type MonthlyPlanDefinition = {
   description: string;
 };
 
-export const CURRENT_PLAN_PRICES_HOLD_LABEL = "Текущие цены держатся автоматически до 25 августа 2026 г.";
+export const PROMO_PLAN_PRICES_HOLD_UNTIL = "2026-06-25T23:59:59+03:00";
+export const CURRENT_PLAN_PRICES_HOLD_LABEL = "Текущие цены держатся автоматически до 25 июня 2026 г.";
+export const STANDARD_PLAN_PRICES_LABEL = "Акционный период завершён. Действуют стандартные цены.";
 
 export const MONTHLY_SUBSCRIPTION_PLANS: MonthlyPlanDefinition[] = [
   {
@@ -71,6 +73,23 @@ export function isMonthlyPlanKey(value: unknown): value is MonthlyPlanKey {
 
 export function getMonthlyPlanDefinition(value: MonthlyPlanKey | string | null | undefined) {
   return MONTHLY_SUBSCRIPTION_PLANS.find((item) => item.key === value) || null;
+}
+
+export function isMonthlyPlanPromoPriceActive(now: Date | number = new Date()) {
+  const nowMs = typeof now === "number" ? now : now.getTime();
+  return nowMs <= new Date(PROMO_PLAN_PRICES_HOLD_UNTIL).getTime();
+}
+
+export function getActiveMonthlyPlanPriceRub(plan: MonthlyPlanDefinition, now: Date | number = new Date()) {
+  return isMonthlyPlanPromoPriceActive(now) ? plan.monthlyPriceRub : plan.oldMonthlyPriceRub;
+}
+
+export function getActiveMonthlyPlanEffectiveProjectPriceRub(plan: MonthlyPlanDefinition, now: Date | number = new Date()) {
+  return Math.round(getActiveMonthlyPlanPriceRub(plan, now) / plan.projectsLimit);
+}
+
+export function getMonthlyPlanPriceHoldLabel(now: Date | number = new Date()) {
+  return isMonthlyPlanPromoPriceActive(now) ? CURRENT_PLAN_PRICES_HOLD_LABEL : STANDARD_PLAN_PRICES_LABEL;
 }
 
 export function formatMonthlySubscriptionPeriod(expiresAt: string | null | undefined) {
