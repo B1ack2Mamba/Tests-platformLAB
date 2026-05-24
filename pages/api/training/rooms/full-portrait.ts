@@ -3,6 +3,10 @@ import { requireUser } from "@/lib/serverAuth";
 import { isSpecialistUser } from "@/lib/specialist";
 import { retryTransientApi, setNoStore } from "@/lib/apiHardening";
 
+export const config = {
+  maxDuration: 300,
+};
+
 function trimText(s: any, maxLen = 1400) {
   const t = String(s ?? "").trim();
   if (!t) return "";
@@ -15,6 +19,37 @@ function safeJson(v: any) {
   } catch {
     return String(v ?? "");
   }
+}
+
+function extractOpenAIText(payload: any) {
+  const direct = String(payload?.output_text || "").trim();
+  if (direct) return direct;
+  const parts = Array.isArray(payload?.output)
+    ? payload.output.flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
+    : [];
+  return parts.map((part: any) => String(part?.text || "")).filter(Boolean).join("\n").trim();
+}
+
+async function callOpenAI(prompt: string): Promise<string | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  const model = process.env.OPENAI_MODEL || "gpt-5.5";
+  const r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      input: [
+        { role: "system", content: "Ты помогаешь специалисту собрать единый психологический портрет клиента по данным нескольких тестов." },
+        { role: "user", content: prompt },
+      ],
+      max_output_tokens: 4200,
+    }),
+  });
+  const j = await r.json().catch(() => null);
+  const text = extractOpenAIText(j);
+  if (!r.ok || !text) throw new Error(j?.error?.message || `OpenAI error (${r.status})`);
+  return text;
 }
 
 function summarizeResult(result: any): string {
@@ -144,49 +179,10 @@ function buildFullPortraitPrompt(args: {
   return lines.join("\n");
 }
 
-async function callDeepseek(prompt: string): Promise<string> {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) throw new Error("DEEPSEEK_API_KEY is missing");
-  const base = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/$/, "");
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
-  const timeoutMs = Math.max(15_000, Number(process.env.DEEPSEEK_TIMEOUT_MS || 60_000));
-
-  return await retryTransientApi<string>(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const r = await fetch(`${base}/chat/completions`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: "Ты помогаешь специалисту собрать единый психологический портрет клиента по данным нескольких тестов." },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.45,
-          max_tokens: 3200,
-        }),
-        signal: controller.signal,
-      });
-
-      const j = await r.json().catch(() => null);
-      const text = j?.choices?.[0]?.message?.content;
-      if (!r.ok || !text) {
-        const msg = String(j?.error?.message || `DeepSeek error (${r.status})`);
-        if (r.status === 429 || r.status >= 500) throw new Error(msg);
-        throw new Error(msg);
-      }
-      return String(text).trim();
-    } catch (e: any) {
-      if (e?.name === "AbortError") {
-        throw new Error(`DeepSeek timeout after ${timeoutMs}ms`);
-      }
-      throw e;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }, { attempts: 2, delayMs: 350 });
+async function callOpenAIText(prompt: string): Promise<string> {
+  const openAiText = await callOpenAI(prompt).catch(() => null);
+  if (openAiText) return openAiText;
+  throw new Error("OpenAI model is unavailable");
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -350,7 +346,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   try {
-    const text = await callDeepseek(prompt);
+    const text = await callOpenAIText(prompt);
 
     await retryTransientApi<any>(
       () => supabaseAdmin

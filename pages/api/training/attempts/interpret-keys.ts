@@ -7,6 +7,10 @@ import { buildHerzbergPrompt, isHerzbergMotivationResult } from "@/lib/herzbergI
 
 type Audience = "staff" | "client";
 
+export const config = {
+  maxDuration: 300,
+};
+
 type ColorTag = "red" | "green" | "blue";
 
 function classifyColorTypes(ranked: any[]) {
@@ -112,6 +116,37 @@ function normalizeKeysObject(v: any) {
     }
   }
   return v;
+}
+
+function extractOpenAIText(payload: any) {
+  const direct = String(payload?.output_text || "").trim();
+  if (direct) return direct;
+  const parts = Array.isArray(payload?.output)
+    ? payload.output.flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
+    : [];
+  return parts.map((part: any) => String(part?.text || "")).filter(Boolean).join("\n").trim();
+}
+
+async function callOpenAI(prompt: string): Promise<string | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  const model = process.env.OPENAI_MODEL || "gpt-5.5";
+  const r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      input: [
+        { role: "system", content: "Ты помогаешь специалисту расшифровать результаты тестов для тренинга." },
+        { role: "user", content: prompt },
+      ],
+      max_output_tokens: 3200,
+    }),
+  });
+  const j = await r.json().catch(() => null);
+  const text = extractOpenAIText(j);
+  if (!r.ok || !text) throw new Error(j?.error?.message || `OpenAI error (${r.status})`);
+  return text;
 }
 
 function stenBand(sten: number): "1-3" | "4-7" | "8-10" {
@@ -449,32 +484,10 @@ function buildKeysPrompt(args: {
   return lines.join("\n");
 }
 
-async function callDeepseek(prompt: string): Promise<string> {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) throw new Error("DEEPSEEK_API_KEY is missing");
-  const base = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/$/, "");
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
-
-  const r = await fetch(`${base}/chat/completions`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: "Ты помогаешь специалисту расшифровать результаты тестов для тренинга." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.4,
-      max_tokens: 2600,
-    }),
-  });
-
-  const j = await r.json().catch(() => null);
-  const text = j?.choices?.[0]?.message?.content;
-  if (!r.ok || !text) {
-    throw new Error(j?.error?.message || `DeepSeek error (${r.status})`);
-  }
-  return String(text).trim();
+async function callOpenAIText(prompt: string): Promise<string> {
+  const openAiText = await callOpenAI(prompt).catch(() => null);
+  if (openAiText) return openAiText;
+  throw new Error("OpenAI model is unavailable");
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -553,7 +566,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!staffText) {
     const promptStaff = buildKeysPrompt({ testTitle, result: attempt.result as any, keys: keysContent, audience: "staff" });
-    staffText = await callDeepseek(promptStaff);
+    staffText = await callOpenAIText(promptStaff);
     await supabaseAdmin.from("training_attempt_interpretations").upsert(
       { attempt_id: attemptId, kind: "keys_ai", text: staffText },
       { onConflict: "attempt_id,kind" }
@@ -562,7 +575,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!clientDraft) {
     const promptClient = buildKeysPrompt({ testTitle, result: attempt.result as any, keys: keysContent, audience: "client" });
-    clientDraft = await callDeepseek(promptClient);
+    clientDraft = await callOpenAIText(promptClient);
     await supabaseAdmin.from("training_attempt_interpretations").upsert(
       { attempt_id: attemptId, kind: "client_draft", text: clientDraft },
       { onConflict: "attempt_id,kind" }

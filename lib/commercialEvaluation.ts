@@ -79,7 +79,8 @@ type TestNarrative = {
   body: string;
 };
 
-const AI_PLUS_DEEPSEEK_MODEL = process.env.DEEPSEEK_AI_PLUS_MODEL || "deepseek-reasoner";
+const DEFAULT_OPENAI_MODEL = "gpt-5.5";
+const DEFAULT_OPENAI_AI_PLUS_MODEL = "gpt-5.5-pro";
 const RUSSIAN_TERMS_RULE =
   "- Не используй англицизмы в итоговом тексте: ownership заменяй на «личная ответственность», soft skills — на «гибкие навыки», performance — на «результативность», feedback — на «обратная связь», leadership — на «лидерство», team fit — на «соответствие команде».";
 
@@ -355,7 +356,7 @@ ${trimText(overallReport, 1800)}`
     "- Не дублируй общий отчёт и не уходи в длинные списки.",
   ].filter(Boolean).join("\n\n");
 
-  const text = await callDeepseek(systemPrompt, finalPrompt, 900).catch(() => null);
+  const text = await callCommercialAi(systemPrompt, finalPrompt, 1400).catch(() => null);
   return text ? cleanText(text) : null;
 }
 
@@ -488,13 +489,24 @@ function buildPortraitFallback(project: ProjectLike, attempts: AttemptLike[]) {
   ].join("\n\n");
 }
 
-async function callDeepseek(system: string, prompt: string, maxTokens = 2600, modelOverride?: string) {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) return null;
-  const base = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/$/, "");
-  const model = modelOverride || process.env.DEEPSEEK_MODEL || "deepseek-chat";
+function extractOpenAIText(payload: any) {
+  const direct = String(payload?.output_text || "").trim();
+  if (direct) return direct;
+  const parts = Array.isArray(payload?.output)
+    ? payload.output.flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
+    : [];
+  return parts
+    .map((part: any) => String(part?.text || ""))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
 
-  const r = await fetch(`${base}/chat/completions`, {
+async function callOpenAI(system: string, prompt: string, maxTokens = 2600, modelOverride?: string) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  const model = modelOverride || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -502,19 +514,34 @@ async function callDeepseek(system: string, prompt: string, maxTokens = 2600, mo
     },
     body: JSON.stringify({
       model,
-      messages: [
+      input: [
         { role: "system", content: system },
         { role: "user", content: prompt },
       ],
-      temperature: 0.35,
-      max_tokens: maxTokens,
+      max_output_tokens: maxTokens,
     }),
   });
-
   const j = await r.json().catch(() => null);
-  const text = j?.choices?.[0]?.message?.content;
-  if (!r.ok || !text) throw new Error(j?.error?.message || `DeepSeek error (${r.status})`);
-  return String(text).trim();
+  const text = extractOpenAIText(j);
+  if (!r.ok || !text) throw new Error(j?.error?.message || `OpenAI error (${r.status})`);
+  return text;
+}
+
+async function callAiPlusModel(system: string, prompt: string, maxTokens = 2600) {
+  const openAiText = await callOpenAI(
+    system,
+    prompt,
+    maxTokens,
+    process.env.OPENAI_AI_PLUS_MODEL || DEFAULT_OPENAI_AI_PLUS_MODEL
+  ).catch(() => null);
+  if (openAiText) return openAiText;
+  throw new Error("OpenAI AI+ model is unavailable");
+}
+
+async function callCommercialAi(system: string, prompt: string, maxTokens = 2600) {
+  const openAiText = await callOpenAI(system, prompt, maxTokens).catch(() => null);
+  if (openAiText) return openAiText;
+  throw new Error("OpenAI model is unavailable");
 }
 
 function buildPremiumPrompt(args: {
@@ -648,13 +675,12 @@ async function buildAiPlusFollowupPrompt(args: {
   ].join("\n");
 }
 
-async function buildPremiumInterpretation(project: ProjectLike, attempt: AttemptLike, keys: any, modelOverride?: string) {
+async function buildPremiumInterpretation(project: ProjectLike, attempt: AttemptLike, keys: any) {
   const prompt = buildPremiumPrompt({ project, attempt, keys });
-  const llmText = await callDeepseek(
+  const llmText = await callCommercialAi(
     "Ты помогаешь специалисту по оценке персонала профессионально расшифровывать результаты тестов.",
     prompt,
-    2200,
-    modelOverride
+    3200
   ).catch(() => null);
   if (llmText) return cleanText(llmText);
   return cleanText(await aiInterpretation({
@@ -696,7 +722,12 @@ async function buildPremiumNarrativesForAiPlus(
   const narratives: TestNarrative[] = [];
   for (const attempt of attempts) {
     const keys = interpretationKeysBySlug[attempt.test_slug] ?? DEFAULT_TEST_INTERPRETATIONS[attempt.test_slug] ?? null;
-    const body = await buildPremiumInterpretation(project, attempt, keys, AI_PLUS_DEEPSEEK_MODEL);
+    const prompt = buildPremiumPrompt({ project, attempt, keys });
+    const body = await callAiPlusModel(
+      "Ты помогаешь специалисту по оценке персонала профессионально расшифровывать результаты тестов.",
+      prompt,
+      4200
+    ).then((text) => cleanText(text || "")).catch(() => buildPremiumInterpretation(project, attempt, keys));
     narratives.push({
       slug: attempt.test_slug,
       title: attempt.test_title || attempt.test_slug,
@@ -880,11 +911,10 @@ export async function buildCommercialEvaluation(
       fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
       fitProfileId: options?.fitEnabled ? options?.fitProfileId || null : null,
     });
-    const synthesis = await callDeepseek(
+    const synthesis = await callAiPlusModel(
       "Ты помогаешь специалисту по оценке персонала собирать краткий профессиональный профиль по данным нескольких тестов.",
       synthesisPrompt,
-      1400,
-      AI_PLUS_DEEPSEEK_MODEL
+      3200
     ).catch(() => null);
 
     sections.push({
@@ -936,11 +966,10 @@ export async function buildCommercialEvaluation(
         fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
         fitProfileId: options?.fitEnabled ? options?.fitProfileId || null : null,
       });
-      const followup = await callDeepseek(
+      const followup = await callAiPlusModel(
         "Ты помогаешь специалисту по оценке персонала дополнять уже собранный профиль отдельным прикладным ракурсом по запросу.",
         followupPrompt,
-        1200,
-        AI_PLUS_DEEPSEEK_MODEL
+        2400
       ).catch(() => null);
       sections.push({
         kind: "portrait",
@@ -988,12 +1017,13 @@ export async function buildCommercialEvaluation(
     const slice = attempts.slice(batchStart, batchStart + batchSize);
     for (const attempt of slice) {
       const keys = keysBySlug[attempt.test_slug] ?? DEFAULT_TEST_INTERPRETATIONS[attempt.test_slug] ?? null;
-      const body = await buildPremiumInterpretation(
-        project,
-        attempt,
-        keys,
-        mode === "premium_ai_plus" ? AI_PLUS_DEEPSEEK_MODEL : undefined
-      );
+      const body = mode === "premium_ai_plus"
+        ? await callAiPlusModel(
+            "Ты помогаешь специалисту по оценке персонала профессионально расшифровывать результаты тестов.",
+            buildPremiumPrompt({ project, attempt, keys }),
+            4200
+          ).then((text) => cleanText(text || "")).catch(() => buildPremiumInterpretation(project, attempt, keys))
+        : await buildPremiumInterpretation(project, attempt, keys);
       sections.push({
         kind: "test",
         title: attempt.test_title || attempt.test_slug,

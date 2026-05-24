@@ -10,6 +10,10 @@ import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
 const MAX_BATCH_SIZE = 3;
 
+export const config = {
+  maxDuration: 300,
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const requestId = ensureRequestId(req, res);
   res.setHeader("Cache-Control", "private, no-store, max-age=0");

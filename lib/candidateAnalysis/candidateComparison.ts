@@ -276,12 +276,20 @@ function stripCodeFences(value: string) {
   return String(value || "").replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
 
-async function callDeepseek(system: string, prompt: string, maxTokens = 1800) {
-  const key = process.env.DEEPSEEK_API_KEY;
+function extractOpenAIText(payload: any) {
+  const direct = String(payload?.output_text || "").trim();
+  if (direct) return direct;
+  const parts = Array.isArray(payload?.output)
+    ? payload.output.flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
+    : [];
+  return parts.map((part: any) => String(part?.text || "")).filter(Boolean).join("\n").trim();
+}
+
+async function callOpenAI(system: string, prompt: string, maxTokens = 1800) {
+  const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
-  const base = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/$/, "");
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
-  const r = await fetch(`${base}/chat/completions`, {
+  const model = process.env.OPENAI_MODEL || "gpt-5.5";
+  const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -289,19 +297,24 @@ async function callDeepseek(system: string, prompt: string, maxTokens = 1800) {
     },
     body: JSON.stringify({
       model,
-      messages: [
+      input: [
         { role: "system", content: system },
         { role: "user", content: prompt },
       ],
-      temperature: 0.2,
-      max_tokens: maxTokens,
-      response_format: { type: "json_object" },
+      text: { format: { type: "json_object" } },
+      max_output_tokens: maxTokens,
     }),
   });
   const j = await r.json().catch(() => null);
-  const text = j?.choices?.[0]?.message?.content;
-  if (!r.ok || !text) throw new Error(j?.error?.message || `DeepSeek error (${r.status})`);
-  return stripCodeFences(String(text));
+  const text = extractOpenAIText(j);
+  if (!r.ok || !text) throw new Error(j?.error?.message || `OpenAI error (${r.status})`);
+  return stripCodeFences(text);
+}
+
+async function callComparisonAi(system: string, prompt: string, maxTokens = 1800) {
+  const openAiText = await callOpenAI(system, prompt, maxTokens).catch(() => null);
+  if (openAiText) return openAiText;
+  throw new Error("OpenAI model is unavailable");
 }
 
 function buildAssemblyAiFallback(args: {
@@ -391,7 +404,7 @@ async function buildAssemblyAiInsights(args: {
   ].filter(Boolean).join("\n");
 
   try {
-    const text = await callDeepseek(
+    const text = await callComparisonAi(
       "Ты HR-аналитик. Сравниваешь кандидатов строго по данным тестов и компетенций, без воды и без выдуманных фактов.",
       prompt
     );

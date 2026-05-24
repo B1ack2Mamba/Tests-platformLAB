@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { getSupabaseEnv } from "@/lib/supabaseClient";
 
 export function useSession() {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [envOk] = useState(() => !!supabase);
+  const [envOk] = useState(() => !!getSupabaseEnv());
 
   useEffect(() => {
     if (!supabase) {

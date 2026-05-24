@@ -4,6 +4,10 @@ import { canAccessCommercialProject } from "@/lib/commercialProjectAccess";
 import { buildCandidateComparison } from "@/lib/candidateAnalysis/candidateComparison";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
+export const config = {
+  maxDuration: 300,
+};
+
 function arrayOfStrings(value: any) {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item || "").trim()).filter(Boolean);
