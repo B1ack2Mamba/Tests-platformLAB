@@ -433,6 +433,12 @@ export default function ProjectResultsStandalonePage() {
       fitRequest: mode === "premium_ai_plus" ? fitRequest : "",
       registryVersion: mode === "premium_ai_plus" ? data?.project.registry_comment_updated_at || data?.project.registry_comment || null : null,
     });
+    const premiumCacheKey = mode === "premium_ai_plus"
+      ? buildEvaluationCacheKey({
+          projectId,
+          mode: "premium",
+        })
+      : "";
     const cachedPayload = readCachedEvaluation(cacheKey);
     if (cachedPayload?.evaluation?.sections?.length) {
       setEvaluationByMode((prev) => ({
@@ -470,6 +476,33 @@ export default function ProjectResultsStandalonePage() {
         };
       });
     };
+    const appendAiPlusTestsToPremium = (incoming: EvaluationPayload) => {
+      if (mode !== "premium_ai_plus" || isStale()) return;
+      const testSections = (incoming.evaluation?.sections || []).filter((section) => section.kind === "test");
+      if (!testSections.length) return;
+      setEvaluationByMode((prev) => {
+        const cachedPremium = premiumCacheKey ? readCachedEvaluation(premiumCacheKey) : null;
+        const prevPayload = prev.premium || cachedPremium;
+        const prevSections = prevPayload?.evaluation?.sections || [];
+        const sectionMap = new Map<string, { kind: string; title: string; body: string }>();
+        for (const section of [...prevSections, ...testSections]) {
+          sectionMap.set(`${section.kind}:${section.title}`, section);
+        }
+        const nextPayload: EvaluationPayload = {
+          ...incoming,
+          stage: "tests",
+          evaluation: {
+            mode: "premium",
+            sections: Array.from(sectionMap.values()),
+          },
+        };
+        if (premiumCacheKey) writeCachedEvaluation(premiumCacheKey, nextPayload);
+        return {
+          ...prev,
+          premium: nextPayload,
+        };
+      });
+    };
 
     const buildUrl = (stage: string, batchStart?: number) => {
       const url = new URL(`/api/commercial/projects/evaluation`, window.location.origin);
@@ -492,17 +525,7 @@ export default function ProjectResultsStandalonePage() {
     };
 
     try {
-      const summaryResp = await fetch(buildUrl(mode === "basic" ? "full" : "summary"), {
-        headers: { authorization: `Bearer ${session.access_token}` },
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      const summaryJson = await summaryResp.json().catch(() => ({}));
-      if (!summaryResp.ok || !summaryJson?.ok) throw new Error(summaryJson?.error || "Не удалось загрузить уровень анализа");
-      appendPayload(summaryJson as EvaluationPayload, !hasExistingSections);
-      if (isStale()) return;
-
-      if (mode !== "basic") {
+      const loadTestBatches = async (replaceFirstBatch: boolean) => {
         let batchStart = 0;
         for (;;) {
           const testsResp = await fetch(buildUrl("tests", batchStart), {
@@ -512,11 +535,31 @@ export default function ProjectResultsStandalonePage() {
           });
           const testsJson = await testsResp.json().catch(() => ({}));
           if (!testsResp.ok || !testsJson?.ok) throw new Error(testsJson?.error || "Не удалось загрузить интерпретации тестов");
-          appendPayload(testsJson as EvaluationPayload);
+          appendPayload(testsJson as EvaluationPayload, replaceFirstBatch && batchStart === 0);
+          appendAiPlusTestsToPremium(testsJson as EvaluationPayload);
           if (isStale()) return;
           if (!(testsJson as EvaluationPayload).has_more) break;
           batchStart += 2;
         }
+      };
+
+      if (mode === "premium_ai_plus") {
+        await loadTestBatches(!hasExistingSections);
+        if (isStale()) return;
+      }
+
+      const summaryResp = await fetch(buildUrl(mode === "basic" ? "full" : "summary"), {
+        headers: { authorization: `Bearer ${session.access_token}` },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      const summaryJson = await summaryResp.json().catch(() => ({}));
+      if (!summaryResp.ok || !summaryJson?.ok) throw new Error(summaryJson?.error || "Не удалось загрузить уровень анализа");
+      appendPayload(summaryJson as EvaluationPayload, mode === "premium_ai_plus" ? false : !hasExistingSections);
+      if (isStale()) return;
+
+      if (mode !== "basic" && mode !== "premium_ai_plus") {
+        await loadTestBatches(false);
       }
 
       if (mode === "premium_ai_plus") {

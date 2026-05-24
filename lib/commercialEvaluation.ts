@@ -79,6 +79,8 @@ type TestNarrative = {
   body: string;
 };
 
+const AI_PLUS_DEEPSEEK_MODEL = process.env.DEEPSEEK_AI_PLUS_MODEL || "deepseek-reasoner";
+
 function rowsFromResult(result: any) {
   return Array.isArray(result?.ranked) ? result.ranked : [];
 }
@@ -484,11 +486,11 @@ function buildPortraitFallback(project: ProjectLike, attempts: AttemptLike[]) {
   ].join("\n\n");
 }
 
-async function callDeepseek(system: string, prompt: string, maxTokens = 2600) {
+async function callDeepseek(system: string, prompt: string, maxTokens = 2600, modelOverride?: string) {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) return null;
   const base = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/$/, "");
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  const model = modelOverride || process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
@@ -641,12 +643,13 @@ async function buildAiPlusFollowupPrompt(args: {
   ].join("\n");
 }
 
-async function buildPremiumInterpretation(project: ProjectLike, attempt: AttemptLike, keys: any) {
+async function buildPremiumInterpretation(project: ProjectLike, attempt: AttemptLike, keys: any, modelOverride?: string) {
   const prompt = buildPremiumPrompt({ project, attempt, keys });
   const llmText = await callDeepseek(
     "Ты помогаешь специалисту по оценке персонала профессионально расшифровывать результаты тестов.",
     prompt,
-    2200
+    2200,
+    modelOverride
   ).catch(() => null);
   if (llmText) return cleanText(llmText);
   return cleanText(await aiInterpretation({
@@ -678,6 +681,24 @@ function buildFocusIntro(project: ProjectLike, competencySignals: CompetencySign
   const goal = getGoalDefinition(project.goal);
   const clusterLead = competencySignals.slice(0, 3).map((item) => item.title).join(", ");
   return `Анализ собран относительно цели «${goal?.shortTitle || project.goal}». В коротком контуре сейчас сильнее всего читаются: ${clusterLead || "рабочие и поведенческие сигналы по проекту"}.`;
+}
+
+async function buildPremiumNarrativesForAiPlus(
+  project: ProjectLike,
+  attempts: AttemptLike[],
+  interpretationKeysBySlug: Record<string, any>
+) {
+  const narratives: TestNarrative[] = [];
+  for (const attempt of attempts) {
+    const keys = interpretationKeysBySlug[attempt.test_slug] ?? DEFAULT_TEST_INTERPRETATIONS[attempt.test_slug] ?? null;
+    const body = await buildPremiumInterpretation(project, attempt, keys, AI_PLUS_DEEPSEEK_MODEL);
+    narratives.push({
+      slug: attempt.test_slug,
+      title: attempt.test_title || attempt.test_slug,
+      body,
+    });
+  }
+  return narratives;
 }
 
 function getFocusCompetencyIds(project: ProjectLike, attempts: AttemptLike[]) {
@@ -840,7 +861,9 @@ export async function buildCommercialEvaluation(
   const includeCompetencies = mode === "premium_ai_plus" && (stage === "competencies" || stage === "full");
   const interpretationKeysBySlug = options?.interpretationKeysBySlug || {};
   const promptDrivenNarratives = mode === "premium_ai_plus"
-    ? buildPromptDrivenTestNarratives(project, attempts, interpretationKeysBySlug)
+    ? includeSummary
+      ? await buildPremiumNarrativesForAiPlus(project, attempts, interpretationKeysBySlug)
+      : buildPromptDrivenTestNarratives(project, attempts, interpretationKeysBySlug)
     : [];
 
   if (includeSummary && mode === "premium_ai_plus") {
@@ -855,7 +878,8 @@ export async function buildCommercialEvaluation(
     const synthesis = await callDeepseek(
       "Ты помогаешь специалисту по оценке персонала собирать краткий профессиональный профиль по данным нескольких тестов.",
       synthesisPrompt,
-      1400
+      1400,
+      AI_PLUS_DEEPSEEK_MODEL
     ).catch(() => null);
 
     sections.push({
@@ -910,7 +934,8 @@ export async function buildCommercialEvaluation(
       const followup = await callDeepseek(
         "Ты помогаешь специалисту по оценке персонала дополнять уже собранный профиль отдельным прикладным ракурсом по запросу.",
         followupPrompt,
-        1200
+        1200,
+        AI_PLUS_DEEPSEEK_MODEL
       ).catch(() => null);
       sections.push({
         kind: "portrait",
@@ -958,7 +983,12 @@ export async function buildCommercialEvaluation(
     const slice = attempts.slice(batchStart, batchStart + batchSize);
     for (const attempt of slice) {
       const keys = keysBySlug[attempt.test_slug] ?? DEFAULT_TEST_INTERPRETATIONS[attempt.test_slug] ?? null;
-      const body = await buildPremiumInterpretation(project, attempt, keys);
+      const body = await buildPremiumInterpretation(
+        project,
+        attempt,
+        keys,
+        mode === "premium_ai_plus" ? AI_PLUS_DEEPSEEK_MODEL : undefined
+      );
       sections.push({
         kind: "test",
         title: attempt.test_title || attempt.test_slug,
