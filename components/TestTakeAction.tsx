@@ -118,6 +118,9 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
           </Link>
         </div>
       )}
+      {!compact ? (
+        <div className="text-xs leading-5 text-slate-500">Один тест + краткая интерпретация из методички.</div>
+      ) : null}
       {access && !access.unlimited ? (
         <div className="text-xs text-slate-500">Баланс: {Math.floor(access.balance_kopeks / 100)} ₽</div>
       ) : null}

@@ -105,7 +105,7 @@ export function TestTakeGate({ slug, title, children }: Props) {
       <div className="card max-w-2xl">
         <div className="text-lg font-semibold text-slate-950">Прохождение теста открывается отдельно</div>
         <div className="mt-3 text-sm leading-6 text-slate-700">
-          Для каталога это отдельное платное прохождение. После оплаты откроется текущая попытка, а новый запуск снова потребует 99 ₽.
+          Формат каталога: один тест + краткая интерпретация из методички после прохождения. После оплаты откроется текущая попытка, а новый запуск снова потребует {priceRub} ₽.
         </div>
         {checking ? <div className="mt-4 text-sm text-slate-500">Проверяем доступ…</div> : null}
         {!user || !session ? (
