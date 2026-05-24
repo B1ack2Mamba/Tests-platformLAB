@@ -5,11 +5,14 @@ export type MonthlyPlanDefinition = {
   title: string;
   shortTitle: string;
   monthlyPriceRub: number;
+  oldMonthlyPriceRub: number;
   projectsLimit: number;
   effectiveProjectPriceRub: number;
   durationDays: number;
   description: string;
 };
+
+export const CURRENT_PLAN_PRICES_HOLD_UNTIL = "2026-08-24T23:59:59+03:00";
 
 export const MONTHLY_SUBSCRIPTION_PLANS: MonthlyPlanDefinition[] = [
   {
@@ -17,6 +20,7 @@ export const MONTHLY_SUBSCRIPTION_PLANS: MonthlyPlanDefinition[] = [
     title: "30 проектов в месяц",
     shortTitle: "30 / месяц",
     monthlyPriceRub: 13_500,
+    oldMonthlyPriceRub: 29_900,
     projectsLimit: 30,
     effectiveProjectPriceRub: 450,
     durationDays: 30,
@@ -27,6 +31,7 @@ export const MONTHLY_SUBSCRIPTION_PLANS: MonthlyPlanDefinition[] = [
     title: "50 проектов в месяц",
     shortTitle: "50 / месяц",
     monthlyPriceRub: 18_000,
+    oldMonthlyPriceRub: 49_950,
     projectsLimit: 50,
     effectiveProjectPriceRub: 360,
     durationDays: 30,
@@ -37,6 +42,7 @@ export const MONTHLY_SUBSCRIPTION_PLANS: MonthlyPlanDefinition[] = [
     title: "100 проектов в месяц",
     shortTitle: "100 / месяц",
     monthlyPriceRub: 30_000,
+    oldMonthlyPriceRub: 90_000,
     projectsLimit: 100,
     effectiveProjectPriceRub: 300,
     durationDays: 30,

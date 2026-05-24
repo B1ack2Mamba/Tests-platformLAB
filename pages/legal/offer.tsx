@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { PriceHoldCountdown } from "@/components/PriceHoldCountdown";
+import { CURRENT_PLAN_PRICES_HOLD_UNTIL } from "@/lib/commercialSubscriptions";
 
 const tariffs = [
-  { title: "Пакет услуг оценки — до 30 проектов / месяц", price: "13 500 ₽" },
-  { title: "Пакет услуг оценки — до 50 проектов / месяц", price: "18 000 ₽" },
-  { title: "Расширенный пакет услуг оценки — до 100 проектов / месяц", price: "30 000 ₽" },
+  { title: "Пакет услуг оценки — до 30 проектов / месяц", oldPrice: "29 900 ₽", price: "13 500 ₽" },
+  { title: "Пакет услуг оценки — до 50 проектов / месяц", oldPrice: "49 950 ₽", price: "18 000 ₽" },
+  { title: "Расширенный пакет услуг оценки — до 100 проектов / месяц", oldPrice: "90 000 ₽", price: "30 000 ₽" },
 ];
 
 const Section = ({ id, title, children }: { id: string; title: string; children: React.ReactNode }) => (
@@ -61,7 +63,11 @@ export default function OfferPage() {
                   {tariffs.map((tariff) => (
                     <div key={tariff.title} className="rounded-[22px] border border-[#e2cfaf] bg-white px-4 py-4">
                       <div className="text-sm font-semibold text-[#2a4631]">{tariff.title}</div>
-                      <div className="mt-2 text-lg font-semibold text-[#8b6b32]">{tariff.price}</div>
+                      <div className="mt-2 text-sm font-semibold text-slate-400 line-through decoration-[#c78484] decoration-2">{tariff.oldPrice}</div>
+                      <div className="text-lg font-semibold text-[#8b6b32]">{tariff.price}</div>
+                      <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                        <PriceHoldCountdown until={CURRENT_PLAN_PRICES_HOLD_UNTIL} compact />
+                      </div>
                     </div>
                   ))}
                 </div>
