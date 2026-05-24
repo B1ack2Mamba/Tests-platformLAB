@@ -79,6 +79,7 @@ type TestNarrative = {
   body: string;
 };
 
+const DEFAULT_COMMERCIAL_DEEPSEEK_MODEL = "deepseek-v4-flash";
 const PREMIUM_AI_PLUS_DEEPSEEK_MODEL = "deepseek-v4-pro";
 
 function rowsFromResult(result: any) {
@@ -490,7 +491,7 @@ async function callDeepseek(system: string, prompt: string, maxTokens = 2600, mo
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) return null;
   const base = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/$/, "");
-  const model = modelOverride || process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  const model = modelOverride || process.env.DEEPSEEK_MODEL || DEFAULT_COMMERCIAL_DEEPSEEK_MODEL;
 
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
