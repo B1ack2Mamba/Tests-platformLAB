@@ -255,14 +255,35 @@ function buildPromptDrivenTestNarratives(
 }
 
 function parseNamedBlocks(text: string) {
-  const normalized = cleanText(text).replace(/\r/g, "");
-  const headings = [
-    "Общий вывод",
-    "Сильные стороны",
-    "Минусы и ограничения",
-    "Риски",
-    "Что особенно важно для цели оценки",
+  const headingEntries = [
+    { canonical: "Общий вывод", aliases: ["Общий вывод", "Короткий вывод", "Итоговый вывод"] },
+    { canonical: "Сильные стороны", aliases: ["Сильные стороны", "Плюсы", "Сильные сигналы"] },
+    { canonical: "Минусы и ограничения", aliases: ["Минусы и ограничения", "Ограничения", "Зоны ограничения"] },
+    { canonical: "Риски", aliases: ["Риски", "Риски и ограничения", "Возможные риски"] },
+    {
+      canonical: "Что особенно важно для цели оценки",
+      aliases: ["Что особенно важно для цели оценки", "Важно для цели оценки", "Особенно важно для цели оценки"],
+    },
   ];
+  const aliasToCanonical = new Map(
+    headingEntries.flatMap((entry) => entry.aliases.map((alias) => [alias.toLowerCase(), entry.canonical] as const))
+  );
+  const headingPattern = headingEntries
+    .flatMap((entry) => entry.aliases)
+    .map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const normalized = cleanText(text)
+    .replace(/\r/g, "")
+    .split("\n")
+    .flatMap((line) => {
+      const match = line.match(new RegExp(`^\\s*(?:#{1,6}\\s*)?(?:[-*]\\s*)?(?:\\d+[.)]\\s*)?(?:\\*\\*)?\\s*(${headingPattern})\\s*(?:\\*\\*)?\\s*:?\\s*(.*)$`, "i"));
+      if (!match) return [line];
+      const canonical = aliasToCanonical.get(match[1].toLowerCase()) || match[1];
+      const rest = match[2]?.trim();
+      return rest ? [canonical, rest] : [canonical];
+    })
+    .join("\n");
+  const headings = headingEntries.map((entry) => entry.canonical);
   const pattern = new RegExp(`(?:^|\\n)(${headings.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\s*:?(?=\\n|$)`, "g");
   const matches = [...normalized.matchAll(pattern)];
   if (!matches.length) {
@@ -599,7 +620,8 @@ ${buildRegistryCommentContext(project)}` : "",
     "- Никаких markdown-решёток и таблиц.",
     "- Опирайся на материалы интерпретации каждого теста и собирай по ним общую картину.",
     "- Не пересказывай каждый тест подряд, а собирай повторяющиеся сигналы, плюсы, минусы и риски.",
-    "- Верни ответ строго в блоках с этими заголовками:",
+    "- Верни ответ строго в блоках с этими заголовками, каждый заголовок отдельной строкой.",
+    "- Не нумеруй заголовки, не выделяй их жирным и не объединяй блок «Риски» с блоком «Минусы и ограничения».",
     "Общий вывод",
     "Сильные стороны",
     "Минусы и ограничения",
