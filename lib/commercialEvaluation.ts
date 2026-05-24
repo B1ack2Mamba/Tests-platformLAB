@@ -294,6 +294,19 @@ function parseNamedBlocks(text: string) {
   };
 }
 
+function isUsableAiPlusSynthesis(blocks: ReturnType<typeof parseNamedBlocks> | null) {
+  if (!blocks?.summary?.trim()) return false;
+  const hasPracticalBlocks = Boolean(
+    blocks.strengths?.trim() ||
+    blocks.limitations?.trim() ||
+    blocks.risks?.trim() ||
+    blocks.important?.trim()
+  );
+  if (!hasPracticalBlocks) return false;
+  if (/показывает набор повторяющихся акцентов/i.test(blocks.summary)) return false;
+  return true;
+}
+
 async function buildCompetencyAiDetail(args: {
   project: ProjectLike;
   route: CompetencyRoute;
@@ -533,13 +546,13 @@ async function callAiPlusModel(system: string, prompt: string, maxTokens = 2600)
     prompt,
     maxTokens,
     process.env.OPENAI_AI_PLUS_MODEL || DEFAULT_OPENAI_AI_PLUS_MODEL
-  ).catch(() => null);
+  );
   if (openAiText) return openAiText;
   throw new Error("OpenAI AI+ model is unavailable");
 }
 
 async function callCommercialAi(system: string, prompt: string, maxTokens = 2600) {
-  const openAiText = await callOpenAI(system, prompt, maxTokens).catch(() => null);
+  const openAiText = await callOpenAI(system, prompt, maxTokens);
   if (openAiText) return openAiText;
   throw new Error("OpenAI model is unavailable");
 }
@@ -915,18 +928,21 @@ export async function buildCommercialEvaluation(
       "Ты помогаешь специалисту по оценке персонала собирать краткий профессиональный профиль по данным нескольких тестов.",
       synthesisPrompt,
       3200
-    ).catch(() => null);
+    );
+    const parsedSynthesis = parseNamedBlocks(synthesis);
+    if (!isUsableAiPlusSynthesis(parsedSynthesis)) {
+      throw new Error("OpenAI AI+ вернул неполный итоговый анализ. Обновите результат ещё раз.");
+    }
 
     sections.push({
       kind: "summary",
       title: "Фокус анализа",
       body: buildFocusIntro(project, competencySignals),
     });
-    const parsedSynthesis = synthesis ? parseNamedBlocks(synthesis) : null;
     sections.push({
       kind: "portrait",
       title: "Общий вывод",
-      body: parsedSynthesis?.summary || buildPortraitFallback(project, attempts),
+      body: parsedSynthesis.summary,
     });
     if (parsedSynthesis?.strengths) {
       sections.push({
