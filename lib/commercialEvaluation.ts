@@ -80,6 +80,8 @@ type TestNarrative = {
 };
 
 const AI_PLUS_DEEPSEEK_MODEL = process.env.DEEPSEEK_AI_PLUS_MODEL || "deepseek-reasoner";
+const RUSSIAN_TERMS_RULE =
+  "- Не используй англицизмы в итоговом тексте: ownership заменяй на «личная ответственность», soft skills — на «гибкие навыки», performance — на «результативность», feedback — на «обратная связь», leadership — на «лидерство», team fit — на «соответствие команде».";
 
 function rowsFromResult(result: any) {
   return Array.isArray(result?.ranked) ? result.ranked : [];
@@ -547,6 +549,7 @@ function buildPremiumPrompt(args: {
     "",
     "Требования к ответу:",
     "- Пиши по-русски, без медицинских ярлыков и без избыточной теории.",
+    RUSSIAN_TERMS_RULE,
     "- Не используй markdown-решётки, только обычные подзаголовки и короткие абзацы.",
     "- Сначала дай Короткий вывод (2–4 предложения).",
     "- Затем блок Ключевые акценты (4–6 буллетов).",
@@ -595,6 +598,7 @@ ${buildRegistryCommentContext(project)}` : "",
     "",
     "Требования к ответу:",
     "- Пиши по-русски, без воды.",
+    RUSSIAN_TERMS_RULE,
     "- Никаких markdown-решёток и таблиц.",
     "- Опирайся на материалы интерпретации каждого теста и собирай по ним общую картину.",
     "- Не пересказывай каждый тест подряд, а собирай повторяющиеся сигналы, плюсы, минусы и риски.",
@@ -639,6 +643,7 @@ async function buildAiPlusFollowupPrompt(args: {
     "2. На чём это основано в данных",
     "3. Практический вывод для руководителя / HR",
     "4. Что здесь остаётся гипотезой",
+    RUSSIAN_TERMS_RULE,
     "Если данных недостаточно, скажи это прямо и не додумывай.",
   ].join("\n");
 }
