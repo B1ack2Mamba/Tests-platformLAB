@@ -224,14 +224,6 @@ function parseSummaryOutline(body: string | null | undefined): {
     return { summary: "", strengths: [], risks: [], important: "" };
   }
 
-  const hasStructuredOutline =
-    /(?:^|\n)\s*(?:\d+[).:]?|[1-4]\s*[—-])\s+\S/.test(cleaned) ||
-    /(?:^|\n)\s*(?:общий вывод|короткий вывод|сильные стороны|риски|что особенно важно)\s*[:\n]/i.test(cleaned);
-
-  if (!hasStructuredOutline) {
-    return { summary: cleaned, strengths: [], risks: [], important: "" };
-  }
-
   const sections = cleaned
     .split(/(?:^|\n)\s*(?:\d+[).:]?|[1-4]\s*[—-])\s*/)
     .map((part) => part.trim())
@@ -346,13 +338,6 @@ function writeCachedEvaluation(cacheKey: string, payload: EvaluationPayload) {
   } catch {}
 }
 
-function removeCachedEvaluation(cacheKey: string) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(cacheKey);
-  } catch {}
-}
-
 export default function ProjectResultsStandalonePage() {
   const router = useRouter();
   const { session, user, loading, envOk } = useSession();
@@ -426,7 +411,7 @@ export default function ProjectResultsStandalonePage() {
     }
   }
 
-  async function loadEvaluation(mode: EvaluationPackage, opts?: { customRequest?: string; forceRefresh?: boolean }) {
+  async function loadEvaluation(mode: EvaluationPackage, opts?: { customRequest?: string }) {
     if (!session?.access_token || !projectId) return;
 
     evaluationAbortRef.current[mode]?.abort();
@@ -448,23 +433,16 @@ export default function ProjectResultsStandalonePage() {
       fitRequest: mode === "premium_ai_plus" ? fitRequest : "",
       registryVersion: mode === "premium_ai_plus" ? data?.project.registry_comment_updated_at || data?.project.registry_comment || null : null,
     });
-    if (opts?.forceRefresh) {
-      removeCachedEvaluation(cacheKey);
-      setEvaluationByMode((prev) => ({
-        ...prev,
-        [mode]: undefined,
-      }));
-    }
-    const cachedPayload = opts?.forceRefresh ? null : readCachedEvaluation(cacheKey);
+    const cachedPayload = readCachedEvaluation(cacheKey);
     if (cachedPayload?.evaluation?.sections?.length) {
       setEvaluationByMode((prev) => ({
         ...prev,
         [mode]: cachedPayload,
       }));
     }
-    const hasExistingSections = opts?.forceRefresh
-      ? false
-      : Boolean(cachedPayload?.evaluation?.sections?.length || evaluationByMode[mode]?.evaluation?.sections?.length);
+    const hasExistingSections = Boolean(
+      cachedPayload?.evaluation?.sections?.length || evaluationByMode[mode]?.evaluation?.sections?.length
+    );
     const appendPayload = (incoming: EvaluationPayload, replace = false) => {
       if (isStale()) return;
       setEvaluationByMode((prev) => {
@@ -565,9 +543,7 @@ export default function ProjectResultsStandalonePage() {
     if (!activeEvaluationMode) return;
     await loadEvaluation(
       activeEvaluationMode,
-      activeEvaluationMode === "premium_ai_plus"
-        ? { customRequest: aiPlusRequest, forceRefresh: true }
-        : { forceRefresh: true }
+      activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined
     );
     setInfo("Результат обновлён по текущим данным проекта.");
   }
