@@ -1,7 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 import { Layout } from "@/components/Layout";
 import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
-import { PriceHoldCountdown } from "@/components/PriceHoldCountdown";
 import { useSession } from "@/lib/useSession";
 import { formatRub, useWallet } from "@/lib/useWallet";
 import Link from "next/link";
@@ -9,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED, YOOKASSA_TEST_UI_ENABLED } from "@/lib/payments";
 import { isGlobalTemplateOwnerEmail } from "@/lib/admin";
 import {
-  CURRENT_PLAN_PRICES_HOLD_UNTIL,
+  CURRENT_PLAN_PRICES_HOLD_LABEL,
   MONTHLY_SUBSCRIPTION_PLANS,
   formatMonthlySubscriptionPeriod,
   type WorkspaceSubscriptionStatus,
@@ -663,7 +662,7 @@ export default function WalletPage() {
                 <div className="mt-5 rounded-[22px] border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-900">
                   Можно работать без подписки: заведите депозит на кошелёк и единоразово откройте полный результат за 3000 ₽ в нужном проекте. Для регулярной работы оптимальный стартовый выбор — пакет на 50 проектов.
                   <div className="mt-2 rounded-2xl border border-emerald-200 bg-white/70 px-3 py-2">
-                    <PriceHoldCountdown until={CURRENT_PLAN_PRICES_HOLD_UNTIL} />
+                    {CURRENT_PLAN_PRICES_HOLD_LABEL}
                   </div>
                 </div>
 
@@ -697,9 +696,6 @@ export default function WalletPage() {
       </div>
       <div className="text-2xl font-semibold tracking-[-0.02em] text-slate-950">{plan.monthlyPriceRub.toLocaleString("ru-RU")} ₽</div>
       <div className="mt-1 text-sm text-slate-500">текущая цена в месяц</div>
-      <div className="mt-2">
-        <PriceHoldCountdown until={CURRENT_PLAN_PRICES_HOLD_UNTIL} compact />
-      </div>
     </div>
     <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-[#dff2e7] text-[#296244]" : "bg-[#f7f2e9] text-[#6e725f]"}`}>{plan.effectiveProjectPriceRub} ₽ за проект</span>
   </div>

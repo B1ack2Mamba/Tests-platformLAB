@@ -12,7 +12,7 @@ export type MonthlyPlanDefinition = {
   description: string;
 };
 
-export const CURRENT_PLAN_PRICES_HOLD_UNTIL = "2026-08-24T23:59:59+03:00";
+export const CURRENT_PLAN_PRICES_HOLD_LABEL = "Текущие цены держатся автоматически до 25 августа 2026 г.";
 
 export const MONTHLY_SUBSCRIPTION_PLANS: MonthlyPlanDefinition[] = [
   {
