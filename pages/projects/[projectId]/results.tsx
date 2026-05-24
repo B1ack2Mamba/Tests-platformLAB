@@ -64,6 +64,13 @@ type EvaluationPayload = {
   } | null;
 };
 
+type LoadEvaluationOptions = {
+  customRequest?: string;
+  force?: boolean;
+};
+
+const evaluationInFlightKeys = new Set<string>();
+
 const PROJECT_RESULTS_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     target: "project-results-packages",
@@ -411,19 +418,9 @@ export default function ProjectResultsStandalonePage() {
     }
   }
 
-  async function loadEvaluation(mode: EvaluationPackage, opts?: { customRequest?: string }) {
+  async function loadEvaluation(mode: EvaluationPackage, opts?: LoadEvaluationOptions) {
     if (!session?.access_token || !projectId) return;
 
-    evaluationAbortRef.current[mode]?.abort();
-    const controller = new AbortController();
-    evaluationAbortRef.current[mode] = controller;
-    const requestId = (evaluationRequestIdRef.current[mode] || 0) + 1;
-    evaluationRequestIdRef.current[mode] = requestId;
-
-    const isStale = () => controller.signal.aborted || evaluationRequestIdRef.current[mode] !== requestId;
-
-    setEvaluationLoading((prev) => ({ ...prev, [mode]: true }));
-    setError("");
     const cacheKey = buildEvaluationCacheKey({
       projectId,
       mode,
@@ -445,7 +442,21 @@ export default function ProjectResultsStandalonePage() {
         ...prev,
         [mode]: cachedPayload,
       }));
+      if (!opts?.force) return;
     }
+    if (!opts?.force && evaluationInFlightKeys.has(cacheKey)) return;
+    evaluationInFlightKeys.add(cacheKey);
+
+    evaluationAbortRef.current[mode]?.abort();
+    const controller = new AbortController();
+    evaluationAbortRef.current[mode] = controller;
+    const requestId = (evaluationRequestIdRef.current[mode] || 0) + 1;
+    evaluationRequestIdRef.current[mode] = requestId;
+
+    const isStale = () => controller.signal.aborted || evaluationRequestIdRef.current[mode] !== requestId;
+
+    setEvaluationLoading((prev) => ({ ...prev, [mode]: true }));
+    setError("");
     const hasExistingSections = Boolean(
       cachedPayload?.evaluation?.sections?.length || evaluationByMode[mode]?.evaluation?.sections?.length
     );
@@ -576,6 +587,7 @@ export default function ProjectResultsStandalonePage() {
       if (err?.name === "AbortError" || isStale()) return;
       setError(err?.message || "Не удалось загрузить уровень анализа");
     } finally {
+      evaluationInFlightKeys.delete(cacheKey);
       if (evaluationRequestIdRef.current[mode] === requestId) {
         setEvaluationLoading((prev) => ({ ...prev, [mode]: false }));
       }
@@ -586,7 +598,7 @@ export default function ProjectResultsStandalonePage() {
     if (!activeEvaluationMode) return;
     await loadEvaluation(
       activeEvaluationMode,
-      activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined
+      activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest, force: true } : { force: true }
     );
     setInfo("Результат обновлён по текущим данным проекта.");
   }
@@ -617,7 +629,7 @@ export default function ProjectResultsStandalonePage() {
       await loadSubscriptionStatus();
       await refreshWallet();
       setActiveEvaluationMode(mode);
-      await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
+      await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest, force: true } : { force: true });
       if (mode === "premium") await loadEvaluation("basic");
       if (mode === "premium_ai_plus") {
         await loadEvaluation("basic");
@@ -1134,7 +1146,7 @@ export default function ProjectResultsStandalonePage() {
                         <div className="mt-3 grid gap-3">
                           <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
                           <div className="flex justify-end">
-                            <button type="button" className="rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest })}>
+                            <button type="button" className="rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest, force: true })}>
                               {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
                             </button>
                           </div>
