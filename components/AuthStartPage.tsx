@@ -24,9 +24,9 @@ function TextSide() {
   }
 
   return (
-    <div className="card overflow-hidden lg:min-h-[620px] xl:min-h-[660px]">
+    <div className="auth-intro-card card overflow-hidden lg:min-h-[620px] xl:min-h-[660px]">
       <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] xl:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
-        <div className="order-2 flex flex-col justify-center lg:order-1">
+        <div className="auth-intro-copy order-2 flex flex-col justify-center lg:order-1">
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#2e7a63]">Лаборатория кадров</div>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#138a57] sm:text-4xl lg:text-[3.2rem] lg:leading-[1.05]">
             Весь опыт работы — в одной лаборатории оценки.
@@ -40,7 +40,7 @@ function TextSide() {
             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[#2d7a63]">Мотивация</span>
           </div>
         </div>
-        <div className="order-1 overflow-hidden rounded-[28px] border border-[#cde6de] bg-white p-3 lg:order-2">
+        <div className="auth-intro-media order-1 overflow-hidden rounded-[28px] border border-[#cde6de] bg-white p-3 lg:order-2">
           <div className="relative h-full min-h-[320px] overflow-hidden rounded-[22px] bg-white shadow-sm sm:min-h-[380px] lg:min-h-[590px]">
             <video
               ref={videoRef}
@@ -339,9 +339,9 @@ export default function AuthStartPage() {
 
   return (
     <Layout>
-      <div className="grid gap-5 lg:grid-cols-[0.76fr_1.24fr] xl:grid-cols-[0.72fr_1.28fr]">
-        <div className="card">
-          <div className="flex items-center justify-between gap-3">
+      <div className="auth-start-page grid gap-5 lg:grid-cols-[0.76fr_1.24fr] xl:grid-cols-[0.72fr_1.28fr]">
+        <div className="auth-form-card card">
+          <div className="auth-form-header flex items-center justify-between gap-3">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#2e7a63]">Старт</div>
               <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
