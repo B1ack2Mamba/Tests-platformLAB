@@ -669,7 +669,7 @@ export default function WalletPage() {
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                <div className="wallet-plans-grid mt-5 grid gap-4 lg:grid-cols-3">
                   {MONTHLY_SUBSCRIPTION_PLANS.map((plan, index) => {
                     const isActive = activeSubscription?.plan_key === plan.key && activeSubscription?.status !== "expired";
                     const visual = PLAN_VISUALS[index % PLAN_VISUALS.length];
@@ -681,7 +681,7 @@ export default function WalletPage() {
                       <div
                         key={plan.key}
                         data-onboarding-id={isRecommended ? "wallet-recommended-plan" : undefined}
-                        className={`overflow-hidden rounded-[30px] border shadow-[0_14px_28px_rgba(126,99,57,0.08)] ${isActive ? "border-[#b8dfc5] bg-[linear-gradient(180deg,#f6fcf8_0%,#edf7f1_100%)]" : isRecommended ? "border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#f0fbf3_100%)]" : "border-[#e4d7c0] bg-white/90"}`}
+                        className={`wallet-plan-card overflow-hidden rounded-[30px] border shadow-[0_14px_28px_rgba(126,99,57,0.08)] ${isActive ? "border-[#b8dfc5] bg-[linear-gradient(180deg,#f6fcf8_0%,#edf7f1_100%)]" : isRecommended ? "border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#f0fbf3_100%)]" : "border-[#e4d7c0] bg-white/90"}`}
                       >
 <div className={`relative h-36 overflow-hidden px-5 py-5 ${visual.gradient}`}>
   <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.82),rgba(255,255,255,0)_55%)]" />
@@ -695,7 +695,7 @@ export default function WalletPage() {
 </div>
 
 <div className="p-5">
-  <div className="flex items-start justify-between gap-3">
+  <div className="wallet-plan-price-row flex items-start justify-between gap-3">
     <div>
       {promoActive ? (
         <div className="text-sm font-semibold text-slate-400 line-through decoration-[#c78484] decoration-2">

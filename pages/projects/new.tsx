@@ -856,7 +856,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       </div>
 
                       {selectedCompetencyIds.length ? (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="project-selected-competencies flex flex-wrap gap-2">
                           {selectedCompetencyIds.map((id) => {
                             const groups = getCompetencyGroups();
                             const match = groups.flatMap((group) => group.items).find((item) => item.id === id);
@@ -864,7 +864,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                             return (
                               <span
                                 key={id}
-                                className="rounded-full border border-[#9ac09d] bg-[#edf6ea] px-3 py-1 text-xs font-medium text-[#2f4c32]"
+                                className="project-selected-competency rounded-full border border-[#9ac09d] bg-[#edf6ea] px-3 py-1 text-xs font-medium text-[#2f4c32]"
                               >
                                 {match.name}
                               </span>
@@ -890,7 +890,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                                   </span>
                                 </div>
                               </summary>
-                              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                              <div className="project-competency-toggle-list mt-2.5 flex flex-wrap gap-1.5">
                                 {group.items.map((item) => (
                                   <CompetencyToggle
                                     key={item.id}
