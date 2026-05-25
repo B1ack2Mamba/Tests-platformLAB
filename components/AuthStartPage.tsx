@@ -282,21 +282,29 @@ export default function AuthStartPage() {
       if (password !== password2) throw new Error("Пароли не совпадают.");
       if (!fullName.trim()) throw new Error("Укажи имя и фамилию.");
 
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_SUPABASE_URL);
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          emailRedirectTo: siteUrl ? `${siteUrl.replace(/\/$/, "")}/dashboard` : undefined,
-          data: {
-            full_name: fullName.trim(),
-            company_name: companyName.trim(),
-          },
-        },
+      const signupResp = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          full_name: fullName.trim(),
+          company_name: companyName.trim(),
+        }),
       });
-      if (error) throw error;
+      const signupJson = await signupResp.json().catch(() => ({}));
+      if (!signupResp.ok || !signupJson?.ok) {
+        throw new Error(signupJson?.error || "Не удалось создать кабинет. Попробуйте ещё раз.");
+      }
+      const data = signupJson as { session?: { access_token?: string; refresh_token?: string } | null };
 
       if (data.session?.access_token) {
+        if (data.session.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          });
+        }
         await syncCommercialProfile(data.session.access_token, fullName, companyName);
       }
 
