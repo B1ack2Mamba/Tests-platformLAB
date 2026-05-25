@@ -178,7 +178,7 @@ export function DeveloperSupportWidget() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-[95] rounded-full border border-emerald-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-900 shadow-lg backdrop-blur hover:border-emerald-300 hover:text-emerald-900"
+        className="developer-support-trigger fixed bottom-5 right-5 z-[95] rounded-full border border-emerald-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-900 shadow-lg backdrop-blur hover:border-emerald-300 hover:text-emerald-900"
       >
         <span className="relative inline-flex items-center gap-2">
           <span>Связь с разработчиком</span>
@@ -191,8 +191,8 @@ export function DeveloperSupportWidget() {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[110] flex items-end justify-end bg-slate-950/30 p-4 backdrop-blur-[2px] sm:items-center sm:justify-center" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-2xl rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="developer-support-backdrop fixed inset-0 z-[110] flex items-end justify-end bg-slate-950/30 p-4 backdrop-blur-[2px] sm:items-center sm:justify-center" onClick={() => setOpen(false)}>
+          <div className="developer-support-panel w-full max-w-2xl rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-slate-950">Чат с разработчиком</div>

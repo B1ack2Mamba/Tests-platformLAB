@@ -360,6 +360,137 @@ function DesktopLoadingOverlay() {
   );
 }
 
+function MobileDashboardHome({
+  displayName,
+  workspaceName,
+  balanceText,
+  activeSubscription,
+  projects,
+  folders,
+  trashCount,
+  loading,
+  error,
+  onCreateProject,
+  onCreateFolder,
+  onOpenTrash,
+  onOpenProject,
+}: {
+  displayName: string;
+  workspaceName: string;
+  balanceText: string;
+  activeSubscription: WorkspaceSubscriptionStatus | null;
+  projects: ProjectRow[];
+  folders: FolderRow[];
+  trashCount: number;
+  loading: boolean;
+  error: string;
+  onCreateProject: () => void;
+  onCreateFolder: () => void;
+  onOpenTrash: () => void;
+  onOpenProject: (id: string) => void;
+}) {
+  const recentProjects = projects.slice(0, 6);
+  const completedProjects = projects.filter((project) => {
+    const total = project.tests?.length || 0;
+    return total > 0 && (project.attempts_count || 0) >= total;
+  }).length;
+
+  return (
+    <div className="lg:hidden">
+      <div className="space-y-4">
+        {error ? <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+
+        <section className="rounded-[26px] border border-[#d7e4dc] bg-[linear-gradient(180deg,#ffffff_0%,#eef8f1_100%)] p-4 shadow-[0_18px_34px_-28px_rgba(22,78,55,0.18)]">
+          <div className="text-[11px] font-semibold uppercase text-[#527261]">Кабинет специалиста</div>
+          <div className="mt-2 text-[24px] font-semibold leading-tight text-[#183f31]">{displayName}</div>
+          <div className="mt-1 text-sm leading-5 text-[#5a7468]">{workspaceName}</div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-[18px] border border-white/80 bg-white/88 px-3 py-3">
+              <div className="text-[11px] text-[#667c72]">Проекты</div>
+              <div className="mt-1 text-xl font-semibold text-[#183f31]">{projects.length}</div>
+            </div>
+            <div className="rounded-[18px] border border-white/80 bg-white/88 px-3 py-3">
+              <div className="text-[11px] text-[#667c72]">Готово</div>
+              <div className="mt-1 text-xl font-semibold text-[#183f31]">{completedProjects}</div>
+            </div>
+            <div className="rounded-[18px] border border-white/80 bg-white/88 px-3 py-3">
+              <div className="text-[11px] text-[#667c72]">Баланс</div>
+              <div className="mt-1 truncate text-xl font-semibold text-[#183f31]">{balanceText}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-2">
+          <button type="button" data-onboarding-id="dashboard-create-project" className="btn btn-primary h-12 justify-center" onClick={onCreateProject}>
+            Создать проект
+          </button>
+          <Link href="/wallet" data-onboarding-id="dashboard-wallet-link" className="btn btn-secondary h-12 justify-center">
+            Кошелёк
+          </Link>
+          <button type="button" data-onboarding-id="dashboard-create-folder" className="btn btn-secondary h-12 justify-center" onClick={onCreateFolder}>
+            Создать папку
+          </button>
+          <Link href="/assessments" className="btn btn-secondary h-12 justify-center">
+            Каталог тестов
+          </Link>
+          <Link href="/results" className="btn btn-secondary h-12 justify-center">
+            История тестов
+          </Link>
+          <button type="button" data-onboarding-id="dashboard-trash" className="btn btn-secondary h-12 justify-center" onClick={onOpenTrash}>
+            Корзина{trashCount ? ` · ${trashCount}` : ""}
+          </button>
+        </section>
+
+        {activeSubscription ? (
+          <section className="rounded-[22px] border border-[#d7e3ee] bg-white px-4 py-3">
+            <div className="text-sm font-semibold text-[#223548]">{activeSubscription.plan_title}</div>
+            <div className="mt-1 text-xs leading-5 text-[#64788c]">
+              Осталось проектов: {activeSubscription.projects_remaining} из {activeSubscription.projects_limit}. До завершения: {getSubscriptionDaysLeft(activeSubscription.expires_at) ?? 0} дн.
+            </div>
+          </section>
+        ) : null}
+
+        <section className="rounded-[24px] border border-[#d5deea] bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-base font-semibold text-[#223548]">Проекты</div>
+              <div className="mt-1 text-xs text-[#6c7d8f]">{folders.length ? `${folders.length} папок` : "Без папок"} · последние проекты сверху</div>
+            </div>
+            {loading ? <div className="text-xs text-[#6c7d8f]">Загрузка…</div> : null}
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {recentProjects.length ? recentProjects.map((project) => {
+              const total = project.tests?.length || 0;
+              const completed = Math.min(project.attempts_count || 0, total || 0);
+              const goal = getGoalDefinition(project.goal);
+              return (
+                <button
+                  key={project.id}
+                  type="button"
+                  className="w-full rounded-[18px] border border-[#e1e8ef] bg-[#fbfdff] px-4 py-3 text-left transition hover:border-[#b9c9db]"
+                  onClick={() => onOpenProject(project.id)}
+                >
+                  <div className="text-sm font-semibold leading-tight text-[#1f3142]">{project.person?.full_name || project.title || "Проект"}</div>
+                  <div className="mt-1 text-xs leading-5 text-[#607386]">{goal?.shortTitle || goal?.title || project.goal}{project.target_role ? ` · ${project.target_role}` : ""}</div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e9eff5]">
+                    <div className="h-full rounded-full bg-[#4d9b72]" style={{ width: total ? `${Math.round((completed / total) * 100)}%` : "0%" }} />
+                  </div>
+                  <div className="mt-1 text-xs text-[#6c7d8f]">{completed} из {total || 0} тестов пройдено</div>
+                </button>
+              );
+            }) : (
+              <div className="rounded-[18px] border border-dashed border-[#cfdbe7] bg-[#fbfdff] px-4 py-5 text-sm leading-6 text-[#6f8193]">
+                Проектов пока нет. Начните с кнопки «Создать проект».
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function getStickyNoteTone(goal: AssessmentGoal) {
   switch (goal) {
     case "motivation":
@@ -2392,11 +2523,44 @@ export default function DashboardPage() {
     ? Math.round(assemblyComparison.ranking.reduce((sum, item) => sum + item.calibrated_index, 0) / Math.max(1, assemblyComparison.ranking.length))
     : null;
   const assemblyTopCompetency = assemblyComparison?.competency_leaders?.[0] || null;
+  const mobileDashboard = (
+    <MobileDashboardHome
+      displayName={displayName}
+      workspaceName={workspaceName}
+      balanceText={balanceText}
+      activeSubscription={activeSubscription}
+      projects={projects}
+      folders={folders}
+      trashCount={trashEntries.length}
+      loading={loading}
+      error={error}
+      onCreateProject={() => router.push("/projects/new")}
+      onCreateFolder={promptAndCreateFolder}
+      onOpenTrash={() => setTrashOpen(true)}
+      onOpenProject={(id) => router.push(`/projects/${id}`)}
+    />
+  );
+  const trashRestoreModal = trashOpen ? (
+    <TrashRestoreModal
+      entries={trashEntries}
+      folders={workspace?.folders || []}
+      projects={workspace?.projects || []}
+      onClose={() => setTrashOpen(false)}
+      onRestore={restoreTrashEntry}
+      onDeleteNow={(entry) => {
+        if (entry.kind === "project") void deleteProject(entry.id, true);
+        else void deleteFolderDirect(entry.id);
+        setTrashEntries((prev) => prev.filter((item) => !(entry.kind === item.kind && entry.id === item.id)));
+      }}
+    />
+  ) : null;
 
   if (desktopVariant === "assembly") {
     return (
       <Layout title="Кабинет специалиста">
-        <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+        <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
+        {mobileDashboard}
+        <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 hidden overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 lg:block">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
@@ -2692,6 +2856,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        {trashRestoreModal}
       </Layout>
     );
   }
@@ -2699,7 +2864,9 @@ export default function DashboardPage() {
   if (desktopVariant === "classic") {
     return (
       <Layout title="Кабинет специалиста">
-        <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+        <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
+        {mobileDashboard}
+        <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 hidden overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 lg:block">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
@@ -2878,6 +3045,7 @@ export default function DashboardPage() {
             />
           ) : null}
         </div>
+        {trashRestoreModal}
       </Layout>
     );
   }
@@ -2885,7 +3053,8 @@ export default function DashboardPage() {
   return (
     <Layout title="Кабинет специалиста">
         <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
-        <div className="dashboard-experience relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4">
+        {mobileDashboard}
+        <div className="dashboard-experience relative isolate -mx-3 hidden overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 lg:block">
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">

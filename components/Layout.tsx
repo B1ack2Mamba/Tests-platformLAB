@@ -31,8 +31,8 @@ export function Layout({
 }) {
   return (
     <div className="min-h-screen bg-clean-white text-slate-950">
-      <header className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="app-header border-b border-slate-200 bg-white shadow-sm">
+        <div className="app-header-inner mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between">
           <Link href="/" className="flex items-center gap-3 font-semibold tracking-tight app-brand">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#b9efcf] bg-[#dffce9] text-[#0f8a55] shadow-sm">
               ЛК
@@ -43,7 +43,7 @@ export function Layout({
             </div>
           </Link>
 
-          <nav className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <nav className="app-header-nav flex flex-wrap items-center gap-2 sm:justify-end">
             <Link href="/dashboard?desktop=scheme" className="btn btn-secondary btn-sm">Кабинет</Link>
             <Link href="/wallet" className="btn btn-secondary btn-sm">Кошелёк</Link>
             <AdminNavNoSSR />
@@ -52,8 +52,8 @@ export function Layout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
-        {title ? <h1 className="mb-4 text-2xl font-semibold tracking-tight text-[#1f6b55]">{title}</h1> : null}
+      <main className="app-main mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
+        {title ? <h1 className="app-page-title mb-4 text-2xl font-semibold tracking-tight text-[#1f6b55]">{title}</h1> : null}
         {children}
       </main>
 

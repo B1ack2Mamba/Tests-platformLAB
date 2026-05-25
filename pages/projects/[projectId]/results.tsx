@@ -968,7 +968,7 @@ export default function ProjectResultsStandalonePage() {
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
       <OnboardingTour tourId="project-results-v1" steps={PROJECT_RESULTS_ONBOARDING_STEPS} />
-      <div className="mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4">
+      <div className="project-results-page mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4">
         {error ? <div className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
 
@@ -976,7 +976,7 @@ export default function ProjectResultsStandalonePage() {
           <div className="absolute inset-0 opacity-[0.05] [background-image:radial-gradient(#ab9067_0.55px,transparent_0.55px)] [background-size:13px_13px]" />
 
           <div className="relative border-b border-[#eadbc3] px-6 py-5 sm:px-8 sm:py-6">
-            <div className="pr-[170px] sm:pr-[210px]">
+            <div className="project-results-hero-copy pr-[170px] sm:pr-[210px]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="font-serif text-[1.7rem] leading-tight text-[#5b4321] sm:text-[2.05rem]">Проект: {data?.project.title || "Результаты проекта"}</div>
@@ -994,7 +994,7 @@ export default function ProjectResultsStandalonePage() {
               </div>
             </div>
 
-            <div className="absolute right-5 top-5 grid h-[126px] w-[126px] place-items-center sm:right-8 sm:top-4 sm:h-[170px] sm:w-[170px]">
+            <div className="project-results-stamp absolute right-5 top-5 grid h-[126px] w-[126px] place-items-center sm:right-8 sm:top-4 sm:h-[170px] sm:w-[170px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={data?.fully_done ? "/result-stamp.svg" : "/result-stamp-bw.svg"}
