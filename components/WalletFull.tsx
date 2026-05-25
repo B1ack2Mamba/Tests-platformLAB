@@ -694,7 +694,7 @@ export default function WalletPage() {
   </div>
 </div>
 
-<div className="p-5">
+<div className="wallet-plan-body p-5">
   <div className="wallet-plan-price-row flex items-start justify-between gap-3">
     <div>
       {promoActive ? (
@@ -707,7 +707,7 @@ export default function WalletPage() {
     </div>
     <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${isActive ? "bg-[#dff2e7] text-[#296244]" : "bg-[#f7f2e9] text-[#6e725f]"}`}>{activeProjectPriceRub} ₽ за проект</span>
   </div>
-  <div className="mt-5 grid gap-2">
+  <div className="wallet-plan-actions mt-5 grid gap-2">
                             <button
                               type="button"
                               className={ACTION_PRIMARY + " w-full py-2.5 text-[15px]"}
@@ -793,8 +793,8 @@ export default function WalletPage() {
               </div>
 </div>
 
-<div className="space-y-5">
-  <div className={FRAME_CARD + " overflow-hidden p-0"}>
+<div className="wallet-hermes-column space-y-5">
+  <div className={FRAME_CARD + " wallet-hermes-panel overflow-hidden p-0"}>
     <div className="border-b border-[#e4d7c0] px-5 py-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

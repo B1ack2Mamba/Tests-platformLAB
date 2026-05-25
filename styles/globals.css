@@ -521,6 +521,8 @@ html.native-app .app-brand {
   }
 
   .wallet-plan-card {
+    display: flex;
+    flex-direction: column;
     max-width: 100%;
     border-radius: 1.25rem;
   }
@@ -549,8 +551,21 @@ html.native-app .app-brand {
     white-space: normal;
   }
 
-  .wallet-plan-card .p-5 {
+  .wallet-plan-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
     padding: 1rem;
+  }
+
+  .wallet-plan-actions {
+    margin-top: auto;
+    padding-top: 1rem;
+  }
+
+  .wallet-hermes-column,
+  .wallet-hermes-panel {
+    display: none;
   }
 }
 @layer components {

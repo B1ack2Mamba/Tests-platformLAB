@@ -272,6 +272,15 @@ function MobileProjectDetails({
 
 const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v3";
+const DEFAULT_INVITE_BASE_URL = "https://tests-platform-lab.vercel.app";
+
+function getInviteBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_INVITE_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    DEFAULT_INVITE_BASE_URL
+  ).replace(/\/+$/, "");
+}
 
 const PROJECT_DETAILS_ONBOARDING_STEPS: OnboardingStep[] = [
   {
@@ -815,8 +824,7 @@ export default function ProjectDetailsPage() {
   const shareUrl = useMemo(() => {
     const token = data?.project.invite_token;
     if (!token) return "";
-    if (typeof window !== "undefined") return `${window.location.origin}/invite/${token}`;
-    return `/invite/${token}`;
+    return `${getInviteBaseUrl()}/invite/${token}`;
   }, [data?.project.invite_token]);
   const progress = useMemo(() => {
     const total = data?.project.tests?.length || 0;
