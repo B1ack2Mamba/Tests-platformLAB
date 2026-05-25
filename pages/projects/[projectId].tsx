@@ -153,6 +153,123 @@ function getPackageButtonLabel(
   return `Оплатить ${formatRub(getEvaluationPackageDefinition(target)?.priceRub || 0)}`;
 }
 
+function MobileProjectDetails({
+  data,
+  goalTitle,
+  shareUrl,
+  shareCompactUrl,
+  copied,
+  progress,
+  completedSet,
+  totalEstimatedMinutes,
+  fullyDone,
+  editing,
+  form,
+  saving,
+  onToggleEditing,
+  onFormChange,
+  onSaveDetails,
+  onCopyShareUrl,
+}: {
+  data: ProjectPayload | null;
+  goalTitle: string;
+  shareUrl: string;
+  shareCompactUrl: string;
+  copied: boolean;
+  progress: { completed: number; total: number };
+  completedSet: Set<string>;
+  totalEstimatedMinutes: number;
+  fullyDone: boolean;
+  editing: boolean;
+  form: { email: string; current_position: string; target_role: string; notes: string; registry_comment: string };
+  saving: boolean;
+  onToggleEditing: () => void;
+  onFormChange: (patch: Partial<{ email: string; current_position: string; target_role: string; notes: string; registry_comment: string }>) => void;
+  onSaveDetails: () => void;
+  onCopyShareUrl: () => void;
+}) {
+  const project = data?.project;
+  return (
+    <div className="project-details-mobile space-y-4 lg:hidden">
+      <section className="rounded-[24px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f7f0e4_100%)] p-4 shadow-[0_18px_34px_rgba(93,71,39,0.08)]">
+        <div className="text-[11px] font-semibold uppercase text-[#9d7a4b]">Проект оценки</div>
+        <h2 className="mt-2 text-2xl font-semibold leading-tight text-[#2f5031]">{project?.title || "Проект оценки"}</h2>
+        <div className="mt-2 text-sm leading-6 text-[#6f5a42]">{project?.person?.full_name || "Участник"} · {goalTitle}</div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="rounded-[18px] border border-[#e1d3bf] bg-white/70 px-3 py-3">
+            <div className="text-[11px] uppercase text-[#9d7a4b]">Готово тестов</div>
+            <div className="mt-1 text-xl font-semibold text-[#2d2a22]">{progress.completed} / {progress.total}</div>
+          </div>
+          <div className="rounded-[18px] border border-[#e1d3bf] bg-white/70 px-3 py-3">
+            <div className="text-[11px] uppercase text-[#9d7a4b]">Время</div>
+            <div className="mt-1 text-xl font-semibold text-[#2d2a22]">{formatEstimatedMinutes(totalEstimatedMinutes)}</div>
+          </div>
+        </div>
+      </section>
+
+      <section data-onboarding-id="project-share-access" className="rounded-[22px] border border-[#dcc8aa] bg-[#fffaf0] p-4">
+        <div className="text-base font-semibold text-[#4d3b24]">Доступ участника</div>
+        <div className="mt-2 text-sm leading-6 text-[#6f5a42]">Отправьте кандидату ссылку или QR-код для прохождения тестов.</div>
+        <div className="mt-3 grid gap-2">
+          <input className="input" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
+          <button type="button" className="btn btn-primary" onClick={onCopyShareUrl}>{copied ? "Скопировано" : "Скопировать ссылку"}</button>
+        </div>
+        <div className="mt-4 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={156} /> : null}</div>
+      </section>
+
+      <section className="rounded-[22px] border border-[#dcc8aa] bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-base font-semibold text-[#4d3b24]">Профиль</div>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onToggleEditing}>{editing ? "Отменить" : "Редактировать"}</button>
+        </div>
+        {editing ? (
+          <div className="mt-3 grid gap-2">
+            <input className="input" value={form.email} onChange={(e) => onFormChange({ email: e.target.value })} placeholder="Email" />
+            <input className="input" value={form.current_position} onChange={(e) => onFormChange({ current_position: e.target.value })} placeholder="Текущая должность" />
+            <input className="input" value={form.target_role} onChange={(e) => onFormChange({ target_role: e.target.value })} placeholder="Будущая предполагаемая должность" />
+            <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => onFormChange({ notes: e.target.value })} placeholder="Комментарий специалиста" />
+            <textarea className="input min-h-[112px]" value={form.registry_comment} onChange={(e) => onFormChange({ registry_comment: e.target.value })} placeholder="Registry-комментарий" />
+            <button type="button" className="btn btn-primary" onClick={onSaveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-2 text-sm leading-6 text-[#6f5a42]">
+            <div>Email: <span className="font-medium text-[#2d2a22]">{project?.person?.email || "не указан"}</span></div>
+            <div>Должность: <span className="font-medium text-[#2d2a22]">{project?.person?.current_position || "не указана"}</span></div>
+            <div>Будущая должность: <span className="font-medium text-[#2d2a22]">{project?.target_role || goalTitle}</span></div>
+            <div>Комментарий: <span className="text-[#2d2a22]">{project?.person?.notes || "не добавлен"}</span></div>
+          </div>
+        )}
+      </section>
+
+      <section data-onboarding-id="project-tests-progress" className="rounded-[22px] border border-[#dcc8aa] bg-white p-4">
+        <div className="text-base font-semibold text-[#4d3b24]">Назначенные тесты</div>
+        <div className="mt-3 grid gap-2">
+          {(project?.tests || []).map((test) => {
+            const done = completedSet.has(test.test_slug);
+            return (
+              <div key={test.test_slug} className="rounded-[16px] border border-[#e1d3bf] bg-[#fffdf8] px-3 py-3">
+                <div className="text-sm font-semibold text-[#2d2a22]">{test.test_title}</div>
+                <div className="mt-1 flex items-center justify-between gap-2 text-xs text-[#7b6650]">
+                  <span>{formatEstimatedMinutes(getTestEstimatedMinutes(test.test_slug))}</span>
+                  <span className={`rounded-full px-2.5 py-1 ${done ? "bg-[#edf7e7] text-[#446047]" : "bg-[#fff3df] text-[#6b5943]"}`}>{done ? "Готово" : "Не пройден"}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section data-onboarding-id="project-get-result" className="rounded-[22px] border border-[#dcc8aa] bg-[#fffaf0] p-4 text-center">
+        {fullyDone ? (
+          <Link href={`/projects/${project?.id}/results`} className="btn btn-primary w-full">Получить результат</Link>
+        ) : (
+          <button type="button" className="btn btn-secondary w-full" disabled>Осталось тестов: {Math.max(0, progress.total - progress.completed)}</button>
+        )}
+      </section>
+    </div>
+  );
+}
+
 const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v3";
 
@@ -908,7 +1025,7 @@ export default function ProjectDetailsPage() {
         {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}
 
         {canEditProjectDetailsTemplate ? (
-          <div className="mx-auto mb-4 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
+          <div className="mx-auto mb-4 hidden max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)] lg:flex">
             <div>
               <div className="text-xs uppercase tracking-[0.24em] text-[#9d7a4b]">Конструктор страницы проекта</div>
               <div className="mt-1 text-[#6f5a42]">Подгони шаблоны и сохрани как общий макет для всех.</div>
@@ -923,12 +1040,31 @@ export default function ProjectDetailsPage() {
         ) : null}
 
         {canEditProjectDetailsTemplate && detailsTemplate.builderOpen ? (
-          <div className="mx-auto mb-4 max-w-[1220px] rounded-[20px] border border-[#dcc8aa] bg-[#fffaf0] px-4 py-3 text-sm text-[#6f5a42] shadow-[0_10px_24px_rgba(90,68,33,0.05)]">
+          <div className="mx-auto mb-4 hidden max-w-[1220px] rounded-[20px] border border-[#dcc8aa] bg-[#fffaf0] px-4 py-3 text-sm text-[#6f5a42] shadow-[0_10px_24px_rgba(90,68,33,0.05)] lg:block">
             Тянуть — перенос блока, ↘ — общий масштаб, ↔ — ширина, ↕ — высота, A — размер текста и содержимого, Слой — сдвиг внутреннего слоя без движения фона.
           </div>
         ) : null}
 
-        <div className="relative mx-auto w-full max-w-[1220px]" style={{ height: detailsCanvasHeight * detailsViewportScale }}>
+        <MobileProjectDetails
+          data={data}
+          goalTitle={goal?.shortTitle || goal?.title || data?.project.goal || "Цель оценки"}
+          shareUrl={shareUrl}
+          shareCompactUrl={shareCompactUrl}
+          copied={copied}
+          progress={progress}
+          completedSet={completedSet}
+          totalEstimatedMinutes={totalEstimatedMinutes}
+          fullyDone={fullyDone}
+          editing={editing}
+          form={form}
+          saving={saving}
+          onToggleEditing={() => setEditing((prev) => !prev)}
+          onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          onSaveDetails={saveDetails}
+          onCopyShareUrl={copyShareUrl}
+        />
+
+        <div className="relative mx-auto hidden w-full max-w-[1220px] lg:block" style={{ height: detailsCanvasHeight * detailsViewportScale }}>
           <div className="absolute left-1/2 top-0 origin-top" style={{ width: 1220, height: detailsCanvasHeight, transform: `translateX(-50%) scale(${detailsViewportScale})` }}>
           <div className="absolute inset-0 rounded-[36px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.72))]" />
 

@@ -230,6 +230,43 @@ html.native-app .app-brand {
     overflow-wrap: anywhere;
   }
 
+  .app-main [class~="text-5xl"],
+  .app-main [class~="text-6xl"] {
+    font-size: 2.35rem;
+    line-height: 1.05;
+    letter-spacing: 0;
+  }
+
+  .app-main [class~="text-3xl"] {
+    font-size: 1.65rem;
+    line-height: 1.15;
+  }
+
+  .app-main [class~="text-2xl"] {
+    font-size: 1.35rem;
+    line-height: 1.2;
+  }
+
+  .app-main [class*="tracking-"] {
+    letter-spacing: 0;
+  }
+
+  .app-main [class*="min-w-"] {
+    min-width: 0;
+  }
+
+  .app-main input[class*="min-w-"],
+  .app-main select[class*="min-w-"],
+  .app-main textarea[class*="min-w-"] {
+    width: 100%;
+  }
+
+  .app-main .overflow-x-auto,
+  .app-main .overflow-auto,
+  .app-main [class~="overflow-y-auto"] {
+    -webkit-overflow-scrolling: touch;
+  }
+
   .btn {
     min-height: 46px;
     white-space: normal;
@@ -246,6 +283,26 @@ html.native-app .app-brand {
 
   table {
     font-size: 0.86rem;
+  }
+
+  .app-main table {
+    min-width: 520px;
+  }
+
+  .app-main form .btn,
+  .app-main section .btn,
+  .app-main .card .btn {
+    width: 100%;
+  }
+
+  .app-main .fixed.inset-0 {
+    padding: 0.75rem;
+  }
+
+  .app-main .fixed.inset-0 > .card,
+  .app-main .fixed.inset-0 > div {
+    max-height: calc(100dvh - 1.5rem);
+    overflow-y: auto;
   }
 
   .developer-support-trigger,
@@ -333,6 +390,46 @@ html.native-app .app-brand {
 
   .project-results-page .font-serif {
     font-size: clamp(1.35rem, 7vw, 1.75rem);
+  }
+
+  .project-create-page {
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+  }
+
+  .project-create-shell,
+  .project-create-stage {
+    min-height: 0;
+    display: block;
+    padding-top: 0;
+  }
+
+  .project-create-tablet {
+    aspect-ratio: auto;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0;
+    background-image: none !important;
+    transform: none !important;
+  }
+
+  .project-create-paper {
+    position: static;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    transform: none !important;
+    border-radius: 1.2rem;
+    padding: 0;
+  }
+
+  .project-create-paper details > div {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+    max-width: calc(100vw - 1.5rem);
   }
 }
 @layer components {

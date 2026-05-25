@@ -603,11 +603,11 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
   return (
     <Layout title="Новый проект оценки">
       <OnboardingTour tourId="project-create-v1" steps={PROJECT_CREATE_ONBOARDING_STEPS} />
-      <div className="mx-auto px-2 pb-6 pt-2 sm:px-4">
-        <div className="relative mx-auto min-h-[calc(100vh-40px)] max-w-[1280px] overflow-visible">
-          <div className="flex min-h-[calc(100vh-40px)] items-start justify-center overflow-visible pt-4">
+      <div className="project-create-page mx-auto px-2 pb-6 pt-2 sm:px-4">
+        <div className="project-create-shell relative mx-auto min-h-[calc(100vh-40px)] max-w-[1280px] overflow-visible">
+          <div className="project-create-stage flex min-h-[calc(100vh-40px)] items-start justify-center overflow-visible pt-4">
             <div
-              className="relative aspect-[2/3] bg-no-repeat bg-top bg-contain"
+              className="project-create-tablet relative aspect-[2/3] bg-no-repeat bg-top bg-contain"
               style={{
                 width: "min(100%, 1180px)",
                 maxWidth: "calc(100vw - 32px)",
@@ -637,7 +637,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                 </>
               ) : null}
               <div
-                className="absolute left-[11.2%] top-[11.2%] h-[79.8%] w-[77.6%] overflow-y-auto rounded-[24px] px-[2.8%] pb-[3.2%] pt-[2.8%] [scrollbar-width:thin]"
+                className="project-create-paper absolute left-[11.2%] top-[11.2%] h-[79.8%] w-[77.6%] overflow-y-auto rounded-[24px] px-[2.8%] pb-[3.2%] pt-[2.8%] [scrollbar-width:thin]"
                 style={{
                   transform: `translate(${pageBuilder.pageX}px, ${pageBuilder.pageY}px) scale(${pageBuilder.pageScale})`,
                   transformOrigin: "top center",
