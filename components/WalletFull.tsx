@@ -608,7 +608,7 @@ export default function WalletPage() {
 
   return (
     <Layout title="Кошелёк">
-      <OnboardingTour tourId="wallet-v1" steps={WALLET_ONBOARDING_STEPS} />
+      {user ? <OnboardingTour tourId="wallet-v1" steps={WALLET_ONBOARDING_STEPS} /> : null}
       {!user ? (
         <>
           <div className={FRAME_CARD}>

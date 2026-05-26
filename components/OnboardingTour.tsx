@@ -184,7 +184,7 @@ export function OnboardingTour({
   return (
     <>
       {open ? (
-        <div className="fixed inset-0 z-[890] pointer-events-none">
+        <div className="fixed inset-0 z-[950] pointer-events-none">
           <div className="absolute inset-0 bg-slate-950/40" />
           {rect ? (
             <div

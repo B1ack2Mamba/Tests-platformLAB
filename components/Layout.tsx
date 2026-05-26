@@ -61,7 +61,7 @@ export function Layout({
       <GlobalHintsButtonNoSSR />
 
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-4 text-xs text-slate-500 sm:px-4 sm:py-5 md:flex-row md:items-center md:justify-between">
+        <div className="app-footer-inner mx-auto flex max-w-7xl flex-col gap-3 px-3 py-4 text-xs text-slate-500 sm:px-4 sm:py-5 md:flex-row md:items-center md:justify-between">
           <div>
             Жданов Александр Андреевич · самозанятый · ИНН 027803490580
           </div>
