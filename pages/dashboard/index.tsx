@@ -4725,7 +4725,7 @@ type SceneImagePreviewModalProps = {
 
 function SceneImagePreviewModal({ src, title, onClose }: SceneImagePreviewModalProps) {
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div className="relative w-full max-w-[980px]" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
@@ -4767,7 +4767,7 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
   const totalEstimatedMinutes = getTotalEstimatedMinutes((project.tests || []).map((test) => test.test_slug));
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div className="dashboard-project-preview-wrap relative w-full max-w-[920px]" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
@@ -4888,7 +4888,7 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
 
   return (
     <div
-      className={`fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm ${draggingInnerProjectId ? "ring-4 ring-emerald-300/50" : ""}`}
+      className={`fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm ${draggingInnerProjectId ? "ring-4 ring-emerald-300/50" : ""}`}
       onClick={onClose}
       onDragOver={(e) => {
         if (draggingInnerProjectId) e.preventDefault();
@@ -4971,7 +4971,7 @@ type FolderActionDialogProps = {
 
 function FolderActionDialog({ folder, onClose, onRename, onDelete, onChooseIcon }: FolderActionDialogProps) {
   return (
-    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[9100] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm text-slate-500">Управление папкой</div>
         <div className="mt-1 text-2xl font-semibold text-slate-950">{folder.name}</div>
@@ -4999,7 +4999,7 @@ type FolderRenameDialogProps = {
 
 function FolderRenameDialog({ folder, value, busy, onChange, onClose, onSave }: FolderRenameDialogProps) {
   return (
-    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[9100] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-xl rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm text-slate-500">Переименование папки</div>
         <div className="mt-1 text-2xl font-semibold text-slate-950">{folder.name}</div>
@@ -5037,7 +5037,7 @@ type FolderDeleteDialogProps = {
 
 function FolderDeleteDialog({ folder, busy, onClose, onDelete }: FolderDeleteDialogProps) {
   return (
-    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[9100] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md rounded-[28px] border border-rose-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm text-slate-500">Удаление папки</div>
         <div className="mt-1 text-2xl font-semibold text-slate-950">{folder.name}</div>
@@ -5061,7 +5061,7 @@ type FolderIconPickerProps = {
 function FolderIconPicker({ folder, busy, onClose, onSelect }: FolderIconPickerProps) {
   const active = getFolderIcon(folder.icon_key);
   return (
-    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[9100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-xl rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -5113,7 +5113,7 @@ type TrashRestoreModalProps = {
 
 function TrashRestoreModal({ entries, onClose, onRestore, onDeleteNow }: TrashRestoreModalProps) {
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div className="w-full max-w-[760px] rounded-[28px] border border-[#dac4a7] bg-[#fffaf2] p-5 shadow-[0_30px_70px_-44px_rgba(53,34,17,0.38)]" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>

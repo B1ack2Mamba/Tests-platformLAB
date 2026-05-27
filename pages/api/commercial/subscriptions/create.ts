@@ -7,6 +7,12 @@ import { getActiveMonthlyPlanPriceRub, getMonthlyPlanDefinition, isMonthlyPlanKe
 type OkResp = { ok: true; payment_id: string; confirmation_url: string };
 type ErrResp = { ok: false; error: string };
 
+function sanitizeReturnPath(value: unknown, fallback: string) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return fallback;
+  return raw;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse<OkResp | ErrResp>) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
 
@@ -38,7 +44,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const amountValue = activePriceRub.toFixed(2);
   const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
   const idempotenceKey = crypto.randomUUID();
-  const returnUrl = `${appBaseUrl.replace(/\/$/, "")}/wallet?plan_paid=1`;
+  const returnPath = sanitizeReturnPath(req.body?.return_path, "/wallet?plan_paid=1");
+  const returnUrl = `${appBaseUrl.replace(/\/$/, "")}${returnPath}`;
 
   const taxSystemCode = Number(process.env.YOOKASSA_TAX_SYSTEM_CODE || "1");
   const vatCode = Number(process.env.YOOKASSA_VAT_CODE || "1");
@@ -84,6 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         monthly_price_rub: String(activePriceRub),
         projects_limit: String(plan.projectsLimit),
         duration_days: String(plan.durationDays),
+        return_path: returnPath,
       },
     }),
   });

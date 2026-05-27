@@ -5,6 +5,7 @@ import { parseRequestedRubInput, upsertYooKassaTopupSafe } from "@/lib/yookassaG
 
 type Body = {
   amount_rub?: number | string;
+  return_path?: string;
 };
 
 type OkResp = {
@@ -20,6 +21,12 @@ function getBearer(req: NextApiRequest): string | null {
   if (!h) return null;
   const m = /^Bearer\s+(.+)$/i.exec(String(h));
   return m?.[1] ?? null;
+}
+
+function sanitizeReturnPath(value: unknown, fallback: string) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return fallback;
+  return raw;
 }
 
 export default async function handler(
@@ -94,7 +101,8 @@ export default async function handler(
   }
 
   const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
-  const returnUrl = `${appBaseUrl.replace(/\/$/, "")}/wallet?paid=1`;
+  const returnPath = sanitizeReturnPath(body.return_path, "/wallet?paid=1");
+  const returnUrl = `${appBaseUrl.replace(/\/$/, "")}${returnPath}`;
   const amountLabel = `${rub} ₽`;
 
   const receipt = {
@@ -132,6 +140,7 @@ export default async function handler(
         kind: "wallet_topup",
         requested_amount_rub: String(rub),
         requested_amount_kopeks: String(requestedAmountKopeks),
+        return_path: returnPath,
       },
     }),
   });
@@ -167,6 +176,7 @@ export default async function handler(
       kind: "wallet_topup",
       requested_amount_rub: String(rub),
       requested_amount_kopeks: String(requestedAmountKopeks),
+      return_path: returnPath,
     },
   });
 

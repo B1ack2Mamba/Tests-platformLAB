@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 /* eslint-disable react-hooks/exhaustive-deps */
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -14,6 +14,13 @@ import {
   type AssessmentGoal,
 } from "@/lib/commercialGoals";
 import {
+  MONTHLY_SUBSCRIPTION_PLANS,
+  getActiveMonthlyPlanEffectiveProjectPriceRub,
+  getActiveMonthlyPlanPriceRub,
+  type MonthlyPlanKey,
+  type WorkspaceSubscriptionStatus,
+} from "@/lib/commercialSubscriptions";
+import {
   getClosestGoalForCompetencies,
   getCompetencyGroups,
   getCompetencyLongLabel,
@@ -24,10 +31,27 @@ import {
 import { getAllTests } from "@/lib/loadTests";
 import type { AnyTest } from "@/lib/testTypes";
 import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
+import { useWallet } from "@/lib/useWallet";
 
 type WorkspacePayload = {
   ok: true;
   workspace: { workspace_id: string; role: string; name: string };
+};
+
+type SubscriptionStatusPayload = {
+  ok: true;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
+  error?: string;
+};
+
+type CreateProjectPaymentRequired = {
+  ok?: false;
+  payment_required?: boolean;
+  error?: string;
+  price_rub?: number;
+  price_kopeks?: number;
+  balance_kopeks?: number;
+  active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
 type NewProjectPageProps = { tests: Pick<AnyTest, "slug" | "title">[] };
@@ -56,6 +80,11 @@ const PAGE_BUILDER_STORAGE_KEY = "project-create-page-builder-v1";
 const PROJECT_CREATE_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
 const DASHBOARD_TRASH_HINT_SHOWN_KEY = "dashboard-trash-hint-shown";
+const PROJECT_CREATION_PRICE_RUB = 3000;
+const PROJECT_CREATION_PRICE_KOPEKS = PROJECT_CREATION_PRICE_RUB * 100;
+const PROJECT_CREATE_RETURN_PATH = "/projects/new?payment_return=1";
+const YOOKASSA_PENDING_TOPUP_KEY = "yookassa_pending_topup_payment_id";
+const YOOKASSA_PENDING_PLAN_KEY = "yookassa_pending_plan_payment_id";
 
 const PROJECT_CREATE_ONBOARDING_STEPS: OnboardingStep[] = [
   {
@@ -108,6 +137,26 @@ function InfoHint({ label, children }: { label: string; children: React.ReactNod
 
 function testsLabel(count: number) {
   return `${count} тест${count === 1 ? "" : count < 5 ? "а" : "ов"}`;
+}
+
+function formatRubAmount(value: number) {
+  return `${Math.round(value).toLocaleString("ru-RU")} ₽`;
+}
+
+function formatKopeksAsRub(value: number) {
+  return formatRubAmount(Math.max(0, Math.floor(value / 100)));
+}
+
+function setPendingYooKassaPaymentId(key: string, value: string) {
+  if (typeof window === "undefined" || !value) return;
+  window.localStorage.setItem(key, value);
+}
+
+function popPendingYooKassaPaymentId(key: string) {
+  if (typeof window === "undefined") return "";
+  const value = (window.localStorage.getItem(key) || "").trim();
+  if (value) window.localStorage.removeItem(key);
+  return value;
 }
 
 function GoalDescriptionHint({ title, description }: { title: string; description: string }) {
@@ -247,6 +296,7 @@ function sameSlugSet(left: string[], right: string[]) {
 
 export default function NewProjectPage({ tests }: NewProjectPageProps) {
   const { session, user, loading: sessionLoading } = useSession();
+  const { wallet, refresh: refreshWallet, isUnlimited } = useWallet();
   const router = useRouter();
   const initialGoal = router.query.goal;
   const allSlugs = useMemo(() => tests.map((item) => item.slug), [tests]);
@@ -265,6 +315,10 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
   const [competencyQuery, setCompetencyQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
+  const [paymentBusyKey, setPaymentBusyKey] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentInfo, setPaymentInfo] = useState("");
   const [pageBuilder, setPageBuilder] = useState<PageBuilderState>(DEFAULT_PAGE_BUILDER_STATE);
   const [templateLoaded, setTemplateLoaded] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
@@ -288,6 +342,21 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     }
   }, [initialGoal]);
 
+  const loadSubscriptionStatus = useCallback(async () => {
+    if (!session?.access_token) {
+      setActiveSubscription(null);
+      return null;
+    }
+
+    const resp = await fetch("/api/commercial/subscriptions/status", {
+      headers: { authorization: `Bearer ${session.access_token}` },
+    });
+    const json = (await resp.json().catch(() => ({}))) as Partial<SubscriptionStatusPayload>;
+    if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить тариф");
+    setActiveSubscription(json.active_subscription || null);
+    return json.active_subscription || null;
+  }, [session?.access_token]);
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!session || !user) {
@@ -305,6 +374,55 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       }
     })();
   }, [router, session, sessionLoading, user]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    loadSubscriptionStatus().catch((err) => setPaymentError(err?.message || "Не удалось загрузить тариф"));
+  }, [loadSubscriptionStatus, session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token || !router.isReady) return;
+
+    const needsPaymentSync = router.query.payment_return === "1";
+    if (!needsPaymentSync) return;
+
+    let cancelled = false;
+    const topupPaymentId = popPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY);
+    const planPaymentId = popPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY);
+    const delays = [0, 1500, 3500, 6500];
+
+    setPaymentInfo("Проверяю оплату. Обычно это занимает несколько секунд.");
+    setPaymentError("");
+
+    delays.forEach((delay, index) => {
+      window.setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          for (const paymentId of [topupPaymentId, planPaymentId].filter(Boolean)) {
+            await fetch("/api/yookassa/sync", {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ payment_id: paymentId }),
+            });
+          }
+          await refreshWallet();
+          await loadSubscriptionStatus();
+          if (!cancelled) setPaymentInfo("Оплата проверена. Можно создавать проект.");
+        } catch (err: any) {
+          if (!cancelled && index === delays.length - 1) {
+            setPaymentError(err?.message || "Оплата могла ещё не успеть подтвердиться. Попробуй обновить баланс через несколько секунд.");
+          }
+        }
+      }, delay);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadSubscriptionStatus, refreshWallet, router.isReady, router.query.payment_return, session?.access_token]);
 
   useEffect(() => {
     if (!session || typeof window === "undefined") return;
@@ -485,6 +603,104 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     }
   }
 
+  async function startProjectTopup() {
+    if (!session?.access_token) {
+      setPaymentError("Нужно войти, чтобы пополнить баланс.");
+      return;
+    }
+
+    setPaymentBusyKey("topup");
+    setPaymentError("");
+    setPaymentInfo("");
+    try {
+      const resp = await fetch("/api/payments/yookassa/create", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          amount_rub: PROJECT_CREATION_PRICE_RUB,
+          return_path: PROJECT_CREATE_RETURN_PATH,
+        }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as any;
+      if (!resp.ok || !json?.ok || !json?.confirmation_url || !json?.payment_id) {
+        throw new Error(json?.error || "Не удалось создать оплату");
+      }
+      setPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY, json.payment_id);
+      window.location.href = json.confirmation_url;
+    } catch (err: any) {
+      setPaymentError(err?.message || "Не удалось создать оплату");
+    } finally {
+      setPaymentBusyKey(null);
+    }
+  }
+
+  async function startPlanOnlinePurchase(planKey: MonthlyPlanKey) {
+    if (!session?.access_token) {
+      setPaymentError("Нужно войти, чтобы подключить тариф.");
+      return;
+    }
+
+    setPaymentBusyKey(`plan-online:${planKey}`);
+    setPaymentError("");
+    setPaymentInfo("");
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/create", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          plan_key: planKey,
+          return_path: PROJECT_CREATE_RETURN_PATH,
+        }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as any;
+      if (!resp.ok || !json?.ok || !json?.confirmation_url || !json?.payment_id) {
+        throw new Error(json?.error || "Не удалось создать оплату тарифа");
+      }
+      setPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY, json.payment_id);
+      window.location.href = json.confirmation_url;
+    } catch (err: any) {
+      setPaymentError(err?.message || "Не удалось создать оплату тарифа");
+    } finally {
+      setPaymentBusyKey(null);
+    }
+  }
+
+  async function buyPlanFromWallet(planKey: MonthlyPlanKey) {
+    if (!session?.access_token) {
+      setPaymentError("Нужно войти, чтобы купить тариф с баланса.");
+      return;
+    }
+
+    setPaymentBusyKey(`plan-wallet:${planKey}`);
+    setPaymentError("");
+    setPaymentInfo("");
+    try {
+      const resp = await fetch("/api/commercial/subscriptions/purchase-from-wallet", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan_key: planKey }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as any;
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось купить тариф с баланса");
+      await refreshWallet();
+      await loadSubscriptionStatus();
+      setPaymentInfo("Тариф подключён. Можно создавать проект.");
+    } catch (err: any) {
+      setPaymentError(err?.message || "Не удалось купить тариф с баланса");
+    } finally {
+      setPaymentBusyKey(null);
+    }
+  }
+
   function testNote(slug: string) {
     if (selectionMode === "goal") {
       const weight = getGoalWeight(goal, slug);
@@ -550,8 +766,14 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       return;
     }
 
+    if (!canCreateProject) {
+      setPaymentError(`Для создания проекта нужен активный тариф или ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} на балансе.`);
+      return;
+    }
+
     setLoading(true);
     setError("");
+    setPaymentError("");
 
     try {
       const resp = await fetch("/api/commercial/projects/create", {
@@ -564,7 +786,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
           goal: effectiveGoal,
           selection_mode: selectionMode,
           selected_competency_ids: selectedCompetencyIds,
-          package_mode: "basic",
+          package_mode: "premium_ai_plus",
           person_name: personName,
           person_email: personEmail,
           current_position: currentPosition,
@@ -574,8 +796,16 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
         }),
       });
 
-      const json = await resp.json().catch(() => ({}));
+      const json = (await resp.json().catch(() => ({}))) as CreateProjectPaymentRequired & { ok?: boolean; project_id?: string };
+      if (json?.payment_required) {
+        setActiveSubscription(json.active_subscription || null);
+        setPaymentError(json.error || `Для создания проекта нужен активный тариф или ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} на балансе.`);
+        await refreshWallet();
+        return;
+      }
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось создать проект");
+      await refreshWallet();
+      await loadSubscriptionStatus().catch(() => null);
       try {
         if (window.localStorage.getItem(DASHBOARD_TRASH_HINT_SHOWN_KEY) !== "1") {
           window.localStorage.setItem(DASHBOARD_POST_PROJECT_TRASH_HINT_KEY, "1");
@@ -588,6 +818,24 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       setLoading(false);
     }
   }
+
+  const walletBalanceKopeks = Number(wallet?.balance_kopeks ?? 0);
+  const hasSubscriptionProject = Boolean(activeSubscription && activeSubscription.projects_remaining > 0);
+  const canCreateProject = isUnlimited || hasSubscriptionProject || walletBalanceKopeks >= PROJECT_CREATION_PRICE_KOPEKS;
+  const createButtonDisabled =
+    loading ||
+    Boolean(paymentBusyKey) ||
+    !selectedTests.length ||
+    (selectionMode === "competency" && selectedCompetencyIds.length === 0) ||
+    !canCreateProject;
+  const paymentStatusText = isUnlimited
+    ? "Создание доступно без списания."
+    : hasSubscriptionProject
+      ? `Проект будет создан по тарифу. Осталось ${activeSubscription?.projects_remaining || 0} проектов.`
+      : walletBalanceKopeks >= PROJECT_CREATION_PRICE_KOPEKS
+        ? `При создании спишется ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} с баланса.`
+        : `На балансе ${formatKopeksAsRub(walletBalanceKopeks)}. Для проекта нужно ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} или активный тариф.`;
+  const showPaymentChoices = !isUnlimited && !hasSubscriptionProject && walletBalanceKopeks < PROJECT_CREATION_PRICE_KOPEKS;
 
   if (!session || !user) {
     return (
@@ -997,21 +1245,100 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                 </section>
 
                 <section data-onboarding-id="project-submit" className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
-                  <div className="flex flex-col items-center gap-3 text-center">
+                  <div className="grid gap-3">
+                    <div className="rounded-[20px] border border-[#d8c5a8] bg-[#fff8ee] px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-[#3d3124]">Оплата создания проекта</div>
+                          <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">{paymentStatusText}</div>
+                        </div>
+                        <div className="rounded-full border border-[#d6bea0] bg-[#fffdf8] px-3 py-1 text-xs font-semibold text-[#5d4830]">
+                          Баланс: {formatKopeksAsRub(walletBalanceKopeks)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {showPaymentChoices ? (
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
+                        <div className="rounded-[20px] border border-[#e5d3b8] bg-[#fffdf8] p-3.5">
+                          <div className="text-sm font-semibold text-[#3d3124]">Разовый проект</div>
+                          <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
+                            Пополни баланс на {formatRubAmount(PROJECT_CREATION_PRICE_RUB)}. После создания проекта эта сумма спишется сразу, а результаты будут открыты без доплаты в конце.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={startProjectTopup}
+                            disabled={Boolean(paymentBusyKey)}
+                            className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-[14px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-4 py-2 text-sm font-semibold text-[#2f4c32] shadow-sm transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {paymentBusyKey === "topup" ? "Открываю оплату..." : `Оплатить ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)}`}
+                          </button>
+                        </div>
+
+                        <div className="rounded-[20px] border border-[#e5d3b8] bg-[#fffdf8] p-3.5">
+                          <div className="text-sm font-semibold text-[#3d3124]">Тариф на несколько проектов</div>
+                          <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
+                            Если проектов будет больше, тариф дешевле за один проект и списывает доступ сразу при создании.
+                          </div>
+                          <div className="mt-3 grid gap-2 md:grid-cols-3">
+                            {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
+                              const activePriceRub = getActiveMonthlyPlanPriceRub(plan);
+                              const canBuyFromWallet = walletBalanceKopeks >= activePriceRub * 100;
+                              return (
+                                <div key={plan.key} className="rounded-[16px] border border-[#eadbc4] bg-[#fff8ee] p-3 text-left">
+                                  <div className="text-sm font-semibold text-[#3d3124]">{plan.shortTitle}</div>
+                                  <div className="mt-1 text-[12px] leading-5 text-[#6b5843]">
+                                    {formatRubAmount(activePriceRub)} · примерно {formatRubAmount(getActiveMonthlyPlanEffectiveProjectPriceRub(plan))} за проект
+                                  </div>
+                                  <div className="mt-2 grid gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => startPlanOnlinePurchase(plan.key)}
+                                      disabled={Boolean(paymentBusyKey)}
+                                      className="min-h-[34px] rounded-[12px] border border-[#d6bea0] bg-white px-3 py-1.5 text-xs font-semibold text-[#5d4830] shadow-sm transition hover:bg-[#fff2df] disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {paymentBusyKey === `plan-online:${plan.key}` ? "Открываю..." : "Оплатить"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => buyPlanFromWallet(plan.key)}
+                                      disabled={Boolean(paymentBusyKey) || !canBuyFromWallet}
+                                      className="min-h-[34px] rounded-[12px] border border-[#c8d8bf] bg-[#f4fbf2] px-3 py-1.5 text-xs font-semibold text-[#3b663f] shadow-sm transition hover:bg-[#eef8eb] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      {paymentBusyKey === `plan-wallet:${plan.key}` ? "Подключаю..." : "С баланса"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {paymentError ? (
+                      <div className="rounded-[18px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{paymentError}</div>
+                    ) : null}
+                    {paymentInfo ? (
+                      <div className="rounded-[18px] border border-[#b7d7b9] bg-[#edf6ea] px-4 py-3 text-sm text-[#2f6d39]">{paymentInfo}</div>
+                    ) : null}
+
+                    <div className="flex flex-col items-center gap-3 text-center">
                     {error ? (
                       <div className="w-full max-w-3xl rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{error}</div>
                     ) : (
                       <div className="max-w-3xl text-sm leading-6 text-[#6b5843]">
-                        После создания сразу появится ссылка и QR-код для клиента. Если нужно, состав тестов можно подправить перед созданием проекта.
+                        После создания сразу появится ссылка и QR-код для клиента. Оплата закрепляется за проектом сразу, поэтому в конце анализа повторной оплаты не будет.
                       </div>
                     )}
                     <button
                       type="submit"
-                      disabled={loading || !selectedTests.length || (selectionMode === "competency" && selectedCompetencyIds.length === 0)}
+                      disabled={createButtonDisabled}
                       className="inline-flex min-h-[48px] min-w-[240px] items-center justify-center rounded-[18px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-8 py-3 text-base font-semibold text-[#2f4c32] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_18px_rgba(76,128,82,0.18)] transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {loading ? "Создаём проект…" : "Создать проект"}
+                      {loading ? "Создаём проект..." : hasSubscriptionProject ? "Создать по тарифу" : `Создать проект за ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)}`}
                     </button>
+                    </div>
                   </div>
                 </section>
               </form>
