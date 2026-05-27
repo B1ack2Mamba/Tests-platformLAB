@@ -10,6 +10,7 @@ import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRoute
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail, isGlobalTemplateOwnerEmail } from "@/lib/admin";
+import { DEFAULT_DASHBOARD_UPDATES, type DashboardUpdatesContent } from "@/lib/dashboardUpdates";
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
 import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
@@ -388,6 +389,7 @@ function MobileDashboardHome({
   error,
   onCreateProject,
   onCreateFolder,
+  onOpenUpdates,
   onOpenTrash,
   onOpenProject,
 }: {
@@ -402,6 +404,7 @@ function MobileDashboardHome({
   error: string;
   onCreateProject: () => void;
   onCreateFolder: () => void;
+  onOpenUpdates: () => void;
   onOpenTrash: () => void;
   onOpenProject: (id: string) => void;
 }) {
@@ -452,6 +455,9 @@ function MobileDashboardHome({
           <Link href="/results" className="btn btn-secondary h-12 justify-center">
             История тестов
           </Link>
+          <button type="button" className="btn btn-secondary h-12 justify-center" onClick={onOpenUpdates}>
+            Что нового
+          </button>
           <button type="button" data-onboarding-id="dashboard-trash" className="btn btn-secondary h-12 justify-center" onClick={onOpenTrash}>
             Корзина{trashCount ? ` · ${trashCount}` : ""}
           </button>
@@ -1037,6 +1043,8 @@ export default function DashboardPage() {
   const [assemblyComparison, setAssemblyComparison] = useState<CandidateComparisonPayload | null>(null);
   const [assemblySelectedCompetencyIds, setAssemblySelectedCompetencyIds] = useState<string[]>([]);
   const [assemblyFitRequest, setAssemblyFitRequest] = useState("");
+  const [updatesOpen, setUpdatesOpen] = useState(false);
+  const [dashboardUpdates, setDashboardUpdates] = useState<DashboardUpdatesContent>(DEFAULT_DASHBOARD_UPDATES);
   const [dashboardTourStartTarget, setDashboardTourStartTarget] = useState<string | null>(null);
 
   const balance_rub = useMemo(() => {
@@ -1090,11 +1098,17 @@ export default function DashboardPage() {
     setError("");
     setSharedSceneReady(false);
     try {
-      const resp = await fetch("/api/commercial/dashboard/bootstrap", {
-        headers: { authorization: `Bearer ${session.access_token}` },
-      });
+      const authHeaders = { authorization: `Bearer ${session.access_token}` };
+      const resp = await fetch("/api/commercial/dashboard/bootstrap", { headers: authHeaders });
       const json = (await resp.json().catch(() => ({}))) as Partial<DashboardBootstrapPayload> & { error?: string };
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить кабинет");
+
+      fetch("/api/commercial/dashboard-updates", { headers: authHeaders })
+        .then((updatesResp) => updatesResp.json())
+        .then((updatesJson) => {
+          if (updatesJson?.ok && updatesJson.updates) setDashboardUpdates(updatesJson.updates as DashboardUpdatesContent);
+        })
+        .catch(() => null);
 
       const parsedStandard = pickSceneStandard(json.shared_scene_standard || {});
       const nextSharedPositions = (parsedStandard.positions || {}) as DeskPositions;
@@ -2789,10 +2803,17 @@ export default function DashboardPage() {
       error={error}
       onCreateProject={() => router.push("/projects/new")}
       onCreateFolder={promptAndCreateFolder}
+      onOpenUpdates={() => setUpdatesOpen(true)}
       onOpenTrash={() => setTrashOpen(true)}
       onOpenProject={(id) => router.push(`/projects/${id}`)}
     />
   );
+  const updatesButton = (
+    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setUpdatesOpen(true)}>
+      Что нового
+    </button>
+  );
+  const updatesModal = updatesOpen ? <LatestUpdatesModal updates={dashboardUpdates} onClose={() => setUpdatesOpen(false)} /> : null;
   const trashRestoreModal = trashOpen ? (
     <TrashRestoreModal
       entries={trashEntries}
@@ -2821,6 +2842,7 @@ export default function DashboardPage() {
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
               <button type="button" className="btn btn-primary btn-sm" onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
+              {updatesButton}
             </div>
             <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
           </div>
@@ -3109,6 +3131,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        {updatesModal}
         {trashRestoreModal}
       </Layout>
     );
@@ -3129,6 +3152,7 @@ export default function DashboardPage() {
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
               <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Стол</button>
               <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
+              {updatesButton}
             </div>
             <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
           </div>
@@ -3298,6 +3322,7 @@ export default function DashboardPage() {
             />
           ) : null}
         </div>
+        {updatesModal}
         {trashRestoreModal}
       </Layout>
     );
@@ -3333,6 +3358,7 @@ export default function DashboardPage() {
               >
                 Сборка проектов
               </button>
+              {updatesButton}
             </div>
           <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
         </div>
@@ -4054,6 +4080,8 @@ export default function DashboardPage() {
       </div>
       </div>
 
+      {updatesModal}
+
       {activeFolder ? (
         <FolderModal
           folder={activeFolder.folder}
@@ -4569,6 +4597,50 @@ type SceneImagePreviewModalProps = {
   title: string;
   onClose: () => void;
 };
+
+function LatestUpdatesModal({ updates, onClose }: { updates: DashboardUpdatesContent; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      <div className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[#d8e6dc] bg-[#fffdf8] shadow-[0_30px_70px_-42px_rgba(34,54,38,0.38)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 border-b border-[#e4eadf] bg-[linear-gradient(180deg,#ffffff_0%,#eef8f1_100%)] px-5 py-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#4d7b62]">Обновления сервиса</div>
+            <div className="mt-1 text-2xl font-semibold text-[#183f31]">{updates.title}</div>
+            <div className="mt-1 max-w-[560px] text-sm leading-6 text-[#60766c]">{updates.intro}</div>
+          </div>
+          <button
+            type="button"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/90 text-lg text-slate-600 shadow-sm hover:text-slate-950"
+            onClick={onClose}
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="max-h-[68vh] overflow-auto px-5 py-4">
+          <div className="grid gap-3">
+            {updates.items.map((item, index) => (
+              <div key={`${item.title}:${index}`} className="rounded-[20px] border border-[#dfe9df] bg-white px-4 py-3 shadow-[0_12px_26px_-24px_rgba(34,54,38,0.24)]">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#cfe1d0] bg-[#edf8ee] text-sm font-semibold text-[#35664a]">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-[#24372c]">{item.title}</div>
+                    <div className="mt-1 text-sm leading-6 text-[#5f7168]">{item.body}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex justify-end border-t border-[#e4eadf] bg-white px-5 py-4">
+          <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>Понятно</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SceneImagePreviewModal({ src, title, onClose }: SceneImagePreviewModalProps) {
   return (
