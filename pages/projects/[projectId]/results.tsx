@@ -520,6 +520,7 @@ export default function ProjectResultsStandalonePage() {
       url.searchParams.set("id", projectId);
       url.searchParams.set("mode", mode);
       url.searchParams.set("stage", stage);
+      if (opts?.force) url.searchParams.set("refresh", "1");
       if (typeof batchStart === "number") {
         url.searchParams.set("batch_start", String(batchStart));
         url.searchParams.set("batch_size", "2");

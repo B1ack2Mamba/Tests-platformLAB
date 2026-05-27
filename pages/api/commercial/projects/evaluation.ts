@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { createHash } from "crypto";
 import { ensureRequestId, logApiError } from "@/lib/apiObservability";
 import { requireUser } from "@/lib/serverAuth";
 import { canAccessCommercialProject } from "@/lib/commercialProjectAccess";
@@ -9,10 +10,83 @@ import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 
 const MAX_BATCH_SIZE = 3;
+const EVALUATION_CACHE_VERSION = "commercial-evaluation-cache-v1";
 
 export const config = {
   maxDuration: 300,
 };
+
+function normalizeForHash(value: any): any {
+  if (Array.isArray(value)) return value.map((item) => normalizeForHash(item));
+  if (!value || typeof value !== "object") return value;
+  return Object.keys(value)
+    .sort()
+    .reduce((acc: Record<string, any>, key) => {
+      acc[key] = normalizeForHash(value[key]);
+      return acc;
+    }, {});
+}
+
+function hashJson(value: any) {
+  return createHash("sha256").update(JSON.stringify(normalizeForHash(value))).digest("hex");
+}
+
+function isEvaluationCacheUnavailable(error: any) {
+  const message = String(error?.message || error?.details || error?.hint || "");
+  return /commercial_project_evaluation_cache|schema cache|relation .* does not exist|could not find/i.test(message);
+}
+
+function buildEvaluationCacheKey(args: {
+  project: any;
+  attempts: Array<any>;
+  tests: Array<any>;
+  mode: EvaluationPackage;
+  stage: string;
+  batchStart: number;
+  batchSize: number;
+  customRequest: string;
+  fitEnabled: boolean;
+  fitRequest: string;
+  fitProfileId: string;
+  keysBySlug: Record<string, any>;
+  routingMeta: any;
+}) {
+  return hashJson({
+    version: EVALUATION_CACHE_VERSION,
+    mode: args.mode,
+    stage: args.stage,
+    batchStart: args.stage === "tests" ? args.batchStart : 0,
+    batchSize: args.stage === "tests" ? args.batchSize : 0,
+    customRequest: args.customRequest.trim(),
+    fitEnabled: args.fitEnabled,
+    fitRequest: args.fitRequest.trim(),
+    fitProfileId: args.fitProfileId.trim(),
+    project: {
+      id: args.project?.id,
+      title: args.project?.title,
+      goal: args.project?.goal,
+      target_role: args.project?.target_role,
+      package_mode: args.project?.package_mode,
+      unlocked_package_mode: args.project?.unlocked_package_mode,
+      registry_comment: args.project?.registry_comment,
+      summary: args.project?.summary,
+      person: args.project?.commercial_people || null,
+      routing_meta: args.routingMeta || null,
+    },
+    tests: args.tests.map((item) => ({
+      test_slug: item?.test_slug,
+      test_title: item?.test_title,
+      sort_order: item?.sort_order,
+    })),
+    attempts: args.attempts.map((item) => ({
+      test_slug: item?.test_slug,
+      test_title: item?.test_title,
+      created_at: item?.created_at,
+      result: item?.result,
+    })),
+    keysBySlug: args.keysBySlug,
+  });
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const requestId = ensureRequestId(req, res);
@@ -106,6 +180,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ ok: false, error: "Этот уровень результата ещё не открыт" });
     }
 
+    const totalBatches = stage === "tests" ? Math.ceil(attempts.length / Math.max(1, batchSize)) : 1;
+    const currentBatch = stage === "tests" ? Math.floor(Math.max(0, batchStart) / Math.max(1, batchSize)) + 1 : 1;
+    const hasMore = stage === "tests" ? Math.max(0, batchStart) + Math.max(1, batchSize) < attempts.length : false;
+
     const needsInterpretationKeys =
       stage === "tests" ||
       stage === "full" ||
@@ -128,6 +206,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!(slug in keysBySlug) && DEFAULT_TEST_INTERPRETATIONS[slug]) {
           keysBySlug[slug] = DEFAULT_TEST_INTERPRETATIONS[slug];
         }
+      }
+    }
+
+    const cacheKey = buildEvaluationCacheKey({
+      project: data,
+      attempts,
+      tests,
+      mode: modeToBuild,
+      stage,
+      batchStart,
+      batchSize,
+      customRequest,
+      fitEnabled,
+      fitRequest,
+      fitProfileId,
+      keysBySlug,
+      routingMeta: parsedSummary.meta,
+    });
+    const forceRefresh =
+      req.query.refresh === "1" ||
+      req.query.force_refresh === "1" ||
+      req.query.no_cache === "1";
+
+    if (!forceRefresh) {
+      const cached = await authed.supabaseAdmin
+        .from("commercial_project_evaluation_cache")
+        .select("evaluation,built_at")
+        .eq("project_id", id)
+        .eq("package_mode", modeToBuild)
+        .eq("cache_key", cacheKey)
+        .eq("status", "ready")
+        .maybeSingle();
+
+      if (!cached.error && cached.data?.evaluation) {
+        return res.status(200).json({
+          ok: true,
+          request_id: requestId,
+          fully_done,
+          completed,
+          total,
+          evaluation: cached.data.evaluation,
+          unlocked_package_mode: unlockedMode,
+          stage,
+          has_more: hasMore,
+          batch: { current: currentBatch, total: totalBatches },
+          cached: true,
+          cached_at: (cached.data as any).built_at || null,
+        });
+      }
+      if (cached.error && !isEvaluationCacheUnavailable(cached.error)) {
+        logApiError("commercial.projects.evaluation.cache_read", requestId, cached.error, { project_id: id, stage, mode: modeToBuild });
       }
     }
 
@@ -158,11 +287,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
-    const totalBatches = stage === "tests" ? Math.ceil(attempts.length / Math.max(1, batchSize)) : 1;
-    const currentBatch = stage === "tests" ? Math.floor(Math.max(0, batchStart) / Math.max(1, batchSize)) + 1 : 1;
-    const hasMore = stage === "tests" ? Math.max(0, batchStart) + Math.max(1, batchSize) < attempts.length : false;
+    const cacheWrite = await authed.supabaseAdmin
+      .from("commercial_project_evaluation_cache")
+      .upsert(
+        {
+          project_id: id,
+          package_mode: modeToBuild,
+          cache_key: cacheKey,
+          evaluation,
+          status: "ready",
+          error_message: null,
+          built_at: new Date().toISOString(),
+        },
+        { onConflict: "project_id,package_mode,cache_key" }
+      );
+    if (cacheWrite.error && !isEvaluationCacheUnavailable(cacheWrite.error)) {
+      logApiError("commercial.projects.evaluation.cache_write", requestId, cacheWrite.error, { project_id: id, stage, mode: modeToBuild });
+    }
 
-    return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, evaluation, unlocked_package_mode: unlockedMode, stage, has_more: hasMore, batch: { current: currentBatch, total: totalBatches } });
+    return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, evaluation, unlocked_package_mode: unlockedMode, stage, has_more: hasMore, batch: { current: currentBatch, total: totalBatches }, cached: false });
   } catch (error: any) {
     logApiError("commercial.projects.evaluation", requestId, error, { project_id: id, stage, mode: requestedMode || null });
     return res.status(400).json({ ok: false, request_id: requestId, error: error?.message || "Не удалось собрать оценку" });
