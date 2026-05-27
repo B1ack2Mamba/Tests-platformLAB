@@ -5,7 +5,9 @@ import { getAllTests } from "@/lib/loadTests";
 import { getTestTakePriceRub } from "@/lib/testTakeAccess";
 import type { AnyTest } from "@/lib/testTypes";
 
-export default function AssessmentsPage({ tests, takePriceRub }: { tests: AnyTest[]; takePriceRub: number }) {
+type AssessmentCatalogItem = Pick<AnyTest, "slug" | "title" | "description">;
+
+export default function AssessmentsPage({ tests, takePriceRub }: { tests: AssessmentCatalogItem[]; takePriceRub: number }) {
   return (
     <Layout title="Каталог тестов">
       <div className="mb-4 card text-sm text-slate-700">
@@ -33,6 +35,10 @@ export default function AssessmentsPage({ tests, takePriceRub }: { tests: AnyTes
 }
 
 export async function getServerSideProps() {
-  const tests = await getAllTests();
+  const tests = (await getAllTests()).map((test) => ({
+    slug: test.slug,
+    title: test.title,
+    description: test.description || "",
+  }));
   return { props: { tests, takePriceRub: getTestTakePriceRub() } };
 }

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "smoke:prod": "node scripts/smoke-prod.mjs",
     "smoke:auth": "node scripts/smoke-auth.mjs",
+    "smoke:mobile": "node scripts/smoke-mobile.mjs",
     "status:prod": "node scripts/release-status.mjs",
     "alert:prod": "node scripts/status-alert.mjs",
     "heartbeat:prod": "STATUS_ALERT_ON_OK=1 node scripts/status-alert.mjs",

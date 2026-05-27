@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
@@ -192,6 +192,20 @@ type SceneWidget = {
   z: number;
 };
 
+type LayoutBackupSnapshot = {
+  id: string;
+  createdAt: string;
+  label: string;
+  workspaceId: string;
+  variant: DesktopVariant;
+  classicViewMode: ClassicViewMode;
+  deskPositions: DeskPositions;
+  sceneWidgets: SceneWidget[];
+  trayGuideText: string;
+  roomLight: "normal" | "dimmed";
+  roomSwitchPosition: { x: number; y: number };
+};
+
 type WidgetInteractionMode = "drag" | "resize" | "rotate";
 type WidgetInteractionState = {
   id: string;
@@ -218,6 +232,8 @@ const ROOM_SWITCH_STORAGE_PREFIX = "commercialRoomSwitch:v1843:";
 const CLASSIC_VIEW_MODE_STORAGE_PREFIX = "commercialClassicViewMode:v1844:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
+const LAYOUT_BACKUP_STORAGE_PREFIX = "commercialLayoutBackups:v1:";
+const MAX_LAYOUT_BACKUPS = 8;
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
 const DASHBOARD_TRASH_HINT_SHOWN_KEY = "dashboard-trash-hint-shown";
@@ -396,7 +412,7 @@ function MobileDashboardHome({
   }).length;
 
   return (
-    <div className="lg:hidden">
+    <div className="mobile-dashboard-home lg:hidden">
       <div className="space-y-4">
         {error ? <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
@@ -674,6 +690,78 @@ function getTrashStorageKey(workspaceId: string) {
   return `${TRASH_STORAGE_PREFIX}${workspaceId}`;
 }
 
+function getLayoutBackupStorageKey(workspaceId: string) {
+  return `${LAYOUT_BACKUP_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function readLayoutBackups(workspaceId: string): LayoutBackupSnapshot[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(getLayoutBackupStorageKey(workspaceId));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(Boolean) as LayoutBackupSnapshot[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLayoutBackups(workspaceId: string, snapshots: LayoutBackupSnapshot[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      getLayoutBackupStorageKey(workspaceId),
+      JSON.stringify(snapshots.slice(0, MAX_LAYOUT_BACKUPS))
+    );
+  } catch {}
+}
+
+function isDesktopVariant(value: unknown): value is DesktopVariant {
+  return value === "scheme" || value === "classic" || value === "assembly";
+}
+
+function isClassicViewMode(value: unknown): value is ClassicViewMode {
+  return value === "desktop" || value === "sheet";
+}
+
+function normalizeLayoutBackupSnapshot(raw: any, fallbackWorkspaceId: string): LayoutBackupSnapshot | null {
+  const source = raw?.snapshot && typeof raw.snapshot === "object" ? raw.snapshot : raw;
+  if (!source || typeof source !== "object") return null;
+  const variant = isDesktopVariant(source.variant) ? source.variant : isDesktopVariant(source.desktopVariant) ? source.desktopVariant : "scheme";
+  const classicMode = isClassicViewMode(source.classicViewMode) ? source.classicViewMode : "desktop";
+  const deskPositions = source.deskPositions && typeof source.deskPositions === "object" ? source.deskPositions as DeskPositions : {};
+  const sceneWidgets = Array.isArray(source.sceneWidgets) ? source.sceneWidgets as SceneWidget[] : [];
+  const createdAt = typeof source.createdAt === "string" ? source.createdAt : new Date().toISOString();
+  const id = typeof source.id === "string" && source.id ? source.id : `layout-${Date.now()}`;
+
+  return {
+    id,
+    createdAt,
+    label: typeof source.label === "string" && source.label ? source.label : "Импортированный снимок",
+    workspaceId: typeof source.workspaceId === "string" && source.workspaceId ? source.workspaceId : fallbackWorkspaceId,
+    variant,
+    classicViewMode: classicMode,
+    deskPositions,
+    sceneWidgets,
+    trayGuideText: typeof source.trayGuideText === "string" ? source.trayGuideText : "",
+    roomLight: source.roomLight === "dimmed" ? "dimmed" : "normal",
+    roomSwitchPosition: {
+      x: Number(source.roomSwitchPosition?.x ?? DEFAULT_ROOM_SWITCH_ZONE.x),
+      y: Number(source.roomSwitchPosition?.y ?? DEFAULT_ROOM_SWITCH_ZONE.y),
+    },
+  };
+}
+
+function downloadTextFile(filename: string, content: string) {
+  if (typeof window === "undefined") return;
+  const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.URL.revokeObjectURL(url);
+}
+
 function isGlobalSchemeWidget(id: string) {
   return !id.startsWith("folder:") && !id.startsWith("project:");
 }
@@ -930,6 +1018,7 @@ export default function DashboardPage() {
   const pendingCreatedFolderRef = useRef<{ id: string } | null>(null);
   const templateFeedbackTimerRef = useRef<number | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const layoutImportInputRef = useRef<HTMLInputElement | null>(null);
   const [sharedDeskPositions, setSharedDeskPositions] = useState<DeskPositions>({});
   const [sharedSceneWidgets, setSharedSceneWidgets] = useState<SceneWidget[]>([]);
   const [sharedTrayGuideText, setSharedTrayGuideText] = useState("");
@@ -1068,6 +1157,34 @@ export default function DashboardPage() {
         <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); resetSceneWidgets(); }}>
           Сбросить сцену
         </button>
+      ) : null}
+      {sceneEditMode ? (
+        <>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); saveLayoutSnapshot("Ручной снимок"); }}>
+            Сохранить снимок
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); restoreLatestLayoutSnapshot(); }}>
+            Откатить
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); exportLayoutSnapshot(); }}>
+            Экспорт
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); layoutImportInputRef.current?.click(); }}>
+            Импорт
+          </button>
+          <input
+            ref={layoutImportInputRef}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={(event) => void importLayoutSnapshot(event)}
+          />
+        </>
+      ) : null}
+      {sceneEditMode && templateFeedback ? (
+        <span className={`w-full rounded-xl border px-3 py-1.5 text-xs font-medium ${templateFeedback.kind === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>
+          {templateFeedback.text}
+        </span>
       ) : null}
     </div>
   ) : null;
@@ -1516,6 +1633,139 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const buildLayoutSnapshot = useCallback((label: string): LayoutBackupSnapshot | null => {
+    const workspaceId = workspace?.workspace?.workspace_id;
+    if (!workspaceId) return null;
+    return {
+      id: `layout-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      label,
+      workspaceId,
+      variant: desktopVariant,
+      classicViewMode,
+      deskPositions: stripSharedScenePositions(deskPositions),
+      sceneWidgets: serializeSceneWidgets(persistableSceneWidgets),
+      trayGuideText,
+      roomLight: isRoomLightDimmed ? "dimmed" : "normal",
+      roomSwitchPosition: {
+        x: Math.round(roomSwitchPosition.x),
+        y: Math.round(roomSwitchPosition.y),
+      },
+    };
+  }, [classicViewMode, deskPositions, desktopVariant, isRoomLightDimmed, persistableSceneWidgets, roomSwitchPosition.x, roomSwitchPosition.y, trayGuideText, workspace?.workspace?.workspace_id]);
+
+  const saveLayoutSnapshot = useCallback((label = "Ручной снимок") => {
+    const workspaceId = workspace?.workspace?.workspace_id;
+    const snapshot = buildLayoutSnapshot(label);
+    if (!workspaceId || !snapshot) {
+      showTemplateFeedback("error", "Рабочее пространство ещё не готово для снимка");
+      return null;
+    }
+
+    const current = readLayoutBackups(workspaceId);
+    writeLayoutBackups(workspaceId, [
+      snapshot,
+      ...current.filter((item) => item.id !== snapshot.id),
+    ]);
+    showTemplateFeedback("success", "Снимок раскладки сохранён");
+    return snapshot;
+  }, [buildLayoutSnapshot, showTemplateFeedback, workspace?.workspace?.workspace_id]);
+
+  const applyLayoutSnapshot = useCallback((snapshot: LayoutBackupSnapshot, reason: "restore" | "import") => {
+    const workspaceId = workspace?.workspace?.workspace_id;
+    if (!workspaceId || typeof window === "undefined") {
+      showTemplateFeedback("error", "Рабочее пространство ещё не готово для восстановления");
+      return;
+    }
+
+    const nextDeskPositions = snapshot.deskPositions || {};
+    const nextSceneWidgets = Array.isArray(snapshot.sceneWidgets) ? snapshot.sceneWidgets : [];
+    const nextVariant = snapshot.variant;
+    const nextClassicViewMode = snapshot.classicViewMode;
+    const nextTrayText = snapshot.trayGuideText || "Создать новую папку проектов";
+    const nextRoomSwitch = {
+      ...DEFAULT_ROOM_SWITCH_ZONE,
+      x: clampDesk(Number(snapshot.roomSwitchPosition?.x ?? DEFAULT_ROOM_SWITCH_ZONE.x), 0, DESK_WIDTH - DEFAULT_ROOM_SWITCH_ZONE.width),
+      y: clampDesk(Number(snapshot.roomSwitchPosition?.y ?? DEFAULT_ROOM_SWITCH_ZONE.y), 0, DESK_HEIGHT - DEFAULT_ROOM_SWITCH_ZONE.height),
+    };
+
+    setDesktopVariant(nextVariant);
+    setClassicViewMode(nextClassicViewMode);
+    setDeskPositions(nextDeskPositions);
+    setSceneWidgets(nextSceneWidgets);
+    setTrayGuideText(nextTrayText);
+    setIsRoomLightDimmed(snapshot.roomLight === "dimmed");
+    setRoomSwitchPosition(nextRoomSwitch);
+    setSelectedWidgetId(null);
+    setSelectedDeskItemId(null);
+
+    try {
+      window.localStorage.setItem(getDesktopVariantStorageKey(workspaceId), nextVariant);
+      window.localStorage.setItem(getClassicViewModeStorageKey(workspaceId), nextClassicViewMode);
+      window.localStorage.setItem(getDeskStorageKey(workspaceId, nextVariant), JSON.stringify(stripSharedScenePositions(nextDeskPositions)));
+      window.localStorage.setItem(getTrayGuideTextStorageKey(workspaceId), nextTrayText);
+      window.localStorage.setItem(getRoomLightStorageKey(workspaceId), snapshot.roomLight === "dimmed" ? "dimmed" : "normal");
+      window.localStorage.setItem(getRoomSwitchStorageKey(workspaceId), JSON.stringify({ x: nextRoomSwitch.x, y: nextRoomSwitch.y }));
+      if (nextVariant !== "scheme" && nextSceneWidgets.length) {
+        window.localStorage.setItem(getSceneWidgetsStorageKey(workspaceId, nextVariant), JSON.stringify(nextSceneWidgets));
+      }
+    } catch {}
+
+    const current = readLayoutBackups(workspaceId);
+    writeLayoutBackups(workspaceId, [
+      { ...snapshot, workspaceId, id: reason === "import" ? `layout-${Date.now()}` : snapshot.id },
+      ...current.filter((item) => item.id !== snapshot.id),
+    ]);
+    showTemplateFeedback("success", reason === "import" ? "Снимок импортирован и применён" : "Раскладка восстановлена из снимка");
+  }, [showTemplateFeedback, workspace?.workspace?.workspace_id]);
+
+  const restoreLatestLayoutSnapshot = useCallback(() => {
+    const workspaceId = workspace?.workspace?.workspace_id;
+    if (!workspaceId || typeof window === "undefined") {
+      showTemplateFeedback("error", "Нет рабочего пространства для восстановления");
+      return;
+    }
+
+    const backups = readLayoutBackups(workspaceId);
+    const snapshot = backups.find((item) => item.variant === desktopVariant) || backups[0] || null;
+    if (!snapshot) {
+      showTemplateFeedback("error", "Снимков раскладки пока нет");
+      return;
+    }
+
+    if (!window.confirm("Восстановить последний сохранённый снимок раскладки? Текущие несохранённые перестановки будут заменены.")) {
+      return;
+    }
+    applyLayoutSnapshot(snapshot, "restore");
+  }, [applyLayoutSnapshot, desktopVariant, showTemplateFeedback, workspace?.workspace?.workspace_id]);
+
+  const exportLayoutSnapshot = useCallback(() => {
+    const snapshot = saveLayoutSnapshot("Экспортированный снимок");
+    if (!snapshot) return;
+    const stamp = snapshot.createdAt.replace(/[:.]/g, "-");
+    downloadTextFile(
+      `dashboard-layout-${snapshot.variant}-${stamp}.json`,
+      JSON.stringify({ exportedAt: new Date().toISOString(), snapshot }, null, 2)
+    );
+  }, [saveLayoutSnapshot]);
+
+  const importLayoutSnapshot = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0] || null;
+    event.currentTarget.value = "";
+    const workspaceId = workspace?.workspace?.workspace_id;
+    if (!file || !workspaceId) return;
+
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+      const snapshot = normalizeLayoutBackupSnapshot(parsed, workspaceId);
+      if (!snapshot) throw new Error("Файл не похож на снимок раскладки");
+      applyLayoutSnapshot(snapshot, "import");
+    } catch (error: any) {
+      showTemplateFeedback("error", error?.message || "Не удалось импортировать снимок");
+    }
+  }, [applyLayoutSnapshot, showTemplateFeedback, workspace?.workspace?.workspace_id]);
+
   const buildCurrentSceneStandard = useCallback(() => ({
     positions: {
       ...sharedDeskPositions,
@@ -1671,6 +1921,8 @@ export default function DashboardPage() {
       return;
     }
 
+    saveLayoutSnapshot("Перед применением шаблона");
+
     setDeskPositions((prev) => {
       const next: DeskPositions = { ...prev };
       targetIds.forEach((key) => {
@@ -1696,7 +1948,7 @@ export default function DashboardPage() {
     });
 
     showTemplateFeedback("success", `Шаблон применён: ${targetIds.length} ${kind === "folder" ? "объектов-папок" : "объектов-листов"}`);
-  }, [deskPositions, showTemplateFeedback]);
+  }, [deskPositions, saveLayoutSnapshot, showTemplateFeedback]);
 
   const moveToTrash = useCallback((kind: TrashItemKind, id: string, title: string) => {
     const now = Date.now();
@@ -1917,6 +2169,7 @@ export default function DashboardPage() {
   const resetSceneWidgets = useCallback(() => {
     const workspaceId = workspace?.workspace?.workspace_id;
     if (workspaceId && typeof window !== "undefined") {
+      saveLayoutSnapshot("Перед сбросом сцены");
       window.localStorage.removeItem(getSceneWidgetsStorageKey(workspaceId, desktopVariant));
       window.localStorage.removeItem(getTrayGuideTextStorageKey(workspaceId));
       window.localStorage.removeItem(getDeskStorageKey(workspaceId, desktopVariant));
@@ -1945,7 +2198,7 @@ export default function DashboardPage() {
     setDeskPositions(mergeDeskPositions(folders, folderBuckets.uncategorized, { ...sharedDeskPositions, ...readGlobalDeskTemplates() }));
     setSelectedWidgetId(null);
     setSelectedDeskItemId(null);
-  }, [defaultSceneWidgets, desktopVariant, folderBuckets.uncategorized, folders, sharedDeskPositions, sharedSceneWidgets, sharedTrayGuideText, workspace?.workspace?.workspace_id]);
+  }, [defaultSceneWidgets, desktopVariant, folderBuckets.uncategorized, folders, saveLayoutSnapshot, sharedDeskPositions, sharedSceneWidgets, sharedTrayGuideText, workspace?.workspace?.workspace_id]);
 
   const activeFolder = useMemo(
     () => folderBuckets.byFolder.find((item) => item.folder.id === activeFolderId) || null,

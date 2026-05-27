@@ -421,6 +421,17 @@ html.native-app .app-brand {
     max-width: calc(100vw - 1.5rem);
   }
 
+  body:has(input:focus) .developer-support-trigger,
+  body:has(textarea:focus) .developer-support-trigger,
+  body:has(select:focus) .developer-support-trigger,
+  body:has(input:focus) .global-hints-trigger,
+  body:has(textarea:focus) .global-hints-trigger,
+  body:has(select:focus) .global-hints-trigger {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.75rem);
+  }
+
   .developer-support-backdrop {
     align-items: stretch;
     padding: 0.75rem;
@@ -610,6 +621,18 @@ html.native-app .app-brand {
   .wallet-hermes-column,
   .wallet-hermes-panel {
     display: none;
+  }
+
+  .mobile-dashboard-home {
+    padding-bottom: 0.25rem;
+  }
+
+  .mobile-dashboard-home .btn {
+    min-height: 3rem;
+  }
+
+  .mobile-dashboard-home section {
+    max-width: 100%;
   }
 }
 @layer components {
