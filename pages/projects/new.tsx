@@ -821,7 +821,8 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   const walletBalanceKopeks = Number(wallet?.balance_kopeks ?? 0);
   const hasSubscriptionProject = Boolean(activeSubscription && activeSubscription.projects_remaining > 0);
-  const canCreateProject = isUnlimited || hasSubscriptionProject || walletBalanceKopeks >= PROJECT_CREATION_PRICE_KOPEKS;
+  const canCreateProjectFromBalance = walletBalanceKopeks >= PROJECT_CREATION_PRICE_KOPEKS;
+  const canCreateProject = isUnlimited || hasSubscriptionProject || canCreateProjectFromBalance;
   const createButtonDisabled =
     loading ||
     Boolean(paymentBusyKey) ||
@@ -832,10 +833,10 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     ? "Создание доступно без списания."
     : hasSubscriptionProject
       ? `Проект будет создан по тарифу. Осталось ${activeSubscription?.projects_remaining || 0} проектов.`
-      : walletBalanceKopeks >= PROJECT_CREATION_PRICE_KOPEKS
+      : canCreateProjectFromBalance
         ? `При создании спишется ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} с баланса.`
         : `На балансе ${formatKopeksAsRub(walletBalanceKopeks)}. Для проекта нужно ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} или активный тариф.`;
-  const showPaymentChoices = !isUnlimited && !hasSubscriptionProject && walletBalanceKopeks < PROJECT_CREATION_PRICE_KOPEKS;
+  const showBillingChoices = !isUnlimited && !hasSubscriptionProject;
 
   if (!session || !user) {
     return (
@@ -1258,21 +1259,29 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       </div>
                     </div>
 
-                    {showPaymentChoices ? (
+                    {showBillingChoices ? (
                       <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
                         <div className="rounded-[20px] border border-[#e5d3b8] bg-[#fffdf8] p-3.5">
                           <div className="text-sm font-semibold text-[#3d3124]">Разовый проект</div>
                           <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
-                            Пополни баланс на {formatRubAmount(PROJECT_CREATION_PRICE_RUB)}. После создания проекта эта сумма спишется сразу, а результаты будут открыты без доплаты в конце.
+                            {canCreateProjectFromBalance
+                              ? `Можно создать сейчас: ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} спишется с баланса, а результаты будут открыты без доплаты в конце.`
+                              : `Пополни баланс на ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)}. После создания проекта эта сумма спишется сразу, а результаты будут открыты без доплаты в конце.`}
                           </div>
-                          <button
-                            type="button"
-                            onClick={startProjectTopup}
-                            disabled={Boolean(paymentBusyKey)}
-                            className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-[14px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-4 py-2 text-sm font-semibold text-[#2f4c32] shadow-sm transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {paymentBusyKey === "topup" ? "Открываю оплату..." : `Оплатить ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)}`}
-                          </button>
+                          {canCreateProjectFromBalance ? (
+                            <div className="mt-3 rounded-[14px] border border-[#b7d7b9] bg-[#edf6ea] px-3 py-2 text-center text-sm font-semibold text-[#2f6d39]">
+                              Разовая оплата доступна с баланса
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={startProjectTopup}
+                              disabled={Boolean(paymentBusyKey)}
+                              className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-[14px] border border-[#88b88d] bg-[linear-gradient(180deg,#cfe9c9_0%,#b6ddb0_100%)] px-4 py-2 text-sm font-semibold text-[#2f4c32] shadow-sm transition hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {paymentBusyKey === "topup" ? "Открываю оплату..." : `Оплатить ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)}`}
+                            </button>
+                          )}
                         </div>
 
                         <div className="rounded-[20px] border border-[#e5d3b8] bg-[#fffdf8] p-3.5">
