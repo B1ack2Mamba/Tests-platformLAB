@@ -820,22 +820,26 @@ function serializeSceneWidgets(source: SceneWidget[]) {
 
 
 function getClassicFolderPosition(index: number): DeskPosition {
-  const col = Math.floor(index / 6);
-  const row = index % 6;
+  const col = Math.floor(index / 8);
+  const row = index % 8;
   return {
-    x: 58 + col * 156,
-    y: 88 + row * 124,
+    x: 48 + col * 112,
+    y: 72 + row * 100,
     z: 80 + index,
+    width: 88,
+    height: 98,
   };
 }
 
 function getClassicProjectPosition(index: number): DeskPosition {
-  const col = Math.floor(index / 6);
-  const row = index % 6;
+  const col = Math.floor(index / 8);
+  const row = index % 8;
   return {
-    x: 232 + col * 156,
-    y: 88 + row * 124,
+    x: 292 + col * 108,
+    y: 72 + row * 100,
     z: 180 + index,
+    width: 86,
+    height: 98,
   };
 }
 
@@ -2202,11 +2206,11 @@ export default function DashboardPage() {
       const row = index % 8;
       next[`folder:${folder.id}`] = {
         ...(next[`folder:${folder.id}`] || {}),
-        x: 54 + col * 122,
-        y: 86 + row * 94,
+        x: 48 + col * 112,
+        y: 72 + row * 100,
         z: z++,
         width: 86,
-        height: 92,
+        height: 98,
         rotation: 0,
         tiltX: 0,
         tiltY: 0,
@@ -2218,11 +2222,11 @@ export default function DashboardPage() {
       const row = index % 8;
       next[`project:${project.id}`] = {
         ...(next[`project:${project.id}`] || {}),
-        x: 300 + col * 112,
-        y: 86 + row * 96,
+        x: 292 + col * 108,
+        y: 72 + row * 100,
         z: z++,
-        width: 78,
-        height: 92,
+        width: 86,
+        height: 98,
         rotation: 0,
         tiltX: 0,
         tiltY: 0,
@@ -4449,8 +4453,9 @@ function FolderDesktopIcon({ variant = "scheme", folder, projects, busy, onOpen,
   const preview = projects.slice(0, 3);
 
   if (variant === "classic") {
+    const icon = getFolderIcon(folder.icon_key);
     return (
-      <div className={`group relative flex h-full w-full flex-col items-center ${selected ? "dashboard-desk-entity-selected" : ""}`}>
+      <div className={`dashboard-classic-icon-shell group relative flex h-full w-full flex-col items-center ${selected ? "dashboard-desk-entity-selected" : ""}`}>
         <button
           type="button"
           draggable={!sceneEditMode && !busy}
@@ -4464,7 +4469,7 @@ function FolderDesktopIcon({ variant = "scheme", folder, projects, busy, onOpen,
           onDragEnd={onDragEnd}
           onMouseDown={(e) => { if (sceneEditMode) onDragMoveStart?.(e); }}
           onClick={() => { onSelect?.(); if (!sceneEditMode) onOpen(); }}
-          className={`dashboard-classic-folder ${busy ? "opacity-70" : ""}`}
+          className={`dashboard-classic-icon-button dashboard-classic-folder ${busy ? "opacity-70" : ""}`}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
@@ -4474,6 +4479,7 @@ function FolderDesktopIcon({ variant = "scheme", folder, projects, busy, onOpen,
         >
           <span className="dashboard-classic-folder-tab" />
           <span className="dashboard-classic-folder-body" />
+          <span className="dashboard-classic-folder-badge">{icon.symbol}</span>
           <span className="dashboard-classic-folder-count">{projects.length}</span>
         </button>
         <div className="dashboard-classic-icon-label">{folder.name}</div>
@@ -4600,7 +4606,7 @@ function ProjectDesktopIcon({ variant = "scheme", project, onOpen, onDragStart, 
 
   if (variant === "classic") {
     return (
-      <div className={`group relative h-full w-full ${selected ? "dashboard-desk-entity-selected" : ""}`}>
+      <div className={`dashboard-classic-icon-shell group relative flex h-full w-full flex-col items-center ${selected ? "dashboard-desk-entity-selected" : ""}`}>
         <button
           type="button"
           draggable={!sceneEditMode && !busy}
@@ -4614,10 +4620,11 @@ function ProjectDesktopIcon({ variant = "scheme", project, onOpen, onDragStart, 
           onDragEnd={onDragEnd}
           onMouseDown={(e) => { if (sceneEditMode) onDragMoveStart?.(e); }}
           onClick={() => { onSelect?.(); if (!sceneEditMode) onOpen(); }}
-          className={`dashboard-classic-file ${busy ? "opacity-60" : ""}`}
+          className={`dashboard-classic-icon-button dashboard-classic-file ${busy ? "opacity-60" : ""}`}
         >
           <span className="dashboard-classic-file-paper" />
           <span className="dashboard-classic-file-corner" />
+          <span className="dashboard-classic-file-accent" />
           <span className={`dashboard-classic-file-dot ${isDone ? "dashboard-classic-file-dot-done" : "dashboard-classic-file-dot-pending"}`}></span>
         </button>
         <div className="dashboard-classic-icon-label">{titleLine}</div>
