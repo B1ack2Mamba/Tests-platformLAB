@@ -293,7 +293,7 @@ export default function AuthStartPage() {
   const [password2, setPassword2] = useState("");
   const [promoCode, setPromoCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loginAttempt, setLoginAttempt] = useState(0);
+  const [, setLoginAttempt] = useState(0);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const authErrorHelp = useMemo(() => getAuthErrorHelp(error), [error]);
@@ -641,7 +641,7 @@ export default function AuthStartPage() {
             ) : null}
 
             <button disabled={loading} type="submit" className="btn btn-primary w-full disabled:cursor-not-allowed disabled:opacity-70" aria-busy={loading ? "true" : "false"}>
-              {loading ? (mode === "login" && loginAttempt ? `Входим... попытка ${loginAttempt}/${LOGIN_RETRY_ATTEMPTS}` : "…") : mode === "signup" ? "Создать кабинет" : mode === "reset" && session?.access_token ? "Сохранить новый пароль" : mode === "reset" ? "Отправить ссылку" : "Войти"}
+              {loading ? (mode === "login" ? "Входим..." : "...") : mode === "signup" ? "Создать кабинет" : mode === "reset" && session?.access_token ? "Сохранить новый пароль" : mode === "reset" ? "Отправить ссылку" : "Войти"}
             </button>
 
             {mode === "login" ? (
