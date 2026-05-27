@@ -8,6 +8,7 @@ const ROUTES = [
   "/wallet",
   "/dashboard",
   "/projects/new",
+  process.env.SMOKE_PROJECT_RESULTS_PATH || "/projects/1080efe5-1250-44bc-aead-a6e927a2dfe9/results",
   "/assessments",
   "/tests/16pf-a",
 ];
@@ -45,6 +46,8 @@ function checkStaticMobileGuards() {
   assert(css.includes("@media (max-width: 767px)"), "Mobile CSS media query is missing");
   assert(css.includes("body:has(input:focus) .developer-support-trigger"), "Floating support button focus guard is missing");
   assert(css.includes("body:has(textarea:focus) .global-hints-trigger"), "Floating hints button focus guard is missing");
+  assert(css.includes(".project-selected-competencies") && css.includes("max-height: min(42dvh, 18rem)"), "Selected competencies mobile container guard is missing");
+  assert(css.includes(".project-results-page .project-results-stamp") && css.includes("float: none"), "Project results mobile stamp guard is missing");
   assert(assessments.includes('Pick<AnyTest, "slug" | "title" | "description">'), "Assessments catalog payload was expanded again");
 }
 
