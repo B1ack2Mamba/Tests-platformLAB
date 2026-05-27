@@ -83,15 +83,16 @@ export default function AttemptResultPage() {
     };
   }, [attemptId, data?.test_slug, session?.access_token]);
 
-  const chartData = useMemo(() => data?.result?.ranked?.map((r) => ({ tag: r.tag, percent: r.percent })) || [], [data]);
   const result = data?.result;
+  const resultRows = useMemo(() => (Array.isArray(result?.ranked) ? result.ranked : []), [result]);
+  const chartData = useMemo(() => resultRows.map((r) => ({ tag: r.tag, percent: r.percent })), [resultRows]);
   const isNumericPrimary = result?.kind === "usk_v1" || result?.kind === "16pf_v1";
   const interpretationText = useMemo(() => interpretationToDisplayText(authorContent), [authorContent]);
   const topResult = useMemo(() => {
-    return result?.ranked?.length
-      ? [...result.ranked].sort((a, b) => Number(b?.percent ?? b?.count ?? 0) - Number(a?.percent ?? a?.count ?? 0))[0]
+    return resultRows.length
+      ? [...resultRows].sort((a, b) => Number(b?.percent ?? b?.count ?? 0) - Number(a?.percent ?? a?.count ?? 0))[0]
       : null;
-  }, [result]);
+  }, [resultRows]);
 
   return (
     <Layout title={data?.test_title || "Результат"}>
@@ -143,7 +144,7 @@ export default function AttemptResultPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {result.ranked.map((r, idx) => {
+                  {resultRows.map((r, idx) => {
                     const stripe = idx % 2 === 0 ? "bg-white/55" : "bg-white/35";
                     return (
                       <tr key={r.tag} className={["border-b align-top", stripe].join(" ")}>
@@ -168,9 +169,15 @@ export default function AttemptResultPage() {
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Link href="/results" className="btn btn-secondary">← К результатам</Link>
-              <Link href={`/tests/${data.test_slug}`} className="btn btn-secondary">К тесту</Link>
+              <Link href={`/tests/${encodeURIComponent(data.test_slug)}`} className="btn btn-secondary">К тесту</Link>
             </div>
           </div>
+
+          {!resultRows.length ? (
+            <div className="mt-4 card text-sm text-slate-600">
+              Результат сохранён, но таблица показателей не найдена. Попробуйте открыть тест заново или пройти его ещё раз.
+            </div>
+          ) : null}
 
         </>
       )}

@@ -10,8 +10,15 @@ type AssessmentCatalogItem = Pick<AnyTest, "slug" | "title" | "description">;
 export default function AssessmentsPage({ tests, takePriceRub }: { tests: AssessmentCatalogItem[]; takePriceRub: number }) {
   return (
     <Layout title="Каталог тестов">
-      <div className="mb-4 card text-sm text-slate-700">
-        Здесь собран коммерческий каталог тестов. Формат: один тест + краткая интерпретация из методички. Каждое прохождение стоит {takePriceRub} ₽ и оплачивается с внутреннего кошелька при новом запуске.
+      <div className="mb-4 card">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm leading-6 text-slate-700">
+            Здесь собран коммерческий каталог тестов. Формат: один тест + краткая интерпретация из методички. Каждое прохождение стоит {takePriceRub} ₽ и оплачивается с внутреннего кошелька при новом запуске.
+          </div>
+          <Link href="/results" className="btn btn-secondary shrink-0">
+            Мои результаты
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -24,7 +31,7 @@ export default function AssessmentsPage({ tests, takePriceRub }: { tests: Assess
               Один тест + краткая интерпретация из методички после прохождения.
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link href={`/tests/${test.slug}`} className="btn btn-primary">Результаты</Link>
+              <Link href={`/tests/${test.slug}`} className="btn btn-primary">Описание</Link>
               <TestTakeAction slug={test.slug} compact />
             </div>
           </div>

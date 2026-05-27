@@ -33,9 +33,9 @@ function topResult(result: any) {
 function resultValue(row: any) {
   const percent = Number(row?.percent);
   const count = Number(row?.count);
-  if (Number.isFinite(percent) && percent > 0) return `${Math.round(percent)}%`;
+  if (Number.isFinite(percent)) return `${Math.round(percent)}%`;
   if (Number.isFinite(count)) return `${Math.round(count)} балл.`;
-  return "—";
+  return "не указано";
 }
 
 export default function ResultsPage() {
@@ -62,7 +62,7 @@ export default function ResultsPage() {
         if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить результаты");
         setRows(json.attempts || []);
       } catch (e: any) {
-        setError(e?.message || "Ошибка");
+        setError(e?.message || "Ошибка загрузки результатов");
       } finally {
         setLoading(false);
       }
@@ -75,17 +75,24 @@ export default function ResultsPage() {
       <div className="mb-4 card">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-lg font-semibold text-slate-950">История каталожных тестов</div>
-            <div className="mt-1 text-sm text-slate-600">Здесь сохраняются отдельные прохождения из каталога и краткие интерпретации из методички.</div>
+            <div className="text-lg font-semibold text-slate-950">История тестов из каталога</div>
+            <div className="mt-1 text-sm leading-6 text-slate-600">
+              Здесь сохраняются отдельные прохождения из каталога и краткие интерпретации по методичке.
+            </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-700">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Всего результатов</div>
-            <div className="mt-1 text-2xl font-semibold text-slate-950">{rows.length}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/assessments" className="btn btn-secondary">
+              К каталогу
+            </Link>
+            <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-700">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Всего результатов</div>
+              <div className="mt-1 text-2xl font-semibold text-slate-950">{rows.length}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {loading ? <div className="mb-4 card text-sm text-slate-600">Загружаю историю…</div> : null}
+      {loading ? <div className="mb-4 card text-sm text-slate-600">Загружаю историю...</div> : null}
 
       <div className="grid gap-3">
         {rows.map((row) => {
@@ -101,18 +108,18 @@ export default function ResultsPage() {
                       краткая интерпретация
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">{formatShortDate(row.created_at)} · {formatDate(row.created_at)}</div>
+                  <div className="mt-1 text-xs text-slate-500">{formatShortDate(row.created_at)} - {formatDate(row.created_at)}</div>
                   <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
                     {top ? (
                       <div className="rounded-2xl border border-slate-200 bg-white/65 p-3">
                         <div className="text-xs uppercase tracking-wide text-slate-500">Ведущий показатель</div>
                         <div className="mt-1 font-medium text-slate-950">{top.style}</div>
-                        <div className="mt-1 text-xs text-slate-500">{resultValue(top)} · {top.level || "уровень не указан"}</div>
+                        <div className="mt-1 text-xs text-slate-500">{resultValue(top)} - {top.level || "уровень не указан"}</div>
                       </div>
                     ) : null}
                     <div className="rounded-2xl border border-slate-200 bg-white/65 p-3">
                       <div className="text-xs uppercase tracking-wide text-slate-500">Профиль</div>
-                      <div className="mt-1 font-medium text-slate-950">{factorsCount || "—"} показателей</div>
+                      <div className="mt-1 font-medium text-slate-950">{factorsCount || "нет"} показателей</div>
                       <div className="mt-1 text-xs text-slate-500">Открывается таблица и вывод по методичке</div>
                     </div>
                   </div>
@@ -127,8 +134,13 @@ export default function ResultsPage() {
         })}
 
         {!rows.length && !loading ? (
-          <div className="card text-sm text-slate-600">
-            Пока нет сохранённых результатов. Пройди любой тест из каталога — и результат появится здесь.
+          <div className="card text-sm leading-6 text-slate-600">
+            Пока нет сохранённых результатов. Пройдите любой тест из каталога, и результат появится здесь.
+            <div className="mt-4">
+              <Link href="/assessments" className="btn btn-primary">
+                Открыть каталог
+              </Link>
+            </div>
           </div>
         ) : null}
       </div>

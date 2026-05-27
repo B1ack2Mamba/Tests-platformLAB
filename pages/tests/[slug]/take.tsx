@@ -276,6 +276,7 @@ async function persistResult({
     });
   }
   await saveInviteAttemptIfNeeded({ test, result });
+  clearDraftAfterSubmit(test.slug);
   return saved;
 }
 
@@ -372,7 +373,7 @@ function BelbinForm({ test }: { test: AnyTest }) {
     try {
       const res = scoreBelbin(test as any, rows as any);
       const userId = user?.id || "guest";
-      await persistResult({ test, result: res, userId, accessToken: null });
+      await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
       setError(e?.message || "Ошибка");
@@ -1593,6 +1594,7 @@ function PF16Form({ test }: { test: PF16TestV1 }) {
       const userId = user?.id || "guest";
       if (isInviteMode()) {
         await saveInviteAttemptIfNeeded({ test, result: res });
+        clearDraftAfterSubmit(test.slug);
       } else {
         await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       }
@@ -1699,7 +1701,7 @@ function PF16Form({ test }: { test: PF16TestV1 }) {
 }
 function TimeManagementForm({ test }: { test: TimeManagementTestV1 }) {
   const router = useRouter();
-  const { user } = useSession();
+  const { user, session } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState<(TimeManagementTag | "")[]>(() => Array(test.questions?.length ?? 0).fill(""));
@@ -1732,7 +1734,7 @@ function TimeManagementForm({ test }: { test: TimeManagementTestV1 }) {
     try {
       const res = scoreTimeManagement(test as any, chosen.filter(Boolean) as TimeManagementTag[]);
       const userId = user?.id || "guest";
-      await persistResult({ test, result: res, userId, accessToken: null });
+      await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
       setError(e?.message || "Ошибка");
@@ -1897,7 +1899,7 @@ function EminForm({ test }: { test: EminTestV1 }) {
 
 function LearningTypologyForm({ test }: { test: LearningTypologyTestV1 }) {
   const router = useRouter();
-  const { user } = useSession();
+  const { user, session } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState<(LearningTypologyChoice | "")[]>(() => Array(test.questions?.length ?? 0).fill(""));
@@ -1930,7 +1932,7 @@ function LearningTypologyForm({ test }: { test: LearningTypologyTestV1 }) {
     try {
       const res = scoreLearningTypology(test as any, chosen as any);
       const userId = user?.id || "guest";
-      await persistResult({ test, result: res, userId, accessToken: null });
+      await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
       setError(e?.message || "Ошибка");
