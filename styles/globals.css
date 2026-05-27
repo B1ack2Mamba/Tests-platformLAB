@@ -560,7 +560,7 @@ html.native-app .app-brand {
     padding: 0;
   }
 
-  .project-create-paper details > div {
+  .project-create-paper .project-create-hint-popover {
     position: fixed;
     left: 0.75rem;
     right: 0.75rem;
@@ -599,6 +599,7 @@ html.native-app .app-brand {
   .project-competency-toggle-list {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+    position: static;
   }
 
   .project-competency-toggle-list > button {

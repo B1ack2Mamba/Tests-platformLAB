@@ -98,7 +98,7 @@ function InfoHint({ label, children }: { label: string; children: React.ReactNod
       >
         ?
       </summary>
-      <div className="absolute right-0 z-20 mt-2 w-72 rounded-3xl border border-[#e7d8bf] bg-[#fffaf2] p-3 text-xs leading-5 text-[#6a5640] shadow-xl">
+      <div className="project-create-hint-popover absolute right-0 z-20 mt-2 w-72 rounded-3xl border border-[#e7d8bf] bg-[#fffaf2] p-3 text-xs leading-5 text-[#6a5640] shadow-xl">
         <div className="mb-1 text-xs font-semibold text-[#3d3124]">{label}</div>
         <div>{children}</div>
       </div>
@@ -120,7 +120,7 @@ function GoalDescriptionHint({ title, description }: { title: string; descriptio
       >
         ?
       </summary>
-      <div className="absolute right-0 z-20 mt-2 w-64 rounded-3xl border border-[#e7d8bf] bg-[#fffaf2] p-3 text-xs leading-5 text-[#6a5640] shadow-xl">
+      <div className="project-create-hint-popover absolute right-0 z-20 mt-2 w-64 rounded-3xl border border-[#e7d8bf] bg-[#fffaf2] p-3 text-xs leading-5 text-[#6a5640] shadow-xl">
         <div className="mb-1 text-xs font-semibold text-[#3d3124]">{title}</div>
         <div>{description}</div>
       </div>
