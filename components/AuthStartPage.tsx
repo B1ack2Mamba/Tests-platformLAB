@@ -79,6 +79,53 @@ const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 
+type EmailLoginResult = {
+  ok?: boolean;
+  error?: string;
+  session?: {
+    access_token?: string;
+    refresh_token?: string;
+  } | null;
+};
+
+type EmailLoginSession = {
+  access_token: string;
+  refresh_token: string;
+};
+
+function isFetchNetworkError(err: any) {
+  const message = String(err?.message || err || "");
+  const name = String(err?.name || "");
+  return /failed to fetch|fetch failed|load failed|network|timeout/i.test(`${name} ${message}`);
+}
+
+function normalizeAuthError(err: any) {
+  const message = String(err?.message || err || "").trim();
+  if (/invalid login credentials|invalid credentials|email not confirmed/i.test(message)) {
+    return "Неверный email или пароль. Проверьте данные и попробуйте ещё раз.";
+  }
+  if (isFetchNetworkError(err)) {
+    return "Не удалось связаться с сервером авторизации. Проверьте интернет, VPN, антивирус или расширения браузера и попробуйте ещё раз.";
+  }
+  return message || "Ошибка";
+}
+
+async function loginWithServerFallback(email: string, password: string): Promise<EmailLoginSession> {
+  const response = await fetch("/api/auth/email-login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = (await response.json().catch(() => ({}))) as EmailLoginResult;
+  if (!response.ok || !data?.ok || !data.session?.access_token || !data.session.refresh_token) {
+    throw new Error(data?.error || "Не удалось войти. Попробуйте ещё раз.");
+  }
+  return {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  };
+}
+
 function safeLocalStorageGet(key: string) {
   if (typeof window === "undefined") return "";
   try {
@@ -244,10 +291,22 @@ export default function AuthStartPage() {
 
     try {
       if (mode === "login") {
-        const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
+        let sessionAccessToken = "";
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+          if (error) throw error;
+          sessionAccessToken = data.session?.access_token || "";
+        } catch (loginErr: any) {
+          if (!isFetchNetworkError(loginErr)) throw loginErr;
+          const fallbackSession = await loginWithServerFallback(email.trim(), password);
+          await supabase.auth.setSession({
+            access_token: fallbackSession.access_token,
+            refresh_token: fallbackSession.refresh_token,
+          });
+          sessionAccessToken = fallbackSession.access_token || "";
+        }
         const pendingPromo = getPendingPromoCode();
-        if (pendingPromo && data.session?.access_token) {
+        if (pendingPromo && sessionAccessToken) {
           setInfo(`Промокод ${pendingPromo} проверяется и применится после входа.`);
         }
         return;
@@ -331,7 +390,7 @@ export default function AuthStartPage() {
       safeLocalStorageSet(DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY, "1");
       setMode("login");
     } catch (err: any) {
-      setError(err?.message || "Ошибка");
+      setError(normalizeAuthError(err));
     } finally {
       setLoading(false);
     }
