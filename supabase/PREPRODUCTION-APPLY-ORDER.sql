@@ -33,5 +33,8 @@
 -- 25) commercial_support_chat.sql
 -- 26) commercial_registry_candidate_analysis.sql
 -- 27) commercial_candidate_calibration_cases.sql
+-- 28) data_api_explicit_grants_2026.sql
+--     Explicit Data API grants for the Supabase May/October 2026 public schema rollout.
+--     Safe to rerun after adding new public tables/functions; RLS policies remain unchanged.
 --
 -- Optional follow-up patches depend on the feature set you use.
