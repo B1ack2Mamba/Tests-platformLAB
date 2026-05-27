@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { ADMIN_EMAILS, isAdminEmail } from "@/lib/admin";
-import { DEFAULT_DASHBOARD_UPDATES, type DashboardUpdatesContent, type DashboardUpdateItem } from "@/lib/dashboardUpdates";
+import { DEFAULT_DASHBOARD_UPDATES, type DashboardUpdatesContent, type DashboardUpdateItem, type DashboardUpdateVersion } from "@/lib/dashboardUpdates";
 
 type PromoCodeRow = {
   id: string;
@@ -114,24 +114,70 @@ export default function AdminPage() {
     loadUpdates();
   }, [session, canUseAdmin]);
 
-  function updateReleaseItem(index: number, patch: Partial<DashboardUpdateItem>) {
+  function updateReleaseVersion(index: number, patch: Partial<DashboardUpdateVersion>) {
     setUpdatesDraft((current) => ({
       ...current,
-      items: current.items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
+      versions: current.versions.map((version, versionIndex) => (versionIndex === index ? { ...version, ...patch } : version)),
     }));
   }
 
-  function addReleaseItem() {
+  function updateReleaseItem(versionIndex: number, itemIndex: number, patch: Partial<DashboardUpdateItem>) {
     setUpdatesDraft((current) => ({
       ...current,
-      items: [...current.items, { title: "Новое улучшение", body: "Опишите, что изменилось и какую пользу это даёт пользователю." }],
+      versions: current.versions.map((version, currentVersionIndex) => (
+        currentVersionIndex === versionIndex
+          ? {
+              ...version,
+              items: version.items.map((item, currentItemIndex) => (currentItemIndex === itemIndex ? { ...item, ...patch } : item)),
+            }
+          : version
+      )),
     }));
   }
 
-  function removeReleaseItem(index: number) {
+  function addReleaseVersion() {
     setUpdatesDraft((current) => ({
       ...current,
-      items: current.items.filter((_, itemIndex) => itemIndex !== index),
+      versions: [
+        ...current.versions,
+        {
+          version: String(current.versions.length + 1),
+          title: "Новая версия",
+          items: [{ title: "Новое улучшение", body: "Опишите, что изменилось и какую пользу это даёт пользователю." }],
+        },
+      ],
+    }));
+  }
+
+  function addReleaseItem(versionIndex: number) {
+    setUpdatesDraft((current) => ({
+      ...current,
+      versions: current.versions.map((version, currentVersionIndex) => (
+        currentVersionIndex === versionIndex
+          ? {
+              ...version,
+              items: [...version.items, { title: "Новое улучшение", body: "Опишите, что изменилось и какую пользу это даёт пользователю." }],
+            }
+          : version
+      )),
+    }));
+  }
+
+  function removeReleaseItem(versionIndex: number, itemIndex: number) {
+    setUpdatesDraft((current) => ({
+      ...current,
+      versions: current.versions.map((version, currentVersionIndex) => (
+        currentVersionIndex === versionIndex
+          ? { ...version, items: version.items.filter((_, currentItemIndex) => currentItemIndex !== itemIndex) }
+          : version
+      )),
+    }));
+  }
+
+  function removeReleaseVersion(versionIndex: number) {
+    setUpdatesDraft((current) => ({
+      ...current,
+      versions: current.versions.filter((_, currentVersionIndex) => currentVersionIndex !== versionIndex),
     }));
   }
 
@@ -307,41 +353,78 @@ export default function AdminPage() {
               </label>
             </div>
 
-            <div className="mt-4 grid gap-3">
-              {updatesDraft.items.map((item, index) => (
-                <div key={`release-update-${index}`} className="rounded-2xl border border-emerald-100 bg-white p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">Пункт {index + 1}</div>
-                    <button type="button" className="btn btn-secondary btn-sm text-red-600 hover:text-red-700" onClick={() => removeReleaseItem(index)} disabled={updatesBusy || updatesDraft.items.length <= 1}>
-                      Удалить
+            <div className="mt-4 grid gap-4">
+              {updatesDraft.versions.map((version, versionIndex) => (
+                <div key={`release-version-${versionIndex}`} className="rounded-[22px] border border-emerald-100 bg-emerald-50/40 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">Версия {version.version || versionIndex + 1}</div>
+                    <button type="button" className="btn btn-secondary btn-sm text-red-600 hover:text-red-700" onClick={() => removeReleaseVersion(versionIndex)} disabled={updatesBusy || updatesDraft.versions.length <= 1}>
+                      Удалить версию
                     </button>
                   </div>
-                  <div className="grid gap-3">
+                  <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
                     <label className="grid gap-1">
-                      <span className="text-xs text-slate-600">Название</span>
+                      <span className="text-xs text-slate-600">Номер версии</span>
                       <input
                         className="input"
-                        value={item.title}
-                        onChange={(e) => updateReleaseItem(index, { title: e.target.value })}
-                        placeholder="Коротко: что изменилось"
+                        value={version.version}
+                        onChange={(e) => updateReleaseVersion(versionIndex, { version: e.target.value })}
+                        placeholder="1"
                       />
                     </label>
                     <label className="grid gap-1">
-                      <span className="text-xs text-slate-600">Описание простыми словами</span>
-                      <textarea
-                        className="input min-h-[96px]"
-                        value={item.body}
-                        onChange={(e) => updateReleaseItem(index, { body: e.target.value })}
-                        placeholder="Напишите, чем это полезно пользователю."
+                      <span className="text-xs text-slate-600">Название версии</span>
+                      <input
+                        className="input"
+                        value={version.title}
+                        onChange={(e) => updateReleaseVersion(versionIndex, { title: e.target.value })}
+                        placeholder="Коротко: что объединяет обновления"
                       />
                     </label>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    {version.items.map((item, itemIndex) => (
+                      <div key={`release-update-${versionIndex}-${itemIndex}`} className="rounded-2xl border border-emerald-100 bg-white p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-900">Пункт {version.version || versionIndex + 1}.{itemIndex + 1}</div>
+                          <button type="button" className="btn btn-secondary btn-sm text-red-600 hover:text-red-700" onClick={() => removeReleaseItem(versionIndex, itemIndex)} disabled={updatesBusy || version.items.length <= 1}>
+                            Удалить
+                          </button>
+                        </div>
+                        <div className="grid gap-3">
+                          <label className="grid gap-1">
+                            <span className="text-xs text-slate-600">Название</span>
+                            <input
+                              className="input"
+                              value={item.title}
+                              onChange={(e) => updateReleaseItem(versionIndex, itemIndex, { title: e.target.value })}
+                              placeholder="Коротко: что изменилось"
+                            />
+                          </label>
+                          <label className="grid gap-1">
+                            <span className="text-xs text-slate-600">Описание простыми словами</span>
+                            <textarea
+                              className="input min-h-[96px]"
+                              value={item.body}
+                              onChange={(e) => updateReleaseItem(versionIndex, itemIndex, { body: e.target.value })}
+                              placeholder="Напишите, чем это полезно пользователю."
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3">
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => addReleaseItem(versionIndex)} disabled={updatesBusy}>Добавить пункт в версию</button>
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={addReleaseItem} disabled={updatesBusy}>Добавить пункт</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={addReleaseVersion} disabled={updatesBusy}>Добавить версию</button>
               {updatesMessage ? <div className="text-sm text-slate-700">{updatesMessage}</div> : null}
             </div>
           </section>

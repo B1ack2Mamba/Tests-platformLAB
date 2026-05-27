@@ -167,6 +167,8 @@ type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "ope
 type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
 type DesktopVariant = "scheme" | "classic" | "assembly";
 type ClassicViewMode = "desktop" | "sheet";
+type ClassicSheetKindFilter = "all" | "folder" | "project";
+type ClassicSheetPlaceFilter = "all" | "desktop" | "folder";
 type TrashItemKind = "folder" | "project";
 
 type TrashEntry = {
@@ -773,14 +775,7 @@ function isGlobalSchemeWidget(id: string) {
   return !id.startsWith("folder:") && !id.startsWith("project:");
 }
 
-function buildSchemeSceneWidgets(params: {
-  displayName: string;
-  workspaceName: string;
-  email: string;
-  balanceText: string;
-  investedText: string;
-  greeneryLabel: string;
-}): SceneWidget[] {
+function buildSchemeSceneWidgets(): SceneWidget[] {
   return [
     { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
     { id: CERTIFICATE_PSI_PROFILE_ID, kind: "image", text: "Свидетельство о регистрации программы", src: "/dashboard-certificate-psi-profile.png", action: "none", tone: "scheme", x: 278, y: 122, width: 146, height: 207, rotation: -3.8, fontSize: 0, z: 26 },
@@ -791,14 +786,7 @@ function buildSchemeSceneWidgets(params: {
   ];
 }
 
-function buildClassicSceneWidgets(params: {
-  displayName: string;
-  workspaceName: string;
-  email: string;
-  balanceText: string;
-  investedText: string;
-  greeneryLabel: string;
-}): SceneWidget[] {
+function buildClassicSceneWidgets(): SceneWidget[] {
   return [];
 }
 
@@ -1017,6 +1005,9 @@ export default function DashboardPage() {
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
   const [desktopVariant, setDesktopVariant] = useState<DesktopVariant>("scheme");
   const [classicViewMode, setClassicViewMode] = useState<ClassicViewMode>("desktop");
+  const [classicSheetQuery, setClassicSheetQuery] = useState("");
+  const [classicSheetKindFilter, setClassicSheetKindFilter] = useState<ClassicSheetKindFilter>("all");
+  const [classicSheetPlaceFilter, setClassicSheetPlaceFilter] = useState<ClassicSheetPlaceFilter>("all");
   const [trayGuideText, setTrayGuideText] = useState("Создать новую папку проектов");
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
@@ -1036,6 +1027,7 @@ export default function DashboardPage() {
   const roomSwitchInteractionRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null);
   const suppressRoomSwitchClickRef = useRef(false);
   const officeSceneRef = useRef<HTMLDivElement | null>(null);
+  const loadedDashboardUserRef = useRef<string | null>(null);
   const [officeSceneScale, setOfficeSceneScale] = useState(1);
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
   const [assemblyFolderId, setAssemblyFolderId] = useState<string | null>(null);
@@ -1094,7 +1086,7 @@ export default function DashboardPage() {
   }, []);
 
   const loadDashboard = useCallback(async () => {
-    if (!session) return;
+    if (!session) return false;
     setLoading(true);
     setError("");
     setSharedSceneReady(false);
@@ -1128,6 +1120,7 @@ export default function DashboardPage() {
         projects: json.projects || [],
       });
       setActiveSubscription(json.active_subscription || null);
+      return true;
     } catch (e: any) {
       setSharedDeskPositions({});
       setSharedSceneWidgets([]);
@@ -1135,6 +1128,7 @@ export default function DashboardPage() {
       setSharedSceneReady(true);
       setActiveSubscription(null);
       setError(e?.message || "Ошибка");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -1144,11 +1138,20 @@ export default function DashboardPage() {
   useEffect(() => {
     if (sessionLoading) return;
     if (!session || !user) {
+      loadedDashboardUserRef.current = null;
       router.replace("/auth?next=%2Fdashboard");
       return;
     }
-    loadDashboard();
-  }, [router, session, sessionLoading, user, loadDashboard]);
+    if (loadedDashboardUserRef.current === user.id) return;
+
+    let cancelled = false;
+    void loadDashboard().then((ok) => {
+      if (!cancelled && ok) loadedDashboardUserRef.current = user.id;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [router, session, sessionLoading, user?.id, loadDashboard]);
 
   const displayName = data?.profile?.full_name || (user?.user_metadata as any)?.full_name || user?.email || "Пользователь";
   const workspaceName = workspace?.workspace?.name || data?.profile?.company_name || (user?.user_metadata as any)?.company_name || "Рабочее пространство";
@@ -1204,15 +1207,9 @@ export default function DashboardPage() {
     </div>
   ) : null;
   const defaultSceneWidgets = useMemo(
-    () => (desktopVariant === "classic" || desktopVariant === "assembly" ? buildClassicSceneWidgets : buildSchemeSceneWidgets)({
-      displayName,
-      workspaceName,
-      email: data?.profile?.email || user?.email || "email не указан",
-      balanceText,
-      investedText,
-      greeneryLabel,
-    }),
-    [balanceText, data?.profile?.email, desktopVariant, displayName, greeneryLabel, investedText, user?.email, workspaceName]
+    () => (desktopVariant === "classic" || desktopVariant === "assembly" ? buildClassicSceneWidgets() : buildSchemeSceneWidgets()),
+    // The board scene itself is static; keeping this stable prevents needless remounts when profile or wallet data refreshes.
+    [desktopVariant]
   );
   const persistableSceneWidgets = useMemo(
     () => (sceneWidgets.length ? sceneWidgets : sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets),
@@ -2181,6 +2178,63 @@ export default function DashboardPage() {
     return [...folderRows, ...projectRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [folderBuckets.byFolder, folders, projects]);
 
+  const visibleClassicSheetRows = useMemo(() => {
+    const needle = classicSheetQuery.trim().toLowerCase();
+    return classicSheetRows.filter((row) => {
+      if (classicSheetKindFilter !== "all" && row.kind !== classicSheetKindFilter) return false;
+      if (classicSheetPlaceFilter === "desktop" && row.place !== "Рабочий стол" && row.place !== "На рабочем столе") return false;
+      if (classicSheetPlaceFilter === "folder" && (row.kind !== "project" || row.place === "На рабочем столе")) return false;
+      if (!needle) return true;
+      return [row.name, row.goal, row.status, row.place]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [classicSheetKindFilter, classicSheetPlaceFilter, classicSheetQuery, classicSheetRows]);
+
+  const arrangeClassicDesktop = useCallback(() => {
+    saveLayoutSnapshot("Перед упорядочиванием рабочего стола");
+    const next: DeskPositions = { ...deskPositions };
+    let z = deskLayer + 1;
+
+    folderBuckets.byFolder.forEach(({ folder }, index) => {
+      const col = Math.floor(index / 8);
+      const row = index % 8;
+      next[`folder:${folder.id}`] = {
+        ...(next[`folder:${folder.id}`] || {}),
+        x: 54 + col * 122,
+        y: 86 + row * 94,
+        z: z++,
+        width: 86,
+        height: 92,
+        rotation: 0,
+        tiltX: 0,
+        tiltY: 0,
+      };
+    });
+
+    folderBuckets.uncategorized.forEach((project, index) => {
+      const col = Math.floor(index / 8);
+      const row = index % 8;
+      next[`project:${project.id}`] = {
+        ...(next[`project:${project.id}`] || {}),
+        x: 300 + col * 112,
+        y: 86 + row * 96,
+        z: z++,
+        width: 78,
+        height: 92,
+        rotation: 0,
+        tiltX: 0,
+        tiltY: 0,
+      };
+    });
+
+    setClassicViewMode("desktop");
+    setDesktopVariant("classic");
+    setDeskLayer(z + 1);
+    setDeskPositions(next);
+  }, [deskLayer, deskPositions, folderBuckets.byFolder, folderBuckets.uncategorized, saveLayoutSnapshot]);
+
   const resetSceneWidgets = useCallback(() => {
     const workspaceId = workspace?.workspace?.workspace_id;
     if (workspaceId && typeof window !== "undefined") {
@@ -2843,10 +2897,11 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
-              {updatesButton}
             </div>
-            <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {updatesButton}
+              {sceneEditControls}
+            </div>
           </div>
 
           <div className="mb-4 rounded-[22px] border border-[#d9c8aa] bg-[linear-gradient(180deg,#fff8ef_0%,#f4ead9_100%)] px-4 py-3 text-sm text-[#60442c] shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)]">
@@ -3155,12 +3210,14 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
               <button type="button" className={`btn btn-sm ${desktopVariant === "classic" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}>Сборка проектов</button>
               <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Стол</button>
               <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
-              {updatesButton}
+              <button type="button" className="btn btn-secondary btn-sm" onClick={arrangeClassicDesktop}>Упорядочить</button>
             </div>
-            <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {updatesButton}
+              {sceneEditControls}
+            </div>
           </div>
 
           {canEditScene && sceneEditMode && selectedDeskItem ? (
@@ -3198,6 +3255,39 @@ export default function DashboardPage() {
             {classicViewMode === "sheet" ? (
               <div className="absolute inset-0 z-[2] p-5">
                 <div className="h-full overflow-auto rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                  <div className="grid gap-3 border-b border-[#d5deea] bg-white/88 px-4 py-3 lg:grid-cols-[minmax(240px,1fr)_auto_auto_auto] lg:items-center">
+                    <input
+                      className="input h-10 bg-white"
+                      value={classicSheetQuery}
+                      onChange={(event) => setClassicSheetQuery(event.target.value)}
+                      placeholder="Найти проект или папку"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        ["all", "Все"],
+                        ["project", "Проекты"],
+                        ["folder", "Папки"],
+                      ] as const).map(([value, label]) => (
+                        <button key={value} type="button" className={`btn btn-sm ${classicSheetKindFilter === value ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicSheetKindFilter(value)}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        ["all", "Везде"],
+                        ["desktop", "На столе"],
+                        ["folder", "В папках"],
+                      ] as const).map(([value, label]) => (
+                        <button key={value} type="button" className={`btn btn-sm ${classicSheetPlaceFilter === value ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicSheetPlaceFilter(value)}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-right text-xs font-semibold uppercase tracking-[0.18em] text-[#6f879d]">
+                      {visibleClassicSheetRows.length} из {classicSheetRows.length}
+                    </div>
+                  </div>
                   <div className="sticky top-0 z-[3] grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] border-b border-[#d5deea] bg-[linear-gradient(180deg,#eff4fa_0%,#dde7f3_100%)] text-[11px] font-semibold uppercase tracking-[0.22em] text-[#5f7992]">
                     <div className="px-4 py-3">Тип</div>
                     <div className="px-4 py-3">Название</div>
@@ -3207,7 +3297,7 @@ export default function DashboardPage() {
                     <div className="px-4 py-3 text-right">Действие</div>
                   </div>
                   <div className="divide-y divide-[#dde6f0]">
-                    {classicSheetRows.map((row, index) => (
+                    {visibleClassicSheetRows.map((row, index) => (
                       <div key={row.rowId} className={`grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] text-[13px] text-[#24384b] ${index % 2 === 0 ? "bg-white/82" : "bg-[#f5f9fd]/90"}`}>
                         <div className="px-4 py-3 font-semibold text-[#5d7691]">{row.kind === "folder" ? "Папка" : "Проект"}</div>
                         <div className="px-4 py-3">
@@ -3231,6 +3321,11 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     ))}
+                    {!visibleClassicSheetRows.length ? (
+                      <div className="px-4 py-10 text-center text-sm text-[#6f8193]">
+                        По этим условиям ничего не найдено.
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -3357,16 +3452,11 @@ export default function DashboardPage() {
               >
                 Рабочий стол
               </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => { setClassicViewMode("desktop"); setDesktopVariant("assembly"); }}
-              >
-                Сборка проектов
-              </button>
-              {updatesButton}
             </div>
-          <div className="flex flex-wrap items-center gap-2">{sceneEditControls}</div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {updatesButton}
+              {sceneEditControls}
+            </div>
         </div>
 
         {canEditScene && sceneEditMode && selectedWidget ? (
@@ -4624,20 +4714,41 @@ function LatestUpdatesModal({ updates, onClose }: { updates: DashboardUpdatesCon
           </button>
         </div>
         <div className="max-h-[68vh] overflow-auto px-5 py-4">
-          <div className="grid gap-3">
-            {updates.items.map((item, index) => (
-              <div key={`${item.title}:${index}`} className="rounded-[20px] border border-[#dfe9df] bg-white px-4 py-3 shadow-[0_12px_26px_-24px_rgba(34,54,38,0.24)]">
+          <div className="grid gap-4">
+            {updates.versions.map((version, versionIndex) => (
+              <section key={`${version.version}:${versionIndex}`} className="rounded-[22px] border border-[#dfe9df] bg-white/72 p-4 shadow-[0_12px_26px_-24px_rgba(34,54,38,0.24)]">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#cfe1d0] bg-[#edf8ee] text-sm font-semibold text-[#35664a]">
-                    {index + 1}
+                  <div className="flex h-10 min-w-10 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1d0] bg-[#edf8ee] px-3 text-base font-semibold text-[#35664a]">
+                    {version.version}
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-[#24372c]">{item.title}</div>
-                    <div className="mt-1 text-sm leading-6 text-[#5f7168]">{item.body}</div>
+                    <div className="text-base font-semibold text-[#24372c]">{version.title}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-[#7c9186]">Версия {version.version}</div>
                   </div>
                 </div>
-              </div>
+
+                <div className="mt-3 grid gap-3">
+                  {version.items.map((item, itemIndex) => (
+                    <div key={`${version.version}:${item.title}:${itemIndex}`} className="rounded-[18px] border border-[#e8efe7] bg-white px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-8 min-w-10 shrink-0 items-center justify-center rounded-full border border-[#dce9dc] bg-[#f3faf3] px-2 text-xs font-semibold text-[#4a735a]">
+                          {version.version}.{itemIndex + 1}
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-[#24372c]">{item.title}</div>
+                          <div className="mt-1 text-sm leading-6 text-[#5f7168]">{item.body}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             ))}
+            {!updates.versions.length ? (
+              <div className="rounded-[20px] border border-[#dfe9df] bg-white px-4 py-5 text-sm text-[#5f7168]">
+                Обновления пока не добавлены.
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="flex justify-end border-t border-[#e4eadf] bg-white px-5 py-4">
