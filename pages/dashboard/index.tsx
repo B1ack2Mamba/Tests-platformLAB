@@ -239,6 +239,7 @@ const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
 const DASHBOARD_TRASH_HINT_SHOWN_KEY = "dashboard-trash-hint-shown";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+const ASSEMBLY_PROJECT_LIMIT = 20;
 const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
 const TRAY_ZONE = { x: 1042, y: 520, width: 246, height: 168 };
 const TRAY_CLIP = { x: 1050, y: 526, width: 226, height: 124 };
@@ -2295,6 +2296,7 @@ export default function DashboardPage() {
     setAssemblyLoading(true);
     setAssemblyError("");
     try {
+      const projectsForComparison = bucket.projects.slice(0, ASSEMBLY_PROJECT_LIMIT);
       const resp = await fetch("/api/commercial/projects/candidate-comparison", {
         method: "POST",
         headers: {
@@ -2302,7 +2304,7 @@ export default function DashboardPage() {
           authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          project_ids: bucket.projects.map((item) => item.id),
+          project_ids: projectsForComparison.map((item) => item.id),
           selected_competency_ids: assemblySelectedCompetencyIds,
           fit_request: assemblyFitRequest.trim(),
         }),
@@ -2952,7 +2954,11 @@ export default function DashboardPage() {
                   <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Общая оценка папки</div>
                   <div className="mt-1 text-2xl font-semibold text-[#223548]">{assemblyFolder?.folder.name || "Выберите папку"}</div>
                   <div className="mt-1 text-sm text-[#64788c]">
-                    {assemblyFolder ? `В анализ попадут все проекты этой папки: ${assemblyFolder.projects.length} шт.` : "Пока папка не выбрана."}
+                    {assemblyFolder
+                      ? assemblyFolder.projects.length > ASSEMBLY_PROJECT_LIMIT
+                        ? `В анализ попадут первые ${ASSEMBLY_PROJECT_LIMIT} из ${assemblyFolder.projects.length} проектов. Для точного сравнения лучше делить большие папки на короткие списки.`
+                        : `В анализ попадут все проекты этой папки: ${assemblyFolder.projects.length} шт.`
+                      : "Пока папка не выбрана."}
                   </div>
                   {assemblyComparison?.selected_competency_label ? (
                     <div className="mt-2 text-sm font-medium text-[#49627a]">Фокус по компетенциям: {assemblyComparison.selected_competency_label}</div>
@@ -4783,7 +4789,27 @@ type FolderModalProps = {
 
 function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject, onMoveToDesktop, onDeleteProject }: FolderModalProps) {
   const [draggingInnerProjectId, setDraggingInnerProjectId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const icon = getFolderIcon(folder.icon_key);
+  const visibleProjects = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return projects;
+    return projects.filter((project) => {
+      const haystack = [
+        project.title,
+        project.target_role,
+        project.person?.full_name,
+        project.person?.email,
+        project.person?.current_position,
+        getGoalDefinition(project.goal)?.title,
+        getGoalDefinition(project.goal)?.shortTitle,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [projects, query]);
 
   return (
     <div
@@ -4801,14 +4827,16 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
         onMoveToDesktop(draggedId);
       }}
     >
-      <div className="w-full max-w-5xl rounded-[32px] border border-[#b68b58] bg-[#f8f0e3]/95 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-[#b68b58] bg-[#f8f0e3]/95 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className={`flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br text-3xl shadow-sm ${icon.tileClass}`}>{icon.symbol}</div>
             <div>
               <div className="text-sm text-slate-500">Папка</div>
               <div className="mt-1 text-2xl font-semibold text-slate-950">{folder.name}</div>
-              <div className="mt-1 text-sm text-slate-500">Открой проект как иконку или просто перетащи её за пределы окна папки, чтобы вернуть на рабочий стол.</div>
+              <div className="mt-1 text-sm text-slate-500">
+                {projects.length} {projects.length === 1 ? "проект" : projects.length < 5 ? "проекта" : "проектов"} внутри. Открой проект или перетащи его за пределы окна папки, чтобы вернуть на рабочий стол.
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -4821,10 +4849,19 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
           Рабочий стол снаружи этого окна. Потяни иконку проекта на затемнённый фон, и она вернётся из папки обратно на стол.
         </div>
 
-        <div className={`mt-6 rounded-[28px] border border-emerald-100 bg-white p-4 ${busy ? "opacity-70" : ""}`}>
+        <div className="mt-4">
+          <input
+            className="input w-full"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Найти проект в папке"
+          />
+        </div>
+
+        <div className={`mt-4 min-h-0 flex-1 overflow-auto rounded-[28px] border border-emerald-100 bg-white p-4 ${busy ? "opacity-70" : ""}`}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
-            {projects.length ? (
-              projects.map((project) => (
+            {visibleProjects.length ? (
+              visibleProjects.map((project) => (
                 <ProjectDesktopIcon
                   key={project.id}
                   project={project}
@@ -4838,7 +4875,7 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
               ))
             ) : (
               <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white/60 p-8 text-center text-sm text-slate-500">
-                Папка пока пустая. Перетащи на неё проекты с рабочего стола.
+                {projects.length ? "По этому запросу проектов не найдено." : "Папка пока пустая. Перетащи на неё проекты с рабочего стола."}
               </div>
             )}
           </div>
