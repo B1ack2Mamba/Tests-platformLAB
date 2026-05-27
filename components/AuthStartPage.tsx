@@ -78,6 +78,8 @@ const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
+const LOGIN_RETRY_ATTEMPTS = 4;
+const LOGIN_RETRY_DELAYS_MS = [700, 1400, 2400];
 
 type EmailLoginResult = {
   ok?: boolean;
@@ -103,6 +105,17 @@ function isFetchNetworkError(err: any) {
   const message = String(err?.message || err || "");
   const name = String(err?.name || "");
   return /failed to fetch|fetch failed|load failed|network|timeout/i.test(`${name} ${message}`);
+}
+
+function isRetryableLoginError(err: any) {
+  const message = String(err?.message || err || "");
+  const name = String(err?.name || "");
+  if (/invalid login credentials|invalid credentials|email not confirmed|неверный email|неверный пароль/i.test(message)) return false;
+  return /failed to fetch|fetch failed|load failed|network|timeout|econn|etimedout|сервером авторизации|временно недоступ|502|503|504/i.test(`${name} ${message}`);
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function normalizeAuthError(err: any) {
@@ -280,11 +293,13 @@ export default function AuthStartPage() {
   const [password2, setPassword2] = useState("");
   const [promoCode, setPromoCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginAttempt, setLoginAttempt] = useState(0);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const authErrorHelp = useMemo(() => getAuthErrorHelp(error), [error]);
   const autoRedeemAttemptRef = useRef<string>("");
   const profileSyncAttemptRef = useRef<string>("");
+  const submitInFlightRef = useRef(false);
 
   useEffect(() => {
     if (isPasswordReset) setMode("reset");
@@ -356,29 +371,58 @@ export default function AuthStartPage() {
     setPassword2("");
   }
 
+  async function loginOnce(authClient: NonNullable<typeof supabase>, loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {
+    try {
+      const { data, error } = await authClient.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
+      if (error) throw error;
+      if (!data.session?.access_token || !data.session.refresh_token) {
+        throw new Error("Не удалось получить сессию входа. Попробуйте ещё раз.");
+      }
+      return {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      };
+    } catch (loginErr: any) {
+      if (!isFetchNetworkError(loginErr)) throw loginErr;
+      const fallbackSession = await loginWithServerFallback(loginEmail, loginPassword);
+      await authClient.auth.setSession({
+        access_token: fallbackSession.access_token,
+        refresh_token: fallbackSession.refresh_token,
+      });
+      return fallbackSession;
+    }
+  }
+
+  async function loginWithRetry(authClient: NonNullable<typeof supabase>, loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {
+    let lastError: any = null;
+    for (let attempt = 1; attempt <= LOGIN_RETRY_ATTEMPTS; attempt += 1) {
+      setLoginAttempt(attempt);
+      try {
+        return await loginOnce(authClient, loginEmail, loginPassword);
+      } catch (err: any) {
+        lastError = err;
+        if (attempt >= LOGIN_RETRY_ATTEMPTS || !isRetryableLoginError(err)) throw err;
+        await wait(LOGIN_RETRY_DELAYS_MS[attempt - 1] ?? 1800);
+      }
+    }
+    throw lastError || new Error("Не удалось войти. Попробуйте ещё раз.");
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase) return;
+    const authClient = supabase;
+    if (!authClient) return;
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     setLoading(true);
+    setLoginAttempt(0);
     setError("");
     setInfo("");
 
     try {
       if (mode === "login") {
-        let sessionAccessToken = "";
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-          if (error) throw error;
-          sessionAccessToken = data.session?.access_token || "";
-        } catch (loginErr: any) {
-          if (!isFetchNetworkError(loginErr)) throw loginErr;
-          const fallbackSession = await loginWithServerFallback(email.trim(), password);
-          await supabase.auth.setSession({
-            access_token: fallbackSession.access_token,
-            refresh_token: fallbackSession.refresh_token,
-          });
-          sessionAccessToken = fallbackSession.access_token || "";
-        }
+        const loginSession = await loginWithRetry(authClient, email.trim(), password);
+        const sessionAccessToken = loginSession.access_token || "";
         const pendingPromo = getPendingPromoCode();
         if (pendingPromo && sessionAccessToken) {
           setInfo(`Промокод ${pendingPromo} проверяется и применится после входа.`);
@@ -393,7 +437,7 @@ export default function AuthStartPage() {
         if (session?.access_token) {
           if (password.length < 8) throw new Error("Новый пароль должен быть не короче 8 символов.");
           if (password !== password2) throw new Error("Пароли не совпадают.");
-          const { error } = await supabase.auth.updateUser({ password });
+          const { error } = await authClient.auth.updateUser({ password });
           if (error) throw error;
           setInfo("Пароль изменён. Теперь можно войти с новым паролем.");
           setError("");
@@ -405,7 +449,7 @@ export default function AuthStartPage() {
         }
 
         if (!email.trim()) throw new Error("Укажи email, к которому привязан кабинет.");
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        const { error } = await authClient.auth.resetPasswordForEmail(email.trim(), { redirectTo });
         if (error) throw error;
         setInfo("Отправили письмо для изменения пароля. Открой ссылку из письма и задай новый пароль.");
         return;
@@ -433,7 +477,7 @@ export default function AuthStartPage() {
 
       if (data.session?.access_token) {
         if (data.session.refresh_token) {
-          await supabase.auth.setSession({
+          await authClient.auth.setSession({
             access_token: data.session.access_token,
             refresh_token: data.session.refresh_token,
           });
@@ -466,7 +510,9 @@ export default function AuthStartPage() {
     } catch (err: any) {
       setError(normalizeAuthError(err));
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
+      setLoginAttempt(0);
     }
   }
 
@@ -482,10 +528,10 @@ export default function AuthStartPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              <button type="button" onClick={() => { setMode("signup"); setInfo(""); }} className={`btn btn-sm w-full sm:w-auto ${mode === "signup" ? "btn-primary" : "btn-secondary"}`}>
+              <button type="button" disabled={loading} onClick={() => { setMode("signup"); setInfo(""); }} className={`btn btn-sm w-full sm:w-auto disabled:opacity-60 ${mode === "signup" ? "btn-primary" : "btn-secondary"}`}>
                 Регистрация
               </button>
-              <button type="button" onClick={() => setMode("login")} className={`btn btn-sm w-full sm:w-auto ${mode === "login" ? "btn-primary" : "btn-secondary"}`}>
+              <button type="button" disabled={loading} onClick={() => setMode("login")} className={`btn btn-sm w-full sm:w-auto disabled:opacity-60 ${mode === "login" ? "btn-primary" : "btn-secondary"}`}>
                 Войти
               </button>
             </div>
@@ -594,12 +640,12 @@ export default function AuthStartPage() {
               </div>
             ) : null}
 
-            <button disabled={loading} type="submit" className="btn btn-primary w-full">
-              {loading ? "…" : mode === "signup" ? "Создать кабинет" : mode === "reset" && session?.access_token ? "Сохранить новый пароль" : mode === "reset" ? "Отправить ссылку" : "Войти"}
+            <button disabled={loading} type="submit" className="btn btn-primary w-full disabled:cursor-not-allowed disabled:opacity-70" aria-busy={loading ? "true" : "false"}>
+              {loading ? (mode === "login" && loginAttempt ? `Входим... попытка ${loginAttempt}/${LOGIN_RETRY_ATTEMPTS}` : "…") : mode === "signup" ? "Создать кабинет" : mode === "reset" && session?.access_token ? "Сохранить новый пароль" : mode === "reset" ? "Отправить ссылку" : "Войти"}
             </button>
 
             {mode === "login" ? (
-              <button type="button" className="btn btn-secondary w-full" onClick={openPasswordReset}>
+              <button type="button" disabled={loading} className="btn btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-60" onClick={openPasswordReset}>
                 Забыли пароль? Восстановить
               </button>
             ) : null}
