@@ -97,6 +97,7 @@ type EmailLoginSession = {
 type AuthErrorHelp = {
   reason: string;
   actions: string[];
+  showConnectionSupport?: boolean;
 };
 
 function isFetchNetworkError(err: any) {
@@ -149,6 +150,7 @@ function getAuthErrorHelp(error: string): AuthErrorHelp | null {
         "На время входа отключите VPN, AdBlock или веб-защиту антивируса.",
         "Если не помогло, попробуйте другой браузер или другую сеть.",
       ],
+      showConnectionSupport: true,
     };
   }
 
@@ -169,6 +171,7 @@ function getAuthErrorHelp(error: string): AuthErrorHelp | null {
         "Повторите вход через пару минут.",
         "Если ошибка повторяется, отправьте администратору скриншот этой ошибки.",
       ],
+      showConnectionSupport: true,
     };
   }
 
@@ -570,7 +573,7 @@ export default function AuthStartPage() {
             ) : null}
 
             {error ? (
-              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700" role="alert">
                 <div className="font-medium">{error}</div>
                 {authErrorHelp ? (
                   <div className="mt-2 border-t border-red-100 pt-2 text-xs leading-5 text-red-800">
@@ -583,6 +586,23 @@ export default function AuthStartPage() {
                         <li key={action}>{action}</li>
                       ))}
                     </ul>
+                    {authErrorHelp.showConnectionSupport ? (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-amber-950">
+                        <div className="font-semibold">Если входите из Москвы</div>
+                        <div className="mt-1">
+                          При подключении из Москвы могут наблюдаться сбои при входе. Подождите немного и попробуйте ещё раз,
+                          попробуйте включить или выключить VPN. Если решить проблему не удалось, напишите мне лично в Telegram.
+                        </div>
+                        <a
+                          href="https://t.me/BalancEcnalab"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-secondary btn-sm mt-3 w-full justify-center sm:w-auto"
+                        >
+                          Написать @BalancEcnalab
+                        </a>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 {mode === "login" ? (
