@@ -49,9 +49,8 @@ function priceRub(test: AnyTest) {
   return PAYMENTS_UI_ENABLED ? (test.pricing?.interpretation_rub ?? 0) : 0;
 }
 
-function buttonLabel(test: AnyTest) {
-  if (isInviteMode()) return "Завершить";
-  return "Показать результат";
+function buttonLabel() {
+  return "Завершить тест";
 }
 
 function ensureProgress(total: number, answered: number) {
@@ -460,7 +459,7 @@ function BelbinForm({ test }: { test: AnyTest }) {
 
       <div className="mt-6 flex items-center gap-2">
         <button onClick={submit} disabled={!canSubmit || busy} className="btn btn-primary disabled:opacity-50">
-          {busy ? "Считаем…" : buttonLabel(test)}
+          {busy ? "Считаем…" : buttonLabel()}
         </button>
         <Link href={`/tests/${encodeURIComponent(test.slug)}`} className="btn btn-secondary">
           Назад
@@ -647,7 +646,7 @@ function ForcedPairForm({ test }: { test: ForcedPairTestV1 }) {
             onClick={submit}
             className={["btn", canSubmit && !busy ? "btn-primary" : "btn-secondary"].join(" ")}
           >
-            {busy ? "Обрабатываем…" : buttonLabel(test)}
+            {busy ? "Обрабатываем…" : buttonLabel()}
           </button>
         </div>
 
@@ -833,7 +832,7 @@ function PairSplitForm({ test }: { test: PairSplitTestV1 }) {
               canSubmit && !busy ? "btn-primary" : "btn-secondary",
             ].join(" ")}
           >
-            {busy ? "Обрабатываем…" : buttonLabel(test)}
+            {busy ? "Обрабатываем…" : buttonLabel()}
           </button>
         </div>
 
@@ -1184,7 +1183,7 @@ function ColorTypesForm({ test }: { test: ColorTypesTestV1 }) {
               canSubmit && !busy ? "btn-primary" : "btn-secondary",
             ].join(" ")}
           >
-            {busy ? "Обрабатываем…" : "Показать результат"}
+            {busy ? "Обрабатываем…" : "Завершить тест"}
           </button>
         </div>
         {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
@@ -1352,7 +1351,7 @@ function USKForm({ test }: { test: USKTestV1 }) {
               canSubmit && !busy ? "btn-primary" : "btn-secondary",
             ].join(" ")}
           >
-            {busy ? "Обрабатываем…" : buttonLabel(test)}
+            {busy ? "Обрабатываем…" : buttonLabel()}
           </button>
         </div>
         {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
@@ -1482,7 +1481,7 @@ function SituationalGuidanceForm({ test }: { test: SituationalGuidanceTestV1 }) 
             onClick={submit}
             className={["btn", canSubmit && !busy ? "btn-primary" : "btn-secondary"].join(" ")}
           >
-            {busy ? "Обрабатываем…" : buttonLabel(test)}
+            {busy ? "Обрабатываем…" : buttonLabel()}
           </button>
         </div>
         {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
@@ -1691,7 +1690,7 @@ function PF16Form({ test }: { test: PF16TestV1 }) {
 
       <div className="mt-6 flex justify-end">
         <button type="button" onClick={submit} disabled={!canSubmit || busy} className="btn btn-primary">
-          {busy ? "Сохраняем…" : "Показать результат"}
+          {busy ? "Сохраняем…" : "Завершить тест"}
         </button>
       </div>
 
@@ -1788,7 +1787,7 @@ function TimeManagementForm({ test }: { test: TimeManagementTestV1 }) {
 
       <div className="mt-6 flex justify-end">
         <button type="button" onClick={submit} disabled={!canSubmit || busy} className="btn btn-primary">
-          {busy ? "Сохраняем…" : buttonLabel(test)}
+          {busy ? "Сохраняем…" : buttonLabel()}
         </button>
       </div>
 
@@ -1888,7 +1887,7 @@ function EminForm({ test }: { test: EminTestV1 }) {
 
       <div className="mt-6 flex justify-end">
         <button type="button" onClick={submit} disabled={!canSubmit || busy} className="btn btn-primary">
-          {busy ? "Сохраняем…" : buttonLabel(test)}
+          {busy ? "Сохраняем…" : buttonLabel()}
         </button>
       </div>
 
@@ -1986,7 +1985,7 @@ function LearningTypologyForm({ test }: { test: LearningTypologyTestV1 }) {
 
       <div className="mt-6 flex justify-end">
         <button type="button" onClick={submit} disabled={!canSubmit || busy} className="btn btn-primary">
-          {busy ? "Сохраняем…" : buttonLabel(test)}
+          {busy ? "Сохраняем…" : buttonLabel()}
         </button>
       </div>
 

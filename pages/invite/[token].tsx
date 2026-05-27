@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { Layout } from "@/components/Layout";
-import { getGoalDefinition } from "@/lib/commercialGoals";
 import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 
 type InvitePageProps = {
@@ -29,7 +28,6 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
     );
   }
 
-  const goal = getGoalDefinition(project.goal as any);
   const doneSet = new Set((project.attempts || []).map((item) => item.test_slug));
   const completed = doneSet.size;
   const total = project.tests.length;
@@ -50,11 +48,9 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
           <div className="text-xs uppercase tracking-wide text-slate-500">Оценка сотрудника</div>
           <div className="mt-2 text-2xl font-semibold text-slate-950">{project.person_name || "Участник"}</div>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-            {goal ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-800">{goal.shortTitle}</span> : null}
             {project.target_role ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Будущая предполагаемая должность: {project.target_role}</span> : null}
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Пройдено: {completed} / {total}</span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Общее время: примерно {formatEstimatedMinutes(totalMinutes)}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Режим: {packageLabel}</span>
           </div>
           <div className="mt-4 text-sm leading-6 text-slate-700">
             Пройди назначенные тесты по очереди. После каждого завершения ты вернёшься сюда. Цифры и результаты увидит только специалист.
