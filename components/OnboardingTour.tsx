@@ -21,12 +21,19 @@ function storageKey(tourId: string) {
   return `onboarding-tour:${tourId}:completed`;
 }
 
-function getTargetRect(target: string): HighlightRect | null {
+function getVisibleTarget(target: string): HTMLElement | null {
   if (typeof document === "undefined") return null;
-  const element = document.querySelector<HTMLElement>(`[data-onboarding-id="${target}"]`);
+  const elements = Array.from(document.querySelectorAll<HTMLElement>(`[data-onboarding-id="${target}"]`));
+  return elements.find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }) || null;
+}
+
+function getTargetRect(target: string): HighlightRect | null {
+  const element = getVisibleTarget(target);
   if (!element) return null;
   const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return null;
   return {
     left: Math.max(PADDING, rect.left - PADDING),
     top: Math.max(PADDING, rect.top - PADDING),
@@ -36,16 +43,14 @@ function getTargetRect(target: string): HighlightRect | null {
 }
 
 function hasTarget(target: string) {
-  if (typeof document === "undefined") return false;
-  return !!document.querySelector<HTMLElement>(`[data-onboarding-id="${target}"]`);
+  return !!getVisibleTarget(target);
 }
 
 function scrollTargetIntoView(target: string) {
   if (typeof document === "undefined" || typeof window === "undefined") return;
-  const element = document.querySelector<HTMLElement>(`[data-onboarding-id="${target}"]`);
+  const element = getVisibleTarget(target);
   if (!element) return;
   const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return;
 
   const viewportPadding = 92;
   const targetCenter = rect.top + rect.height / 2;
