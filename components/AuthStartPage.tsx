@@ -93,6 +93,11 @@ type EmailLoginSession = {
   refresh_token: string;
 };
 
+type AuthErrorHelp = {
+  reason: string;
+  actions: string[];
+};
+
 function isFetchNetworkError(err: any) {
   const message = String(err?.message || err || "");
   const name = String(err?.name || "");
@@ -108,6 +113,71 @@ function normalizeAuthError(err: any) {
     return "Не удалось связаться с сервером авторизации. Проверьте интернет, VPN, антивирус или расширения браузера и попробуйте ещё раз.";
   }
   return message || "Ошибка";
+}
+
+function getAuthErrorHelp(error: string): AuthErrorHelp | null {
+  const message = String(error || "").trim();
+  if (!message) return null;
+  const source = message.toLowerCase();
+
+  if (/неверный|invalid login credentials|invalid credentials/.test(source)) {
+    return {
+      reason: "Email или пароль не совпали с данными кабинета.",
+      actions: [
+        "Проверьте раскладку, Caps Lock и лишние пробелы в email.",
+        "Если пароль забыли, нажмите «Восстановить пароль».",
+      ],
+    };
+  }
+
+  if (/email not confirmed|почт|подтверд/i.test(message)) {
+    return {
+      reason: "Email ещё не подтверждён.",
+      actions: [
+        "Откройте письмо от сервиса и подтвердите почту.",
+        "Проверьте папки «Спам» и «Промоакции».",
+      ],
+    };
+  }
+
+  if (/сервером авторизации|failed to fetch|fetch failed|load failed|network|timeout/i.test(message)) {
+    return {
+      reason: "Браузер или сеть не смогли связаться с авторизацией.",
+      actions: [
+        "Обновите страницу через Ctrl+F5 и попробуйте снова.",
+        "На время входа отключите VPN, AdBlock или веб-защиту антивируса.",
+        "Если не помогло, попробуйте другой браузер или другую сеть.",
+      ],
+    };
+  }
+
+  if (/too many|rate limit|слишком много|част/i.test(message)) {
+    return {
+      reason: "Слишком много попыток входа подряд.",
+      actions: [
+        "Подождите несколько минут и попробуйте снова.",
+        "Не обновляйте страницу много раз подряд во время входа.",
+      ],
+    };
+  }
+
+  if (/server env missing|not configured|недоступ|502|503/i.test(message)) {
+    return {
+      reason: "Сервер авторизации временно недоступен или настроен некорректно.",
+      actions: [
+        "Повторите вход через пару минут.",
+        "Если ошибка повторяется, отправьте администратору скриншот этой ошибки.",
+      ],
+    };
+  }
+
+  return {
+    reason: "Не удалось завершить вход.",
+    actions: [
+      "Проверьте email и пароль, затем попробуйте снова.",
+      "Если ошибка повторяется, отправьте администратору скриншот.",
+    ],
+  };
 }
 
 async function loginWithServerFallback(email: string, password: string): Promise<EmailLoginSession> {
@@ -209,6 +279,7 @@ export default function AuthStartPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const authErrorHelp = useMemo(() => getAuthErrorHelp(error), [error]);
   const autoRedeemAttemptRef = useRef<string>("");
   const profileSyncAttemptRef = useRef<string>("");
 
@@ -476,7 +547,20 @@ export default function AuthStartPage() {
 
             {error ? (
               <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                <div>{error}</div>
+                <div className="font-medium">{error}</div>
+                {authErrorHelp ? (
+                  <div className="mt-2 border-t border-red-100 pt-2 text-xs leading-5 text-red-800">
+                    <div>
+                      <span className="font-semibold">Причина:</span> {authErrorHelp.reason}
+                    </div>
+                    <div className="mt-1 font-semibold">Что сделать:</div>
+                    <ul className="mt-1 list-disc space-y-1 pl-5">
+                      {authErrorHelp.actions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {mode === "login" ? (
                   <button type="button" className="btn btn-secondary btn-sm mt-3" onClick={openPasswordReset}>
                     Восстановить пароль
