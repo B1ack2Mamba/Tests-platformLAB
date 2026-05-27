@@ -10,7 +10,6 @@ import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRoute
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail, isGlobalTemplateOwnerEmail } from "@/lib/admin";
-import { DEFAULT_DASHBOARD_UPDATES, type DashboardUpdatesContent } from "@/lib/dashboardUpdates";
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
 import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
@@ -392,7 +391,6 @@ function MobileDashboardHome({
   error,
   onCreateProject,
   onCreateFolder,
-  onOpenUpdates,
   onOpenTrash,
   onOpenProject,
 }: {
@@ -407,7 +405,6 @@ function MobileDashboardHome({
   error: string;
   onCreateProject: () => void;
   onCreateFolder: () => void;
-  onOpenUpdates: () => void;
   onOpenTrash: () => void;
   onOpenProject: (id: string) => void;
 }) {
@@ -458,9 +455,6 @@ function MobileDashboardHome({
           <Link href="/results" className="btn btn-secondary h-12 justify-center">
             История тестов
           </Link>
-          <button type="button" className="btn btn-secondary h-12 justify-center" onClick={onOpenUpdates}>
-            Что нового
-          </button>
           <button type="button" data-onboarding-id="dashboard-trash" className="btn btn-secondary h-12 justify-center" onClick={onOpenTrash}>
             Корзина{trashCount ? ` · ${trashCount}` : ""}
           </button>
@@ -1040,8 +1034,6 @@ export default function DashboardPage() {
   const [assemblyComparison, setAssemblyComparison] = useState<CandidateComparisonPayload | null>(null);
   const [assemblySelectedCompetencyIds, setAssemblySelectedCompetencyIds] = useState<string[]>([]);
   const [assemblyFitRequest, setAssemblyFitRequest] = useState("");
-  const [updatesOpen, setUpdatesOpen] = useState(false);
-  const [dashboardUpdates, setDashboardUpdates] = useState<DashboardUpdatesContent>(DEFAULT_DASHBOARD_UPDATES);
   const [dashboardTourStartTarget, setDashboardTourStartTarget] = useState<string | null>(null);
 
   const balance_rub = useMemo(() => {
@@ -1099,13 +1091,6 @@ export default function DashboardPage() {
       const resp = await fetch("/api/commercial/dashboard/bootstrap", { headers: authHeaders });
       const json = (await resp.json().catch(() => ({}))) as Partial<DashboardBootstrapPayload> & { error?: string };
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить кабинет");
-
-      fetch("/api/commercial/dashboard-updates", { headers: authHeaders })
-        .then((updatesResp) => updatesResp.json())
-        .then((updatesJson) => {
-          if (updatesJson?.ok && updatesJson.updates) setDashboardUpdates(updatesJson.updates as DashboardUpdatesContent);
-        })
-        .catch(() => null);
 
       const parsedStandard = pickSceneStandard(json.shared_scene_standard || {});
       const nextSharedPositions = (parsedStandard.positions || {}) as DeskPositions;
@@ -1534,7 +1519,7 @@ export default function DashboardPage() {
         if (!defaults) return item;
         return {
           ...item,
-          text: defaults.text,
+          text: typeof item.text === "string" ? item.text : defaults.text,
           action: defaults.action,
           kind: defaults.kind,
           tone: defaults.tone,
@@ -2258,7 +2243,7 @@ export default function DashboardPage() {
         if (!defaults) return item;
         return {
           ...item,
-          text: defaults.text,
+          text: typeof item.text === "string" ? item.text : defaults.text,
           action: defaults.action,
           kind: defaults.kind,
           tone: defaults.tone,
@@ -2863,17 +2848,10 @@ export default function DashboardPage() {
       error={error}
       onCreateProject={() => router.push("/projects/new")}
       onCreateFolder={promptAndCreateFolder}
-      onOpenUpdates={() => setUpdatesOpen(true)}
       onOpenTrash={() => setTrashOpen(true)}
       onOpenProject={(id) => router.push(`/projects/${id}`)}
     />
   );
-  const updatesButton = (
-    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setUpdatesOpen(true)}>
-      Что нового
-    </button>
-  );
-  const updatesModal = updatesOpen ? <LatestUpdatesModal updates={dashboardUpdates} onClose={() => setUpdatesOpen(false)} /> : null;
   const trashRestoreModal = trashOpen ? (
     <TrashRestoreModal
       entries={trashEntries}
@@ -2888,6 +2866,103 @@ export default function DashboardPage() {
       }}
     />
   ) : null;
+  const desktopModeTabs = (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className={`btn btn-sm ${desktopVariant === "scheme" ? "btn-primary" : "btn-secondary"}`}
+        onClick={() => setDesktopVariant("scheme")}
+      >
+        Основной
+      </button>
+      <button
+        type="button"
+        className={`btn btn-sm ${desktopVariant === "classic" && classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`}
+        onClick={() => {
+          setDesktopVariant("classic");
+          setClassicViewMode("desktop");
+        }}
+      >
+        Стандартный
+      </button>
+      <button
+        type="button"
+        className={`btn btn-sm ${desktopVariant === "classic" && classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`}
+        onClick={() => {
+          setDesktopVariant("classic");
+          setClassicViewMode("sheet");
+        }}
+      >
+        Таблицы
+      </button>
+    </div>
+  );
+  const classicQuickActions = (
+    <>
+      <button type="button" className="btn btn-primary btn-sm" onClick={() => router.push("/projects/new")}>
+        Создать проект
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>
+        Создать папку
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={arrangeClassicDesktop}>
+        Упорядочить
+      </button>
+    </>
+  );
+  const classicDragHint = (
+    <div className="mb-3 rounded-[22px] border border-emerald-100 bg-[linear-gradient(180deg,#ffffff_0%,#eef8f1_100%)] px-4 py-3 text-sm leading-6 text-[#315f49] shadow-[0_16px_30px_-26px_rgba(24,85,58,0.18)]">
+      Проекты можно переносить мышкой в папки. Чтобы вернуть проект обратно на рабочий стол, открой папку и перетащи проект на затемнённый фон за пределами окна.
+    </div>
+  );
+  const folderManagementDialogs = (
+    <>
+      {folderActionTarget ? (
+        <FolderActionDialog
+          folder={folderActionTarget}
+          onClose={() => setFolderActionTarget(null)}
+          onRename={() => openRenameFolder(folderActionTarget)}
+          onDelete={() => openDeleteFolder(folderActionTarget)}
+          onChooseIcon={() => {
+            setIconPickerFolder(folderActionTarget);
+            setFolderActionTarget(null);
+          }}
+        />
+      ) : null}
+
+      {folderRenameTarget ? (
+        <FolderRenameDialog
+          folder={folderRenameTarget}
+          value={folderRenameValue}
+          busy={busyFolderId === folderRenameTarget.id}
+          onChange={setFolderRenameValue}
+          onClose={() => {
+            setFolderRenameTarget(null);
+            setFolderRenameValue("");
+          }}
+          onSave={saveRenameFolder}
+        />
+      ) : null}
+
+      {folderDeleteTarget ? (
+        <FolderDeleteDialog
+          folder={folderDeleteTarget}
+          busy={busyFolderId === folderDeleteTarget.id}
+          onClose={() => setFolderDeleteTarget(null)}
+          onDelete={confirmDeleteFolder}
+        />
+      ) : null}
+
+      {iconPickerFolder ? (
+        <FolderIconPicker
+          folder={iconPickerFolder}
+          busy={busyFolderId === iconPickerFolder.id}
+          onClose={() => setIconPickerFolder(null)}
+          onSelect={(iconKey) => updateFolderIcon(iconPickerFolder, iconKey)}
+        />
+      ) : null}
+    </>
+  );
 
   if (desktopVariant === "assembly") {
     return (
@@ -2898,12 +2973,8 @@ export default function DashboardPage() {
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
-            </div>
+            {desktopModeTabs}
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              {updatesButton}
               {sceneEditControls}
             </div>
           </div>
@@ -3196,7 +3267,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-        {updatesModal}
+        {folderManagementDialogs}
         {trashRestoreModal}
       </Layout>
     );
@@ -3211,18 +3282,14 @@ export default function DashboardPage() {
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDesktopVariant("scheme")}>Схема на доске</button>
-              <button type="button" className={`btn btn-sm ${desktopVariant === "classic" ? "btn-primary" : "btn-secondary"}`} onClick={() => setDesktopVariant("classic")}>Рабочий стол</button>
-              <button type="button" className={`btn btn-sm ${classicViewMode === "desktop" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("desktop")}>Стол</button>
-              <button type="button" className={`btn btn-sm ${classicViewMode === "sheet" ? "btn-primary" : "btn-secondary"}`} onClick={() => setClassicViewMode("sheet")}>Таблица</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={arrangeClassicDesktop}>Упорядочить</button>
-            </div>
+            {desktopModeTabs}
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              {updatesButton}
+              {classicQuickActions}
               {sceneEditControls}
             </div>
           </div>
+
+          {classicDragHint}
 
           {canEditScene && sceneEditMode && selectedDeskItem ? (
             <div className="mb-3 rounded-[22px] border border-[#cdb799] bg-white/92 p-4 shadow-[0_18px_34px_-26px_rgba(54,35,19,0.2)]">
@@ -3292,7 +3359,7 @@ export default function DashboardPage() {
                       {visibleClassicSheetRows.length} из {classicSheetRows.length}
                     </div>
                   </div>
-                  <div className="sticky top-0 z-[3] grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] border-b border-[#d5deea] bg-[linear-gradient(180deg,#eff4fa_0%,#dde7f3_100%)] text-[11px] font-semibold uppercase tracking-[0.22em] text-[#5f7992]">
+                  <div className="sticky top-0 z-[3] grid min-w-[1180px] grid-cols-[128px_minmax(280px,2fr)_minmax(220px,1.2fr)_minmax(180px,1fr)_minmax(210px,1.1fr)_190px] border-b border-[#d5deea] bg-[linear-gradient(180deg,#eff4fa_0%,#dde7f3_100%)] text-[11px] font-semibold uppercase tracking-[0.22em] text-[#5f7992]">
                     <div className="px-4 py-3">Тип</div>
                     <div className="px-4 py-3">Название</div>
                     <div className="px-4 py-3">Цель / состав</div>
@@ -3301,30 +3368,46 @@ export default function DashboardPage() {
                     <div className="px-4 py-3 text-right">Действие</div>
                   </div>
                   <div className="divide-y divide-[#dde6f0]">
-                    {visibleClassicSheetRows.map((row, index) => (
-                      <div key={row.rowId} className={`grid grid-cols-[110px_minmax(260px,2fr)_minmax(180px,1.2fr)_minmax(170px,1.1fr)_minmax(180px,1.2fr)_150px] text-[13px] text-[#24384b] ${index % 2 === 0 ? "bg-white/82" : "bg-[#f5f9fd]/90"}`}>
-                        <div className="px-4 py-3 font-semibold text-[#5d7691]">{row.kind === "folder" ? "Папка" : "Проект"}</div>
-                        <div className="px-4 py-3">
-                          <div className="font-semibold leading-[1.25] text-[#1f3142]">{row.name}</div>
+                    {visibleClassicSheetRows.map((row, index) => {
+                      const isFolderRow = row.kind === "folder";
+                      const currentFolder = isFolderRow ? folders.find((item) => item.id === row.id) : null;
+                      const currentProject = !isFolderRow ? projects.find((item) => item.id === row.id) : null;
+                      const createdText = new Date(row.createdAt).toLocaleDateString("ru-RU");
+                      return (
+                        <div key={row.rowId} className={`grid min-w-[1180px] grid-cols-[128px_minmax(280px,2fr)_minmax(220px,1.2fr)_minmax(180px,1fr)_minmax(210px,1.1fr)_190px] text-[13px] text-[#24384b] transition hover:bg-[#edf7f1] ${index % 2 === 0 ? "bg-white/88" : "bg-[#f5f9fd]/92"}`}>
+                          <div className="px-4 py-4">
+                            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${isFolderRow ? "border-amber-200 bg-amber-50 text-amber-800" : "border-sky-200 bg-sky-50 text-sky-800"}`}>
+                              <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+                              {isFolderRow ? "Папка" : "Проект"}
+                            </span>
+                          </div>
+                          <div className="px-4 py-4">
+                            <div className="font-semibold leading-[1.25] text-[#1f3142]">{row.name}</div>
+                            <div className="mt-1 text-xs text-[#7a8b9d]">Создано {createdText}</div>
+                          </div>
+                          <div className="px-4 py-4 leading-5 text-[#516679]">{row.goal}</div>
+                          <div className="px-4 py-4">
+                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${row.status === "Оценка собрана" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : row.status.includes("работе") ? "border-sky-200 bg-sky-50 text-sky-800" : "border-slate-200 bg-white text-slate-700"}`}>
+                              {row.status}
+                            </span>
+                          </div>
+                          <div className="px-4 py-4 leading-5 text-[#516679]">{row.place}</div>
+                          <div className="flex items-center justify-end gap-2 px-4 py-4">
+                            {isFolderRow ? (
+                              <>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveFolderId(row.id)}>Открыть</button>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => { if (currentFolder) setFolderActionTarget(currentFolder); }} disabled={!currentFolder}>Управление</button>
+                              </>
+                            ) : (
+                              <>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => { if (currentProject) setPreviewProject(currentProject); }} disabled={!currentProject}>Открыть</button>
+                                <button type="button" className="btn btn-secondary btn-sm text-red-600 hover:text-red-700" onClick={() => void deleteProject(row.id)}>Удалить</button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div className="px-4 py-3 text-[#516679]">{row.goal}</div>
-                        <div className="px-4 py-3 text-[#516679]">{row.status}</div>
-                        <div className="px-4 py-3 text-[#516679]">{row.place}</div>
-                        <div className="flex items-center justify-end gap-2 px-4 py-3">
-                          {row.kind === "folder" ? (
-                            <>
-                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveFolderId(row.id)}>Открыть</button>
-                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const folder = folders.find((item) => item.id === row.id); if (folder) setFolderActionTarget(folder); }}>...</button>
-                            </>
-                          ) : (
-                            <>
-                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const project = projects.find((item) => item.id === row.id); if (project) setPreviewProject(project); }}>Открыть</button>
-                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void deleteProject(row.id)}>Удалить</button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {!visibleClassicSheetRows.length ? (
                       <div className="px-4 py-10 text-center text-sm text-[#6f8193]">
                         По этим условиям ничего не найдено.
@@ -3427,7 +3510,7 @@ export default function DashboardPage() {
             />
           ) : null}
         </div>
-        {updatesModal}
+        {folderManagementDialogs}
         {trashRestoreModal}
       </Layout>
     );
@@ -3441,24 +3524,8 @@ export default function DashboardPage() {
           {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className={`btn btn-sm ${desktopVariant === "scheme" ? "btn-primary" : "btn-secondary"}`}
-                onClick={() => setDesktopVariant("scheme")}
-              >
-                Схема на доске
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setDesktopVariant("classic")}
-              >
-                Рабочий стол
-              </button>
-            </div>
+            {desktopModeTabs}
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              {updatesButton}
               {sceneEditControls}
             </div>
         </div>
@@ -4180,8 +4247,6 @@ export default function DashboardPage() {
       </div>
       </div>
 
-      {updatesModal}
-
       {activeFolder ? (
         <FolderModal
           folder={activeFolder.folder}
@@ -4226,50 +4291,7 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {folderActionTarget ? (
-        <FolderActionDialog
-          folder={folderActionTarget}
-          onClose={() => setFolderActionTarget(null)}
-          onRename={() => openRenameFolder(folderActionTarget)}
-          onDelete={() => openDeleteFolder(folderActionTarget)}
-          onChooseIcon={() => {
-            setIconPickerFolder(folderActionTarget);
-            setFolderActionTarget(null);
-          }}
-        />
-      ) : null}
-
-      {folderRenameTarget ? (
-        <FolderRenameDialog
-          folder={folderRenameTarget}
-          value={folderRenameValue}
-          busy={busyFolderId === folderRenameTarget.id}
-          onChange={setFolderRenameValue}
-          onClose={() => {
-            setFolderRenameTarget(null);
-            setFolderRenameValue("");
-          }}
-          onSave={saveRenameFolder}
-        />
-      ) : null}
-
-      {folderDeleteTarget ? (
-        <FolderDeleteDialog
-          folder={folderDeleteTarget}
-          busy={busyFolderId === folderDeleteTarget.id}
-          onClose={() => setFolderDeleteTarget(null)}
-          onDelete={confirmDeleteFolder}
-        />
-      ) : null}
-
-      {iconPickerFolder ? (
-        <FolderIconPicker
-          folder={iconPickerFolder}
-          busy={busyFolderId === iconPickerFolder.id}
-          onClose={() => setIconPickerFolder(null)}
-          onSelect={(iconKey) => updateFolderIcon(iconPickerFolder, iconKey)}
-        />
-      ) : null}
+      {folderManagementDialogs}
     </Layout>
   );
 }
@@ -4701,74 +4723,9 @@ type SceneImagePreviewModalProps = {
   onClose: () => void;
 };
 
-function LatestUpdatesModal({ updates, onClose }: { updates: DashboardUpdatesContent; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
-      <div className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[#d8e6dc] bg-[#fffdf8] shadow-[0_30px_70px_-42px_rgba(34,54,38,0.38)]" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 border-b border-[#e4eadf] bg-[linear-gradient(180deg,#ffffff_0%,#eef8f1_100%)] px-5 py-4">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#4d7b62]">Обновления сервиса</div>
-            <div className="mt-1 text-2xl font-semibold text-[#183f31]">{updates.title}</div>
-            <div className="mt-1 max-w-[560px] text-sm leading-6 text-[#60766c]">{updates.intro}</div>
-          </div>
-          <button
-            type="button"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/90 text-lg text-slate-600 shadow-sm hover:text-slate-950"
-            onClick={onClose}
-            aria-label="Закрыть"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="max-h-[68vh] overflow-auto px-5 py-4">
-          <div className="grid gap-4">
-            {updates.versions.map((version, versionIndex) => (
-              <section key={`${version.version}:${versionIndex}`} className="rounded-[22px] border border-[#dfe9df] bg-white/72 p-4 shadow-[0_12px_26px_-24px_rgba(34,54,38,0.24)]">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 min-w-10 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1d0] bg-[#edf8ee] px-3 text-base font-semibold text-[#35664a]">
-                    {version.version}
-                  </div>
-                  <div>
-                    <div className="text-base font-semibold text-[#24372c]">{version.title}</div>
-                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-[#7c9186]">Версия {version.version}</div>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-3">
-                  {version.items.map((item, itemIndex) => (
-                    <div key={`${version.version}:${item.title}:${itemIndex}`} className="rounded-[18px] border border-[#e8efe7] bg-white px-4 py-3">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-8 min-w-10 shrink-0 items-center justify-center rounded-full border border-[#dce9dc] bg-[#f3faf3] px-2 text-xs font-semibold text-[#4a735a]">
-                          {version.version}.{itemIndex + 1}
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-[#24372c]">{item.title}</div>
-                          <div className="mt-1 text-sm leading-6 text-[#5f7168]">{item.body}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-            {!updates.versions.length ? (
-              <div className="rounded-[20px] border border-[#dfe9df] bg-white px-4 py-5 text-sm text-[#5f7168]">
-                Обновления пока не добавлены.
-              </div>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex justify-end border-t border-[#e4eadf] bg-white px-5 py-4">
-          <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>Понятно</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SceneImagePreviewModal({ src, title, onClose }: SceneImagePreviewModalProps) {
   return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div className="relative w-full max-w-[980px]" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
@@ -4810,7 +4767,7 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
   const totalEstimatedMinutes = getTotalEstimatedMinutes((project.tests || []).map((test) => test.test_slug));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div className="dashboard-project-preview-wrap relative w-full max-w-[920px]" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
@@ -4931,7 +4888,7 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm ${draggingInnerProjectId ? "ring-4 ring-emerald-300/50" : ""}`}
+      className={`fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm ${draggingInnerProjectId ? "ring-4 ring-emerald-300/50" : ""}`}
       onClick={onClose}
       onDragOver={(e) => {
         if (draggingInnerProjectId) e.preventDefault();
@@ -4945,7 +4902,7 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
         onMoveToDesktop(draggedId);
       }}
     >
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-[#b68b58] bg-[#f8f0e3]/95 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-[#b68b58] bg-[#f8f0e3] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className={`flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br text-3xl shadow-sm ${icon.tileClass}`}>{icon.symbol}</div>
@@ -4980,16 +4937,17 @@ function FolderModal({ folder, projects, busy, onClose, onManage, onOpenProject,
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
             {visibleProjects.length ? (
               visibleProjects.map((project) => (
-                <ProjectDesktopIcon
-                  key={project.id}
-                  project={project}
-                  compact
-                  busy={busy}
-                  onOpen={() => onOpenProject(project.id)}
-                  onDragStart={() => setDraggingInnerProjectId(project.id)}
-                  onDragEnd={() => setDraggingInnerProjectId(null)}
-                  onDelete={onDeleteProject ? () => onDeleteProject(project.id) : undefined}
-                />
+                <div key={project.id} className="min-h-[260px] min-w-0">
+                  <ProjectDesktopIcon
+                    project={project}
+                    compact
+                    busy={busy}
+                    onOpen={() => onOpenProject(project.id)}
+                    onDragStart={() => setDraggingInnerProjectId(project.id)}
+                    onDragEnd={() => setDraggingInnerProjectId(null)}
+                    onDelete={onDeleteProject ? () => onDeleteProject(project.id) : undefined}
+                  />
+                </div>
               ))
             ) : (
               <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white/60 p-8 text-center text-sm text-slate-500">
@@ -5013,7 +4971,7 @@ type FolderActionDialogProps = {
 
 function FolderActionDialog({ folder, onClose, onRename, onDelete, onChooseIcon }: FolderActionDialogProps) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm text-slate-500">Управление папкой</div>
         <div className="mt-1 text-2xl font-semibold text-slate-950">{folder.name}</div>
@@ -5041,7 +4999,7 @@ type FolderRenameDialogProps = {
 
 function FolderRenameDialog({ folder, value, busy, onChange, onClose, onSave }: FolderRenameDialogProps) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-xl rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm text-slate-500">Переименование папки</div>
         <div className="mt-1 text-2xl font-semibold text-slate-950">{folder.name}</div>
@@ -5079,7 +5037,7 @@ type FolderDeleteDialogProps = {
 
 function FolderDeleteDialog({ folder, busy, onClose, onDelete }: FolderDeleteDialogProps) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md rounded-[28px] border border-rose-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm text-slate-500">Удаление папки</div>
         <div className="mt-1 text-2xl font-semibold text-slate-950">{folder.name}</div>
@@ -5103,7 +5061,7 @@ type FolderIconPickerProps = {
 function FolderIconPicker({ folder, busy, onClose, onSelect }: FolderIconPickerProps) {
   const active = getFolderIcon(folder.icon_key);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-xl rounded-[28px] border border-emerald-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -5155,7 +5113,7 @@ type TrashRestoreModalProps = {
 
 function TrashRestoreModal({ entries, onClose, onRestore, onDeleteNow }: TrashRestoreModalProps) {
   return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div className="w-full max-w-[760px] rounded-[28px] border border-[#dac4a7] bg-[#fffaf2] p-5 shadow-[0_30px_70px_-44px_rgba(53,34,17,0.38)]" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
