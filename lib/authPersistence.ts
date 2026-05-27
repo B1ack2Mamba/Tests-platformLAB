@@ -1,5 +1,3 @@
-export const AUTH_REMEMBER_DEVICE_KEY = "lk-auth-remember-device";
-
 type StorageKind = "local" | "session";
 
 function getStorage(kind: StorageKind): Storage | null {
@@ -36,35 +34,17 @@ function safeRemove(storage: Storage | null, key: string) {
   }
 }
 
-export function getAuthRememberDevicePreference() {
-  const saved = safeGet(getStorage("local"), AUTH_REMEMBER_DEVICE_KEY);
-  return saved !== "0";
-}
-
-export function setAuthRememberDevicePreference(remember: boolean) {
-  safeSet(getStorage("local"), AUTH_REMEMBER_DEVICE_KEY, remember ? "1" : "0");
-}
-
 export function createSupabaseAuthStorage() {
   return {
     getItem(key: string) {
-      const remember = getAuthRememberDevicePreference();
-      const primary = getStorage(remember ? "local" : "session");
-      const secondary = getStorage(remember ? "session" : "local");
-      return safeGet(primary, key) ?? safeGet(secondary, key);
+      return safeGet(getStorage("local"), key) ?? safeGet(getStorage("session"), key);
     },
     setItem(key: string, value: string) {
-      const remember = getAuthRememberDevicePreference();
-      if (remember) {
-        if (safeSet(getStorage("local"), key, value)) {
-          safeRemove(getStorage("session"), key);
-        } else {
-          safeSet(getStorage("session"), key, value);
-        }
+      if (safeSet(getStorage("local"), key, value)) {
+        safeRemove(getStorage("session"), key);
         return;
       }
       safeSet(getStorage("session"), key, value);
-      safeRemove(getStorage("local"), key);
     },
     removeItem(key: string) {
       safeRemove(getStorage("local"), key);

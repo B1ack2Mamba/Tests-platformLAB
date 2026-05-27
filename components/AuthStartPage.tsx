@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { Layout } from "@/components/Layout";
-import { getAuthRememberDevicePreference, setAuthRememberDevicePreference } from "@/lib/authPersistence";
 import { useSession } from "@/lib/useSession";
 
 function TextSide() {
@@ -280,17 +279,12 @@ export default function AuthStartPage() {
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [promoCode, setPromoCode] = useState("");
-  const [rememberDevice, setRememberDevice] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const authErrorHelp = useMemo(() => getAuthErrorHelp(error), [error]);
   const autoRedeemAttemptRef = useRef<string>("");
   const profileSyncAttemptRef = useRef<string>("");
-
-  useEffect(() => {
-    setRememberDevice(getAuthRememberDevicePreference());
-  }, []);
 
   useEffect(() => {
     if (isPasswordReset) setMode("reset");
@@ -371,7 +365,6 @@ export default function AuthStartPage() {
 
     try {
       if (mode === "login") {
-        setAuthRememberDevicePreference(rememberDevice);
         let sessionAccessToken = "";
         try {
           const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -545,23 +538,6 @@ export default function AuthStartPage() {
               <label className="grid gap-1">
                 <span className="text-xs text-slate-700">{mode === "reset" ? "Новый пароль" : "Пароль"}</span>
                 <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
-              </label>
-            ) : null}
-
-            {mode === "login" ? (
-              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={rememberDevice}
-                  onChange={(e) => setRememberDevice(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-200"
-                />
-                <span>
-                  <span className="block font-medium text-slate-900">Не выходить на этом устройстве</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-slate-500">
-                    Если выключить, вход сохранится только до закрытия окна браузера.
-                  </span>
-                </span>
               </label>
             ) : null}
 

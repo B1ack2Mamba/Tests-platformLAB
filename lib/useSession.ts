@@ -1,6 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+
+const SESSION_REFRESH_CHECK_MS = 5 * 60 * 1000;
+let sessionRefreshMaintenanceStarted = false;
+let sessionRefreshInFlight = false;
+
+async function refreshPersistedSession(client: SupabaseClient) {
+  if (sessionRefreshInFlight) return;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
+  sessionRefreshInFlight = true;
+  try {
+    const { data: current } = await client.auth.getSession();
+    if (!current.session) return;
+    await client.auth.refreshSession();
+  } catch {
+    // Keep the current session during transient network/Auth outages.
+  } finally {
+    sessionRefreshInFlight = false;
+  }
+}
+
+function startSessionRefreshMaintenance(client: SupabaseClient) {
+  if (sessionRefreshMaintenanceStarted || typeof window === "undefined") return;
+  sessionRefreshMaintenanceStarted = true;
+
+  const refreshWhenVisible = () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    refreshPersistedSession(client);
+  };
+
+  window.setTimeout(() => refreshPersistedSession(client), 1000);
+  window.setInterval(() => refreshPersistedSession(client), SESSION_REFRESH_CHECK_MS);
+  window.addEventListener("focus", refreshWhenVisible);
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+  }
+}
 
 export function useSession() {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
@@ -14,17 +51,19 @@ export function useSession() {
       setLoading(false);
       return;
     }
+    const client = supabase;
 
     setEnvOk(true);
     let mounted = true;
+    startSessionRefreshMaintenance(client);
 
-    supabase.auth.getSession().then(({ data }) => {
+    client.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session ?? null);
       setLoading(false);
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
       setLoading(false);
