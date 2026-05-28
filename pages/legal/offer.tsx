@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getMonthlyPlanPriceHoldLabel, isMonthlyPlanPromoPriceActive } from "@/lib/commercialSubscriptions";
 
 const tariffs = [
-  { title: "Пакет услуг оценки — до 15 проектов / месяц", oldPrice: "30 000 ₽", price: "13 500 ₽" },
+  { title: "Пакет услуг оценки — до 15 проектов / месяц", oldPrice: "33 000 ₽", price: "13 500 ₽" },
   { title: "Пакет услуг оценки — до 25 проектов / месяц", oldPrice: "50 000 ₽", price: "18 000 ₽" },
   { title: "Расширенный пакет услуг оценки — до 50 проектов / месяц", oldPrice: "90 000 ₽", price: "30 000 ₽" },
 ];

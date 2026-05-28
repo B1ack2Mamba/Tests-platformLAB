@@ -22,7 +22,7 @@ export const MONTHLY_SUBSCRIPTION_PLANS: MonthlyPlanDefinition[] = [
     title: "15 проектов в месяц",
     shortTitle: "15 / месяц",
     monthlyPriceRub: 13_500,
-    oldMonthlyPriceRub: 30_000,
+    oldMonthlyPriceRub: 33_000,
     projectsLimit: 15,
     effectiveProjectPriceRub: 900,
     durationDays: 30,
