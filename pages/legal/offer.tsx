@@ -2,9 +2,9 @@ import Link from "next/link";
 import { getMonthlyPlanPriceHoldLabel, isMonthlyPlanPromoPriceActive } from "@/lib/commercialSubscriptions";
 
 const tariffs = [
-  { title: "Пакет услуг оценки — до 30 проектов / месяц", oldPrice: "29 900 ₽", price: "13 500 ₽" },
-  { title: "Пакет услуг оценки — до 50 проектов / месяц", oldPrice: "49 950 ₽", price: "18 000 ₽" },
-  { title: "Расширенный пакет услуг оценки — до 100 проектов / месяц", oldPrice: "90 000 ₽", price: "30 000 ₽" },
+  { title: "Пакет услуг оценки — до 15 проектов / месяц", oldPrice: "30 000 ₽", price: "13 500 ₽" },
+  { title: "Пакет услуг оценки — до 25 проектов / месяц", oldPrice: "50 000 ₽", price: "18 000 ₽" },
+  { title: "Расширенный пакет услуг оценки — до 50 проектов / месяц", oldPrice: "90 000 ₽", price: "30 000 ₽" },
 ];
 
 const Section = ({ id, title, children }: { id: string; title: string; children: React.ReactNode }) => (

@@ -70,17 +70,17 @@ const INPUT_CLASS = "h-14 w-full rounded-[18px] border border-[#d9ccb8] bg-white
 const PLAN_VISUALS = [
   {
     name: "Старт",
-    accent: "30",
+    accent: "15",
     gradient: "bg-[linear-gradient(135deg,#f7ead7_0%,#f1e8c7_36%,#cae5d2_100%)]",
   },
   {
     name: "Профи",
-    accent: "50",
+    accent: "25",
     gradient: "bg-[linear-gradient(135deg,#efe3d1_0%,#dfe8d4_40%,#b9dcc7_100%)]",
   },
   {
     name: "Бизнес",
-    accent: "100",
+    accent: "50",
     gradient: "bg-[linear-gradient(135deg,#e9decf_0%,#d4e1d1_42%,#a8d3bf_100%)]",
   },
 ] as const;
@@ -101,7 +101,7 @@ const WALLET_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     target: "wallet-recommended-plan",
     title: "Какой пакет выбрать",
-    body: "Если нужен один проект без подписки, пополните депозит и откройте полный результат за 3000 ₽ в карточке проекта. Для регулярной работы чаще выгоднее пакет на 50 проектов.",
+    body: "Если нужен один проект без подписки, пополните депозит и откройте полный результат за 3000 ₽ в карточке проекта. Для регулярной работы чаще выгоднее пакет на 25 проектов.",
     placement: "top",
   },
 ];
@@ -663,7 +663,7 @@ export default function WalletPage() {
 </div>
 
                 <div className="mt-5 rounded-[22px] border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-900">
-                  Можно работать без подписки: заведите депозит на кошелёк и единоразово откройте полный результат за 3000 ₽ в нужном проекте. Для регулярной работы оптимальный стартовый выбор — пакет на 50 проектов.
+                  Можно работать без подписки: заведите депозит на кошелёк и единоразово откройте полный результат за 3000 ₽ в нужном проекте. Для регулярной работы оптимальный стартовый выбор — пакет на 25 проектов.
                   <div className="mt-2 rounded-2xl border border-emerald-200 bg-white/70 px-3 py-2">
                     {getMonthlyPlanPriceHoldLabel()}
                   </div>
