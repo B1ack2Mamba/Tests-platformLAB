@@ -2616,7 +2616,8 @@ export default function DashboardPage() {
   async function saveRenameFolder() {
     if (!session || !folderRenameTarget) return;
     const name = folderRenameValue.trim();
-    if (!name || name === folderRenameTarget.name) {
+    if (!name) return;
+    if (name === folderRenameTarget.name) {
       setFolderRenameTarget(null);
       return;
     }
@@ -5013,7 +5014,7 @@ function FolderRenameDialog({ folder, value, busy, onChange, onClose, onSave }: 
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                onSave();
+                if (value.trim() && !busy) onSave();
               }
             }}
             autoFocus
