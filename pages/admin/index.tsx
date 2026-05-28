@@ -181,10 +181,6 @@ export default function AdminPage() {
                 Начисление в кошелёк
                 <div className="mt-1 text-xs font-normal text-slate-500">Служебное пополнение баланса</div>
               </Link>
-              <Link href="/admin/support" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
-                Диалоги поддержки
-                <div className="mt-1 text-xs font-normal text-slate-500">Переписка с пользователями внутри сайта</div>
-              </Link>
               <Link href="/admin/fit-config" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-medium text-slate-900 shadow-sm">
                 Матрица соответствия
                 <div className="mt-1 text-xs font-normal text-slate-500">Роли, ожидания, веса и критичные сигналы</div>

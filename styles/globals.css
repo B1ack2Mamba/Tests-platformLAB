@@ -370,7 +370,6 @@ html.native-app .app-brand {
     line-height: 1.62;
   }
 
-  .developer-support-trigger,
   .global-hints-trigger {
     display: inline-flex;
     width: 3.25rem;
@@ -383,28 +382,14 @@ html.native-app .app-brand {
     font-size: 0.82rem;
   }
 
-  .developer-support-trigger {
-    left: 0.75rem;
-    right: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
-  }
-
   .global-hints-trigger {
     right: 0.75rem;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
   }
 
-  .developer-support-trigger > span > span:first-child,
   .global-hints-trigger-label {
     font-size: 0;
     line-height: 0;
-  }
-
-  .developer-support-trigger > span > span:first-child::before {
-    content: "Чат";
-    font-size: 0.78rem;
-    line-height: 1;
-    font-weight: 700;
   }
 
   .global-hints-trigger-label::before {
@@ -414,48 +399,18 @@ html.native-app .app-brand {
     font-weight: 800;
   }
 
-  .developer-support-trigger > span > span:nth-child(2) {
-    position: absolute;
-    right: -0.95rem;
-    top: -0.95rem;
-    min-width: 1.25rem;
-    height: 1.25rem;
-    padding: 0 0.25rem;
-    font-size: 0.65rem;
-  }
-
   .global-hints-notice {
     right: 0.75rem;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 4.45rem);
     max-width: calc(100vw - 1.5rem);
   }
 
-  body:has(input:focus) .developer-support-trigger,
-  body:has(textarea:focus) .developer-support-trigger,
-  body:has(select:focus) .developer-support-trigger,
   body:has(input:focus) .global-hints-trigger,
   body:has(textarea:focus) .global-hints-trigger,
   body:has(select:focus) .global-hints-trigger {
     opacity: 0;
     pointer-events: none;
     transform: translateY(0.75rem);
-  }
-
-  .developer-support-backdrop {
-    align-items: stretch;
-    padding: 0.75rem;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
-  }
-
-  .developer-support-panel {
-    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-bottom, 0px));
-    overflow-y: auto;
-    border-radius: 1.35rem;
-    padding: 1rem;
-  }
-
-  .developer-support-panel .btn {
-    width: 100%;
   }
 
   .project-results-page {

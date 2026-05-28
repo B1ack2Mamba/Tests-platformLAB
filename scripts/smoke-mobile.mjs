@@ -44,7 +44,6 @@ function checkStaticMobileGuards() {
   assert(dashboard.includes("lg:block"), "Dashboard desktop scene must stay hidden below the lg breakpoint");
   assert(dashboard.includes("LAYOUT_BACKUP_STORAGE_PREFIX"), "Dashboard layout backup storage guard is missing");
   assert(css.includes("@media (max-width: 767px)"), "Mobile CSS media query is missing");
-  assert(css.includes("body:has(input:focus) .developer-support-trigger"), "Floating support button focus guard is missing");
   assert(css.includes("body:has(textarea:focus) .global-hints-trigger"), "Floating hints button focus guard is missing");
   assert(css.includes(".project-selected-competencies") && css.includes("max-height: min(42dvh, 18rem)"), "Selected competencies mobile container guard is missing");
   assert(css.includes(".project-results-page .project-results-stamp") && css.includes("float: none"), "Project results mobile stamp guard is missing");
