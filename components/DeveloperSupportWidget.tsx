@@ -26,6 +26,9 @@ type SetWebhookResp = {
   webhook_url?: string;
 };
 
+const SUPPORT_CHAT_OPEN_POLL_MS = 15_000;
+const SUPPORT_CHAT_CLOSED_POLL_MS = 300_000;
+
 function formatMessageTime(value: string) {
   try {
     return new Date(value).toLocaleString("ru-RU", {
@@ -58,7 +61,7 @@ export function DeveloperSupportWidget() {
   }, [user?.email, user?.user_metadata]);
   const isSupportAdmin = isAdminEmail(user?.email);
 
-  async function loadChat(markRead = false, silent = false) {
+  async function loadChat(markRead = false, silent = false, summaryOnly = false) {
     if (!session?.access_token) {
       setThread(null);
       setMessages([]);
@@ -68,12 +71,17 @@ export function DeveloperSupportWidget() {
 
     if (!silent) setLoading(true);
     try {
-      const resp = await fetch("/api/support/chat", {
+      const resp = await fetch(summaryOnly ? "/api/support/chat?mode=summary" : "/api/support/chat", {
         headers: { authorization: `Bearer ${session.access_token}` },
       });
       const json = (await resp.json().catch(() => ({}))) as ChatLoadResp;
       if (!resp.ok || !json?.ok) {
         throw new Error(json?.error || "Не удалось загрузить чат с разработчиком");
+      }
+      if (summaryOnly) {
+        if (json.thread) setThread(json.thread);
+        setUnreadCount(Number(json.unread_count || 0));
+        return;
       }
       setThread(json.thread || null);
       setMessages(json.messages || []);
@@ -153,10 +161,11 @@ export function DeveloperSupportWidget() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!session?.access_token) return;
-    loadChat(false, true);
+    loadChat(false, true, !open);
     const interval = window.setInterval(() => {
-      loadChat(open, true);
-    }, open ? 6000 : 30000);
+      if (document.visibilityState !== "visible") return;
+      loadChat(open, true, !open);
+    }, open ? SUPPORT_CHAT_OPEN_POLL_MS : SUPPORT_CHAT_CLOSED_POLL_MS);
     return () => window.clearInterval(interval);
   }, [open, session?.access_token]);
 

@@ -18,6 +18,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const workspace = await ensureWorkspaceForUser(authed.supabaseAdmin, authed.user);
+    const wantsSummary = req.method === "GET" && trimText(req.query?.mode) === "summary";
+
+    if (wantsSummary) {
+      const { data: existingThread, error: threadError } = await authed.supabaseAdmin
+        .from("commercial_support_threads")
+        .select("id, workspace_id, workspace_name, user_id, user_email, user_name, company_name, created_at, updated_at, last_user_message_at, last_developer_message_at")
+        .eq("workspace_id", workspace.workspace_id)
+        .eq("user_id", authed.user.id)
+        .maybeSingle();
+
+      if (threadError) throw threadError;
+      if (!existingThread) return res.status(200).json({ ok: true, thread: null, unread_count: 0 });
+
+      const { count, error: unreadError } = await authed.supabaseAdmin
+        .from("commercial_support_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("thread_id", (existingThread as any).id)
+        .eq("sender_type", "developer")
+        .is("read_by_user_at", null);
+
+      if (unreadError) throw unreadError;
+      return res.status(200).json({ ok: true, thread: existingThread, unread_count: count || 0 });
+    }
+
     const thread = await getOrCreateSupportThread({
       supabaseAdmin: authed.supabaseAdmin,
       workspaceId: workspace.workspace_id,
