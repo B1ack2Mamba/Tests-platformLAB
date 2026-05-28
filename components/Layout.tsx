@@ -13,11 +13,6 @@ const AdminNavNoSSR = dynamic(
   { ssr: false, loading: () => null }
 );
 
-const DeveloperSupportWidgetNoSSR = dynamic(
-  () => import("@/components/DeveloperSupportWidget").then((m) => m.DeveloperSupportWidget),
-  { ssr: false, loading: () => null }
-);
-
 const GlobalHintsButtonNoSSR = dynamic(
   () => import("@/components/GlobalHintsButton").then((m) => m.GlobalHintsButton),
   { ssr: false, loading: () => null }
@@ -77,7 +72,6 @@ export function Layout({
 
       {!isCandidateMode ? (
         <>
-          <DeveloperSupportWidgetNoSSR />
           <GlobalHintsButtonNoSSR />
         </>
       ) : null}
