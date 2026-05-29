@@ -305,6 +305,7 @@ const CLASSIC_VIEW_MODE_STORAGE_PREFIX = "commercialClassicViewMode:v1844:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const LAYOUT_BACKUP_STORAGE_PREFIX = "commercialLayoutBackups:v1:";
+const SHARED_SCENE_STANDARD_FALLBACK_KEY = "commercialSharedSceneStandard:last";
 const ASSEMBLY_AI_CHATS_STORAGE_PREFIX = "commercialAssemblyAiChats:v1:";
 const MAX_LAYOUT_BACKUPS = 8;
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
@@ -795,6 +796,23 @@ function writeGlobalDeskTemplates(source: DeskPositions) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(GLOBAL_DESK_TEMPLATE_STORAGE_KEY, JSON.stringify(pickGlobalDeskTemplates(source) as DeskPositions));
+  } catch {}
+}
+
+function readSharedSceneStandardFallback(): ReturnType<typeof pickSceneStandard> {
+  if (typeof window === "undefined") return { positions: {}, widgets: [] };
+  try {
+    const raw = window.localStorage.getItem(SHARED_SCENE_STANDARD_FALLBACK_KEY);
+    return raw ? pickSceneStandard(JSON.parse(raw)) : { positions: {}, widgets: [] };
+  } catch {
+    return { positions: {}, widgets: [] };
+  }
+}
+
+function writeSharedSceneStandardFallback(standard: ReturnType<typeof pickSceneStandard>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SHARED_SCENE_STANDARD_FALLBACK_KEY, JSON.stringify(standard));
   } catch {}
 }
 
@@ -1314,6 +1332,14 @@ function stripSharedScenePositions(source: DeskPositions): DeskPositions {
   return next;
 }
 
+function pickSharedDeskPositions(source: DeskPositions): DeskPositions {
+  const next: DeskPositions = {};
+  for (const key of [TRAY_GUIDE_ID, TRASH_GUIDE_ID, FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, LAPTOP_DEVICE_ID, LAPTOP_PANEL_ID]) {
+    if (source?.[key]) next[key] = source[key];
+  }
+  return next;
+}
+
 function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved: DeskPositions): DeskPositions {
   const next: DeskPositions = {};
 
@@ -1565,6 +1591,7 @@ export default function DashboardPage() {
       setSharedSceneWidgets(nextSharedWidgets);
       setSharedTrayGuideText(parsedStandard.trayGuideText || "");
       writeGlobalDeskTemplates(nextSharedPositions);
+      writeSharedSceneStandardFallback(parsedStandard);
       setSharedSceneReady(true);
 
       setData({ profile: json.profile ?? null, stats: json.stats ?? { attempts_count: 0, unique_tests_count: 0 } });
@@ -1577,9 +1604,10 @@ export default function DashboardPage() {
       setActiveSubscription(json.active_subscription || null);
       return true;
     } catch (e: any) {
-      setSharedDeskPositions({});
-      setSharedSceneWidgets([]);
-      setSharedTrayGuideText("");
+      const fallbackStandard = readSharedSceneStandardFallback();
+      setSharedDeskPositions((prev) => Object.keys(prev).length ? prev : ((fallbackStandard.positions || {}) as DeskPositions));
+      setSharedSceneWidgets((prev) => prev.length ? prev : ((fallbackStandard.widgets || []) as SceneWidget[]));
+      setSharedTrayGuideText((prev) => prev || fallbackStandard.trayGuideText || "");
       setSharedSceneReady(true);
       setActiveSubscription(null);
       setError(e?.name === "AbortError" ? "Кабинет слишком долго отвечает. Проверьте подключение и обновите страницу." : e?.message || "Ошибка");
@@ -1821,7 +1849,7 @@ export default function DashboardPage() {
   }, [roomSwitchPosition, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
-    if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
+    if (!canEditScene || !session?.access_token || !sharedSceneReady || desktopVariant !== "scheme" || !sceneEditMode) return;
     const sharedPosition = sharedDeskPositions[ROOM_SWITCH_STANDARD_ID] as DeskPosition | undefined;
     const currentX = Math.round(roomSwitchPosition.x);
     const currentY = Math.round(roomSwitchPosition.y);
@@ -1871,10 +1899,10 @@ export default function DashboardPage() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [canEditScene, persistableSceneWidgets, roomSwitchPosition.x, roomSwitchPosition.y, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+  }, [canEditScene, desktopVariant, persistableSceneWidgets, roomSwitchPosition.x, roomSwitchPosition.y, sceneEditMode, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
 
   useEffect(() => {
-    if (!canEditScene || !session?.access_token || !sharedSceneReady) return;
+    if (!canEditScene || !session?.access_token || !sharedSceneReady || desktopVariant !== "scheme" || !sceneEditMode) return;
     const sharedLaptop = (sharedDeskPositions[LAPTOP_DEVICE_ID] || DEFAULT_LAPTOP_POSITION) as DeskPosition;
     const sharedPanel = (sharedDeskPositions[LAPTOP_PANEL_ID] || DEFAULT_LAPTOP_PANEL_POSITION) as DeskPosition;
     const currentLaptop = laptopPosition;
@@ -1944,7 +1972,7 @@ export default function DashboardPage() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [canEditScene, laptopPanelPosition.height, laptopPanelPosition.rotation, laptopPanelPosition.width, laptopPanelPosition.x, laptopPanelPosition.y, laptopPosition.height, laptopPosition.rotation, laptopPosition.width, laptopPosition.x, laptopPosition.y, persistableSceneWidgets, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
+  }, [canEditScene, desktopVariant, laptopPanelPosition.height, laptopPanelPosition.rotation, laptopPanelPosition.width, laptopPanelPosition.x, laptopPanelPosition.y, laptopPosition.height, laptopPosition.rotation, laptopPosition.width, laptopPosition.x, laptopPosition.y, persistableSceneWidgets, sceneEditMode, session?.access_token, sharedDeskPositions, sharedSceneReady, trayGuideText]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || !sharedSceneReady) return;
@@ -2126,7 +2154,7 @@ export default function DashboardPage() {
       workspaceId,
       variant: desktopVariant,
       classicViewMode,
-      deskPositions: stripSharedScenePositions(deskPositions),
+      deskPositions,
       sceneWidgets: serializeSceneWidgets(persistableSceneWidgets),
       trayGuideText,
       roomLight: isRoomLightDimmed ? "dimmed" : "normal",
@@ -2175,6 +2203,18 @@ export default function DashboardPage() {
     setDesktopVariant(nextVariant);
     setClassicViewMode(nextClassicViewMode);
     setDeskPositions(nextDeskPositions);
+    setSharedDeskPositions((prev) => ({
+      ...prev,
+      ...pickSharedDeskPositions(nextDeskPositions),
+      [ROOM_SWITCH_STANDARD_ID]: {
+        ...(prev[ROOM_SWITCH_STANDARD_ID] || {}),
+        x: nextRoomSwitch.x,
+        y: nextRoomSwitch.y,
+        width: DEFAULT_ROOM_SWITCH_ZONE.width,
+        height: DEFAULT_ROOM_SWITCH_ZONE.height,
+        z: Number((prev[ROOM_SWITCH_STANDARD_ID] as DeskPosition | undefined)?.z ?? 182),
+      },
+    }));
     setSceneWidgets(nextSceneWidgets);
     setTrayGuideText(nextTrayText);
     setIsRoomLightDimmed(snapshot.roomLight === "dimmed");
@@ -2255,13 +2295,20 @@ export default function DashboardPage() {
       ...pickGlobalDeskTemplates(deskPositions),
       ...(deskPositions[TRAY_GUIDE_ID] ? { [TRAY_GUIDE_ID]: deskPositions[TRAY_GUIDE_ID] } : {}),
       ...(deskPositions[TRASH_GUIDE_ID] ? { [TRASH_GUIDE_ID]: deskPositions[TRASH_GUIDE_ID] } : {}),
-      ...(deskPositions[ROOM_SWITCH_STANDARD_ID] ? { [ROOM_SWITCH_STANDARD_ID]: deskPositions[ROOM_SWITCH_STANDARD_ID] } : {}),
+      [ROOM_SWITCH_STANDARD_ID]: {
+        ...(sharedDeskPositions[ROOM_SWITCH_STANDARD_ID] || {}),
+        x: Math.round(roomSwitchPosition.x),
+        y: Math.round(roomSwitchPosition.y),
+        width: DEFAULT_ROOM_SWITCH_ZONE.width,
+        height: DEFAULT_ROOM_SWITCH_ZONE.height,
+        z: Number((sharedDeskPositions[ROOM_SWITCH_STANDARD_ID] as DeskPosition | undefined)?.z ?? 182),
+      },
       ...(deskPositions[LAPTOP_DEVICE_ID] ? { [LAPTOP_DEVICE_ID]: deskPositions[LAPTOP_DEVICE_ID] } : {}),
       ...(deskPositions[LAPTOP_PANEL_ID] ? { [LAPTOP_PANEL_ID]: deskPositions[LAPTOP_PANEL_ID] } : {}),
     },
     widgets: serializeSceneWidgets(persistableSceneWidgets),
     trayGuideText,
-  }), [deskPositions, persistableSceneWidgets, sharedDeskPositions, trayGuideText]);
+  }), [deskPositions, persistableSceneWidgets, roomSwitchPosition.x, roomSwitchPosition.y, sharedDeskPositions, trayGuideText]);
 
   const saveSceneStandardForAll = useCallback(async () => {
     if (!session?.access_token || !canManageGlobalTemplates) {
@@ -5168,7 +5215,7 @@ export default function DashboardPage() {
             </div>
 
             <div
-              className={`absolute ${sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? "dashboard-desk-entity-selected" : ""}`}
+              className="dashboard-laptop-entity absolute"
               style={{
                 left: `${laptopPosition.x}px`,
                 top: `${laptopPosition.y}px`,
@@ -5177,21 +5224,7 @@ export default function DashboardPage() {
                 zIndex: laptopPosition.z || DEFAULT_LAPTOP_POSITION.z || 24,
                 transform: `rotate(${laptopPosition.rotation || 0}deg)`,
                 transformOrigin: "center center",
-                pointerEvents: sceneEditMode ? "auto" : "none",
-              }}
-              onMouseDown={(e) => {
-                if (!sceneEditMode) return;
-                e.preventDefault();
-                e.stopPropagation();
-                setSelectedDeskItemId(LAPTOP_DEVICE_ID);
-                setSelectedWidgetId(null);
-                startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "drag", laptopPosition);
-              }}
-              onClick={(e) => {
-                if (!sceneEditMode) return;
-                e.stopPropagation();
-                setSelectedDeskItemId(LAPTOP_DEVICE_ID);
-                setSelectedWidgetId(null);
+                pointerEvents: "none",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -5202,12 +5235,34 @@ export default function DashboardPage() {
                 className="pointer-events-none h-full w-full object-contain"
                 style={{ filter: "drop-shadow(0 26px 28px rgba(5,10,24,0.34))" }}
               />
-              {sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? (
-                <>
-                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "rotate", laptopPosition)} aria-label="Повернуть ноутбук">↻</button>
-                  <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "resize", laptopPosition)} aria-label="Изменить размер ноутбука">↘</button>
-                </>
-              ) : null}
+              <div
+                className={`dashboard-laptop-hitbox absolute ${sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? "dashboard-desk-entity-selected" : ""}`}
+                style={{
+                  pointerEvents: sceneEditMode ? "auto" : "none",
+                  cursor: sceneEditMode ? "grab" : "default",
+                }}
+                onMouseDown={(e) => {
+                  if (!sceneEditMode) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedDeskItemId(LAPTOP_DEVICE_ID);
+                  setSelectedWidgetId(null);
+                  startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "drag", laptopPosition);
+                }}
+                onClick={(e) => {
+                  if (!sceneEditMode) return;
+                  e.stopPropagation();
+                  setSelectedDeskItemId(LAPTOP_DEVICE_ID);
+                  setSelectedWidgetId(null);
+                }}
+              >
+                {sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? (
+                  <>
+                    <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-rotate" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "rotate", laptopPosition)} aria-label="Повернуть ноутбук">↻</button>
+                    <button type="button" className="dashboard-desk-entity-handle dashboard-desk-entity-resize" onMouseDown={(e) => startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "resize", laptopPosition)} aria-label="Изменить размер ноутбука">↘</button>
+                  </>
+                ) : null}
+              </div>
             </div>
 
             <div

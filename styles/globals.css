@@ -3779,6 +3779,14 @@ html.native-app .app-brand {
   outline-offset: 6px;
 }
 
+.dashboard-laptop-hitbox {
+  left: 14%;
+  top: 26%;
+  width: 72%;
+  height: 50%;
+  border-radius: 12px;
+}
+
 .dashboard-desk-entity-handle {
   position: absolute;
   z-index: 30;
