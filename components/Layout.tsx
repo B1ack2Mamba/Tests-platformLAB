@@ -56,7 +56,17 @@ export function Layout({
 
           {!isCandidateMode ? (
             <nav className="app-header-nav flex flex-wrap items-center gap-2 sm:justify-end">
-              <Link href="/dashboard?desktop=scheme" className="btn btn-secondary btn-sm">Кабинет</Link>
+              <Link
+                href="/dashboard?desktop=scheme"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new Event("dashboard-open-cabinet"));
+                  }
+                }}
+              >
+                Кабинет
+              </Link>
               <Link href="/wallet" className="btn btn-secondary btn-sm">Кошелёк</Link>
               <AdminNavNoSSR />
               <AuthNavNoSSR />

@@ -3,7 +3,7 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
-import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
+import { OnboardingTour, openOnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
 import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
 import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRouter";
@@ -369,6 +369,57 @@ const DASHBOARD_ONBOARDING_STEPS: OnboardingStep[] = [
     title: "Кошелёк и тариф",
     body: "Здесь видно баланс и активный пакет. Нажмите «Кошелёк», чтобы пополнить баланс или подключить месячный пакет проектов.",
     placement: "left",
+  },
+  {
+    target: "dashboard-ai-analytics-entry",
+    title: "AI-чат и аналитика",
+    body: "Нажмите на аналитика у доски, чтобы открыть новый раздел. Там можно сравнить людей в папке, разобрать одного кандидата или задать обычный вопрос AI-аналитику.",
+    placement: "right",
+  },
+];
+
+const ASSEMBLY_AI_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "assembly-ai-overview",
+    title: "AI-аналитика",
+    body: "Здесь можно разобрать папку с завершенными проектами, одного человека или задать обычный вопрос без данных кандидатов.",
+    placement: "bottom",
+  },
+  {
+    target: "assembly-ai-chats",
+    title: "История чатов",
+    body: "Слева сохраняются чаты. Можно вернуться к прошлому анализу, переименовать его или начать новый разговор.",
+    placement: "right",
+  },
+  {
+    target: "assembly-ai-models",
+    title: "Модель и стоимость",
+    body: "Сначала выберите провайдера и модель. Ниже сразу видно, сколько будет стоить анализ папки, анализ человека или обычное сообщение.",
+    placement: "left",
+  },
+  {
+    target: "assembly-ai-context",
+    title: "Данные для анализа",
+    body: "Выберите папку, проект без папки или режим без выбора. В анализ попадают только полностью завершенные проекты.",
+    placement: "left",
+  },
+  {
+    target: "assembly-ai-chat-panel",
+    title: "Окно диалога",
+    body: "Здесь остается переписка с AI-аналитиком. Первый запрос запускает выбранный анализ, а продолжения в том же чате идут как обычные сообщения.",
+    placement: "top",
+  },
+  {
+    target: "assembly-ai-input",
+    title: "Запрос и отправка",
+    body: "Напишите задачу для анализа. Enter отправляет сообщение, Shift+Enter переносит строку.",
+    placement: "top",
+  },
+  {
+    target: "assembly-ai-insight",
+    title: "Схема сравнения",
+    body: "После анализа здесь появится отдельная наглядная схема: рейтинг, лидеры по компетенциям и персональная карта человека.",
+    placement: "top",
   },
 ];
 
@@ -1662,6 +1713,16 @@ export default function DashboardPage() {
     setDesktopVariant("scheme");
     setClassicViewMode("desktop");
   }, [router.query.desktop]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const openCabinet = () => {
+      setDesktopVariant("scheme");
+      setClassicViewMode("desktop");
+    };
+    window.addEventListener("dashboard-open-cabinet", openCabinet);
+    return () => window.removeEventListener("dashboard-open-cabinet", openCabinet);
+  }, []);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -3748,7 +3809,7 @@ export default function DashboardPage() {
   );
   const assemblyAiWorkspace = (
     <Layout title="AI-аналитика папок">
-      <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
+      <OnboardingTour tourId="dashboard-ai-analytics-v1" steps={ASSEMBLY_AI_ONBOARDING_STEPS} autoStart={false} />
       {mobileDashboard}
       <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 hidden overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 lg:block">
         {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
@@ -3760,7 +3821,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="mb-4 rounded-[26px] border border-[#d8e4ef] bg-[linear-gradient(180deg,#ffffff_0%,#edf6ff_100%)] px-5 py-4 shadow-[0_20px_42px_-32px_rgba(37,63,89,0.2)]">
+        <div data-onboarding-id="assembly-ai-overview" className="mb-4 rounded-[26px] border border-[#d8e4ef] bg-[linear-gradient(180deg,#ffffff_0%,#edf6ff_100%)] px-5 py-4 shadow-[0_20px_42px_-32px_rgba(37,63,89,0.2)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#647c95]">AI-аналитика</div>
@@ -3769,15 +3830,20 @@ export default function DashboardPage() {
                 Выберите папку с проектами, задайте вопрос или запустите полный анализ. Система берет в контекст людей, тесты, результаты и комментарии Registry внутри выбранной папки.
               </p>
             </div>
-            <div className="rounded-[18px] border border-[#dbe7f1] bg-white px-4 py-3 text-right">
-              <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Баланс</div>
-              <div className="mt-1 text-xl font-semibold text-[#17283a]">{balanceText}</div>
+            <div className="flex flex-wrap items-start justify-end gap-2">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={openOnboardingTour}>
+                Подсказки
+              </button>
+              <div className="rounded-[18px] border border-[#dbe7f1] bg-white px-4 py-3 text-right">
+                <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Баланс</div>
+                <div className="mt-1 text-xl font-semibold text-[#17283a]">{balanceText}</div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
-          <div className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
+          <div data-onboarding-id="assembly-ai-chats" className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Чаты</div>
               <button type="button" className="btn btn-primary btn-sm" onClick={startNewAssemblyAiChat} disabled={assemblyAiBusy}>
@@ -3843,7 +3909,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="min-w-0 rounded-[30px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-5 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
+          <div data-onboarding-id="assembly-ai-chat-panel" className="min-w-0 rounded-[30px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-5 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Чат аналитика</div>
@@ -3885,7 +3951,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-[24px] border border-[#dce6f1] bg-white p-4">
+            <div data-onboarding-id="assembly-ai-input" className="mt-4 rounded-[24px] border border-[#dce6f1] bg-white p-4">
               <textarea
                 className="min-h-[118px] w-full resize-y rounded-[18px] border border-[#d5deea] bg-[#fbfdff] px-4 py-3 text-sm leading-6 text-[#223548] outline-none transition focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
                 value={assemblyAiDraft}
@@ -3916,7 +3982,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
+            <div data-onboarding-id="assembly-ai-models" className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Модель и цены</div>
               <div className="mt-3 grid gap-2">
                 <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7b8ea0]">
@@ -3985,7 +4051,7 @@ export default function DashboardPage() {
               ) : null}
             </div>
 
-            <div className="rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-4 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
+            <div data-onboarding-id="assembly-ai-context" className="rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-4 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Данные для анализа</div>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <button
@@ -4127,7 +4193,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="mt-4">
+        <div data-onboarding-id="assembly-ai-insight" className="mt-4">
           <AssemblyAiInsightPanel insight={assemblyAiInsight} />
         </div>
       </div>
@@ -5015,11 +5081,13 @@ export default function DashboardPage() {
                     }}
                   >
                     {widget.kind === "video" ? (
+                      <div data-onboarding-id={widget.id === PROJECT_ASSEMBLY_GUIDE_ID ? "dashboard-ai-analytics-entry" : undefined} className="h-full w-full">
                       <SceneVideoWidget
                         src={widget.src || PROJECT_ASSEMBLY_GUIDE_SRC}
                         title={widget.text || "AI-аналитик"}
                         active={activeAssemblyGuideId === widget.id}
                       />
+                      </div>
                     ) : widget.kind === "image" ? (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
