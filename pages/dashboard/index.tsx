@@ -42,8 +42,10 @@ type ProjectRow = {
   target_role: string | null;
   status: string;
   created_at: string;
+  updated_at?: string | null;
+  registry_comment_updated_at?: string | null;
   folder_id: string | null;
-  person: { id: string; full_name: string; email: string | null; current_position: string | null } | null;
+  person: { id: string; full_name: string; email: string | null; current_position: string | null; updated_at?: string | null } | null;
   tests: Array<{ test_slug: string; test_title: string; sort_order: number }>;
   attempts_count: number;
 };
@@ -131,6 +133,74 @@ type CandidateComparisonPayload = {
   }>;
 };
 
+type AssemblyAiProvider = "openai" | "deepseek";
+type AssemblyAiMode = "message" | "folder_analysis" | "project_message";
+type AssemblyAiContextScope = "folder" | "loose" | "none";
+type AssemblyAiFolderTarget = "folder" | "person";
+type AssemblyAiMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  pending?: boolean;
+};
+type AssemblyAiInsight =
+  | {
+      type: "folder";
+      title: string;
+      subtitle?: string;
+      summary?: string;
+      focus?: string;
+      ranking?: Array<{ project_id: string; name: string; score: number | null; place: number; verdict: string; reason?: string }>;
+      competency_leaders?: Array<{
+        id: string;
+        name: string;
+        cluster: string;
+        leader_name: string;
+        leader_score: number | null;
+        top: Array<{ project_id: string; name: string; score: number }>;
+      }>;
+    }
+  | {
+      type: "person";
+      title: string;
+      subtitle?: string;
+      summary?: string;
+      focus?: string;
+      person: {
+        project_id: string;
+        name: string;
+        score: number | null;
+        verdict: string;
+        strengths: string[];
+        risks: string[];
+        questions: string[];
+        top_competencies: Array<{ id: string; name: string; cluster: string; score: number; level: string }>;
+        low_competencies: Array<{ id: string; name: string; cluster: string; score: number; level: string }>;
+      };
+    };
+type AssemblyAiChat = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  provider: AssemblyAiProvider;
+  model: string;
+  contextScope: AssemblyAiContextScope;
+  folderId: string | null;
+  projectId: string | null;
+  analysisAnchor?: {
+    mode: "folder_analysis" | "project_message";
+    contextScope: "folder" | "loose";
+    folderId: string | null;
+    projectId: string | null;
+    signature: string;
+    serverSignature?: string;
+  } | null;
+  contextLabel: string;
+  lastUserMessage: string;
+  messages: AssemblyAiMessage[];
+  insight: AssemblyAiInsight | null;
+};
+
 type DeskPosition = {
   x: number;
   y: number;
@@ -161,7 +231,7 @@ type DeskItemInteractionState = {
   position: DeskPosition;
 };
 
-type SceneWidgetKind = "text" | "button" | "image";
+type SceneWidgetKind = "text" | "button" | "image" | "video";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "openProjectAssembly" | "none";
 type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
 type DesktopVariant = "scheme" | "classic" | "assembly";
@@ -235,6 +305,7 @@ const CLASSIC_VIEW_MODE_STORAGE_PREFIX = "commercialClassicViewMode:v1844:";
 const TRAY_GUIDE_TEXT_STORAGE_PREFIX = "commercialTrayGuideText:v1836:";
 const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const LAYOUT_BACKUP_STORAGE_PREFIX = "commercialLayoutBackups:v1:";
+const ASSEMBLY_AI_CHATS_STORAGE_PREFIX = "commercialAssemblyAiChats:v1:";
 const MAX_LAYOUT_BACKUPS = 8;
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
@@ -260,6 +331,19 @@ const DEFAULT_LAPTOP_PANEL_POSITION: DeskPosition = { x: 1004, y: 469, width: 22
 const CERTIFICATE_PSI_PROFILE_ID = "certificate-psi-profile";
 const CERTIFICATE_COGITO_ID = "certificate-cogito-centre";
 const CERTIFICATE_WIDGET_IDS = new Set([CERTIFICATE_PSI_PROFILE_ID, CERTIFICATE_COGITO_ID]);
+const AI_CHAT_BOARD_ID = "ai-chat-board";
+const AI_CHAT_BOARD_SRC = "/dashboard-ai-chat-board-transparent.png";
+const PROJECT_ASSEMBLY_GUIDE_ID = "project-assembly-guide";
+const PROJECT_ASSEMBLY_GUIDE_SRC = "/dashboard-guide.webm";
+const ASSEMBLY_AI_MAX_OUTPUT_TOKENS = 11776;
+const ASSEMBLY_AI_OPENAI_MODELS = [
+  { id: "gpt-5.4-mini", label: "OpenAI 5.4 mini" },
+  { id: "gpt-5.5", label: "OpenAI 5.5" },
+];
+const ASSEMBLY_AI_DEEPSEEK_MODELS = [
+  { id: "deepseek-v4-flash", label: "DeepSeek обычная" },
+  { id: "deepseek-v4-pro", label: "DeepSeek Pro" },
+];
 
 const DASHBOARD_ONBOARDING_STEPS: OnboardingStep[] = [
   {
@@ -769,14 +853,101 @@ function isGlobalSchemeWidget(id: string) {
   return !id.startsWith("folder:") && !id.startsWith("project:");
 }
 
+function getAssemblyAiPriceRub(provider: AssemblyAiProvider, model: string, mode: AssemblyAiMode) {
+  if (mode === "message") {
+    if (provider === "deepseek") return model === "deepseek-v4-pro" ? 20 : 10;
+    return model === "gpt-5.4-mini" ? 30 : 50;
+  }
+  if (provider === "deepseek") {
+    const base = mode === "folder_analysis" ? 500 : 200;
+    return model === "deepseek-v4-pro" ? base * 2 : base;
+  }
+  if (model === "gpt-5.4-mini") {
+    if (mode === "folder_analysis") return 1000;
+    if (mode === "project_message") return 350;
+  }
+  if (mode === "folder_analysis") return 2000;
+  if (mode === "project_message") return 500;
+  return 50;
+}
+
+function getAssemblyAiModeLabel(mode: AssemblyAiMode) {
+  if (mode === "folder_analysis") return "Анализ папки";
+  if (mode === "project_message") return "Персонально по человеку";
+  return "Обычное сообщение";
+}
+
+function getAssemblyAiChatsStorageKey(workspaceId: string) {
+  return `${ASSEMBLY_AI_CHATS_STORAGE_PREFIX}${workspaceId}`;
+}
+
+function makeAssemblyProjectSignature(project: ProjectRow | null | undefined) {
+  if (!project) return "";
+  return [
+    project.id,
+    project.title,
+    project.goal,
+    project.target_role || "",
+    project.status,
+    project.folder_id || "",
+    project.created_at,
+    project.updated_at || "",
+    project.registry_comment_updated_at || "",
+    project.person?.id || "",
+    project.person?.full_name || "",
+    project.person?.email || "",
+    project.person?.current_position || "",
+    project.person?.updated_at || "",
+    project.tests.map((test) => `${test.test_slug}:${test.sort_order}`).sort().join(","),
+    project.attempts_count,
+  ].join("|");
+}
+
+function makeAssemblyFolderSignature(folderId: string | null | undefined, projects: ProjectRow[]) {
+  return [
+    "folder",
+    folderId || "",
+    projects
+      .map((project) => makeAssemblyProjectSignature(project))
+      .sort()
+      .join("||"),
+  ].join("::");
+}
+
+function makeAssemblyPersonSignature(project: ProjectRow | null | undefined) {
+  return project ? `person::${makeAssemblyProjectSignature(project)}` : "";
+}
+
+function isProjectReadyForAi(project: ProjectRow) {
+  return project.tests.length > 0 && project.attempts_count >= project.tests.length;
+}
+
+function makeAssemblyChatTitle(input: string) {
+  const text = input.replace(/\s+/g, " ").trim();
+  if (!text) return "Новый чат";
+  return text.length > 64 ? `${text.slice(0, 64).trim()}...` : text;
+}
+
+function isDeprecatedProjectAssemblyWidget(widget: SceneWidget | null | undefined) {
+  if (!widget) return false;
+  const text = String(widget.text || "").toLowerCase();
+  return (
+    widget.id === "open-project-assembly" ||
+    widget.id === "__legacy_assembly__" ||
+    (widget.action === "openProjectAssembly" && widget.kind !== "video") ||
+    (widget.kind !== "video" && text.includes("\u0441\u0431\u043e\u0440\u043a"))
+  );
+}
+
 function buildSchemeSceneWidgets(): SceneWidget[] {
   return [
     { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
+    { id: AI_CHAT_BOARD_ID, kind: "image", text: "AI-чат и аналитика", src: AI_CHAT_BOARD_SRC, action: "none", tone: "scheme", x: 770, y: 232, width: 420, height: 356, rotation: -1.2, fontSize: 0, z: 22 },
     { id: CERTIFICATE_PSI_PROFILE_ID, kind: "image", text: "Свидетельство о регистрации программы", src: "/dashboard-certificate-psi-profile.png", action: "none", tone: "scheme", x: 278, y: 122, width: 146, height: 207, rotation: -3.8, fontSize: 0, z: 26 },
     { id: CERTIFICATE_COGITO_ID, kind: "image", text: "Сертификат Когито-Центр", src: "/dashboard-certificate-cogito.png", action: "none", tone: "scheme", x: 844, y: 118, width: 148, height: 210, rotation: 2.9, fontSize: 0, z: 27 },
+    { id: PROJECT_ASSEMBLY_GUIDE_ID, kind: "video", text: "AI-аналитик", src: PROJECT_ASSEMBLY_GUIDE_SRC, action: "openProjectAssembly", tone: "scheme", x: 404, y: 284, width: 124, height: 274, rotation: 0, fontSize: 0, z: 29 },
     { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
     { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
-    { id: "open-project-assembly", kind: "button", text: "Сборка проектов", action: "openProjectAssembly", tone: "buttonPrimary", x: 496, y: 470, width: 402, height: 110, rotation: 0.1, fontSize: 30, z: 31 },
   ];
 }
 
@@ -792,6 +963,193 @@ function getPreviewableSceneWidgetTitle(widget: SceneWidget): string {
   if (widget.id === CERTIFICATE_PSI_PROFILE_ID) return "Свидетельство о государственной регистрации программы";
   if (widget.id === CERTIFICATE_COGITO_ID) return "Сертификат Когито-Центр";
   return "Сертификат";
+}
+
+function SceneVideoWidget({ src, title, active }: { src: string; title: string; active: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (active) {
+      video.loop = true;
+      try {
+        video.currentTime = 0;
+      } catch {}
+      void video.play().catch(() => undefined);
+      return;
+    }
+
+    video.pause();
+    if (video.readyState >= 1) {
+      try {
+        video.currentTime = 0;
+      } catch {}
+    }
+  }, [active, src]);
+
+  return (
+    <>
+      <video
+        ref={videoRef}
+        className="dashboard-scene-widget-video-el"
+        src={src}
+        muted
+        playsInline
+        preload="auto"
+        aria-label={title}
+      />
+      <button type="button" className="dashboard-scene-widget-video-hit" aria-label={title} />
+    </>
+  );
+}
+
+function ScoreBar({ value }: { value: number | null }) {
+  const score = Math.max(0, Math.min(100, Number(value ?? 0)));
+  return (
+    <div className="h-2 w-full rounded-full bg-[#e6edf5]">
+      <div className="h-2 rounded-full bg-[linear-gradient(90deg,#86efac_0%,#22c55e_100%)]" style={{ width: `${score}%` }} />
+    </div>
+  );
+}
+
+function AssemblyAiInsightPanel({ insight }: { insight: AssemblyAiInsight | null }) {
+  if (!insight) {
+    return (
+      <div className="rounded-[26px] border border-dashed border-[#cfdbe7] bg-white/70 p-5 text-sm leading-6 text-[#6f8193]">
+        После анализа здесь появится наглядная схема: рейтинг, лидеры по компетенциям и персональная карта человека.
+      </div>
+    );
+  }
+
+  if (insight.type === "person") {
+    const person = insight.person;
+    return (
+      <div className="rounded-[28px] border border-[#d5deea] bg-white p-5 shadow-[0_20px_44px_-34px_rgba(37,63,89,0.2)]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#68809a]">Персональная карта</div>
+            <div className="mt-1 text-2xl font-semibold text-[#17283a]">{person.name}</div>
+            <div className="mt-1 text-sm text-[#64788c]">{insight.subtitle || person.verdict}</div>
+          </div>
+          <div className="min-w-[120px] rounded-[20px] border border-[#dbe7f1] bg-[#f8fbff] px-4 py-3 text-right">
+            <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Индекс</div>
+            <div className="mt-1 text-3xl font-semibold text-[#17283a]">{person.score ?? "—"}</div>
+          </div>
+        </div>
+        <div className="mt-4 rounded-[20px] border border-[#dfe8f2] bg-[#fbfdff] p-4 text-sm leading-6 text-[#40566d]">{insight.summary || person.verdict}</div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className="rounded-[22px] border border-[#d9e6d0] bg-[#f7fcf4] p-4">
+            <div className="text-sm font-semibold text-[#28462c]">Сильные стороны</div>
+            <div className="mt-3 space-y-2 text-sm text-[#37523a]">
+              {(person.strengths.length ? person.strengths : ["Сильные стороны появятся после анализа."]).map((item) => <div key={item}>• {item}</div>)}
+            </div>
+          </div>
+          <div className="rounded-[22px] border border-[#ead8c2] bg-[#fffaf2] p-4">
+            <div className="text-sm font-semibold text-[#6b4b24]">Риски и проверка</div>
+            <div className="mt-3 space-y-2 text-sm text-[#6a533b]">
+              {(person.risks.length ? person.risks : ["Риски появятся после анализа."]).map((item) => <div key={item}>• {item}</div>)}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className="rounded-[22px] border border-[#d5deea] bg-[#f9fbfe] p-4">
+            <div className="text-sm font-semibold text-[#223548]">Сильные компетенции</div>
+            <div className="mt-3 grid gap-3">
+              {person.top_competencies.slice(0, 8).map((item) => (
+                <div key={item.id} className="rounded-[18px] border border-[#e2ebf4] bg-white px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-[#223548]">{item.name}</div>
+                      <div className="text-xs text-[#6f8193]">{item.cluster}</div>
+                    </div>
+                    <div className="text-sm font-semibold text-[#28462c]">{item.score}</div>
+                  </div>
+                  <div className="mt-2"><ScoreBar value={item.score} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-[22px] border border-[#ead8c2] bg-[#fffaf2] p-4">
+            <div className="text-sm font-semibold text-[#6b4b24]">Зоны внимания</div>
+            <div className="mt-3 grid gap-3">
+              {(person.low_competencies.length ? person.low_competencies : person.top_competencies.slice(-3)).map((item) => (
+                <div key={item.id} className="rounded-[18px] border border-[#ead8c2] bg-white px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-[#223548]">{item.name}</div>
+                      <div className="text-xs text-[#6f8193]">{item.cluster}</div>
+                    </div>
+                    <div className="text-sm font-semibold text-[#6b4b24]">{item.score}</div>
+                  </div>
+                  <div className="mt-2"><ScoreBar value={item.score} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {person.questions.length ? (
+          <div className="mt-4 rounded-[22px] border border-[#d5deea] bg-[#fbfdff] p-4">
+            <div className="text-sm font-semibold text-[#223548]">Вопросы для уточнения</div>
+            <div className="mt-3 grid gap-2 text-sm leading-6 text-[#40566d]">
+              {person.questions.map((item) => <div key={item}>• {item}</div>)}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[28px] border border-[#d5deea] bg-white p-5 shadow-[0_20px_44px_-34px_rgba(37,63,89,0.2)]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#68809a]">Схема сравнения</div>
+          <div className="mt-1 text-2xl font-semibold text-[#17283a]">{insight.title}</div>
+          <div className="mt-1 text-sm text-[#64788c]">{insight.subtitle}</div>
+        </div>
+      </div>
+      {insight.summary ? <div className="mt-4 rounded-[20px] border border-[#dfe8f2] bg-[#fbfdff] p-4 text-sm leading-6 text-[#40566d]">{insight.summary}</div> : null}
+      <div className="mt-4 grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="rounded-[22px] border border-[#d5deea] bg-[#f9fbfe] p-4">
+          <div className="text-sm font-semibold text-[#223548]">Кто лучше подходит</div>
+          <div className="mt-3 space-y-3">
+            {(insight.ranking || []).map((item) => (
+              <div key={item.project_id} className="rounded-[18px] border border-[#e2ebf4] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-[0.18em] text-[#7d8ea0]">#{item.place}</div>
+                    <div className="truncate text-base font-semibold text-[#17283a]">{item.name}</div>
+                    <div className="mt-1 text-xs text-[#6f8193]">{item.verdict}</div>
+                  </div>
+                  <div className="text-xl font-semibold text-[#223548]">{item.score ?? "—"}</div>
+                </div>
+                <div className="mt-2"><ScoreBar value={item.score} /></div>
+                {item.reason ? <div className="mt-2 text-xs leading-5 text-[#5f7286]">{item.reason}</div> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[22px] border border-[#d9e6d0] bg-[#f7fcf4] p-4">
+          <div className="text-sm font-semibold text-[#28462c]">Лидеры по компетенциям</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {(insight.competency_leaders || []).slice(0, 10).map((item) => (
+              <div key={item.id} className="rounded-[18px] border border-[#dbe8d6] bg-white px-4 py-3">
+                <div className="text-sm font-semibold text-[#223548]">{item.name}</div>
+                <div className="mt-1 text-xs text-[#6f8193]">{item.cluster}</div>
+                <div className="mt-3 flex items-end justify-between gap-3">
+                  <div className="text-sm font-medium text-[#28462c]">{item.leader_name || "—"}</div>
+                  <div className="text-lg font-semibold text-[#28462c]">{item.leader_score ?? "—"}</div>
+                </div>
+                <div className="mt-2"><ScoreBar value={item.leader_score} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function serializeSceneWidgets(source: SceneWidget[]) {
@@ -968,7 +1326,7 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
 }
 
 export default function DashboardPage() {
-  const { session, user, loading: sessionLoading } = useSession();
+  const { supabase, session, user, loading: sessionLoading } = useSession();
   const router = useRouter();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [workspace, setWorkspace] = useState<WorkspacePayload | null>(null);
@@ -985,7 +1343,7 @@ export default function DashboardPage() {
   const [folderRenameValue, setFolderRenameValue] = useState("");
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderRow | null>(null);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
-  const { wallet, ledger, loading: walletLoading, isUnlimited } = useWallet();
+  const { wallet, ledger, loading: walletLoading, isUnlimited, refresh: refreshWallet } = useWallet();
   const isAdmin = isAdminEmail(user?.email);
   const canManageGlobalTemplates = isGlobalTemplateOwnerEmail(user?.email);
   const [mechanicPulse, setMechanicPulse] = useState(0);
@@ -1008,9 +1366,12 @@ export default function DashboardPage() {
   const [classicSheetPlaceFilter, setClassicSheetPlaceFilter] = useState<ClassicSheetPlaceFilter>("all");
   const [trayGuideText, setTrayGuideText] = useState("Создать новую папку проектов");
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const [activeAssemblyGuideId, setActiveAssemblyGuideId] = useState<string | null>(null);
   const [selectedDeskItemId, setSelectedDeskItemId] = useState<string | null>(null);
   const widgetInteractionRef = useRef<WidgetInteractionState | null>(null);
   const deskInteractionRef = useRef<DeskItemInteractionState | null>(null);
+  const assemblyGuideTimerRef = useRef<number | null>(null);
+  const assemblyAiLoadedRef = useRef(false);
   const pendingCreatedFolderRef = useRef<{ id: string } | null>(null);
   const templateFeedbackTimerRef = useRef<number | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -1034,6 +1395,29 @@ export default function DashboardPage() {
   const [assemblyComparison, setAssemblyComparison] = useState<CandidateComparisonPayload | null>(null);
   const [assemblySelectedCompetencyIds, setAssemblySelectedCompetencyIds] = useState<string[]>([]);
   const [assemblyFitRequest, setAssemblyFitRequest] = useState("");
+  const [assemblyAiProvider, setAssemblyAiProvider] = useState<AssemblyAiProvider>("openai");
+  const [assemblyAiModel, setAssemblyAiModel] = useState("gpt-5.4-mini");
+  const [assemblyAiMode, setAssemblyAiMode] = useState<AssemblyAiMode>("message");
+  const [assemblyAiContextScope, setAssemblyAiContextScope] = useState<AssemblyAiContextScope>("folder");
+  const [assemblyAiFolderTarget, setAssemblyAiFolderTarget] = useState<AssemblyAiFolderTarget>("folder");
+  const [assemblyAiProjectId, setAssemblyAiProjectId] = useState("");
+  const [assemblyAiDraft, setAssemblyAiDraft] = useState("");
+  const [assemblyAiChats, setAssemblyAiChats] = useState<AssemblyAiChat[]>([]);
+  const [assemblyAiActiveChatId, setAssemblyAiActiveChatId] = useState("");
+  const [assemblyAiChatSearch, setAssemblyAiChatSearch] = useState("");
+  const [assemblyAiEditingChatId, setAssemblyAiEditingChatId] = useState("");
+  const [assemblyAiEditingTitle, setAssemblyAiEditingTitle] = useState("");
+  const [assemblyAiInsight, setAssemblyAiInsight] = useState<AssemblyAiInsight | null>(null);
+  const [assemblyAiMessages, setAssemblyAiMessages] = useState<AssemblyAiMessage[]>([
+    {
+      id: "assembly-ai-welcome",
+      role: "assistant",
+      content: "Выберите папку для общего анализа, готового человека без папки для персонального разбора или режим без выбора для обычного вопроса.",
+    },
+  ]);
+  const [assemblyAiBusy, setAssemblyAiBusy] = useState(false);
+  const [assemblyAiError, setAssemblyAiError] = useState("");
+  const [assemblyAiLastCharge, setAssemblyAiLastCharge] = useState<number | null>(null);
   const [dashboardTourStartTarget, setDashboardTourStartTarget] = useState<string | null>(null);
 
   const balance_rub = useMemo(() => {
@@ -1087,10 +1471,41 @@ export default function DashboardPage() {
     setError("");
     setSharedSceneReady(false);
     try {
-      const authHeaders = { authorization: `Bearer ${session.access_token}` };
-      const resp = await fetch("/api/commercial/dashboard/bootstrap", { headers: authHeaders });
+      const requestBootstrap = async (accessToken: string) => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+        try {
+          return await fetch("/api/commercial/dashboard/bootstrap", {
+            headers: { authorization: `Bearer ${accessToken}` },
+            signal: controller.signal,
+          });
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      };
+
+      let accessToken = session.access_token;
+      if (supabase) {
+        try {
+          const { data: current } = await supabase.auth.getSession();
+          if (current.session?.access_token) accessToken = current.session.access_token;
+        } catch {}
+      }
+
+      let resp = await requestBootstrap(accessToken);
+      if (resp.status === 401 && supabase) {
+        try {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed.session?.access_token) {
+            resp = await requestBootstrap(refreshed.session.access_token);
+          }
+        } catch {}
+      }
       const json = (await resp.json().catch(() => ({}))) as Partial<DashboardBootstrapPayload> & { error?: string };
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить кабинет");
+      if (!resp.ok || !json?.ok) {
+        if (resp.status === 401) throw new Error("Сессия входа устарела. Обновите страницу или войдите снова.");
+        throw new Error(json?.error || "Не удалось загрузить кабинет");
+      }
 
       const parsedStandard = pickSceneStandard(json.shared_scene_standard || {});
       const nextSharedPositions = (parsedStandard.positions || {}) as DeskPositions;
@@ -1116,12 +1531,12 @@ export default function DashboardPage() {
       setSharedTrayGuideText("");
       setSharedSceneReady(true);
       setActiveSubscription(null);
-      setError(e?.message || "Ошибка");
+      setError(e?.name === "AbortError" ? "Кабинет слишком долго отвечает. Проверьте подключение и обновите страницу." : e?.message || "Ошибка");
       return false;
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, supabase]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -1201,7 +1616,7 @@ export default function DashboardPage() {
     [desktopVariant]
   );
   const persistableSceneWidgets = useMemo(
-    () => (sceneWidgets.length ? sceneWidgets : sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets),
+    () => (sceneWidgets.length ? sceneWidgets : sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets).filter((item) => !isDeprecatedProjectAssemblyWidget(item)),
     [defaultSceneWidgets, sceneWidgets, sharedSceneWidgets]
   );
 
@@ -1513,7 +1928,7 @@ export default function DashboardPage() {
     }
 
     const normalizedWidgets = sourceWidgets
-      .filter((item) => allowedIds.has(item.id))
+      .filter((item) => allowedIds.has(item.id) && !isDeprecatedProjectAssemblyWidget(item))
       .map((item) => {
         const defaults = defaultsById.get(item.id);
         if (!defaults) return item;
@@ -1523,7 +1938,7 @@ export default function DashboardPage() {
           action: defaults.action,
           kind: defaults.kind,
           tone: defaults.tone,
-          src: (item as SceneWidget).src || defaults.src,
+          src: defaults.kind === "video" ? defaults.src : (item as SceneWidget).src || defaults.src,
         };
       });
 
@@ -1631,6 +2046,12 @@ export default function DashboardPage() {
   useEffect(() => () => {
     if (typeof window !== "undefined" && templateFeedbackTimerRef.current) {
       window.clearTimeout(templateFeedbackTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (typeof window !== "undefined" && assemblyGuideTimerRef.current) {
+      window.clearTimeout(assemblyGuideTimerRef.current);
     }
   }, []);
 
@@ -1968,7 +2389,7 @@ export default function DashboardPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleSceneWidgetAction = useCallback(
-    (action: SceneWidgetAction | undefined) => {
+    (action: SceneWidgetAction | undefined, widget?: SceneWidget) => {
       if (action === "createProject") {
         router.push('/projects/new');
         return;
@@ -1982,6 +2403,17 @@ export default function DashboardPage() {
         return;
       }
       if (action === "openProjectAssembly") {
+        if (widget?.kind === "video") {
+          if (assemblyGuideTimerRef.current) window.clearTimeout(assemblyGuideTimerRef.current);
+          setActiveAssemblyGuideId(widget.id);
+          assemblyGuideTimerRef.current = window.setTimeout(() => {
+            setClassicViewMode("desktop");
+            setDesktopVariant("assembly");
+            setActiveAssemblyGuideId(null);
+            assemblyGuideTimerRef.current = null;
+          }, 2600);
+          return;
+        }
         setClassicViewMode("desktop");
         setDesktopVariant("assembly");
         return;
@@ -2016,11 +2448,11 @@ export default function DashboardPage() {
         return;
       }
       if (current.mode === "resize") {
-        const isImageWidget = current.widget.kind === "image";
-        const isCertificateWidget = isImageWidget && CERTIFICATE_WIDGET_IDS.has(current.widget.id);
+        const isMediaWidget = current.widget.kind === "image" || current.widget.kind === "video";
+        const isCertificateWidget = current.widget.kind === "image" && CERTIFICATE_WIDGET_IDS.has(current.widget.id);
         updateSceneWidget(current.id, {
-          width: clampDesk(current.widget.width + dx, isImageWidget ? (isCertificateWidget ? 200 : 280) : 110, isImageWidget ? DESK_WIDTH - 20 : 520),
-          height: clampDesk(current.widget.height + dy, isImageWidget ? (isCertificateWidget ? 140 : 180) : 30, isImageWidget ? DESK_HEIGHT - 10 : 180),
+          width: clampDesk(current.widget.width + dx, isMediaWidget ? (isCertificateWidget ? 200 : 90) : 110, isMediaWidget ? DESK_WIDTH - 20 : 520),
+          height: clampDesk(current.widget.height + dy, isMediaWidget ? (isCertificateWidget ? 140 : 120) : 30, isMediaWidget ? DESK_HEIGHT - 10 : 180),
         });
         return;
       }
@@ -2237,7 +2669,7 @@ export default function DashboardPage() {
     const defaultsById = new Map(defaultSceneWidgets.map((item) => [item.id, item]));
     const baseWidgets = desktopVariant === "scheme" && sharedSceneWidgets.length ? sharedSceneWidgets : defaultSceneWidgets;
     const normalizedWidgets = baseWidgets
-      .filter((item) => allowedIds.has(item.id))
+      .filter((item) => allowedIds.has(item.id) && !isDeprecatedProjectAssemblyWidget(item))
       .map((item) => {
         const defaults = defaultsById.get(item.id);
         if (!defaults) return item;
@@ -2266,12 +2698,209 @@ export default function DashboardPage() {
     () => folderBuckets.byFolder.find((item) => item.folder.id === assemblyFolderId) || null,
     [assemblyFolderId, folderBuckets.byFolder]
   );
+  const completedFolderBuckets = useMemo(
+    () => folderBuckets.byFolder.map((item) => ({ ...item, projects: item.projects.filter(isProjectReadyForAi) })),
+    [folderBuckets.byFolder]
+  );
+  const completedLooseProjects = useMemo(
+    () => folderBuckets.uncategorized.filter(isProjectReadyForAi),
+    [folderBuckets.uncategorized]
+  );
+  const completedFoldersForAi = useMemo(
+    () => completedFolderBuckets.filter((item) => item.projects.length > 0),
+    [completedFolderBuckets]
+  );
+  const assemblyCompletedFolder = useMemo(
+    () => completedFolderBuckets.find((item) => item.folder.id === assemblyFolderId) || null,
+    [assemblyFolderId, completedFolderBuckets]
+  );
+  const assemblyAiContextProjects = useMemo(() => {
+    if (assemblyAiContextScope === "folder") return assemblyCompletedFolder?.projects || [];
+    if (assemblyAiContextScope === "loose") return completedLooseProjects;
+    return [];
+  }, [assemblyAiContextScope, assemblyCompletedFolder, completedLooseProjects]);
+  const assemblyAiContextLabel = assemblyAiContextScope === "folder"
+    ? assemblyCompletedFolder?.folder.name || "Папка не выбрана"
+    : assemblyAiContextScope === "loose"
+      ? "Готовые проекты без папки"
+      : "Обычное сообщение";
   const assemblySuggestedCompetencies = useMemo(() => {
     if (!assemblyFolder?.projects.length) return COMPETENCY_ROUTES;
     const goalSet = new Set(assemblyFolder.projects.map((item) => item.goal));
     const filtered = COMPETENCY_ROUTES.filter((route) => route.linkedGoals.some((goal) => goalSet.has(goal)));
     return filtered.length ? filtered : COMPETENCY_ROUTES;
   }, [assemblyFolder]);
+  const assemblyAiModelOptions = useMemo(
+    () => (assemblyAiProvider === "openai" ? ASSEMBLY_AI_OPENAI_MODELS : ASSEMBLY_AI_DEEPSEEK_MODELS),
+    [assemblyAiProvider]
+  );
+  const assemblyAiSelectedProject = useMemo(
+    () => assemblyAiContextProjects.find((item) => item.id === assemblyAiProjectId) || assemblyAiContextProjects[0] || null,
+    [assemblyAiContextProjects, assemblyAiProjectId]
+  );
+  const assemblyAiActiveChat = useMemo(
+    () => assemblyAiChats.find((item) => item.id === assemblyAiActiveChatId) || null,
+    [assemblyAiActiveChatId, assemblyAiChats]
+  );
+  const assemblyAiAnalysisMode: AssemblyAiMode =
+    assemblyAiContextScope === "folder"
+      ? assemblyAiFolderTarget === "person"
+        ? "project_message"
+        : "folder_analysis"
+      : assemblyAiContextScope === "loose"
+        ? "project_message"
+        : "message";
+  const assemblyAiCurrentSignature = useMemo(() => {
+    if (assemblyAiAnalysisMode === "folder_analysis") {
+      return makeAssemblyFolderSignature(assemblyCompletedFolder?.folder.id || null, assemblyAiContextProjects);
+    }
+    if (assemblyAiAnalysisMode === "project_message") {
+      return makeAssemblyPersonSignature(assemblyAiSelectedProject);
+    }
+    return "";
+  }, [assemblyAiAnalysisMode, assemblyAiContextProjects, assemblyAiSelectedProject, assemblyCompletedFolder?.folder.id]);
+  const assemblyAiCanFollowUp = Boolean(
+    assemblyAiActiveChat?.analysisAnchor &&
+    assemblyAiCurrentSignature &&
+    assemblyAiActiveChat.analysisAnchor.signature === assemblyAiCurrentSignature &&
+    assemblyAiActiveChat.analysisAnchor.mode === assemblyAiAnalysisMode &&
+    assemblyAiActiveChat.analysisAnchor.contextScope === assemblyAiContextScope &&
+    assemblyAiActiveChat.analysisAnchor.folderId === (assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || null : null) &&
+    assemblyAiActiveChat.analysisAnchor.projectId === (assemblyAiAnalysisMode === "project_message" ? assemblyAiSelectedProject?.id || null : null)
+  );
+  const assemblyAiEffectiveMode: AssemblyAiMode =
+    assemblyAiAnalysisMode === "message" || assemblyAiCanFollowUp ? "message" : assemblyAiAnalysisMode;
+  const assemblyAiMaxOutputTokens = assemblyAiEffectiveMode === "message" ? 3000 : ASSEMBLY_AI_MAX_OUTPUT_TOKENS;
+  const assemblyAiFolderPriceRub = useMemo(
+    () => getAssemblyAiPriceRub(assemblyAiProvider, assemblyAiModel, "folder_analysis"),
+    [assemblyAiModel, assemblyAiProvider]
+  );
+  const assemblyAiPersonPriceRub = useMemo(
+    () => getAssemblyAiPriceRub(assemblyAiProvider, assemblyAiModel, "project_message"),
+    [assemblyAiModel, assemblyAiProvider]
+  );
+  const assemblyAiMessagePriceRub = useMemo(
+    () => getAssemblyAiPriceRub(assemblyAiProvider, assemblyAiModel, "message"),
+    [assemblyAiModel, assemblyAiProvider]
+  );
+  const assemblyAiPriceRub = useMemo(
+    () => getAssemblyAiPriceRub(assemblyAiProvider, assemblyAiModel, assemblyAiEffectiveMode),
+    [assemblyAiEffectiveMode, assemblyAiModel, assemblyAiProvider]
+  );
+  const assemblyAiCanAfford = isUnlimited || balance_rub >= assemblyAiPriceRub;
+  const assemblyAiCanSend =
+    !assemblyAiBusy &&
+    assemblyAiCanAfford &&
+    (assemblyAiEffectiveMode === "message"
+      ? Boolean(assemblyAiDraft.trim())
+      : assemblyAiEffectiveMode === "folder_analysis"
+        ? Boolean(assemblyCompletedFolder && assemblyAiContextProjects.length > 0)
+        : Boolean(assemblyAiSelectedProject));
+  const assemblyAiStorageKey = useMemo(
+    () => (workspace?.workspace?.workspace_id ? getAssemblyAiChatsStorageKey(workspace.workspace.workspace_id) : ""),
+    [workspace?.workspace?.workspace_id]
+  );
+  const filteredAssemblyAiChats = useMemo(() => {
+    const needle = assemblyAiChatSearch.trim().toLowerCase();
+    return assemblyAiChats.filter((chat) => {
+      if (!needle) return true;
+      return `${chat.title} ${chat.contextLabel} ${chat.lastUserMessage} ${chat.model}`.toLowerCase().includes(needle);
+    });
+  }, [assemblyAiChatSearch, assemblyAiChats]);
+
+  const persistAssemblyAiChats = useCallback((updater: (prev: AssemblyAiChat[]) => AssemblyAiChat[]) => {
+    setAssemblyAiChats((prev) => {
+      const next = updater(prev).slice(0, 60);
+      if (assemblyAiStorageKey && typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(assemblyAiStorageKey, JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  }, [assemblyAiStorageKey]);
+
+  useEffect(() => {
+    if (!assemblyAiStorageKey || typeof window === "undefined") return;
+    if (assemblyAiLoadedRef.current) return;
+    assemblyAiLoadedRef.current = true;
+    try {
+      const raw = window.localStorage.getItem(assemblyAiStorageKey);
+      const loaded = raw ? JSON.parse(raw) : [];
+      const chats = Array.isArray(loaded) ? (loaded as AssemblyAiChat[]) : [];
+      setAssemblyAiChats(chats);
+      if (chats[0] && !assemblyAiActiveChatId) {
+        setAssemblyAiActiveChatId(chats[0].id);
+        setAssemblyAiMessages(chats[0].messages?.length ? chats[0].messages : []);
+        setAssemblyAiInsight(chats[0].insight || null);
+        setAssemblyAiProvider(chats[0].provider || "openai");
+        setAssemblyAiModel(chats[0].model || "gpt-5.4-mini");
+        setAssemblyAiContextScope(chats[0].contextScope || "folder");
+        setAssemblyAiFolderTarget(chats[0].contextScope === "folder" && chats[0].analysisAnchor?.mode === "project_message" ? "person" : "folder");
+        setAssemblyFolderId(chats[0].folderId || null);
+        setAssemblyAiProjectId(chats[0].projectId || "");
+      }
+    } catch {
+      setAssemblyAiChats([]);
+    }
+  }, [assemblyAiActiveChatId, assemblyAiStorageKey]);
+
+  const openAssemblyAiChat = useCallback((chat: AssemblyAiChat) => {
+    setAssemblyAiActiveChatId(chat.id);
+    setAssemblyAiMessages(chat.messages?.length ? chat.messages : []);
+    setAssemblyAiInsight(chat.insight || null);
+    setAssemblyAiProvider(chat.provider || "openai");
+    setAssemblyAiModel(chat.model || "gpt-5.4-mini");
+    setAssemblyAiContextScope(chat.contextScope || "folder");
+    setAssemblyAiFolderTarget(chat.contextScope === "folder" && chat.analysisAnchor?.mode === "project_message" ? "person" : "folder");
+    setAssemblyFolderId(chat.folderId || null);
+    setAssemblyAiProjectId(chat.projectId || "");
+    setAssemblyAiDraft("");
+    setAssemblyAiError("");
+  }, []);
+
+  const startNewAssemblyAiChat = useCallback(() => {
+    setAssemblyAiActiveChatId("");
+    setAssemblyAiInsight(null);
+    setAssemblyAiFolderTarget("folder");
+    setAssemblyAiDraft("");
+    setAssemblyAiError("");
+    setAssemblyAiLastCharge(null);
+    setAssemblyAiMessages([
+      {
+        id: "assembly-ai-welcome",
+        role: "assistant",
+        content: "Выберите папку для общего анализа, готового человека без папки для персонального разбора или режим без выбора для обычного вопроса.",
+      },
+    ]);
+  }, []);
+
+  const saveAssemblyAiRename = useCallback(() => {
+    const title = assemblyAiEditingTitle.trim();
+    if (!assemblyAiEditingChatId || !title) return;
+    persistAssemblyAiChats((prev) => prev.map((chat) => chat.id === assemblyAiEditingChatId ? { ...chat, title } : chat));
+    setAssemblyAiEditingChatId("");
+    setAssemblyAiEditingTitle("");
+  }, [assemblyAiEditingChatId, assemblyAiEditingTitle, persistAssemblyAiChats]);
+
+  const deleteAssemblyAiChat = useCallback((chatId: string) => {
+    persistAssemblyAiChats((prev) => prev.filter((chat) => chat.id !== chatId));
+    if (assemblyAiActiveChatId === chatId) startNewAssemblyAiChat();
+  }, [assemblyAiActiveChatId, persistAssemblyAiChats, startNewAssemblyAiChat]);
+
+  useEffect(() => {
+    if (assemblyAiModelOptions.some((item) => item.id === assemblyAiModel)) return;
+    setAssemblyAiModel(assemblyAiModelOptions[0]?.id || "gpt-5.4-mini");
+  }, [assemblyAiModel, assemblyAiModelOptions]);
+
+  useEffect(() => {
+    if (!assemblyAiContextProjects.length) {
+      setAssemblyAiProjectId("");
+      return;
+    }
+    if (assemblyAiContextProjects.some((item) => item.id === assemblyAiProjectId)) return;
+    setAssemblyAiProjectId(assemblyAiContextProjects[0].id);
+  }, [assemblyAiContextProjects, assemblyAiProjectId]);
   const totalAttempts = useMemo(
     () => projects.reduce((sum, item) => sum + (item.attempts_count || 0), 0),
     [projects]
@@ -2313,9 +2942,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (desktopVariant !== "assembly") return;
-    if (assemblyFolderId && folderBuckets.byFolder.some((item) => item.folder.id === assemblyFolderId)) return;
-    setAssemblyFolderId(folderBuckets.byFolder[0]?.folder.id || null);
-  }, [assemblyFolderId, desktopVariant, folderBuckets.byFolder]);
+    if (assemblyAiContextScope !== "folder") return;
+    if (assemblyFolderId && completedFoldersForAi.some((item) => item.folder.id === assemblyFolderId)) return;
+    setAssemblyFolderId(completedFoldersForAi[0]?.folder.id || null);
+  }, [assemblyAiContextScope, assemblyFolderId, completedFoldersForAi, desktopVariant]);
 
   useEffect(() => {
     if (!assemblyFolder?.projects.length) return;
@@ -2363,10 +2993,162 @@ export default function DashboardPage() {
     }
   }, [assemblyFitRequest, assemblySelectedCompetencyIds, folderBuckets.byFolder, session?.access_token]);
 
+  const sendAssemblyAiMessage = useCallback(async (modeOverride?: AssemblyAiMode) => {
+    if (!session?.access_token) return;
+    const mode = modeOverride || assemblyAiEffectiveMode;
+    if (mode === "folder_analysis" && !assemblyCompletedFolder) {
+      setAssemblyAiError("Выберите папку с полностью завершенными проектами.");
+      return;
+    }
+    if (mode === "folder_analysis" && !assemblyAiContextProjects.length) {
+      setAssemblyAiError("В выбранном контексте пока нет полностью завершенных проектов.");
+      return;
+    }
+    const draft = assemblyAiDraft.trim();
+    if (mode === "message" && !draft) {
+      setAssemblyAiError("Напишите вопрос.");
+      return;
+    }
+    if (mode === "project_message" && !assemblyAiSelectedProject) {
+      setAssemblyAiError("Выберите завершенный проект-человека для персонального сообщения.");
+      return;
+    }
+    if (!assemblyAiCanAfford) {
+      setAssemblyAiError(`Недостаточно средств на балансе. Нужно ${assemblyAiPriceRub} ₽.`);
+      return;
+    }
+
+    const visibleText =
+      draft ||
+      (mode === "folder_analysis"
+        ? `Сделай анализ: ${assemblyAiContextLabel}.`
+        : `Разбери проект «${assemblyAiSelectedProject?.person?.full_name || assemblyAiSelectedProject?.title || "человек"}».`);
+    const requestProjectId =
+      mode === "project_message"
+        ? assemblyAiSelectedProject?.id || ""
+        : mode === "message" && assemblyAiCanFollowUp
+          ? assemblyAiActiveChat?.analysisAnchor?.projectId || ""
+          : "";
+    const userMessage: AssemblyAiMessage = { id: `assembly-ai-user-${Date.now()}`, role: "user", content: visibleText };
+    const pendingMessage: AssemblyAiMessage = { id: `assembly-ai-pending-${Date.now()}`, role: "assistant", content: "Собираю завершенные проекты и готовлю ответ...", pending: true };
+    const history = assemblyAiMessages
+      .filter((item) => item.id !== "assembly-ai-welcome" && !item.pending)
+      .slice(-8)
+      .map((item) => ({ role: item.role, content: item.content }));
+    const messagesWithPending = [...assemblyAiMessages, userMessage, pendingMessage];
+
+    setAssemblyAiBusy(true);
+    setAssemblyAiError("");
+    setAssemblyAiLastCharge(null);
+    setAssemblyAiDraft("");
+    setAssemblyAiMode(mode);
+    setAssemblyAiMessages(messagesWithPending);
+
+    try {
+      const expectedSignature = mode === "message" && assemblyAiCanFollowUp
+        ? assemblyAiActiveChat?.analysisAnchor?.serverSignature || assemblyAiActiveChat?.analysisAnchor?.signature || assemblyAiCurrentSignature
+        : "";
+      const resp = await fetch("/api/commercial/ai-folder-chat", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          provider: assemblyAiProvider,
+          model: assemblyAiModel,
+          mode,
+          context_scope: assemblyAiContextScope,
+          folder_id: assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || "" : "",
+          project_id: requestProjectId,
+          expected_context_signature: expectedSignature,
+          message: draft,
+          history,
+          max_output_tokens: assemblyAiMaxOutputTokens,
+        }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось получить AI-ответ.");
+      setAssemblyAiLastCharge(Math.floor(Number(json.charged_kopeks || json.price_kopeks || 0) / 100));
+      const assistantMessage: AssemblyAiMessage = {
+        id: `assembly-ai-assistant-${Date.now()}`,
+        role: "assistant",
+        content: String(json.text || "Готово."),
+      };
+      const nextMessages = messagesWithPending.map((item) => (item.id === pendingMessage.id ? assistantMessage : item));
+      const nextInsight = (json.insight || null) as AssemblyAiInsight | null;
+      const chatProjectId =
+        mode === "project_message"
+          ? assemblyAiSelectedProject?.id || null
+          : assemblyAiActiveChat?.analysisAnchor?.projectId || null;
+      const nextAnchor =
+        mode === "folder_analysis" || mode === "project_message"
+          ? {
+              mode,
+              contextScope: assemblyAiContextScope === "folder" ? "folder" as const : "loose" as const,
+              folderId: assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || null : null,
+              projectId: mode === "project_message" ? assemblyAiSelectedProject?.id || null : null,
+              signature: assemblyAiCurrentSignature,
+              serverSignature: String(json.context_signature || ""),
+            }
+          : assemblyAiActiveChat?.analysisAnchor || null;
+      setAssemblyAiMessages(nextMessages);
+      if (nextInsight) setAssemblyAiInsight(nextInsight);
+      const chatId = assemblyAiActiveChatId || `assembly-ai-chat-${Date.now()}`;
+      const chat: AssemblyAiChat = {
+        id: chatId,
+        title: assemblyAiActiveChat?.title || makeAssemblyChatTitle(visibleText),
+        updatedAt: new Date().toISOString(),
+        provider: assemblyAiProvider,
+        model: assemblyAiModel,
+        contextScope: assemblyAiContextScope,
+        folderId: assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || null : null,
+        projectId: chatProjectId,
+        analysisAnchor: nextAnchor,
+        contextLabel: String(json.context_label || assemblyAiContextLabel),
+        lastUserMessage: visibleText,
+        messages: nextMessages,
+        insight: nextInsight || assemblyAiInsight,
+      };
+      setAssemblyAiActiveChatId(chatId);
+      persistAssemblyAiChats((prev) => [chat, ...prev.filter((item) => item.id !== chatId)]);
+      await refreshWallet();
+    } catch (e: any) {
+      setAssemblyAiError(e?.message || "Не удалось получить AI-ответ.");
+      setAssemblyAiMessages((prev) => prev.filter((item) => item.id !== pendingMessage.id));
+    } finally {
+      setAssemblyAiBusy(false);
+    }
+  }, [
+    assemblyAiCanAfford,
+    assemblyAiCanFollowUp,
+    assemblyAiActiveChat,
+    assemblyAiActiveChatId,
+    assemblyAiContextLabel,
+    assemblyAiContextProjects.length,
+    assemblyAiContextScope,
+    assemblyAiDraft,
+    assemblyAiEffectiveMode,
+    assemblyAiCurrentSignature,
+    assemblyAiInsight,
+    assemblyAiMessages,
+    assemblyAiMaxOutputTokens,
+    assemblyAiMode,
+    assemblyAiModel,
+    assemblyAiPriceRub,
+    assemblyAiProvider,
+    assemblyAiSelectedProject,
+    assemblyCompletedFolder,
+    persistAssemblyAiChats,
+    refreshWallet,
+    session?.access_token,
+  ]);
+
   useEffect(() => {
-    if (desktopVariant !== "assembly" || !assemblyFolderId) return;
-    void loadAssemblyComparison(assemblyFolderId);
-  }, [assemblyFolderId, desktopVariant]);
+    if (desktopVariant !== "assembly") return;
+    setAssemblyComparison(null);
+    setAssemblyError("");
+  }, [desktopVariant]);
 
   useEffect(() => {
     if (!previewProject) return;
@@ -2830,7 +3612,7 @@ export default function DashboardPage() {
     const pos = deskPositions[`folder:${folder.id}`] || getDefaultFolderPosition(index);
     return !isInsideGuideRect(pos.x, pos.y);
   });
-  const showDesktopLoader = loading || !sharedSceneReady || !deskVisualReady;
+  const showDesktopLoader = !error && (loading || !sharedSceneReady || Boolean(workspace?.workspace?.workspace_id && !deskVisualReady));
   const assemblyLeader = assemblyComparison?.winner_board?.[0] || null;
   const assemblyAverageIndex = assemblyComparison?.ranking?.length
     ? Math.round(assemblyComparison.ranking.reduce((sum, item) => sum + item.calibrated_index, 0) / Math.max(1, assemblyComparison.ranking.length))
@@ -2964,8 +3746,401 @@ export default function DashboardPage() {
       ) : null}
     </>
   );
+  const assemblyAiWorkspace = (
+    <Layout title="AI-аналитика папок">
+      <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
+      {mobileDashboard}
+      <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 hidden overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 lg:block">
+        {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
+
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
+          {desktopModeTabs}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            {sceneEditControls}
+          </div>
+        </div>
+
+        <div className="mb-4 rounded-[26px] border border-[#d8e4ef] bg-[linear-gradient(180deg,#ffffff_0%,#edf6ff_100%)] px-5 py-4 shadow-[0_20px_42px_-32px_rgba(37,63,89,0.2)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#647c95]">AI-аналитика</div>
+              <h1 className="mt-1 text-2xl font-semibold text-[#17283a]">Чат и анализ папок</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5d7185]">
+                Выберите папку с проектами, задайте вопрос или запустите полный анализ. Система берет в контекст людей, тесты, результаты и комментарии Registry внутри выбранной папки.
+              </p>
+            </div>
+            <div className="rounded-[18px] border border-[#dbe7f1] bg-white px-4 py-3 text-right">
+              <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Баланс</div>
+              <div className="mt-1 text-xl font-semibold text-[#17283a]">{balanceText}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
+          <div className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Чаты</div>
+              <button type="button" className="btn btn-primary btn-sm" onClick={startNewAssemblyAiChat} disabled={assemblyAiBusy}>
+                Новый
+              </button>
+            </div>
+            <input
+              className="mt-3 w-full rounded-[16px] border border-[#d5deea] bg-[#fbfdff] px-3 py-2.5 text-sm text-[#223548] outline-none focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
+              value={assemblyAiChatSearch}
+              onChange={(event) => setAssemblyAiChatSearch(event.target.value)}
+              placeholder="Найти чат"
+            />
+            <div className="mt-3 max-h-[650px] space-y-2 overflow-y-auto pr-1">
+              {filteredAssemblyAiChats.length ? filteredAssemblyAiChats.map((chat) => (
+                <div key={chat.id} className={`rounded-[18px] border px-3 py-3 transition ${chat.id === assemblyAiActiveChatId ? "border-[#7ca36f] bg-[#eef8ea]" : "border-[#e2ebf4] bg-[#f9fbfe]"}`}>
+                  {assemblyAiEditingChatId === chat.id ? (
+                    <div className="space-y-2">
+                      <input
+                        className="w-full rounded-[12px] border border-[#d5deea] px-2 py-1.5 text-sm"
+                        value={assemblyAiEditingTitle}
+                        onChange={(event) => setAssemblyAiEditingTitle(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") saveAssemblyAiRename();
+                          if (event.key === "Escape") {
+                            setAssemblyAiEditingChatId("");
+                            setAssemblyAiEditingTitle("");
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <button type="button" className="btn btn-primary btn-sm" onClick={saveAssemblyAiRename}>Сохранить</button>
+                    </div>
+                  ) : (
+                    <>
+                      <button type="button" className="block w-full text-left" onClick={() => openAssemblyAiChat(chat)}>
+                        <div className="truncate text-sm font-semibold text-[#223548]">{chat.title || "Новый чат"}</div>
+                        <div className="mt-1 text-xs text-[#6f8193]">{chat.contextLabel} · {chat.model}</div>
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-[#7a8fa4]">{chat.lastUserMessage || "Пустой чат"}</div>
+                      </button>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="rounded-lg px-2 py-1 text-xs text-[#5f7286] hover:bg-white"
+                          onClick={() => {
+                            setAssemblyAiEditingChatId(chat.id);
+                            setAssemblyAiEditingTitle(chat.title || "Новый чат");
+                          }}
+                        >
+                          Переименовать
+                        </button>
+                        <button type="button" className="rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-white" onClick={() => deleteAssemblyAiChat(chat.id)}>
+                          Удалить
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )) : (
+                <div className="rounded-[18px] border border-dashed border-[#cfdbe7] bg-[#fbfdff] px-3 py-5 text-sm leading-6 text-[#6f8193]">
+                  Сохраненных чатов пока нет.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-[30px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-5 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Чат аналитика</div>
+                <div className="mt-1 text-2xl font-semibold text-[#223548]">{assemblyAiActiveChat?.title || assemblyAiContextLabel}</div>
+                <div className="mt-1 text-sm text-[#64788c]">
+                  {assemblyAiEffectiveMode === "message"
+                    ? `${assemblyAiCanFollowUp ? "Продолжение уже оплаченного анализа" : "Обычное сообщение без выбранной папки или человека"}. Сейчас: ${assemblyAiPriceRub} ₽.`
+                    : assemblyAiContextProjects.length
+                    ? `${assemblyAiContextProjects.length} готовых проектов в контексте. Сейчас: ${getAssemblyAiModeLabel(assemblyAiEffectiveMode)} за ${assemblyAiPriceRub} ₽.`
+                    : "Выберите контекст с полностью завершенными проектами."}
+                </div>
+              </div>
+              <div className="rounded-[18px] border border-[#dbe7f1] bg-white px-4 py-3 text-right">
+                <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Запрос</div>
+                <div className="mt-1 text-xl font-semibold text-[#17283a]">{assemblyAiPriceRub} ₽</div>
+              </div>
+            </div>
+
+            {assemblyAiError ? <div className="mt-4 rounded-[18px] border border-[#e6c8c3] bg-[#fff3f0] px-4 py-3 text-sm text-[#9a4e45]">{assemblyAiError}</div> : null}
+            {assemblyAiLastCharge != null ? (
+              <div className="mt-4 rounded-[18px] border border-[#d9e6d0] bg-[#f6fcf3] px-4 py-3 text-sm text-[#315f49]">
+                Списано: {assemblyAiLastCharge} ₽. Баланс обновлен.
+              </div>
+            ) : null}
+
+            <div className="mt-4 h-[520px] overflow-y-auto rounded-[24px] border border-[#dce6f1] bg-white/88 p-4">
+              <div className="space-y-3">
+                {assemblyAiMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`max-w-[86%] rounded-[20px] border px-4 py-3 text-sm leading-6 shadow-[0_12px_28px_-24px_rgba(37,63,89,0.22)] ${message.role === "user" ? "ml-auto border-[#c9e3cc] bg-[#eff9ee] text-[#29472d]" : "mr-auto border-[#dde7f2] bg-[#fbfdff] text-[#26394d]"}`}
+                  >
+                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7a8fa4]">
+                      {message.role === "user" ? "Вы" : "AI-аналитик"}
+                    </div>
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[24px] border border-[#dce6f1] bg-white p-4">
+              <textarea
+                className="min-h-[118px] w-full resize-y rounded-[18px] border border-[#d5deea] bg-[#fbfdff] px-4 py-3 text-sm leading-6 text-[#223548] outline-none transition focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
+                value={assemblyAiDraft}
+                onChange={(event) => setAssemblyAiDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey && !(event.nativeEvent as any).isComposing) {
+                    event.preventDefault();
+                    if (assemblyAiCanSend) void sendAssemblyAiMessage();
+                  }
+                }}
+                placeholder={assemblyAiEffectiveMode === "folder_analysis" ? "Например: сравни людей под руководителя отдела продаж и выдели риски. Можно оставить пустым." : assemblyAiEffectiveMode === "project_message" ? "Например: какие вопросы задать этому человеку? Можно оставить пустым." : "Задайте обычный вопрос AI-аналитику"}
+                disabled={assemblyAiBusy}
+              />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs leading-5 text-[#6f8193]">
+                  Enter отправляет сообщение, Shift+Enter переносит строку. В контекст попадают только полностью завершенные проекты.
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => void sendAssemblyAiMessage()}
+                  disabled={!assemblyAiCanSend}
+                >
+                  {assemblyAiBusy ? "Отправляю..." : "Отправить"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Модель и цены</div>
+              <div className="mt-3 grid gap-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7b8ea0]">
+                  Провайдер
+                  <select
+                    className="mt-2 w-full rounded-[16px] border border-[#d5deea] bg-[#fbfdff] px-3 py-2.5 text-sm text-[#223548] outline-none focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
+                    value={assemblyAiProvider}
+                    onChange={(event) => setAssemblyAiProvider(event.target.value as AssemblyAiProvider)}
+                    disabled={assemblyAiBusy}
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="deepseek">DeepSeek</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7b8ea0]">
+                  Модель
+                  <select
+                    className="mt-2 w-full rounded-[16px] border border-[#d5deea] bg-[#fbfdff] px-3 py-2.5 text-sm text-[#223548] outline-none focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
+                    value={assemblyAiModel}
+                    onChange={(event) => setAssemblyAiModel(event.target.value)}
+                    disabled={assemblyAiBusy}
+                  >
+                    {assemblyAiModelOptions.map((model) => (
+                      <option key={model.id} value={model.id}>{model.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-4 grid gap-2">
+                <div className="rounded-[18px] border border-[#dbe4ee] bg-[#fbfdff] px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-[#223548]">Анализ папки</span>
+                    <span className="text-sm font-semibold text-[#315f49]">{assemblyAiFolderPriceRub} ₽</span>
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-[#6f8193]">Списывается, когда выбран режим папки. Строит общую схему сравнения.</div>
+                </div>
+                <div className="rounded-[18px] border border-[#dbe4ee] bg-[#fbfdff] px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-[#223548]">Анализ человека</span>
+                    <span className="text-sm font-semibold text-[#315f49]">{assemblyAiPersonPriceRub} ₽</span>
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-[#6f8193]">Списывается, когда выбран конкретный готовый человек. Строит персональную карту.</div>
+                </div>
+                <div className="rounded-[18px] border border-[#dbe4ee] bg-[#fbfdff] px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-[#223548]">Обычное сообщение</span>
+                    <span className="text-sm font-semibold text-[#315f49]">{assemblyAiMessagePriceRub} ₽</span>
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-[#6f8193]">Списывается без выбора контекста или как продолжение уже оплаченного анализа.</div>
+                </div>
+                <div className="rounded-[18px] border border-[#c9e3cc] bg-[#eff9ee] px-3 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Сейчас будет списано</div>
+                  <div className="mt-1 text-xl font-semibold text-[#17283a]">{assemblyAiPriceRub} ₽</div>
+                  <div className="mt-1 text-xs leading-5 text-[#6f8193]">{getAssemblyAiModeLabel(assemblyAiEffectiveMode)}</div>
+                  {assemblyAiCanFollowUp ? (
+                    <div className="mt-2 rounded-[12px] bg-white/80 px-2 py-1 text-xs leading-5 text-[#315f49]">
+                      Данные не менялись, поэтому это продолжение уже оплаченного анализа.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {!assemblyAiCanAfford ? (
+                <div className="mt-3 rounded-[16px] border border-[#e8c6bf] bg-[#fff4f1] px-3 py-2 text-xs leading-5 text-[#955144]">
+                  На балансе не хватает средств для выбранного режима.
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-[28px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-4 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Данные для анализа</div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  className={`rounded-[16px] border px-3 py-2.5 text-sm font-semibold transition ${assemblyAiContextScope === "folder" ? "border-[#7ca36f] bg-[#eef8ea] text-[#25462c]" : "border-[#dbe4ee] bg-white text-[#52687d] hover:border-[#b9c9db]"}`}
+                  onClick={() => {
+                    setAssemblyAiContextScope("folder");
+                    setAssemblyFolderId((current) =>
+                      current && completedFoldersForAi.some((item) => item.folder.id === current)
+                        ? current
+                        : completedFoldersForAi[0]?.folder.id || null
+                    );
+                  }}
+                  disabled={assemblyAiBusy}
+                >
+                  Папка
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-[16px] border px-3 py-2.5 text-sm font-semibold transition ${assemblyAiContextScope === "loose" ? "border-[#7ca36f] bg-[#eef8ea] text-[#25462c]" : "border-[#dbe4ee] bg-white text-[#52687d] hover:border-[#b9c9db]"}`}
+                  onClick={() => {
+                    setAssemblyAiContextScope("loose");
+                    setAssemblyAiFolderTarget("folder");
+                    setAssemblyFolderId(null);
+                  }}
+                  disabled={assemblyAiBusy}
+                >
+                  Без папки
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-[16px] border px-3 py-2.5 text-sm font-semibold transition ${assemblyAiContextScope === "none" ? "border-[#7ca36f] bg-[#eef8ea] text-[#25462c]" : "border-[#dbe4ee] bg-white text-[#52687d] hover:border-[#b9c9db]"}`}
+                  onClick={() => {
+                    setAssemblyAiContextScope("none");
+                    setAssemblyAiFolderTarget("folder");
+                    setAssemblyFolderId(null);
+                    setAssemblyAiProjectId("");
+                  }}
+                  disabled={assemblyAiBusy}
+                >
+                  Без выбора
+                </button>
+              </div>
+
+              {assemblyAiContextScope === "folder" ? (
+                <div className="mt-3 space-y-2">
+                  {completedFoldersForAi.length ? completedFoldersForAi.map(({ folder, projects }) => {
+                    const isActive = folder.id === assemblyFolderId;
+                    return (
+                      <button
+                        key={folder.id}
+                        type="button"
+                        className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${isActive ? "border-[#7ca36f] bg-[#eef8ea] shadow-[0_14px_28px_-24px_rgba(48,90,39,0.28)]" : "border-[#d5deea] bg-white hover:border-[#b9c9db]"}`}
+                        onClick={() => setAssemblyFolderId(folder.id)}
+                        disabled={assemblyAiBusy}
+                      >
+                        <div className="text-sm font-semibold text-[#223548]">{folder.name}</div>
+                        <div className="mt-1 text-xs text-[#64788c]">Готовы к анализу: {projects.length}</div>
+                      </button>
+                    );
+                  }) : (
+                    <div className="rounded-[20px] border border-dashed border-[#cfdbe7] bg-white/75 px-4 py-5 text-sm leading-6 text-[#6f8193]">
+                      В папках пока нет полностью завершенных проектов.
+                    </div>
+                  )}
+                  {assemblyCompletedFolder?.projects.length ? (
+                    <div className="mt-3 rounded-[20px] border border-[#d5deea] bg-white px-3 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7a8fa4]">Что анализируем</div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className={`rounded-[14px] border px-3 py-2 text-sm font-semibold transition ${assemblyAiFolderTarget === "folder" ? "border-[#7ca36f] bg-[#eef8ea] text-[#25462c]" : "border-[#dbe4ee] bg-white text-[#52687d] hover:border-[#b9c9db]"}`}
+                          onClick={() => setAssemblyAiFolderTarget("folder")}
+                          disabled={assemblyAiBusy}
+                        >
+                          Вся папка
+                        </button>
+                        <button
+                          type="button"
+                          className={`rounded-[14px] border px-3 py-2 text-sm font-semibold transition ${assemblyAiFolderTarget === "person" ? "border-[#7ca36f] bg-[#eef8ea] text-[#25462c]" : "border-[#dbe4ee] bg-white text-[#52687d] hover:border-[#b9c9db]"}`}
+                          onClick={() => setAssemblyAiFolderTarget("person")}
+                          disabled={assemblyAiBusy}
+                        >
+                          Человек
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : assemblyAiContextScope === "loose" ? (
+                <div className="mt-3 rounded-[20px] border border-[#d5deea] bg-white px-4 py-3">
+                  <div className="text-sm font-semibold text-[#223548]">Готовые проекты без папки</div>
+                  <div className="mt-1 text-xs text-[#64788c]">В контексте: {completedLooseProjects.length}</div>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-[20px] border border-[#d5deea] bg-white px-4 py-3">
+                  <div className="text-sm font-semibold text-[#223548]">Обычное сообщение</div>
+                  <div className="mt-1 text-xs leading-5 text-[#64788c]">AI ответит без данных конкретной папки или кандидата. Результаты людей в такой запрос не попадут.</div>
+                </div>
+              )}
+            </div>
+
+            {assemblyAiContextScope === "loose" || (assemblyAiContextScope === "folder" && assemblyAiFolderTarget === "person") ? (
+            <div className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Проект-человек</div>
+              {assemblyAiContextProjects.length ? (
+                <>
+                  <select
+                    className="mt-3 w-full rounded-[16px] border border-[#d5deea] bg-[#fbfdff] px-3 py-2.5 text-sm text-[#223548] outline-none focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
+                    value={assemblyAiSelectedProject?.id || ""}
+                    onChange={(event) => setAssemblyAiProjectId(event.target.value)}
+                    disabled={assemblyAiBusy}
+                  >
+                    {assemblyAiContextProjects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.person?.full_name || project.title}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-3 space-y-2">
+                    {assemblyAiContextProjects.slice(0, 8).map((project) => (
+                      <div key={project.id} className="rounded-[16px] border border-[#e4ebf3] bg-[#f9fbfe] px-3 py-2.5">
+                        <div className="text-sm font-semibold text-[#223548]">{project.person?.full_name || project.title}</div>
+                        <div className="mt-1 text-xs text-[#6b7f93]">
+                          {getGoalDefinition(project.goal)?.shortTitle || getGoalDefinition(project.goal)?.title || project.goal}
+                          {project.target_role ? ` · ${project.target_role}` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="mt-3 rounded-[20px] border border-dashed border-[#cfdbe7] bg-[#fbfdff] px-4 py-5 text-sm leading-6 text-[#6f8193]">
+                  Здесь появятся только люди, которые полностью завершили все назначенные тесты.
+                </div>
+              )}
+            </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <AssemblyAiInsightPanel insight={assemblyAiInsight} />
+        </div>
+      </div>
+      {folderManagementDialogs}
+      {trashRestoreModal}
+    </Layout>
+  );
 
   if (desktopVariant === "assembly") {
+    return assemblyAiWorkspace;
+  }
+
+  if (selectedWidgetId === "__legacy_assembly__") {
     return (
       <Layout title="Кабинет специалиста">
         <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
@@ -3550,7 +4725,7 @@ export default function DashboardPage() {
               <label className="text-xs text-[#7b5b3b] md:col-span-1">Поворот
                 <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" step="0.1" value={selectedWidget.rotation} onChange={(e) => updateSceneWidget(selectedWidget.id, { rotation: Number(e.target.value || 0) })} />
               </label>
-              {selectedWidget.kind !== "image" ? (
+              {selectedWidget.kind !== "image" && selectedWidget.kind !== "video" ? (
                 <>
                   <label className="text-xs text-[#7b5b3b] md:col-span-1">Шрифт
                     <input className="mt-1 w-full rounded-lg border border-[#d9c6ab] px-3 py-2 text-sm" type="number" value={selectedWidget.fontSize} onChange={(e) => updateSceneWidget(selectedWidget.id, { fontSize: Number(e.target.value || 0) })} />
@@ -3796,13 +4971,13 @@ export default function DashboardPage() {
 
           <div className="dashboard-office-workzone absolute inset-0 overflow-hidden transition-[filter] duration-300" style={{ filter: isRoomLightDimmed ? "brightness(0.16) saturate(0.7)" : "brightness(1)", willChange: "filter" }} onClick={() => { setSelectedWidgetId(null); setSelectedDeskItemId(null); }} onDragOver={(e) => e.preventDefault()} onDrop={handleDeskDrop}>
             <div className="absolute inset-0 z-[8]">
-              {sceneWidgets.map((widget) => {
+              {sceneWidgets.filter((widget) => !isDeprecatedProjectAssemblyWidget(widget)).map((widget) => {
                 const isSelected = widget.id === selectedWidgetId;
                 return (
                   <div
                     key={widget.id}
                     data-onboarding-id={widget.id === "create-project" ? "dashboard-create-project" : undefined}
-                    className={`dashboard-scene-widget dashboard-scene-widget-${widget.kind} dashboard-scene-widget-${widget.tone || "note"} ${sceneEditMode ? "dashboard-scene-widget-editing" : ""} ${isSelected ? "dashboard-scene-widget-selected" : ""}`}
+                    className={`dashboard-scene-widget dashboard-scene-widget-${widget.kind} dashboard-scene-widget-${widget.tone || "note"} ${sceneEditMode ? "dashboard-scene-widget-editing" : ""} ${sceneEditMode && isSelected ? "dashboard-scene-widget-selected" : ""}`}
                     style={{
                       left: `${widget.x}px`,
                       top: `${widget.y}px`,
@@ -3811,7 +4986,12 @@ export default function DashboardPage() {
                       transform: `rotate(${widget.rotation}deg)`,
                       zIndex: widget.z,
                       fontSize: `${widget.fontSize}px`,
-                      pointerEvents: widget.kind === "image" && !sceneEditMode && !isPreviewableSceneWidget(widget) ? "none" : "auto",
+                      pointerEvents:
+                        widget.kind === "video" && !sceneEditMode
+                          ? "none"
+                          : widget.kind === "image" && !sceneEditMode && !isPreviewableSceneWidget(widget)
+                            ? "none"
+                            : "auto",
                       cursor: !sceneEditMode && isPreviewableSceneWidget(widget) ? "zoom-in" : undefined,
                     }}
                     onMouseDown={(e) => startWidgetInteraction(e, widget, "drag")}
@@ -3823,16 +5003,24 @@ export default function DashboardPage() {
                         }
                         return;
                       }
-                      setSelectedWidgetId(widget.id);
-                      setSelectedDeskItemId(null);
-                      if (!sceneEditMode && widget.kind === "button") handleSceneWidgetAction(widget.action);
+                      if (sceneEditMode) {
+                        setSelectedWidgetId(widget.id);
+                        setSelectedDeskItemId(null);
+                      }
+                      if (!sceneEditMode && (widget.kind === "button" || widget.kind === "video")) handleSceneWidgetAction(widget.action, widget);
                     }}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
-                      if (widget.kind === "button") handleSceneWidgetAction(widget.action);
+                      if (!sceneEditMode && (widget.kind === "button" || widget.kind === "video")) handleSceneWidgetAction(widget.action, widget);
                     }}
                   >
-                    {widget.kind === "image" ? (
+                    {widget.kind === "video" ? (
+                      <SceneVideoWidget
+                        src={widget.src || PROJECT_ASSEMBLY_GUIDE_SRC}
+                        title={widget.text || "AI-аналитик"}
+                        active={activeAssemblyGuideId === widget.id}
+                      />
+                    ) : widget.kind === "image" ? (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img className="dashboard-scene-widget-image-el" src={widget.src} alt="Схема на доске" draggable={false} />
@@ -3852,7 +5040,7 @@ export default function DashboardPage() {
             </div>
 
             <div
-              className={`absolute ${selectedDeskItemId === LAPTOP_DEVICE_ID ? "dashboard-desk-entity-selected" : ""}`}
+              className={`absolute ${sceneEditMode && selectedDeskItemId === LAPTOP_DEVICE_ID ? "dashboard-desk-entity-selected" : ""}`}
               style={{
                 left: `${laptopPosition.x}px`,
                 top: `${laptopPosition.y}px`,
@@ -3861,6 +5049,7 @@ export default function DashboardPage() {
                 zIndex: laptopPosition.z || DEFAULT_LAPTOP_POSITION.z || 24,
                 transform: `rotate(${laptopPosition.rotation || 0}deg)`,
                 transformOrigin: "center center",
+                pointerEvents: sceneEditMode ? "auto" : "none",
               }}
               onMouseDown={(e) => {
                 if (!sceneEditMode) return;
@@ -3871,6 +5060,7 @@ export default function DashboardPage() {
                 startDeskItemInteraction(e, LAPTOP_DEVICE_ID, "device", "drag", laptopPosition);
               }}
               onClick={(e) => {
+                if (!sceneEditMode) return;
                 e.stopPropagation();
                 setSelectedDeskItemId(LAPTOP_DEVICE_ID);
                 setSelectedWidgetId(null);
@@ -3893,7 +5083,7 @@ export default function DashboardPage() {
             </div>
 
             <div
-              className={`absolute ${selectedDeskItemId === LAPTOP_PANEL_ID ? "dashboard-desk-entity-selected" : ""}`}
+              className={`absolute ${sceneEditMode && selectedDeskItemId === LAPTOP_PANEL_ID ? "dashboard-desk-entity-selected" : ""}`}
               style={{
                 left: `${laptopPanelPosition.x}px`,
                 top: `${laptopPanelPosition.y}px`,
@@ -3912,6 +5102,7 @@ export default function DashboardPage() {
                 startDeskItemInteraction(e, LAPTOP_PANEL_ID, "panel", "drag", laptopPanelPosition);
               }}
               onClick={(e) => {
+                if (!sceneEditMode) return;
                 e.stopPropagation();
                 setSelectedDeskItemId(LAPTOP_PANEL_ID);
                 setSelectedWidgetId(null);

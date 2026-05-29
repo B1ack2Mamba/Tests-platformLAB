@@ -96,9 +96,25 @@ function sanitizeSceneWidget(value: any): SceneWidgetTemplate | null {
   return next as SceneWidgetTemplate;
 }
 
-function sanitizeSceneWidgets(value: any): SceneWidgetTemplate[] {
+export function isDeprecatedProjectAssemblyWidgetTemplate(value: any): boolean {
+  if (!value || typeof value !== "object") return false;
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  const kind = typeof value.kind === "string" ? value.kind.trim() : "";
+  const action = typeof value.action === "string" ? value.action.trim() : "";
+  const text = String(value.text || "").toLowerCase();
+  return (
+    id === "open-project-assembly" ||
+    id === "__legacy_assembly__" ||
+    (action === "openProjectAssembly" && kind !== "video") ||
+    (kind !== "video" && text.includes("\u0441\u0431\u043e\u0440\u043a"))
+  );
+}
+
+export function sanitizeSceneWidgetTemplates(value: any): SceneWidgetTemplate[] {
   if (!Array.isArray(value)) return [];
-  return value.map((item) => sanitizeSceneWidget(item)).filter(Boolean) as SceneWidgetTemplate[];
+  return value
+    .map((item) => sanitizeSceneWidget(item))
+    .filter((item): item is SceneWidgetTemplate => Boolean(item) && !isDeprecatedProjectAssemblyWidgetTemplate(item));
 }
 
 export function pickTemplatePositions(source?: Record<string, any> | null): GlobalDeskTemplates {
@@ -131,7 +147,7 @@ export function pickSceneStandard(source?: Record<string, any> | null): GlobalSc
     }
   }
 
-  const widgets = sanitizeSceneWidgets((raw as any)?.widgets);
+  const widgets = sanitizeSceneWidgetTemplates((raw as any)?.widgets);
   const trayGuideText = typeof (raw as any)?.trayGuideText === "string" && (raw as any).trayGuideText.trim()
     ? (raw as any).trayGuideText.trim()
     : undefined;

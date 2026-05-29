@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
 import { isAdminEmail } from "@/lib/admin";
+import { sanitizeSceneWidgetTemplates } from "@/lib/globalDeskTemplate";
 
 type IncomingTemplate = {
   sceneWidgets?: any[];
@@ -48,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const basePayload = {
       template_key: "global_default",
-      scene_widgets: Array.isArray(body.sceneWidgets) ? body.sceneWidgets : [],
+      scene_widgets: sanitizeSceneWidgetTemplates(body.sceneWidgets),
       tray_guide_text: (body.trayGuideText || "Создать новую папку проектов").trim(),
       tray_guide_position: body.trayGuidePosition || null,
       trash_guide_position: body.trashGuidePosition || null,
@@ -95,7 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ok: true,
       template: {
         version: Number((data as any)?.version || nextVersion || 1),
-        sceneWidgets: Array.isArray((data as any)?.scene_widgets) ? (data as any).scene_widgets : [],
+        sceneWidgets: sanitizeSceneWidgetTemplates((data as any)?.scene_widgets),
         trayGuideText: (data as any)?.tray_guide_text || "Создать новую папку проектов",
         trayGuidePosition: (data as any)?.tray_guide_position || null,
         trashGuidePosition: (data as any)?.trash_guide_position || null,

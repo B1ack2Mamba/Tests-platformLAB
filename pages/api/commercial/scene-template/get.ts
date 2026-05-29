@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireUser } from "@/lib/serverAuth";
+import { sanitizeSceneWidgetTemplates } from "@/lib/globalDeskTemplate";
 
 type SceneTemplateRow = {
   version?: number | null;
@@ -56,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ok: true,
       template: {
         version: Number(row.version || 1),
-        sceneWidgets: Array.isArray(row.scene_widgets) ? row.scene_widgets : [],
+        sceneWidgets: sanitizeSceneWidgetTemplates(row.scene_widgets),
         trayGuideText: row.tray_guide_text || "Создать новую папку проектов",
         trayGuidePosition: row.tray_guide_position || null,
         trashGuidePosition: row.trash_guide_position || null,
