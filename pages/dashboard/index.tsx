@@ -3749,6 +3749,14 @@ export default function DashboardPage() {
       <button type="button" className="btn btn-secondary btn-sm" onClick={promptAndCreateFolder}>
         Создать папку
       </button>
+      <button
+        type="button"
+        data-onboarding-id="dashboard-ai-analytics-entry"
+        className="btn btn-secondary btn-sm"
+        onClick={() => setDesktopVariant("assembly")}
+      >
+        AI-аналитика
+      </button>
       <button type="button" className="btn btn-secondary btn-sm" onClick={arrangeClassicDesktop}>
         Упорядочить
       </button>
@@ -4660,6 +4668,58 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
+                <button
+                  type="button"
+                  data-onboarding-id="dashboard-trash"
+                  className={`dashboard-classic-trash-icon absolute bottom-16 right-6 z-[80] ${trashHover ? "dashboard-classic-trash-icon-active" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTrashOpen(true);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const draggedProjectId = e.dataTransfer.getData("text/project-id") || draggingProjectId;
+                    const draggedFolderId = e.dataTransfer.getData("text/folder-id") || draggingFolderId;
+                    if (draggedProjectId) beginTrashHover("project", draggedProjectId);
+                    else if (draggedFolderId) beginTrashHover("folder", draggedFolderId);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const draggedProjectId = e.dataTransfer.getData("text/project-id") || draggingProjectId;
+                    const draggedFolderId = e.dataTransfer.getData("text/folder-id") || draggingFolderId;
+                    if (draggedProjectId) beginTrashHover("project", draggedProjectId);
+                    else if (draggedFolderId) beginTrashHover("folder", draggedFolderId);
+                  }}
+                  onDragLeave={(e) => {
+                    e.stopPropagation();
+                    clearTrashHover();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const draggedProjectId = e.dataTransfer.getData("text/project-id") || draggingProjectId;
+                    const draggedFolderId = e.dataTransfer.getData("text/folder-id") || draggingFolderId;
+                    if (draggedProjectId) {
+                      const project = (workspace?.projects || []).find((item) => item.id === draggedProjectId);
+                      moveToTrash("project", draggedProjectId, project?.title || project?.person?.full_name || "Проект");
+                      setDraggingProjectId(null);
+                    } else if (draggedFolderId) {
+                      const folder = (workspace?.folders || []).find((item) => item.id === draggedFolderId);
+                      moveToTrash("folder", draggedFolderId, folder?.name || "Папка");
+                      setDraggingFolderId(null);
+                    }
+                    clearTrashHover();
+                  }}
+                  aria-label="Корзина"
+                  title="Корзина"
+                >
+                  <span className="dashboard-classic-trash-lid" />
+                  <span className="dashboard-classic-trash-can"><span /></span>
+                  {trashEntries.length ? <span className="dashboard-classic-trash-count">{trashEntries.length}</span> : null}
+                  <span className="dashboard-classic-trash-label">Корзина</span>
+                </button>
             {folderBuckets.byFolder.map(({ folder, projects: folderProjects }, folderIndex) => {
               const itemId = `folder:${folder.id}`;
               const position = deskPositions[itemId] || getClassicFolderPosition(folderIndex);
@@ -4684,7 +4744,7 @@ export default function DashboardPage() {
                     onRotateHandleMouseDown={(e) => startDeskItemInteraction(e, itemId, "folder", "rotate", position)}
                     onDragMoveStart={(e) => startDeskItemInteraction(e, itemId, "folder", "drag", position)}
                     onDragStart={() => { setDraggingFolderId(folder.id); bringDeskItemToFront(itemId); }}
-                    onDragEnd={() => setDraggingFolderId(null)}
+                    onDragEnd={() => { setDraggingFolderId(null); clearTrashHover(); }}
                   />
                 </div>
               );
