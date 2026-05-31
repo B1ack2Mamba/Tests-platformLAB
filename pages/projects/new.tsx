@@ -21,6 +21,7 @@ import {
   type WorkspaceSubscriptionStatus,
 } from "@/lib/commercialSubscriptions";
 import {
+  COMPETENCY_SELECTION_PRESETS,
   getClosestGoalForCompetencies,
   getCompetencyGroups,
   getCompetencyLongLabel,
@@ -523,6 +524,10 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   function toggleCompetency(id: string) {
     setSelectedCompetencyIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  }
+
+  function applyCompetencyPreset(ids: string[]) {
+    setSelectedCompetencyIds(Array.from(new Set(ids)));
   }
 
   function toggleTest(slug: string) {
@@ -1102,6 +1107,30 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                             placeholder="Найти компетенцию"
                           />
                         </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {COMPETENCY_SELECTION_PRESETS.map((preset) => {
+                          const active = preset.competencyIds.length > 0
+                            && preset.competencyIds.every((id) => selectedCompetencySet.has(id))
+                            && selectedCompetencyIds.length === preset.competencyIds.length;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => applyCompetencyPreset(preset.competencyIds)}
+                              className={`max-w-full rounded-[18px] border px-3 py-2 text-left text-xs leading-5 transition sm:max-w-[360px] ${
+                                active
+                                  ? "border-[#8abf92] bg-[#edf6ea] text-[#2f4c32] shadow-sm"
+                                  : "border-[#dfcfba] bg-[#fffdf8] text-[#6b5843] hover:border-[#c9ab7f]"
+                              }`}
+                              title={preset.description}
+                            >
+                              <span className="block font-semibold">{preset.title}</span>
+                              <span className="mt-0.5 block text-[11px] opacity-80">{preset.description}</span>
+                            </button>
+                          );
+                        })}
                       </div>
 
                       {selectedCompetencyIds.length ? (
