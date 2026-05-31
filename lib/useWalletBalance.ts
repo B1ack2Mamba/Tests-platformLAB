@@ -14,13 +14,15 @@ type WalletBalanceRow = {
  */
 export function useWalletBalance(_userId: string | null = null) {
   const { supabase, user } = useSession();
-  const isUnlimited = isTestUnlimitedEmail(user?.email);
+  const userId = user?.id || _userId || "";
+  const userEmail = user?.email || "";
+  const isUnlimited = isTestUnlimitedEmail(userEmail);
   const [wallet, setWallet] = useState<WalletBalanceRow>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
   const refresh = useCallback(async () => {
-    if (!supabase || !user) {
+    if (!supabase || !userId) {
       setWallet(null);
       setError("");
       return;
@@ -31,7 +33,7 @@ export function useWalletBalance(_userId: string | null = null) {
     try {
       if (isUnlimited) {
         setWallet({
-          user_id: user.id,
+          user_id: userId,
           balance_kopeks: TEST_UNLIMITED_BALANCE_KOPEKS,
           updated_at: new Date().toISOString(),
         });
@@ -41,7 +43,7 @@ export function useWalletBalance(_userId: string | null = null) {
       const resp = await supabase
         .from("wallets")
         .select("user_id,balance_kopeks,updated_at")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (resp.error) throw resp.error;
@@ -49,7 +51,7 @@ export function useWalletBalance(_userId: string | null = null) {
         setWallet(resp.data as WalletBalanceRow);
       } else {
         setWallet({
-          user_id: user.id,
+          user_id: userId,
           balance_kopeks: 0,
           updated_at: new Date().toISOString(),
         });
@@ -59,7 +61,7 @@ export function useWalletBalance(_userId: string | null = null) {
     } finally {
       setLoading(false);
     }
-  }, [isUnlimited, supabase, user]);
+  }, [isUnlimited, supabase, userId]);
 
   useEffect(() => {
     refresh();

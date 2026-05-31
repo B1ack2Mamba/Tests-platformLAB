@@ -93,7 +93,7 @@ const PROJECT_RESULTS_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     target: "project-results-export",
     title: "Экспорт отчёта",
-    body: "Когда результат собран, его можно скачать в DOC или отправить в печать PDF для передачи заказчику.",
+    body: "Когда результат собран, его можно скачать как файл Word или сохранить в PDF для передачи заказчику.",
     placement: "left",
   },
   {
@@ -371,6 +371,8 @@ export default function ProjectResultsStandalonePage() {
 
   const evaluationAbortRef = useRef<Partial<Record<EvaluationPackage, AbortController>>>({});
   const evaluationRequestIdRef = useRef<Partial<Record<EvaluationPackage, number>>>({});
+  const loadedResultsKeyRef = useRef("");
+  const resultsLoadInFlightKeyRef = useRef("");
 
   async function loadResults(explicitCollect: boolean, options?: { showSkeleton?: boolean; announce?: string }) {
     if (!session?.access_token || !projectId) return null;
@@ -673,19 +675,31 @@ export default function ProjectResultsStandalonePage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!router.isReady || !session?.access_token || !projectId) return;
+    if (!router.isReady || !session?.access_token || !projectId || !user?.id) return;
     const shouldCollect = router.query.collect === "1";
+    const stableResultsKey = `${user.id}:${projectId}`;
+    const inFlightKey = `${stableResultsKey}:${shouldCollect ? "collect" : "view"}`;
+    if (!shouldCollect && loadedResultsKeyRef.current === stableResultsKey) return;
+    if (resultsLoadInFlightKeyRef.current === inFlightKey) return;
+    resultsLoadInFlightKeyRef.current = inFlightKey;
+
+    let cancelled = false;
     (async () => {
-      await loadResults(shouldCollect, {
+      const payload = await loadResults(shouldCollect, {
         showSkeleton: true,
         announce: shouldCollect ? "Анализ собран по всей информации проекта." : undefined,
       });
-      await loadSubscriptionStatus();
-      if (shouldCollect) {
+      if (!cancelled && payload) loadedResultsKeyRef.current = stableResultsKey;
+      if (!cancelled) await loadSubscriptionStatus();
+      if (!cancelled && shouldCollect) {
         router.replace(`/projects/${projectId}/results`, undefined, { shallow: true });
       }
     })();
-  }, [router.isReady, projectId, session?.access_token]);
+    return () => {
+      cancelled = true;
+      if (resultsLoadInFlightKeyRef.current === inFlightKey) resultsLoadInFlightKeyRef.current = "";
+    };
+  }, [router.isReady, projectId, session?.access_token, user?.id, router.query.collect]);
 
   useEffect(() => {
     const unlocked = data?.project.unlocked_package_mode || null;
@@ -909,7 +923,7 @@ export default function ProjectResultsStandalonePage() {
 </html>`;
   }
 
-  function exportDoc() {
+  function exportWord() {
     if (typeof window === "undefined") return;
     const html = buildExportHtml();
     const blob = new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" });
@@ -1123,17 +1137,17 @@ export default function ProjectResultsStandalonePage() {
                           <>
                             <button
                               type="button"
-                              onClick={exportDoc}
+                              onClick={exportWord}
                               className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
                             >
-                              Скачать DOC
+                              Скачать Word
                             </button>
                             <button
                               type="button"
                               onClick={exportPdf}
                               className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
                             >
-                              Печать PDF
+                              Сохранить PDF
                             </button>
                           </>
                         ) : null}

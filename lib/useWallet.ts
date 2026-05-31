@@ -24,14 +24,16 @@ export function formatRub(kopeks: number): string {
 
 export function useWallet() {
   const { supabase, user } = useSession();
-  const isUnlimited = isTestUnlimitedEmail(user?.email);
+  const userId = user?.id || "";
+  const userEmail = user?.email || "";
+  const isUnlimited = isTestUnlimitedEmail(userEmail);
   const [wallet, setWallet] = useState<WalletRow | null>(null);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
   const refresh = useCallback(async () => {
-    if (!supabase || !user) {
+    if (!supabase || !userId) {
       setWallet(null);
       setLedger([]);
       return;
@@ -40,7 +42,7 @@ export function useWallet() {
     setError("");
     try {
       if (isUnlimited) {
-        setWallet({ user_id: user.id, balance_kopeks: TEST_UNLIMITED_BALANCE_KOPEKS, updated_at: new Date().toISOString() });
+        setWallet({ user_id: userId, balance_kopeks: TEST_UNLIMITED_BALANCE_KOPEKS, updated_at: new Date().toISOString() });
         setLedger([
           {
             id: "test-unlimited-balance",
@@ -54,11 +56,11 @@ export function useWallet() {
       }
 
       const [walletResp, ledgerResp] = await Promise.all([
-        supabase.from("wallets").select("user_id,balance_kopeks,updated_at").eq("user_id", user.id).maybeSingle(),
+        supabase.from("wallets").select("user_id,balance_kopeks,updated_at").eq("user_id", userId).maybeSingle(),
         supabase
           .from("wallet_ledger")
           .select("id,created_at,amount_kopeks,reason,ref")
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .order("created_at", { ascending: false })
           .limit(20),
       ]);
@@ -69,7 +71,7 @@ export function useWallet() {
       if (walletResp.data) {
         setWallet(walletResp.data as any);
       } else {
-        setWallet({ user_id: user.id, balance_kopeks: 0, updated_at: new Date().toISOString() });
+        setWallet({ user_id: userId, balance_kopeks: 0, updated_at: new Date().toISOString() });
       }
 
       setLedger((ledgerResp.data ?? []) as any);
@@ -78,7 +80,7 @@ export function useWallet() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, user, isUnlimited]);
+  }, [supabase, userId, isUnlimited]);
 
   useEffect(() => {
     refresh();
