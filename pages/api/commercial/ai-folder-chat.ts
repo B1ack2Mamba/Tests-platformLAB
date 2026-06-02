@@ -36,6 +36,9 @@ type ProjectContextSummary = {
   currentPosition: string | null;
   testsCount: number;
   attemptsCount: number;
+  completedTests: number;
+  isComplete: boolean;
+  missingTests: string[];
   index: number | null;
   baselineIndex: number | null;
   strengths: string[];
@@ -50,12 +53,13 @@ const DEEPSEEK_MODELS = ["deepseek-v4-flash", "deepseek-v4-pro"];
 const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
 const DEFAULT_MAX_OUTPUT_TOKENS = 11776;
 const MAX_CONTEXT_CHARS = 46000;
+const INCOMPLETE_AI_ANALYSIS_EMAILS = new Set(["jdanova_2002@mail.ru"]);
 
 const SYSTEM_PROMPT = [
   "Ты AI-аналитик платформы оценки персонала «Лаборатория кадров».",
   "Отвечай по-русски, спокойно, структурно и практично.",
   "Анализируй только переданные данные выбранной папки или выбранного проекта. Если контекст не выбран, отвечай как общий AI-аналитик и не выдумывай результаты кандидатов.",
-  "В контекст попадают только полностью завершенные проекты, поэтому не проси дождаться недостающих тестов.",
+  "По умолчанию в контекст попадают полностью завершенные проекты. Если пользователь отдельно подтвердил предварительный анализ, могут попасть незавершенные проекты с уже пройденными тестами: обязательно помечай такие выводы как предварительные и не делай выводов по отсутствующим тестам.",
   "Не выдумывай результаты, тесты и факты. Разделяй подтвержденные наблюдения и гипотезы.",
   "Не ставь медицинские диагнозы. Пиши понятным языком для специалиста, который принимает кадровое решение.",
 ].join(" ");
@@ -99,6 +103,10 @@ function safeJson(input: any, max = 1600) {
 
 function rubToKopeks(rub: number) {
   return rub * 100;
+}
+
+function canUseIncompleteAiAnalysis(email?: string | null) {
+  return INCOMPLETE_AI_ANALYSIS_EMAILS.has(String(email || "").trim().toLowerCase());
 }
 
 function getPriceKopeks(provider: AiProvider, model: string, mode: AiMode) {
@@ -232,13 +240,47 @@ async function loadFolder(auth: NonNullable<Awaited<ReturnType<typeof requireUse
   return data as any;
 }
 
-function getCompletedProjects(rows: any[]) {
+function getProjectProgress(row: any) {
+  const tests = Array.isArray(row?.commercial_project_tests) ? row.commercial_project_tests : [];
+  const attempts = Array.isArray(row?.commercial_project_attempts) ? row.commercial_project_attempts : [];
+  const completedSlugs = new Set(attempts.map((attempt: any) => String(attempt?.test_slug || "")).filter(Boolean));
+  const missingTests = tests
+    .filter((test: any) => !completedSlugs.has(String(test?.test_slug || "")))
+    .map((test: any) => getTestDisplayTitle(test?.test_slug, test?.test_title))
+    .filter(Boolean);
+  const total = tests.length;
+  const completed = Math.min(completedSlugs.size, total || completedSlugs.size);
+  return {
+    total,
+    completed,
+    attemptsCount: attempts.length,
+    missingTests,
+    isComplete: total > 0 && completedSlugs.size >= total,
+    isPartial: total > 0 && completedSlugs.size > 0 && completedSlugs.size < total,
+  };
+}
+
+function getProjectsForAi(rows: any[], includeIncomplete: boolean) {
   return rows.filter((row) => {
-    const tests = Array.isArray(row?.commercial_project_tests) ? row.commercial_project_tests : [];
-    const attempts = Array.isArray(row?.commercial_project_attempts) ? row.commercial_project_attempts : [];
-    const completedSlugs = new Set(attempts.map((attempt: any) => String(attempt?.test_slug || "")).filter(Boolean));
-    return tests.length > 0 && completedSlugs.size >= tests.length;
+    const progress = getProjectProgress(row);
+    return progress.isComplete || (includeIncomplete && progress.isPartial);
   });
+}
+
+function getIncompleteProjectWarnings(rows: any[]) {
+  return rows
+    .map((row) => {
+      const progress = getProjectProgress(row);
+      if (!progress.isPartial) return null;
+      return {
+        id: String(row?.id || ""),
+        name: getProjectName(row),
+        completed: progress.completed,
+        total: progress.total,
+        missing_tests: progress.missingTests,
+      };
+    })
+    .filter(Boolean);
 }
 
 async function loadProjects(
@@ -246,7 +288,8 @@ async function loadProjects(
   workspaceId: string,
   scope: AiContextScope,
   folderId?: string | null,
-  projectId?: string | null
+  projectId?: string | null,
+  includeIncomplete = false
 ) {
   const selectWithRegistry = `
     id,
@@ -301,7 +344,7 @@ async function loadProjects(
   let result = await makeQuery(selectWithRegistry);
   if (isRegistrySchemaMissing(result.error)) result = await makeQuery(selectBase);
   if (result.error) throw result.error;
-  return getCompletedProjects((result.data || []) as any[]);
+  return getProjectsForAi((result.data || []) as any[], includeIncomplete);
 }
 
 function stableString(value: any) {
@@ -381,6 +424,7 @@ async function buildProjectContext(row: any, fitRequest: string) {
   const person = row?.commercial_people || {};
   const tests = Array.isArray(row?.commercial_project_tests) ? row.commercial_project_tests : [];
   const attempts = Array.isArray(row?.commercial_project_attempts) ? row.commercial_project_attempts : [];
+  const progress = getProjectProgress(row);
   const goalTitle = getGoalDefinition(row?.goal)?.title || row?.goal || "цель не указана";
   const project = {
     id: row?.id,
@@ -427,6 +471,9 @@ async function buildProjectContext(row: any, fitRequest: string) {
     currentPosition: person?.current_position || null,
     testsCount: tests.length,
     attemptsCount: attempts.length,
+    completedTests: progress.completed,
+    isComplete: progress.isComplete,
+    missingTests: progress.missingTests,
     index: analysis?.calibrated.index ?? null,
     baselineIndex: analysis?.baseline.index ?? null,
     strengths: analysis?.calibrated.strengths.slice(0, 6) || [],
@@ -443,7 +490,10 @@ async function buildProjectContext(row: any, fitRequest: string) {
       `Цель оценки: ${summary.goalTitle}`,
       summary.targetRole ? `Целевая роль: ${summary.targetRole}` : "",
       summary.currentPosition ? `Текущая должность: ${summary.currentPosition}` : "",
-      `Назначено тестов: ${summary.testsCount}; пройдено: ${summary.attemptsCount}.`,
+      `Назначено тестов: ${summary.testsCount}; пройдено разных тестов: ${summary.completedTests}; попыток с результатами: ${summary.attemptsCount}.`,
+      !summary.isComplete
+        ? `ВНИМАНИЕ: проект не завершен, анализ предварительный. Не хватает тестов: ${summary.missingTests.join(", ") || "не указаны"}.`
+        : "",
       tests.length
         ? `Назначенные тесты: ${tests
             .map((test: any) => getTestDisplayTitle(test?.test_slug, test?.test_title))
@@ -540,7 +590,7 @@ function buildInsightSchema(mode: AiMode, contextLabel: string, projectSummaries
   return {
     type: "folder",
     title: contextLabel,
-    subtitle: focusRequest ? `Фокус: ${focusRequest}` : "Сравнение завершенных проектов",
+    subtitle: focusRequest ? `Фокус: ${focusRequest}` : "Сравнение проектов в выбранном контексте",
     summary: ranked[0]
       ? `Лидер по текущей модели оценки: ${ranked[0].name} (${ranked[0].index}/100). Схема показывает, кто сильнее по ключевым компетенциям и кто лучше подходит под заданный запрос.`
       : "Недостаточно данных для сравнения.",
@@ -564,12 +614,15 @@ async function buildAnalysisContext(args: {
   folderId: string;
   projectId?: string | null;
   fitRequest: string;
+  includeIncompleteProjects: boolean;
+  incompleteAnalysisConsent: boolean;
 }) {
   if (args.scope === "none") {
     return {
       folder: { id: "none", name: "Обычное сообщение", icon_key: null, workspace_id: args.workspaceId },
       projects: [],
       projectSummaries: [],
+      incompleteProjects: [],
       signature: "",
       context: [
         "Контекст: не выбрана папка или отдельный кандидат.",
@@ -591,16 +644,40 @@ async function buildAnalysisContext(args: {
     if (!access.allowed) throw new Error("Нет доступа к проекту.");
   }
 
-  const projects = await loadProjects(args.auth, args.workspaceId, args.scope, args.scope === "folder" ? args.folderId : null, args.projectId || null);
+  const projects = await loadProjects(
+    args.auth,
+    args.workspaceId,
+    args.scope,
+    args.scope === "folder" ? args.folderId : null,
+    args.projectId || null,
+    args.includeIncompleteProjects
+  );
+  const incompleteProjects = getIncompleteProjectWarnings(projects);
+  if (incompleteProjects.length && !args.incompleteAnalysisConsent) {
+    throw new Error("В выбранном контексте есть кандидаты с незавершенными тестами. Подтвердите предварительный анализ, чтобы AI использовал только уже пройденные результаты.");
+  }
   if (!projects.length) {
-    throw new Error(args.projectId ? "Выбранный проект еще не завершен или не входит в выбранный контекст." : "В выбранном контексте нет полностью завершенных проектов.");
+    throw new Error(
+      args.projectId
+        ? (args.includeIncompleteProjects
+            ? "Выбранный проект еще не имеет пройденных тестов или не входит в выбранный контекст."
+            : "Выбранный проект еще не завершен или не входит в выбранный контекст.")
+        : (args.includeIncompleteProjects
+            ? "В выбранном контексте нет проектов с результатами для анализа."
+            : "В выбранном контексте нет полностью завершенных проектов.")
+    );
   }
 
   const contexts = await Promise.all(projects.map((row) => buildProjectContext(row, args.fitRequest)));
   const context = compactText(
     [
       `Контекст: ${folder.name}`,
-      `В анализе только полностью завершенные проекты: ${projects.length}`,
+      incompleteProjects.length
+        ? `В анализе проектов: ${projects.length}. Незавершенных с предварительным выводом: ${incompleteProjects.length}.`
+        : `В анализе полностью завершенные проекты: ${projects.length}`,
+      incompleteProjects.length
+        ? `Предупреждение: по незавершенным проектам используй только уже пройденные тесты. Не хватает: ${incompleteProjects.map((item: any) => `${item.name} (${item.completed}/${item.total})`).join("; ")}.`
+        : "",
       "",
       contexts.map((item, index) => `--- Проект ${index + 1} ---\n${item.block}`).join("\n\n"),
     ].join("\n"),
@@ -611,6 +688,7 @@ async function buildAnalysisContext(args: {
     folder,
     projects,
     projectSummaries: contexts.map((item) => item.summary),
+    incompleteProjects,
     signature: computeContextSignature({ scope: args.scope, folderId: args.scope === "folder" ? args.folderId : null, projectId: args.projectId || null, projects }),
     context,
   };
@@ -623,12 +701,15 @@ async function buildFollowUpContext(args: {
   folderId: string;
   projectId?: string | null;
   expectedSignature: string;
+  includeIncompleteProjects: boolean;
+  incompleteAnalysisConsent: boolean;
 }) {
   if (args.scope === "none") {
     return {
       folder: { id: "none", name: "Обычное сообщение", icon_key: null, workspace_id: args.workspaceId },
       projects: [],
       projectSummaries: [],
+      incompleteProjects: [],
       signature: "",
       context: "Контекст проектов не выбран. Отвечай на общий вопрос без ссылок на конкретные результаты кандидатов.",
     };
@@ -646,9 +727,26 @@ async function buildFollowUpContext(args: {
     if (!access.allowed) throw new Error("Нет доступа к проекту.");
   }
 
-  const projects = await loadProjects(args.auth, args.workspaceId, args.scope, args.scope === "folder" ? args.folderId : null, args.projectId || null);
+  const projects = await loadProjects(
+    args.auth,
+    args.workspaceId,
+    args.scope,
+    args.scope === "folder" ? args.folderId : null,
+    args.projectId || null,
+    args.includeIncompleteProjects
+  );
+  const incompleteProjects = getIncompleteProjectWarnings(projects);
+  if (incompleteProjects.length && !args.incompleteAnalysisConsent) {
+    throw new Error("Этот чат был начат с незавершенными проектами. Подтвердите предварительный анализ, чтобы продолжить.");
+  }
   if (!projects.length) {
-    throw new Error(args.projectId ? "Выбранный проект изменился или больше не входит в выбранный контекст." : "Состав папки изменился или в ней нет полностью завершенных проектов.");
+    throw new Error(
+      args.projectId
+        ? "Выбранный проект изменился или больше не входит в выбранный контекст."
+        : (args.includeIncompleteProjects
+            ? "Состав папки изменился или в ней нет проектов с результатами для анализа."
+            : "Состав папки изменился или в ней нет полностью завершенных проектов.")
+    );
   }
 
   const signature = computeContextSignature({ scope: args.scope, folderId: args.scope === "folder" ? args.folderId : null, projectId: args.projectId || null, projects });
@@ -660,10 +758,12 @@ async function buildFollowUpContext(args: {
     folder,
     projects,
     projectSummaries: projects.map((row) => ({ projectId: row?.id || "", name: getProjectName(row) })) as any[],
+    incompleteProjects,
     signature,
     context: [
       `Контекст уже был проанализирован в этом чате: ${folder.name}.`,
-      args.projectId ? `Выбранный человек: ${getProjectName(projects[0])}.` : `Состав контекста не изменился: ${projects.length} завершенных проектов.`,
+      args.projectId ? `Выбранный человек: ${getProjectName(projects[0])}.` : `Состав контекста не изменился: ${projects.length} проектов.`,
+      incompleteProjects.length ? "Часть проектов была проанализирована предварительно, потому что тесты пройдены не полностью." : "",
       "Используй историю этого чата и предыдущий анализ. Не пересчитывай папку или человека заново и не добавляй новые оценки, если их нет в истории.",
     ].join("\n"),
   };
@@ -729,6 +829,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const projectId = String(body.project_id || "").trim();
   const message = String(body.message || "").trim();
   const expectedSignature = String(body.expected_context_signature || "").trim();
+  const incompleteAnalysisAllowed = canUseIncompleteAiAnalysis(auth.user.email);
+  const includeIncompleteProjects = incompleteAnalysisAllowed && (body.include_incomplete_projects === true || body.include_incomplete_projects === "true");
+  const incompleteAnalysisConsent = incompleteAnalysisAllowed && (body.incomplete_analysis_consent === true || body.incomplete_analysis_consent === "true");
   const mode: AiMode =
     requestedMode === "message"
       ? "message"
@@ -776,6 +879,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             folderId,
             projectId: projectId || null,
             expectedSignature,
+            includeIncompleteProjects,
+            incompleteAnalysisConsent,
           })
         : await buildAnalysisContext({
             auth,
@@ -784,6 +889,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             folderId,
             projectId: mode === "project_message" ? projectId : null,
             fitRequest: message,
+            includeIncompleteProjects,
+            incompleteAnalysisConsent,
           });
     const projectName = contextPayload.projectSummaries[0]?.name || null;
     const messages = buildMessages({
@@ -825,6 +932,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       context_label: responseContextLabel,
       project: mode === "project_message" ? { id: contextPayload.projects[0]?.id || projectId, name: projectName } : null,
       context_signature: contextPayload.signature,
+      incomplete_projects: contextPayload.incompleteProjects,
+      analysis_warning: contextPayload.incompleteProjects.length ? "Часть выводов предварительная: в контексте есть проекты с незавершенными тестами." : null,
       price_kopeks: priceKopeks,
       charged_kopeks: charge.charged_kopeks,
       balance_kopeks: charge.balance_kopeks,

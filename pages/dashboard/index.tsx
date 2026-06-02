@@ -192,6 +192,7 @@ type AssemblyAiChat = {
     contextScope: "folder" | "loose";
     folderId: string | null;
     projectId: string | null;
+    includeIncomplete?: boolean;
     signature: string;
     serverSignature?: string;
   } | null;
@@ -307,6 +308,7 @@ const TRASH_STORAGE_PREFIX = "commercialTrash:v18365:";
 const LAYOUT_BACKUP_STORAGE_PREFIX = "commercialLayoutBackups:v1:";
 const SHARED_SCENE_STANDARD_FALLBACK_KEY = "commercialSharedSceneStandard:last";
 const ASSEMBLY_AI_CHATS_STORAGE_PREFIX = "commercialAssemblyAiChats:v1:";
+const INCOMPLETE_AI_ANALYSIS_EMAIL = "jdanova_2002@mail.ru";
 const MAX_LAYOUT_BACKUPS = 8;
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
@@ -991,6 +993,21 @@ function isProjectReadyForAi(project: ProjectRow) {
   return project.tests.length > 0 && project.attempts_count >= project.tests.length;
 }
 
+function getProjectAiProgress(project: ProjectRow) {
+  const total = project.tests?.length || 0;
+  const completed = Math.min(project.attempts_count || 0, total || 0);
+  return { total, completed };
+}
+
+function isProjectPartiallyReadyForAi(project: ProjectRow) {
+  const { total, completed } = getProjectAiProgress(project);
+  return total > 0 && completed > 0 && completed < total;
+}
+
+function isProjectAvailableForAi(project: ProjectRow, includeIncomplete: boolean) {
+  return isProjectReadyForAi(project) || (includeIncomplete && isProjectPartiallyReadyForAi(project));
+}
+
 function makeAssemblyChatTitle(input: string) {
   const text = input.replace(/\s+/g, " ").trim();
   if (!text) return "Новый чат";
@@ -1423,6 +1440,7 @@ export default function DashboardPage() {
   const { wallet, ledger, loading: walletLoading, isUnlimited, refresh: refreshWallet } = useWallet();
   const isAdmin = isAdminEmail(user?.email);
   const canManageGlobalTemplates = isGlobalTemplateOwnerEmail(user?.email);
+  const canUseIncompleteAiAnalysis = String(user?.email || data?.profile?.email || "").trim().toLowerCase() === INCOMPLETE_AI_ANALYSIS_EMAIL;
   const [mechanicPulse, setMechanicPulse] = useState(0);
   const [deskPositions, setDeskPositions] = useState<DeskPositions>({});
   const [deskLayer, setDeskLayer] = useState(300);
@@ -1477,6 +1495,8 @@ export default function DashboardPage() {
   const [assemblyAiMode, setAssemblyAiMode] = useState<AssemblyAiMode>("message");
   const [assemblyAiContextScope, setAssemblyAiContextScope] = useState<AssemblyAiContextScope>("folder");
   const [assemblyAiFolderTarget, setAssemblyAiFolderTarget] = useState<AssemblyAiFolderTarget>("folder");
+  const [assemblyAiIncludeIncomplete, setAssemblyAiIncludeIncomplete] = useState(false);
+  const [assemblyAiIncompleteConsent, setAssemblyAiIncompleteConsent] = useState(false);
   const [assemblyAiProjectId, setAssemblyAiProjectId] = useState("");
   const [assemblyAiDraft, setAssemblyAiDraft] = useState("");
   const [assemblyAiChats, setAssemblyAiChats] = useState<AssemblyAiChat[]>([]);
@@ -2806,13 +2826,14 @@ export default function DashboardPage() {
     () => folderBuckets.byFolder.find((item) => item.folder.id === assemblyFolderId) || null,
     [assemblyFolderId, folderBuckets.byFolder]
   );
+  const assemblyAiIncludeIncompleteEffective = canUseIncompleteAiAnalysis && assemblyAiIncludeIncomplete;
   const completedFolderBuckets = useMemo(
-    () => folderBuckets.byFolder.map((item) => ({ ...item, projects: item.projects.filter(isProjectReadyForAi) })),
-    [folderBuckets.byFolder]
+    () => folderBuckets.byFolder.map((item) => ({ ...item, projects: item.projects.filter((project) => isProjectAvailableForAi(project, assemblyAiIncludeIncompleteEffective)) })),
+    [assemblyAiIncludeIncompleteEffective, folderBuckets.byFolder]
   );
   const completedLooseProjects = useMemo(
-    () => folderBuckets.uncategorized.filter(isProjectReadyForAi),
-    [folderBuckets.uncategorized]
+    () => folderBuckets.uncategorized.filter((project) => isProjectAvailableForAi(project, assemblyAiIncludeIncompleteEffective)),
+    [assemblyAiIncludeIncompleteEffective, folderBuckets.uncategorized]
   );
   const completedFoldersForAi = useMemo(
     () => completedFolderBuckets.filter((item) => item.projects.length > 0),
@@ -2830,7 +2851,7 @@ export default function DashboardPage() {
   const assemblyAiContextLabel = assemblyAiContextScope === "folder"
     ? assemblyCompletedFolder?.folder.name || "Папка не выбрана"
     : assemblyAiContextScope === "loose"
-      ? "Готовые проекты без папки"
+      ? (assemblyAiIncludeIncompleteEffective ? "Проекты без папки" : "Готовые проекты без папки")
       : "Обычное сообщение";
   const assemblySuggestedCompetencies = useMemo(() => {
     if (!assemblyFolder?.projects.length) return COMPETENCY_ROUTES;
@@ -2867,6 +2888,15 @@ export default function DashboardPage() {
     }
     return "";
   }, [assemblyAiAnalysisMode, assemblyAiContextProjects, assemblyAiSelectedProject, assemblyCompletedFolder?.folder.id]);
+  const assemblyAiAnalysisProjects = useMemo(
+    () => assemblyAiAnalysisMode === "project_message" ? (assemblyAiSelectedProject ? [assemblyAiSelectedProject] : []) : assemblyAiContextProjects,
+    [assemblyAiAnalysisMode, assemblyAiContextProjects, assemblyAiSelectedProject]
+  );
+  const assemblyAiIncompleteProjects = useMemo(
+    () => assemblyAiAnalysisProjects.filter(isProjectPartiallyReadyForAi),
+    [assemblyAiAnalysisProjects]
+  );
+  const assemblyAiCurrentIncludesIncomplete = assemblyAiIncludeIncompleteEffective && assemblyAiIncompleteProjects.length > 0;
   const assemblyAiCanFollowUp = Boolean(
     assemblyAiActiveChat?.analysisAnchor &&
     assemblyAiCurrentSignature &&
@@ -2874,8 +2904,10 @@ export default function DashboardPage() {
     assemblyAiActiveChat.analysisAnchor.mode === assemblyAiAnalysisMode &&
     assemblyAiActiveChat.analysisAnchor.contextScope === assemblyAiContextScope &&
     assemblyAiActiveChat.analysisAnchor.folderId === (assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || null : null) &&
-    assemblyAiActiveChat.analysisAnchor.projectId === (assemblyAiAnalysisMode === "project_message" ? assemblyAiSelectedProject?.id || null : null)
+    assemblyAiActiveChat.analysisAnchor.projectId === (assemblyAiAnalysisMode === "project_message" ? assemblyAiSelectedProject?.id || null : null) &&
+    Boolean(assemblyAiActiveChat.analysisAnchor.includeIncomplete) === assemblyAiCurrentIncludesIncomplete
   );
+  const assemblyAiNeedsIncompleteConsent = assemblyAiCurrentIncludesIncomplete && !assemblyAiCanFollowUp;
   const assemblyAiEffectiveMode: AssemblyAiMode =
     assemblyAiAnalysisMode === "message" || assemblyAiCanFollowUp ? "message" : assemblyAiAnalysisMode;
   const assemblyAiMaxOutputTokens = assemblyAiEffectiveMode === "message" ? 3000 : ASSEMBLY_AI_MAX_OUTPUT_TOKENS;
@@ -2899,6 +2931,7 @@ export default function DashboardPage() {
   const assemblyAiCanSend =
     !assemblyAiBusy &&
     assemblyAiCanAfford &&
+    (!assemblyAiNeedsIncompleteConsent || assemblyAiIncompleteConsent) &&
     (assemblyAiEffectiveMode === "message"
       ? Boolean(assemblyAiDraft.trim())
       : assemblyAiEffectiveMode === "folder_analysis"
@@ -2945,13 +2978,18 @@ export default function DashboardPage() {
         setAssemblyAiModel(chats[0].model || "gpt-5.4-mini");
         setAssemblyAiContextScope(chats[0].contextScope || "folder");
         setAssemblyAiFolderTarget(chats[0].contextScope === "folder" && chats[0].analysisAnchor?.mode === "project_message" ? "person" : "folder");
+        {
+          const chatIncludesIncomplete = canUseIncompleteAiAnalysis && Boolean(chats[0].analysisAnchor?.includeIncomplete);
+          setAssemblyAiIncludeIncomplete(chatIncludesIncomplete);
+          setAssemblyAiIncompleteConsent(chatIncludesIncomplete);
+        }
         setAssemblyFolderId(chats[0].folderId || null);
         setAssemblyAiProjectId(chats[0].projectId || "");
       }
     } catch {
       setAssemblyAiChats([]);
     }
-  }, [assemblyAiActiveChatId, assemblyAiStorageKey]);
+  }, [assemblyAiActiveChatId, assemblyAiStorageKey, canUseIncompleteAiAnalysis]);
 
   const openAssemblyAiChat = useCallback((chat: AssemblyAiChat) => {
     setAssemblyAiActiveChatId(chat.id);
@@ -2961,16 +2999,23 @@ export default function DashboardPage() {
     setAssemblyAiModel(chat.model || "gpt-5.4-mini");
     setAssemblyAiContextScope(chat.contextScope || "folder");
     setAssemblyAiFolderTarget(chat.contextScope === "folder" && chat.analysisAnchor?.mode === "project_message" ? "person" : "folder");
+    {
+      const chatIncludesIncomplete = canUseIncompleteAiAnalysis && Boolean(chat.analysisAnchor?.includeIncomplete);
+      setAssemblyAiIncludeIncomplete(chatIncludesIncomplete);
+      setAssemblyAiIncompleteConsent(chatIncludesIncomplete);
+    }
     setAssemblyFolderId(chat.folderId || null);
     setAssemblyAiProjectId(chat.projectId || "");
     setAssemblyAiDraft("");
     setAssemblyAiError("");
-  }, []);
+  }, [canUseIncompleteAiAnalysis]);
 
   const startNewAssemblyAiChat = useCallback(() => {
     setAssemblyAiActiveChatId("");
     setAssemblyAiInsight(null);
     setAssemblyAiFolderTarget("folder");
+    setAssemblyAiIncludeIncomplete(false);
+    setAssemblyAiIncompleteConsent(false);
     setAssemblyAiDraft("");
     setAssemblyAiError("");
     setAssemblyAiLastCharge(null);
@@ -3000,6 +3045,17 @@ export default function DashboardPage() {
     if (assemblyAiModelOptions.some((item) => item.id === assemblyAiModel)) return;
     setAssemblyAiModel(assemblyAiModelOptions[0]?.id || "gpt-5.4-mini");
   }, [assemblyAiModel, assemblyAiModelOptions]);
+
+  useEffect(() => {
+    if (canUseIncompleteAiAnalysis) return;
+    setAssemblyAiIncludeIncomplete(false);
+    setAssemblyAiIncompleteConsent(false);
+  }, [canUseIncompleteAiAnalysis]);
+
+  useEffect(() => {
+    if (assemblyAiIncludeIncompleteEffective) return;
+    setAssemblyAiIncompleteConsent(false);
+  }, [assemblyAiIncludeIncompleteEffective]);
 
   useEffect(() => {
     if (!assemblyAiContextProjects.length) {
@@ -3105,11 +3161,11 @@ export default function DashboardPage() {
     if (!session?.access_token) return;
     const mode = modeOverride || assemblyAiEffectiveMode;
     if (mode === "folder_analysis" && !assemblyCompletedFolder) {
-      setAssemblyAiError("Выберите папку с полностью завершенными проектами.");
+      setAssemblyAiError(assemblyAiIncludeIncompleteEffective ? "Выберите папку с проектами, где есть хотя бы один пройденный тест." : "Выберите папку с полностью завершенными проектами.");
       return;
     }
     if (mode === "folder_analysis" && !assemblyAiContextProjects.length) {
-      setAssemblyAiError("В выбранном контексте пока нет полностью завершенных проектов.");
+      setAssemblyAiError(assemblyAiIncludeIncompleteEffective ? "В выбранном контексте пока нет проектов с пройденными тестами." : "В выбранном контексте пока нет полностью завершенных проектов.");
       return;
     }
     const draft = assemblyAiDraft.trim();
@@ -3118,7 +3174,11 @@ export default function DashboardPage() {
       return;
     }
     if (mode === "project_message" && !assemblyAiSelectedProject) {
-      setAssemblyAiError("Выберите завершенный проект-человека для персонального сообщения.");
+      setAssemblyAiError(assemblyAiIncludeIncompleteEffective ? "Выберите проект-человека с уже пройденными тестами." : "Выберите завершенный проект-человека для персонального сообщения.");
+      return;
+    }
+    if (assemblyAiNeedsIncompleteConsent && !assemblyAiIncompleteConsent) {
+      setAssemblyAiError("Подтвердите предварительный анализ незавершенных кандидатов. AI будет использовать только уже пройденные тесты.");
       return;
     }
     if (!assemblyAiCanAfford) {
@@ -3138,7 +3198,12 @@ export default function DashboardPage() {
           ? assemblyAiActiveChat?.analysisAnchor?.projectId || ""
           : "";
     const userMessage: AssemblyAiMessage = { id: `assembly-ai-user-${Date.now()}`, role: "user", content: visibleText };
-    const pendingMessage: AssemblyAiMessage = { id: `assembly-ai-pending-${Date.now()}`, role: "assistant", content: "Собираю завершенные проекты и готовлю ответ...", pending: true };
+    const pendingMessage: AssemblyAiMessage = {
+      id: `assembly-ai-pending-${Date.now()}`,
+      role: "assistant",
+      content: assemblyAiCurrentIncludesIncomplete ? "Собираю результаты и готовлю предварительный ответ..." : "Собираю завершенные проекты и готовлю ответ...",
+      pending: true,
+    };
     const history = assemblyAiMessages
       .filter((item) => item.id !== "assembly-ai-welcome" && !item.pending)
       .slice(-8)
@@ -3156,6 +3221,7 @@ export default function DashboardPage() {
       const expectedSignature = mode === "message" && assemblyAiCanFollowUp
         ? assemblyAiActiveChat?.analysisAnchor?.serverSignature || assemblyAiActiveChat?.analysisAnchor?.signature || assemblyAiCurrentSignature
         : "";
+      const requestIncompleteConsent = assemblyAiIncompleteConsent || (assemblyAiCanFollowUp && assemblyAiCurrentIncludesIncomplete);
       const resp = await fetch("/api/commercial/ai-folder-chat", {
         method: "POST",
         headers: {
@@ -3170,6 +3236,8 @@ export default function DashboardPage() {
           folder_id: assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || "" : "",
           project_id: requestProjectId,
           expected_context_signature: expectedSignature,
+          include_incomplete_projects: assemblyAiIncludeIncompleteEffective,
+          incomplete_analysis_consent: requestIncompleteConsent,
           message: draft,
           history,
           max_output_tokens: assemblyAiMaxOutputTokens,
@@ -3196,6 +3264,7 @@ export default function DashboardPage() {
               contextScope: assemblyAiContextScope === "folder" ? "folder" as const : "loose" as const,
               folderId: assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || null : null,
               projectId: mode === "project_message" ? assemblyAiSelectedProject?.id || null : null,
+              includeIncomplete: assemblyAiCurrentIncludesIncomplete,
               signature: assemblyAiCurrentSignature,
               serverSignature: String(json.context_signature || ""),
             }
@@ -3237,12 +3306,16 @@ export default function DashboardPage() {
     assemblyAiContextScope,
     assemblyAiDraft,
     assemblyAiEffectiveMode,
+    assemblyAiIncompleteConsent,
+    assemblyAiIncludeIncompleteEffective,
+    assemblyAiCurrentIncludesIncomplete,
     assemblyAiCurrentSignature,
     assemblyAiInsight,
     assemblyAiMessages,
     assemblyAiMaxOutputTokens,
     assemblyAiMode,
     assemblyAiModel,
+    assemblyAiNeedsIncompleteConsent,
     assemblyAiPriceRub,
     assemblyAiProvider,
     assemblyAiSelectedProject,
@@ -4151,6 +4224,47 @@ export default function DashboardPage() {
                 </button>
               </div>
 
+              {canUseIncompleteAiAnalysis ? (
+                <div className="mt-3 rounded-[18px] border border-[#ead8b4] bg-[#fff8ea] px-3 py-3">
+                  <label className="flex items-start gap-3 text-sm font-semibold text-[#5d4320]">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-[#cba46a] text-[#4d9b72] focus:ring-[#d8ecd1]"
+                      checked={assemblyAiIncludeIncomplete}
+                      onChange={(event) => {
+                        setAssemblyAiIncludeIncomplete(event.target.checked);
+                        if (!event.target.checked) setAssemblyAiIncompleteConsent(false);
+                      }}
+                      disabled={assemblyAiBusy}
+                    />
+                    <span>
+                      Включить незавершенных кандидатов
+                      <span className="mt-1 block text-xs font-normal leading-5 text-[#7b6143]">
+                        Доступно только для {INCOMPLETE_AI_ANALYSIS_EMAIL}. В анализ попадут кандидаты, у которых есть хотя бы один пройденный тест.
+                      </span>
+                    </span>
+                  </label>
+                  {assemblyAiCurrentIncludesIncomplete ? (
+                    <div className="mt-3 rounded-[14px] border border-[#dfc18c] bg-white/78 px-3 py-2">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8a6a41]">Предварительный анализ</div>
+                      <div className="mt-1 text-xs leading-5 text-[#6f5a3c]">
+                        Незавершенных в выбранном анализе: {assemblyAiIncompleteProjects.length}. AI будет учитывать только уже пройденные тесты и отдельно пометит выводы как предварительные.
+                      </div>
+                      <label className="mt-2 flex items-start gap-2 text-xs font-semibold leading-5 text-[#5d4320]">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 rounded border-[#cba46a] text-[#4d9b72] focus:ring-[#d8ecd1]"
+                          checked={assemblyAiIncompleteConsent}
+                          onChange={(event) => setAssemblyAiIncompleteConsent(event.target.checked)}
+                          disabled={assemblyAiBusy}
+                        />
+                        <span>Подтверждаю, что вывод по незавершенным кандидатам будет предварительным.</span>
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {assemblyAiContextScope === "folder" ? (
                 <div className="mt-3 space-y-2">
                   {completedFoldersForAi.length ? completedFoldersForAi.map(({ folder, projects }) => {
@@ -4164,12 +4278,15 @@ export default function DashboardPage() {
                         disabled={assemblyAiBusy}
                       >
                         <div className="text-sm font-semibold text-[#223548]">{folder.name}</div>
-                        <div className="mt-1 text-xs text-[#64788c]">Готовы к анализу: {projects.length}</div>
+                        <div className="mt-1 text-xs text-[#64788c]">
+                          Готовы к анализу: {projects.length}
+                          {assemblyAiIncludeIncompleteEffective && projects.some(isProjectPartiallyReadyForAi) ? " · есть предварительные" : ""}
+                        </div>
                       </button>
                     );
                   }) : (
                     <div className="rounded-[20px] border border-dashed border-[#cfdbe7] bg-white/75 px-4 py-5 text-sm leading-6 text-[#6f8193]">
-                      В папках пока нет полностью завершенных проектов.
+                      {assemblyAiIncludeIncompleteEffective ? "В папках пока нет проектов с пройденными тестами." : "В папках пока нет полностью завершенных проектов."}
                     </div>
                   )}
                   {assemblyCompletedFolder?.projects.length ? (
@@ -4198,7 +4315,7 @@ export default function DashboardPage() {
                 </div>
               ) : assemblyAiContextScope === "loose" ? (
                 <div className="mt-3 rounded-[20px] border border-[#d5deea] bg-white px-4 py-3">
-                  <div className="text-sm font-semibold text-[#223548]">Готовые проекты без папки</div>
+                  <div className="text-sm font-semibold text-[#223548]">{assemblyAiIncludeIncompleteEffective ? "Проекты без папки" : "Готовые проекты без папки"}</div>
                   <div className="mt-1 text-xs text-[#64788c]">В контексте: {completedLooseProjects.length}</div>
                 </div>
               ) : (
@@ -4223,24 +4340,32 @@ export default function DashboardPage() {
                     {assemblyAiContextProjects.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.person?.full_name || project.title}
+                        {isProjectPartiallyReadyForAi(project) ? ` · предварительно ${getProjectAiProgress(project).completed}/${getProjectAiProgress(project).total}` : ""}
                       </option>
                     ))}
                   </select>
                   <div className="mt-3 space-y-2">
-                    {assemblyAiContextProjects.slice(0, 8).map((project) => (
-                      <div key={project.id} className="rounded-[16px] border border-[#e4ebf3] bg-[#f9fbfe] px-3 py-2.5">
+                    {assemblyAiContextProjects.slice(0, 8).map((project) => {
+                      const progress = getProjectAiProgress(project);
+                      const partial = isProjectPartiallyReadyForAi(project);
+                      return (
+                      <div key={project.id} className={`rounded-[16px] border px-3 py-2.5 ${partial ? "border-[#ead8b4] bg-[#fffaf0]" : "border-[#e4ebf3] bg-[#f9fbfe]"}`}>
                         <div className="text-sm font-semibold text-[#223548]">{project.person?.full_name || project.title}</div>
                         <div className="mt-1 text-xs text-[#6b7f93]">
                           {getGoalDefinition(project.goal)?.shortTitle || getGoalDefinition(project.goal)?.title || project.goal}
                           {project.target_role ? ` · ${project.target_role}` : ""}
                         </div>
+                        {partial ? (
+                          <div className="mt-1 text-xs font-semibold text-[#8a6a41]">Предварительно: {progress.completed}/{progress.total} тестов</div>
+                        ) : null}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </>
               ) : (
                 <div className="mt-3 rounded-[20px] border border-dashed border-[#cfdbe7] bg-[#fbfdff] px-4 py-5 text-sm leading-6 text-[#6f8193]">
-                  Здесь появятся только люди, которые полностью завершили все назначенные тесты.
+                  {assemblyAiIncludeIncompleteEffective ? "Здесь появятся люди, у которых есть хотя бы один пройденный тест." : "Здесь появятся только люди, которые полностью завершили все назначенные тесты."}
                 </div>
               )}
             </div>
