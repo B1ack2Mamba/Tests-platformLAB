@@ -8,6 +8,7 @@ import { DEFAULT_TEST_INTERPRETATIONS } from "@/lib/defaultTestInterpretations";
 import { isEvaluationPackage, isPackageAccessible, type EvaluationPackage } from "@/lib/commercialGoals";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
+import { canUseIncompleteProjectResults } from "@/lib/incompleteProjectAccess";
 
 const MAX_BATCH_SIZE = 3;
 const EVALUATION_CACHE_VERSION = "commercial-evaluation-cache-v1";
@@ -168,12 +169,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const completed = new Set(attempts.map((item) => item.test_slug)).size;
     const total = tests.length;
     const fully_done = total > 0 && completed >= total;
+    const partial_results_allowed = canUseIncompleteProjectResults(authed.user.email, completed, total);
 
     const unlockedMode = ((data as any).unlocked_package_mode || null) as EvaluationPackage | null;
     const modeToBuild = requestedMode || unlockedMode;
 
     if (!modeToBuild) {
-      return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, evaluation: null, unlocked_package_mode: unlockedMode });
+      return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, partial_results_allowed, evaluation: null, unlocked_package_mode: unlockedMode });
     }
 
     if (!isPackageAccessible(unlockedMode, modeToBuild)) {
@@ -246,6 +248,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           fully_done,
           completed,
           total,
+          partial_results_allowed,
           evaluation: cached.data.evaluation,
           unlocked_package_mode: unlockedMode,
           stage,
@@ -305,7 +308,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logApiError("commercial.projects.evaluation.cache_write", requestId, cacheWrite.error, { project_id: id, stage, mode: modeToBuild });
     }
 
-    return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, evaluation, unlocked_package_mode: unlockedMode, stage, has_more: hasMore, batch: { current: currentBatch, total: totalBatches }, cached: false });
+    return res.status(200).json({ ok: true, request_id: requestId, fully_done, completed, total, partial_results_allowed, evaluation, unlocked_package_mode: unlockedMode, stage, has_more: hasMore, batch: { current: currentBatch, total: totalBatches }, cached: false });
   } catch (error: any) {
     logApiError("commercial.projects.evaluation", requestId, error, { project_id: id, stage, mode: requestedMode || null });
     return res.status(400).json({ ok: false, request_id: requestId, error: error?.message || "Не удалось собрать оценку" });

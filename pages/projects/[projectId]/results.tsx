@@ -23,6 +23,7 @@ type ResultsPagePayload = {
   fully_done: boolean;
   completed: number;
   total: number;
+  partial_results_allowed: boolean;
   collected_at: string | null;
   collect_mode: "view" | "collect";
   project: {
@@ -54,6 +55,7 @@ type EvaluationPayload = {
   fully_done: boolean;
   completed: number;
   total: number;
+  partial_results_allowed?: boolean;
   unlocked_package_mode?: EvaluationPackage | null;
   stage?: "summary" | "tests" | "competencies" | "full";
   has_more?: boolean;
@@ -373,6 +375,8 @@ export default function ProjectResultsStandalonePage() {
   const evaluationRequestIdRef = useRef<Partial<Record<EvaluationPackage, number>>>({});
   const loadedResultsKeyRef = useRef("");
   const resultsLoadInFlightKeyRef = useRef("");
+  const partialResultsAllowed = Boolean(data?.partial_results_allowed);
+  const resultsReady = Boolean(data?.fully_done || partialResultsAllowed);
 
   async function loadResults(explicitCollect: boolean, options?: { showSkeleton?: boolean; announce?: string }) {
     if (!session?.access_token || !projectId) return null;
@@ -711,11 +715,11 @@ export default function ProjectResultsStandalonePage() {
   }, [data?.project.unlocked_package_mode]);
 
   useEffect(() => {
-    if (!activeEvaluationMode || !data?.fully_done || !data?.project.unlocked_package_mode) return;
+    if (!activeEvaluationMode || !resultsReady || !data?.project.unlocked_package_mode) return;
     if (!isPackageAccessible(data.project.unlocked_package_mode, activeEvaluationMode)) return;
     if (evaluationByMode[activeEvaluationMode] || evaluationLoading[activeEvaluationMode]) return;
     loadEvaluation(activeEvaluationMode, activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
-  }, [activeEvaluationMode, data?.fully_done, data?.project.unlocked_package_mode, aiPlusRequest, fitRequested, fitProfileId, fitRequest]);
+  }, [activeEvaluationMode, resultsReady, data?.project.unlocked_package_mode, aiPlusRequest, fitRequested, fitProfileId, fitRequest]);
 
   const blueprint = data?.blueprint || null;
   const coverage = blueprint?.summary.promptCoverage || null;
@@ -997,7 +1001,7 @@ export default function ProjectResultsStandalonePage() {
                   <div className="font-serif text-[1.7rem] leading-tight text-[#5b4321] sm:text-[2.05rem]">Проект: {data?.project.title || "Результаты проекта"}</div>
                   <div className="mt-5 text-[1.5rem] font-semibold leading-tight text-[#2d2a22] sm:text-[1.7rem]">{data?.project.person?.full_name || "Участник проекта"}</div>
                   <div className="mt-2 space-y-1 text-[1rem] text-[#765f45]">
-                    <div>Статус: {data?.fully_done ? "Тесты пройдены" : `Готово ${data?.completed || 0} из ${data?.total || 0}`}</div>
+                    <div>Статус: {data?.fully_done ? "Тесты пройдены" : partialResultsAllowed ? `Предварительно: готово ${data?.completed || 0} из ${data?.total || 0}` : `Готово ${data?.completed || 0} из ${data?.total || 0}`}</div>
                     {collectedLabel ? <div>Результат собран: {collectedLabel}</div> : null}
                   </div>
                 </div>
@@ -1012,20 +1016,25 @@ export default function ProjectResultsStandalonePage() {
             <div className="project-results-stamp absolute right-5 top-5 grid h-[126px] w-[126px] place-items-center sm:right-8 sm:top-4 sm:h-[170px] sm:w-[170px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={data?.fully_done ? "/result-stamp.svg" : "/result-stamp-bw.svg"}
-                alt={data?.fully_done ? "Результат собран" : "Результат ожидает"}
+                src={resultsReady ? "/result-stamp.svg" : "/result-stamp-bw.svg"}
+                alt={resultsReady ? "Результат доступен" : "Результат ожидает"}
                 className="h-full w-full object-contain opacity-90"
               />
             </div>
           </div>
 
           <div className="relative px-6 py-5 sm:px-8 sm:py-6">
-            {!data?.fully_done ? (
+            {!resultsReady ? (
               <div className="rounded-[26px] border border-[#d8c5a8] bg-[#fbf5ea] px-5 py-5 text-sm leading-7 text-[#6f6454]">
                 Все уровни анализа откроются после завершения тестов. Сейчас готово {data?.completed || 0} из {data?.total || 0}.
               </div>
             ) : (
               <>
+                {partialResultsAllowed && !data?.fully_done ? (
+                  <div className="mb-5 rounded-[26px] border border-[#dfc18c] bg-[#fff8ea] px-5 py-4 text-sm leading-7 text-[#6f6454]">
+                    Для этого аккаунта открыт предварительный результат по уже пройденным тестам. Когда появятся остальные ответы, результат можно обновить.
+                  </div>
+                ) : null}
                 <div data-onboarding-id="project-results-packages" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.08fr)_220px] xl:items-stretch">
                   {EVALUATION_PACKAGES.map((item) => {
                     const unlocked = isPackageAccessible(unlockedMode, item.key);

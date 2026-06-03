@@ -45,6 +45,7 @@ type ProjectPayload = {
     routing_meta?: ProjectRoutingMeta | null;
     invite_token: string | null;
     created_at: string;
+    partial_results_allowed?: boolean;
     person: {
       id: string;
       full_name: string;
@@ -163,6 +164,7 @@ function MobileProjectDetails({
   completedSet,
   totalEstimatedMinutes,
   fullyDone,
+  resultsReady,
   editing,
   form,
   saving,
@@ -180,6 +182,7 @@ function MobileProjectDetails({
   completedSet: Set<string>;
   totalEstimatedMinutes: number;
   fullyDone: boolean;
+  resultsReady: boolean;
   editing: boolean;
   form: { email: string; current_position: string; target_role: string; notes: string; registry_comment: string };
   saving: boolean;
@@ -223,14 +226,21 @@ function MobileProjectDetails({
           <button type="button" className="btn btn-secondary btn-sm" onClick={onToggleEditing}>{editing ? "Отменить" : "Редактировать"}</button>
         </div>
         {editing ? (
-          <div className="mt-3 grid gap-2">
-            <input className="input" value={form.email} onChange={(e) => onFormChange({ email: e.target.value })} placeholder="Email" />
-            <input className="input" value={form.current_position} onChange={(e) => onFormChange({ current_position: e.target.value })} placeholder="Текущая должность" />
-            <input className="input" value={form.target_role} onChange={(e) => onFormChange({ target_role: e.target.value })} placeholder="Будущая предполагаемая должность" />
-            <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => onFormChange({ notes: e.target.value })} placeholder="Комментарий специалиста" />
-            <textarea className="input min-h-[112px]" value={form.registry_comment} onChange={(e) => onFormChange({ registry_comment: e.target.value })} placeholder="Registry-комментарий" />
-            <button type="button" className="btn btn-primary" onClick={onSaveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
-          </div>
+          <>
+            <div className="mt-3 grid gap-2">
+              <input className="input" value={form.email} onChange={(e) => onFormChange({ email: e.target.value })} placeholder="Email" />
+              <input className="input" value={form.current_position} onChange={(e) => onFormChange({ current_position: e.target.value })} placeholder="Текущая должность" />
+              <input className="input" value={form.target_role} onChange={(e) => onFormChange({ target_role: e.target.value })} placeholder="Будущая предполагаемая должность" />
+              <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => onFormChange({ notes: e.target.value })} placeholder="Комментарий специалиста" />
+              <textarea className="input min-h-[112px]" value={form.registry_comment} onChange={(e) => onFormChange({ registry_comment: e.target.value })} placeholder="Registry-комментарий" />
+              <button type="button" className="btn btn-primary" onClick={onSaveDetails} disabled={saving}>{saving ? "Сохраняем…" : "Сохранить"}</button>
+            </div>
+            {resultsReady && !fullyDone ? (
+              <div className="mt-2 text-xs leading-5 text-[#7b6650]">
+                Для этого аккаунта вывод уже можно открыть по пройденным тестам. Остальные тесты потом уточнят итог.
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className="mt-3 grid gap-2 text-sm leading-6 text-[#6f5a42]">
             <div>Email: <span className="font-medium text-[#2d2a22]">{project?.person?.email || "не указан"}</span></div>
@@ -260,7 +270,7 @@ function MobileProjectDetails({
       </section>
 
       <section data-onboarding-id="project-get-result" className="rounded-[22px] border border-[#dcc8aa] bg-[#fffaf0] p-4 text-center">
-        {fullyDone ? (
+        {resultsReady ? (
           <Link href={`/projects/${project?.id}/results`} className="btn btn-primary w-full">Получить результат</Link>
         ) : (
           <button type="button" className="btn btn-secondary w-full" disabled>Осталось тестов: {Math.max(0, progress.total - progress.completed)}</button>
@@ -832,6 +842,8 @@ export default function ProjectDetailsPage() {
     return { completed, total };
   }, [completedSet, data?.project.tests?.length]);
   const fullyDone = progress.total > 0 && progress.completed >= progress.total;
+  const partialResultsAllowed = Boolean(data?.project.partial_results_allowed);
+  const resultsReady = fullyDone || partialResultsAllowed;
   const routingMeta = data?.project.routing_meta || null;
   const competencyLabel = routingMeta?.competencyIds?.length ? getCompetencyLongLabel(routingMeta.competencyIds) : "";
   const shareCompactUrl = shareUrl ? shareUrl.replace(/^https?:\/\//, "") : "";
@@ -872,13 +884,13 @@ export default function ProjectDetailsPage() {
   }
 
   useEffect(() => {
-    if (!fullyDone || !unlockedMode) return;
+    if (!resultsReady || !unlockedMode) return;
     const available = EVALUATION_PACKAGES.filter((item) => isPackageAccessible(unlockedMode, item.key)).map((item) => item.key);
     available.forEach((mode) => {
       if (!evaluationByMode[mode] && !evaluationLoading[mode]) loadEvaluation(mode);
     });
     setActiveEvaluationMode((prev) => prev || available[available.length - 1] || null);
-  }, [fullyDone, unlockedMode]);
+  }, [resultsReady, unlockedMode]);
 
   async function copyShareUrl() {
     if (!shareUrl) return;
@@ -1063,6 +1075,7 @@ export default function ProjectDetailsPage() {
           completedSet={completedSet}
           totalEstimatedMinutes={totalEstimatedMinutes}
           fullyDone={fullyDone}
+          resultsReady={resultsReady}
           editing={editing}
           form={form}
           saving={saving}
@@ -1186,7 +1199,7 @@ export default function ProjectDetailsPage() {
             <div className="absolute inset-0 text-[#2d2a22]" style={{ transform: `translate(${detailsTemplate.resultsContentX}px, ${detailsTemplate.resultsContentY}px)` }}>
               <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${detailsTemplate.resultsTextScale})` }}>
                 <div data-onboarding-id="project-get-result" className="h-full bg-transparent px-3 py-2 flex items-center justify-center">
-                  {fullyDone ? (
+                  {resultsReady ? (
                     <Link
                       href={`/projects/${data?.project.id}/results`}
                       className="group inline-flex items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99]"

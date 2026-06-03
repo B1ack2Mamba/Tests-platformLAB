@@ -9,6 +9,7 @@ import {
   type EvaluationPackage,
 } from "@/lib/commercialGoals";
 import { isTestUnlimitedEmail } from "@/lib/testWallet";
+import { canUseIncompleteProjectResults } from "@/lib/incompleteProjectAccess";
 
 function normalizePackage(value: unknown): EvaluationPackage | null {
   return isEvaluationPackage(value) ? value : null;
@@ -52,18 +53,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const attempts = ((project as any).commercial_project_attempts || []) as Array<any>;
     const completed = new Set(attempts.map((item) => item.test_slug)).size;
     const fullyDone = tests.length > 0 && completed >= tests.length;
+    const partialResultsAllowed = canUseIncompleteProjectResults(authed.user.email, completed, tests.length);
+    const resultsReady = fullyDone || partialResultsAllowed;
     const upgradePriceRub = getUpgradePriceRub(currentMode, targetMode);
     const isUnlimited = isTestUnlimitedEmail(authed.user.email);
 
     let reason = "Пакет можно открыть.";
-    let canUnlock = targetRank > currentRank && fullyDone;
+    let canUnlock = targetRank > currentRank && resultsReady;
 
     if (targetRank <= currentRank) {
       canUnlock = false;
       reason = "Пакет уже открыт или выбран не более высокий уровень.";
-    } else if (!fullyDone) {
+    } else if (!resultsReady) {
       canUnlock = false;
       reason = "Открыть уровень результата можно только после завершения всех тестов.";
+    } else if (partialResultsAllowed) {
+      reason = "Доступен предварительный результат по уже пройденным тестам.";
     } else if (isUnlimited) {
       reason = "Аккаунт в unlimited-режиме: списание не потребуется.";
     }
@@ -87,6 +92,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tests_total: tests.length,
       attempts_completed: completed,
       fully_done: fullyDone,
+      partial_results_allowed: partialResultsAllowed,
+      results_ready: resultsReady,
       can_unlock: canUnlock,
       upgrade_price_rub: upgradePriceRub,
       unlimited: isUnlimited,

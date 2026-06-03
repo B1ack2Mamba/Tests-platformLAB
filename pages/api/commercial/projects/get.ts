@@ -6,6 +6,7 @@ import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { getTestDisplayTitle } from "@/lib/testTitles";
 import { getActiveWorkspaceSubscription } from "@/lib/serverWorkspaceSubscription";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
+import { canUseIncompleteProjectResults } from "@/lib/incompleteProjectAccess";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const requestId = ensureRequestId(req, res);
@@ -87,6 +88,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!projectData) return res.status(404).json({ ok: false, error: "Проект не найден" });
 
     const parsedSummary = parseProjectSummary((projectData as any).summary);
+    const attempts = ((projectData as any).commercial_project_attempts || []) as Array<any>;
+    const tests = ((projectData as any).commercial_project_tests || []) as Array<any>;
+    const completed = new Set(attempts.map((item) => item?.test_slug).filter(Boolean)).size;
+    const total = tests.length;
+    const partialResultsAllowed = canUseIncompleteProjectResults(authed.user.email, completed, total);
 
     return res.status(200).json({
       ok: true,
@@ -110,14 +116,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         routing_meta: parsedSummary.meta,
         created_at: (projectData as any).created_at,
         invite_token: (projectData as any).invite_token || null,
+        partial_results_allowed: partialResultsAllowed,
         person: (projectData as any).commercial_people || null,
-        tests: ((projectData as any).commercial_project_tests || [])
+        tests: tests
           .map((item: any) => ({
             ...item,
             test_title: getTestDisplayTitle(item?.test_slug, item?.test_title),
           }))
           .sort((a: any, b: any) => a.sort_order - b.sort_order),
-        attempts: ((projectData as any).commercial_project_attempts || []).map((item: any) => ({
+        attempts: attempts.map((item: any) => ({
           ...item,
           test_title: getTestDisplayTitle(item?.test_slug, item?.test_title),
         })),

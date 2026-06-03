@@ -10,6 +10,7 @@ import {
   type EvaluationPackage,
 } from "@/lib/commercialGoals";
 import { isTestUnlimitedEmail, TEST_UNLIMITED_BALANCE_KOPEKS } from "@/lib/testWallet";
+import { canUseIncompleteProjectResults } from "@/lib/incompleteProjectAccess";
 
 function normalizePackage(value: unknown): EvaluationPackage | null {
   return isEvaluationPackage(value) ? value : null;
@@ -59,7 +60,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const attempts = ((project as any).commercial_project_attempts || []) as Array<any>;
     const completed = new Set(attempts.map((item) => item.test_slug)).size;
     const fullyDone = tests.length > 0 && completed >= tests.length;
-    if (!fullyDone) {
+    const partialResultsAllowed = canUseIncompleteProjectResults(authed.user.email, completed, tests.length);
+    const resultsReady = fullyDone || partialResultsAllowed;
+    if (!resultsReady) {
       return res.status(400).json({ ok: false, error: "Открыть уровень результата можно только после завершения всех тестов" });
     }
 
@@ -141,6 +144,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       balance_kopeks: balanceKopeks,
       used_subscription: billedBySubscription,
       subscription_remaining: subscriptionRemaining,
+      partial_results_allowed: partialResultsAllowed,
     });
   } catch (err: any) {
     return res.status(400).json({ ok: false, error: err?.message || "Не удалось открыть уровень оценки" });

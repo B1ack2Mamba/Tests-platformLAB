@@ -5,6 +5,7 @@ import { canAccessCommercialProject } from "@/lib/commercialProjectAccess";
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { buildProjectResultsBlueprint } from "@/lib/projectResultsBlueprint";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
+import { canUseIncompleteProjectResults } from "@/lib/incompleteProjectAccess";
 
 type ResponseBody =
   | {
@@ -13,6 +14,7 @@ type ResponseBody =
       fully_done: boolean;
       completed: number;
       total: number;
+      partial_results_allowed: boolean;
       collected_at: string | null;
       collect_mode: "view" | "collect";
       project: {
@@ -110,6 +112,8 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
     const completed = new Set(attempts.map((item) => item.test_slug).filter(Boolean)).size;
     const total = tests.length;
     const fully_done = total > 0 && completed >= total;
+    const partialResultsAllowed = canUseIncompleteProjectResults(authed.user.email, completed, total);
+    const resultsReady = fully_done || partialResultsAllowed;
 
     let promptRows: Array<any> = [];
     const competencyIds = parsedSummary.meta?.mode === "competency" ? parsedSummary.meta.competencyIds || [] : [];
@@ -130,7 +134,7 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
       }
     }
 
-    const blueprint = fully_done
+    const blueprint = resultsReady
       ? buildProjectResultsBlueprint({
           project: {
             title: String((data as any).title || ""),
@@ -151,6 +155,7 @@ async function buildResponse(req: NextApiRequest, res: NextApiResponse<ResponseB
       fully_done,
       completed,
       total,
+      partial_results_allowed: partialResultsAllowed,
       collected_at: explicitCollect ? new Date().toISOString() : null,
       collect_mode: explicitCollect ? "collect" : "view",
       project: {
