@@ -2907,7 +2907,7 @@ export default function DashboardPage() {
     assemblyAiActiveChat.analysisAnchor.projectId === (assemblyAiAnalysisMode === "project_message" ? assemblyAiSelectedProject?.id || null : null) &&
     Boolean(assemblyAiActiveChat.analysisAnchor.includeIncomplete) === assemblyAiCurrentIncludesIncomplete
   );
-  const assemblyAiNeedsIncompleteConsent = assemblyAiCurrentIncludesIncomplete && !assemblyAiCanFollowUp;
+  const assemblyAiNeedsIncompleteConsent = assemblyAiCurrentIncludesIncomplete && !assemblyAiCanFollowUp && !canUseIncompleteAiAnalysis;
   const assemblyAiEffectiveMode: AssemblyAiMode =
     assemblyAiAnalysisMode === "message" || assemblyAiCanFollowUp ? "message" : assemblyAiAnalysisMode;
   const assemblyAiMaxOutputTokens = assemblyAiEffectiveMode === "message" ? 3000 : ASSEMBLY_AI_MAX_OUTPUT_TOKENS;
@@ -2978,11 +2978,8 @@ export default function DashboardPage() {
         setAssemblyAiModel(chats[0].model || "gpt-5.4-mini");
         setAssemblyAiContextScope(chats[0].contextScope || "folder");
         setAssemblyAiFolderTarget(chats[0].contextScope === "folder" && chats[0].analysisAnchor?.mode === "project_message" ? "person" : "folder");
-        {
-          const chatIncludesIncomplete = canUseIncompleteAiAnalysis && Boolean(chats[0].analysisAnchor?.includeIncomplete);
-          setAssemblyAiIncludeIncomplete(chatIncludesIncomplete);
-          setAssemblyAiIncompleteConsent(chatIncludesIncomplete);
-        }
+        setAssemblyAiIncludeIncomplete(canUseIncompleteAiAnalysis);
+        setAssemblyAiIncompleteConsent(canUseIncompleteAiAnalysis);
         setAssemblyFolderId(chats[0].folderId || null);
         setAssemblyAiProjectId(chats[0].projectId || "");
       }
@@ -3000,9 +2997,8 @@ export default function DashboardPage() {
     setAssemblyAiContextScope(chat.contextScope || "folder");
     setAssemblyAiFolderTarget(chat.contextScope === "folder" && chat.analysisAnchor?.mode === "project_message" ? "person" : "folder");
     {
-      const chatIncludesIncomplete = canUseIncompleteAiAnalysis && Boolean(chat.analysisAnchor?.includeIncomplete);
-      setAssemblyAiIncludeIncomplete(chatIncludesIncomplete);
-      setAssemblyAiIncompleteConsent(chatIncludesIncomplete);
+      setAssemblyAiIncludeIncomplete(canUseIncompleteAiAnalysis);
+      setAssemblyAiIncompleteConsent(canUseIncompleteAiAnalysis);
     }
     setAssemblyFolderId(chat.folderId || null);
     setAssemblyAiProjectId(chat.projectId || "");
@@ -3014,8 +3010,8 @@ export default function DashboardPage() {
     setAssemblyAiActiveChatId("");
     setAssemblyAiInsight(null);
     setAssemblyAiFolderTarget("folder");
-    setAssemblyAiIncludeIncomplete(false);
-    setAssemblyAiIncompleteConsent(false);
+    setAssemblyAiIncludeIncomplete(canUseIncompleteAiAnalysis);
+    setAssemblyAiIncompleteConsent(canUseIncompleteAiAnalysis);
     setAssemblyAiDraft("");
     setAssemblyAiError("");
     setAssemblyAiLastCharge(null);
@@ -3026,7 +3022,7 @@ export default function DashboardPage() {
         content: "Выберите папку для общего анализа, готового человека без папки для персонального разбора или режим без выбора для обычного вопроса.",
       },
     ]);
-  }, []);
+  }, [canUseIncompleteAiAnalysis]);
 
   const saveAssemblyAiRename = useCallback(() => {
     const title = assemblyAiEditingTitle.trim();
@@ -3047,15 +3043,20 @@ export default function DashboardPage() {
   }, [assemblyAiModel, assemblyAiModelOptions]);
 
   useEffect(() => {
-    if (canUseIncompleteAiAnalysis) return;
+    if (canUseIncompleteAiAnalysis) {
+      setAssemblyAiIncludeIncomplete(true);
+      setAssemblyAiIncompleteConsent(true);
+      return;
+    }
     setAssemblyAiIncludeIncomplete(false);
     setAssemblyAiIncompleteConsent(false);
   }, [canUseIncompleteAiAnalysis]);
 
   useEffect(() => {
+    if (canUseIncompleteAiAnalysis) return;
     if (assemblyAiIncludeIncompleteEffective) return;
     setAssemblyAiIncompleteConsent(false);
-  }, [assemblyAiIncludeIncompleteEffective]);
+  }, [assemblyAiIncludeIncompleteEffective, canUseIncompleteAiAnalysis]);
 
   useEffect(() => {
     if (!assemblyAiContextProjects.length) {
@@ -3221,7 +3222,7 @@ export default function DashboardPage() {
       const expectedSignature = mode === "message" && assemblyAiCanFollowUp
         ? assemblyAiActiveChat?.analysisAnchor?.serverSignature || assemblyAiActiveChat?.analysisAnchor?.signature || assemblyAiCurrentSignature
         : "";
-      const requestIncompleteConsent = assemblyAiIncompleteConsent || (assemblyAiCanFollowUp && assemblyAiCurrentIncludesIncomplete);
+      const requestIncompleteConsent = canUseIncompleteAiAnalysis || assemblyAiIncompleteConsent || (assemblyAiCanFollowUp && assemblyAiCurrentIncludesIncomplete);
       const resp = await fetch("/api/commercial/ai-folder-chat", {
         method: "POST",
         headers: {
@@ -3236,7 +3237,7 @@ export default function DashboardPage() {
           folder_id: assemblyAiContextScope === "folder" ? assemblyCompletedFolder?.folder.id || "" : "",
           project_id: requestProjectId,
           expected_context_signature: expectedSignature,
-          include_incomplete_projects: assemblyAiIncludeIncompleteEffective,
+          include_incomplete_projects: canUseIncompleteAiAnalysis || assemblyAiIncludeIncompleteEffective,
           incomplete_analysis_consent: requestIncompleteConsent,
           message: draft,
           history,
@@ -4226,40 +4227,16 @@ export default function DashboardPage() {
 
               {canUseIncompleteAiAnalysis ? (
                 <div className="mt-3 rounded-[18px] border border-[#ead8b4] bg-[#fff8ea] px-3 py-3">
-                  <label className="flex items-start gap-3 text-sm font-semibold text-[#5d4320]">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-[#cba46a] text-[#4d9b72] focus:ring-[#d8ecd1]"
-                      checked={assemblyAiIncludeIncomplete}
-                      onChange={(event) => {
-                        setAssemblyAiIncludeIncomplete(event.target.checked);
-                        if (!event.target.checked) setAssemblyAiIncompleteConsent(false);
-                      }}
-                      disabled={assemblyAiBusy}
-                    />
-                    <span>
-                      Включить незавершенных кандидатов
-                      <span className="mt-1 block text-xs font-normal leading-5 text-[#7b6143]">
-                        Доступно только для {INCOMPLETE_AI_ANALYSIS_EMAIL}. В анализ попадут кандидаты, у которых есть хотя бы один пройденный тест.
-                      </span>
-                    </span>
-                  </label>
+                  <div className="text-sm font-semibold text-[#5d4320]">Незавершенные кандидаты подключены автоматически</div>
+                  <div className="mt-1 text-xs leading-5 text-[#7b6143]">
+                    Для аккаунта {INCOMPLETE_AI_ANALYSIS_EMAIL} AI сам добавляет в анализ кандидатов, у которых есть хотя бы один пройденный тест. Отдельные галочки и подтверждения больше не нужны.
+                  </div>
                   {assemblyAiCurrentIncludesIncomplete ? (
                     <div className="mt-3 rounded-[14px] border border-[#dfc18c] bg-white/78 px-3 py-2">
                       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8a6a41]">Предварительный анализ</div>
                       <div className="mt-1 text-xs leading-5 text-[#6f5a3c]">
                         Незавершенных в выбранном анализе: {assemblyAiIncompleteProjects.length}. AI будет учитывать только уже пройденные тесты и отдельно пометит выводы как предварительные.
                       </div>
-                      <label className="mt-2 flex items-start gap-2 text-xs font-semibold leading-5 text-[#5d4320]">
-                        <input
-                          type="checkbox"
-                          className="mt-1 h-4 w-4 rounded border-[#cba46a] text-[#4d9b72] focus:ring-[#d8ecd1]"
-                          checked={assemblyAiIncompleteConsent}
-                          onChange={(event) => setAssemblyAiIncompleteConsent(event.target.checked)}
-                          disabled={assemblyAiBusy}
-                        />
-                        <span>Подтверждаю, что вывод по незавершенным кандидатам будет предварительным.</span>
-                      </label>
                     </div>
                   ) : null}
                 </div>

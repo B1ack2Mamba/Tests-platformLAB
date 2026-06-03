@@ -830,8 +830,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const message = String(body.message || "").trim();
   const expectedSignature = String(body.expected_context_signature || "").trim();
   const incompleteAnalysisAllowed = canUseIncompleteAiAnalysis(auth.user.email);
-  const includeIncompleteProjects = incompleteAnalysisAllowed && (body.include_incomplete_projects === true || body.include_incomplete_projects === "true");
-  const incompleteAnalysisConsent = incompleteAnalysisAllowed && (body.incomplete_analysis_consent === true || body.incomplete_analysis_consent === "true");
+  const includeIncompleteProjects = incompleteAnalysisAllowed && contextScope !== "none";
+  const incompleteAnalysisConsent = incompleteAnalysisAllowed;
   const mode: AiMode =
     requestedMode === "message"
       ? "message"
