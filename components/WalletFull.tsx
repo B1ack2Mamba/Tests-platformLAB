@@ -338,6 +338,9 @@ export default function WalletPage() {
   }
   const parsedRub = useMemo(() => parseRubInput(amountRub), [amountRub]);
   const paymentPreviewText = parsedRub ? formatRub(parsedRub * 100) : "—";
+  const walletBalanceReady = isUnlimited || Boolean(wallet);
+  const walletChecking = loading && !walletBalanceReady;
+  const walletBalanceKopeks = walletBalanceReady ? Number(wallet?.balance_kopeks ?? 0) : 0;
 
   useEffect(() => {
     if (!user || !session?.access_token) {
@@ -711,7 +714,7 @@ export default function WalletPage() {
                             <button
                               type="button"
                               className={ACTION_PRIMARY + " w-full py-2.5 text-[15px]"}
-                              disabled={!!subscriptionBusyKey || (!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < activePriceRub * 100)}
+                              disabled={!!subscriptionBusyKey || (!isUnlimited && (!walletBalanceReady || walletBalanceKopeks < activePriceRub * 100))}
                               onClick={() => buyMonthlyPlanFromWallet(plan.key)}
                             >
                               {subscriptionBusyKey === `wallet:${plan.key}` ? "Покупаю…" : `С баланса · ${activePriceRub.toLocaleString("ru-RU")} ₽`}
@@ -739,7 +742,9 @@ export default function WalletPage() {
                                 Онлайн-оплата выключена. Пакет услуг можно оплатить с баланса.
                               </div>
                             )}
-                            {!isUnlimited && Number(wallet?.balance_kopeks ?? 0) < activePriceRub * 100 ? (
+                            {!isUnlimited && walletChecking ? (
+                              <div className="text-xs text-slate-500">Проверяем баланс кошелька…</div>
+                            ) : !isUnlimited && walletBalanceReady && walletBalanceKopeks < activePriceRub * 100 ? (
                               <div className="text-xs text-amber-700">На балансе пока меньше стоимости пакета услуг.</div>
                             ) : null}
                           </div>

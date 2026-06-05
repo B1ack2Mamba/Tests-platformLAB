@@ -1517,9 +1517,12 @@ export default function DashboardPage() {
   const [assemblyAiLastCharge, setAssemblyAiLastCharge] = useState<number | null>(null);
   const [dashboardTourStartTarget, setDashboardTourStartTarget] = useState<string | null>(null);
 
+  const walletBalanceReady = isUnlimited || Boolean(wallet);
+  const walletChecking = walletLoading && !walletBalanceReady;
   const balance_rub = useMemo(() => {
     if (isUnlimited) return 999999;
-    return Math.floor(Number(wallet?.balance_kopeks ?? 0) / 100);
+    if (!wallet) return 0;
+    return Math.floor(Number(wallet.balance_kopeks ?? 0) / 100);
   }, [isUnlimited, wallet?.balance_kopeks]);
 
   useEffect(() => {
@@ -1550,7 +1553,7 @@ export default function DashboardPage() {
   const greeneryLevel = useMemo(() => getGreeneryLevel(investedRub, isUnlimited), [investedRub, isUnlimited]);
   const greeneryLabel = useMemo(() => getGreeneryLabel(greeneryLevel), [greeneryLevel]);
   const greeneryHint = useMemo(() => getGreeneryHint(greeneryLevel), [greeneryLevel]);
-  const balanceText = walletLoading ? "…" : isUnlimited ? "∞" : `${balance_rub} ₽`;
+  const balanceText = walletChecking ? "…" : isUnlimited ? "∞" : walletBalanceReady ? `${balance_rub} ₽` : "—";
   const investedText = isUnlimited ? "без лимита" : `${investedRub} ₽`;
 
   const triggerMechanics = useCallback((after?: () => void, delay = 220) => {
@@ -2927,7 +2930,7 @@ export default function DashboardPage() {
     () => getAssemblyAiPriceRub(assemblyAiProvider, assemblyAiModel, assemblyAiEffectiveMode),
     [assemblyAiEffectiveMode, assemblyAiModel, assemblyAiProvider]
   );
-  const assemblyAiCanAfford = isUnlimited || balance_rub >= assemblyAiPriceRub;
+  const assemblyAiCanAfford = isUnlimited || (walletBalanceReady && balance_rub >= assemblyAiPriceRub);
   const assemblyAiCanSend =
     !assemblyAiBusy &&
     assemblyAiCanAfford &&
@@ -4173,7 +4176,11 @@ export default function DashboardPage() {
                   ) : null}
                 </div>
               </div>
-              {!assemblyAiCanAfford ? (
+              {walletChecking ? (
+                <div className="mt-3 rounded-[16px] border border-[#d5deea] bg-white/75 px-3 py-2 text-xs leading-5 text-[#4f6578]">
+                  Проверяем баланс кошелька…
+                </div>
+              ) : !assemblyAiCanAfford ? (
                 <div className="mt-3 rounded-[16px] border border-[#e8c6bf] bg-[#fff4f1] px-3 py-2 text-xs leading-5 text-[#955144]">
                   На балансе не хватает средств для выбранного режима.
                 </div>

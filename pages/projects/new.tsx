@@ -297,7 +297,7 @@ function sameSlugSet(left: string[], right: string[]) {
 
 export default function NewProjectPage({ tests }: NewProjectPageProps) {
   const { session, user, loading: sessionLoading } = useSession();
-  const { wallet, refresh: refreshWallet, isUnlimited } = useWallet();
+  const { wallet, loading: walletLoading, refresh: refreshWallet, isUnlimited } = useWallet();
   const router = useRouter();
   const initialGoal = router.query.goal;
   const allSlugs = useMemo(() => tests.map((item) => item.slug), [tests]);
@@ -824,9 +824,12 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     }
   }
 
-  const walletBalanceKopeks = Number(wallet?.balance_kopeks ?? 0);
+  const walletBalanceReady = isUnlimited || Boolean(wallet);
+  const walletChecking = walletLoading && !walletBalanceReady;
+  const walletBalanceKopeks = walletBalanceReady ? Number(wallet?.balance_kopeks ?? 0) : 0;
+  const walletBalanceText = walletChecking ? "загружается…" : walletBalanceReady ? formatKopeksAsRub(walletBalanceKopeks) : "—";
   const hasSubscriptionProject = Boolean(activeSubscription && activeSubscription.projects_remaining > 0);
-  const canCreateProjectFromBalance = walletBalanceKopeks >= PROJECT_CREATION_PRICE_KOPEKS;
+  const canCreateProjectFromBalance = walletBalanceReady && walletBalanceKopeks >= PROJECT_CREATION_PRICE_KOPEKS;
   const canCreateProject = isUnlimited || hasSubscriptionProject || canCreateProjectFromBalance;
   const createButtonDisabled =
     loading ||
@@ -838,9 +841,11 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
     ? "Создание доступно без списания."
     : hasSubscriptionProject
       ? `Проект будет создан по тарифу. Осталось ${activeSubscription?.projects_remaining || 0} проектов.`
+      : walletChecking
+        ? "Проверяем баланс кошелька…"
       : canCreateProjectFromBalance
         ? `При создании спишется ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} с баланса.`
-        : `На балансе ${formatKopeksAsRub(walletBalanceKopeks)}. Для проекта нужно ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} или активный тариф.`;
+        : `На балансе ${walletBalanceText}. Для проекта нужно ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} или активный тариф.`;
   const showBillingChoices = !isUnlimited && !hasSubscriptionProject;
 
   if (!session || !user) {
@@ -1283,7 +1288,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                           <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">{paymentStatusText}</div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          {!canCreateProjectFromBalance && !hasSubscriptionProject && !isUnlimited ? (
+                          {!walletChecking && !canCreateProjectFromBalance && !hasSubscriptionProject && !isUnlimited ? (
                             <button
                               type="button"
                               onClick={startProjectTopup}
@@ -1294,7 +1299,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                             </button>
                           ) : null}
                           <div className="rounded-full border border-[#d6bea0] bg-[#fffdf8] px-3 py-1 text-xs font-semibold text-[#5d4830]">
-                            Баланс: {formatKopeksAsRub(walletBalanceKopeks)}
+                            Баланс: {walletBalanceText}
                           </div>
                         </div>
                       </div>
@@ -1309,7 +1314,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                           <div className="mt-3 grid gap-2 md:grid-cols-3">
                             {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
                               const activePriceRub = getActiveMonthlyPlanPriceRub(plan);
-                              const canBuyFromWallet = walletBalanceKopeks >= activePriceRub * 100;
+                              const canBuyFromWallet = walletBalanceReady && walletBalanceKopeks >= activePriceRub * 100;
                               return (
                                 <div key={plan.key} className="rounded-[16px] border border-[#eadbc4] bg-[#fff8ee] p-3 text-left">
                                   <div className="text-sm font-semibold text-[#3d3124]">{plan.shortTitle}</div>

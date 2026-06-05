@@ -23,22 +23,25 @@ export function formatRub(kopeks: number): string {
 }
 
 export function useWallet() {
-  const { supabase, user } = useSession();
+  const { supabase, user, loading: sessionLoading } = useSession();
   const userId = user?.id || "";
   const userEmail = user?.email || "";
   const isUnlimited = isTestUnlimitedEmail(userEmail);
   const [wallet, setWallet] = useState<WalletRow | null>(null);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [walletLoading, setWalletLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
   const refresh = useCallback(async () => {
+    if (sessionLoading) return;
+
     if (!supabase || !userId) {
       setWallet(null);
       setLedger([]);
+      setWalletLoading(false);
       return;
     }
-    setLoading(true);
+    setWalletLoading(true);
     setError("");
     try {
       if (isUnlimited) {
@@ -78,13 +81,15 @@ export function useWallet() {
     } catch (e: any) {
       setError(e?.message ?? "Wallet load error");
     } finally {
-      setLoading(false);
+      setWalletLoading(false);
     }
-  }, [supabase, userId, isUnlimited]);
+  }, [supabase, userId, isUnlimited, sessionLoading]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const loading = sessionLoading || walletLoading;
 
   return { wallet, ledger, loading, error, refresh, isUnlimited };
 }

@@ -13,22 +13,25 @@ type WalletBalanceRow = {
  * Avoids loading the full ledger history on every page open.
  */
 export function useWalletBalance(_userId: string | null = null) {
-  const { supabase, user } = useSession();
+  const { supabase, user, loading: sessionLoading } = useSession();
   const userId = user?.id || _userId || "";
   const userEmail = user?.email || "";
   const isUnlimited = isTestUnlimitedEmail(userEmail);
   const [wallet, setWallet] = useState<WalletBalanceRow>(null);
-  const [loading, setLoading] = useState(false);
+  const [walletLoading, setWalletLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
   const refresh = useCallback(async () => {
+    if (sessionLoading) return;
+
     if (!supabase || !userId) {
       setWallet(null);
       setError("");
+      setWalletLoading(false);
       return;
     }
 
-    setLoading(true);
+    setWalletLoading(true);
     setError("");
     try {
       if (isUnlimited) {
@@ -59,9 +62,9 @@ export function useWalletBalance(_userId: string | null = null) {
     } catch (e: any) {
       setError(e?.message ?? "Wallet load error");
     } finally {
-      setLoading(false);
+      setWalletLoading(false);
     }
-  }, [isUnlimited, supabase, userId]);
+  }, [isUnlimited, sessionLoading, supabase, userId]);
 
   useEffect(() => {
     refresh();
@@ -71,6 +74,8 @@ export function useWalletBalance(_userId: string | null = null) {
     const kopeks = wallet?.balance_kopeks ?? 0;
     return Math.floor(kopeks / 100);
   }, [wallet?.balance_kopeks]);
+
+  const loading = sessionLoading || walletLoading;
 
   return { balance_rub, balanceRub: balance_rub, refresh, loading, error, isUnlimited };
 }
