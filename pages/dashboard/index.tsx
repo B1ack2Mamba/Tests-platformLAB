@@ -3781,6 +3781,14 @@ export default function DashboardPage() {
     });
   }, [trashEntries]);
 
+  if (sessionLoading) {
+    return (
+      <Layout title="Кабинет">
+        <div className="card text-sm text-slate-700">Загружаем кабинет…</div>
+      </Layout>
+    );
+  }
+
   if (!session || !user) {
     return (
       <Layout title="Кабинет">

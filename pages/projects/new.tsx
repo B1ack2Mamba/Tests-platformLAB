@@ -848,6 +848,14 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
         : `На балансе ${walletBalanceText}. Для проекта нужно ${formatRubAmount(PROJECT_CREATION_PRICE_RUB)} или активный тариф.`;
   const showBillingChoices = !isUnlimited && !hasSubscriptionProject;
 
+  if (sessionLoading) {
+    return (
+      <Layout title="Новый проект оценки">
+        <div className="card text-sm text-slate-700">Загружаем сессию…</div>
+      </Layout>
+    );
+  }
+
   if (!session || !user) {
     return (
       <Layout title="Новый проект оценки">

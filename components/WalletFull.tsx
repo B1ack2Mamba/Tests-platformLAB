@@ -232,7 +232,7 @@ function reasonLabel(reason: string): string {
 }
 
 export default function WalletPage() {
-  const { user, session } = useSession();
+  const { user, session, loading: sessionLoading } = useSession();
   const { wallet, ledger, loading, error, refresh, isUnlimited } = useWallet();
   const SHOW_YOOKASSA_TEST_BUTTONS = YOOKASSA_TEST_UI_ENABLED && !PAYMENTS_UI_ENABLED;
 
@@ -612,7 +612,11 @@ export default function WalletPage() {
   return (
     <Layout title="Кошелёк">
       {user ? <OnboardingTour tourId="wallet-v1" steps={WALLET_ONBOARDING_STEPS} /> : null}
-      {!user ? (
+      {sessionLoading ? (
+        <div className={FRAME_CARD}>
+          <div className="text-sm text-slate-700">Загружаем кошелёк…</div>
+        </div>
+      ) : !user ? (
         <>
           <div className={FRAME_CARD}>
             <div className="text-sm text-slate-700">Чтобы пользоваться кошельком — нужно войти.</div>
