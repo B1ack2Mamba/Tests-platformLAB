@@ -44,7 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const companyName = String(body.company_name || "").trim();
 
   if (!email) return res.status(400).json({ ok: false, error: "Укажите email." });
-  if (!fullName) return res.status(400).json({ ok: false, error: "Укажите имя и фамилию." });
   if (password.length < 8) return res.status(400).json({ ok: false, error: "Пароль должен быть не короче 8 символов." });
 
   const supabaseAdmin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -56,8 +55,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: fullName,
-        company_name: companyName,
+        ...(fullName ? { full_name: fullName } : {}),
+        ...(companyName ? { company_name: companyName } : {}),
       },
     });
 

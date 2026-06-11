@@ -272,12 +272,6 @@ function getPendingPromoCode() {
   return safeLocalStorageGet(PENDING_PROMO_CODE_KEY).trim().toUpperCase();
 }
 
-function setPendingPromoCode(code: string) {
-  const value = code.trim().toUpperCase();
-  if (!value) return;
-  safeLocalStorageSet(PENDING_PROMO_CODE_KEY, value);
-}
-
 function clearPendingPromoCode() {
   safeLocalStorageRemove(PENDING_PROMO_CODE_KEY);
 }
@@ -316,15 +310,12 @@ export default function AuthStartPage() {
 
   const [mode, setMode] = useState<Mode>("signup");
   const [authMethod, setAuthMethod] = useState<AuthMethod>("email");
-  const [fullName, setFullName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [showPassword, setShowPassword] = useState(true);
-  const [promoCode, setPromoCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [, setLoginAttempt] = useState(0);
   const [error, setError] = useState("");
@@ -453,31 +444,12 @@ export default function AuthStartPage() {
     return authSession.access_token;
   }
 
-  async function finishSignup(accessToken: string, profileName: string, profileCompany: string) {
+  async function finishSignup(accessToken: string, profileName: string) {
     if (accessToken) {
-      await syncCommercialProfile(accessToken, profileName, profileCompany);
+      await syncCommercialProfile(accessToken, profileName, "");
     }
 
-    if (promoCode.trim()) {
-      const normalizedPromo = promoCode.trim().toUpperCase();
-      if (accessToken) {
-        try {
-          await redeemPromoWithToken(normalizedPromo, accessToken);
-          clearPendingPromoCode();
-          setInfo("Кабинет создан. Промокод активирован, входим...");
-        } catch (promoErr: any) {
-          setPendingPromoCode(normalizedPromo);
-          setInfo("Кабинет создан. Промокод сохранён и будет применен после входа.");
-          setError(promoErr?.message || "Не удалось активировать промокод сразу.");
-        }
-      } else {
-        setPendingPromoCode(normalizedPromo);
-        setInfo("Кабинет создан. Теперь войдите, промокод сохранён.");
-      }
-    } else {
-      setInfo(accessToken ? "Кабинет создан. Входим..." : "Кабинет создан. Теперь войдите.");
-    }
-
+    setInfo(accessToken ? "Кабинет создан. Входим..." : "Кабинет создан. Теперь войдите.");
     safeLocalStorageSet(DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY, "1");
     if (!accessToken) setMode("login");
   }
@@ -560,12 +532,11 @@ export default function AuthStartPage() {
           throw new Error(signupJson?.error || "Не удалось создать кабинет. Попробуйте ещё раз.");
         }
         const accessToken = await applyAuthSession(authClient, signupJson.session);
-        await finishSignup(accessToken, [firstName.trim(), lastName.trim()].filter(Boolean).join(" "), "");
+        await finishSignup(accessToken, [firstName.trim(), lastName.trim()].filter(Boolean).join(" "));
         return;
       }
 
       if (!email.trim()) throw new Error("Укажи email.");
-      if (!fullName.trim()) throw new Error("Укажи имя и фамилию.");
 
       const signupResp = await fetch("/api/auth/signup", {
         method: "POST",
@@ -573,8 +544,6 @@ export default function AuthStartPage() {
         body: JSON.stringify({
           email: email.trim(),
           password: passwordValue,
-          full_name: fullName.trim(),
-          company_name: companyName.trim(),
         }),
       });
       const signupJson = await signupResp.json().catch(() => ({}));
@@ -583,7 +552,7 @@ export default function AuthStartPage() {
       }
       const data = signupJson as { session?: AuthSessionLike };
       const accessToken = await applyAuthSession(authClient, data.session);
-      await finishSignup(accessToken, fullName, companyName);
+      await finishSignup(accessToken, "");
     } catch (err: any) {
       setError(normalizeAuthError(err));
     } finally {
@@ -639,27 +608,6 @@ export default function AuthStartPage() {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
                 Вход по имени проще для тех, у кого нет email. Имя и фамилию нужно вводить так же, как при регистрации; для восстановления пароля проще и безопаснее регистрация по email.
               </div>
-            ) : null}
-
-            {mode === "signup" ? (
-              <>
-                {authMethod === "email" ? (
-                  <>
-                    <label className="grid gap-1">
-                      <span className="text-xs text-slate-700">Имя и фамилия</span>
-                      <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Например: Александр Иванов" required />
-                    </label>
-                    <label className="grid gap-1">
-                      <span className="text-xs text-slate-700">Компания / команда</span>
-                      <input className="input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Например: Лаборатория кадров" />
-                    </label>
-                  </>
-                ) : null}
-                <label className="grid gap-1">
-                  <span className="text-xs text-slate-700">Промокод (если есть)</span>
-                  <input className="input" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Например: START-500" />
-                </label>
-              </>
             ) : null}
 
             {mode === "login" && getPendingPromoCode() ? (
