@@ -28,17 +28,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const anonKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !anonKey) {
+  if (!url || !anonKey || !serviceKey) {
     return res.status(500).json({
       ok: false,
-      error: "Server env missing: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      error: "Server env missing: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY / SUPABASE_SERVICE_ROLE_KEY",
     });
   }
 
   const body: Body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
   const email = String(body.email || "").trim().toLowerCase();
-  const password = String(body.password || "");
+  const password = String(body.password || "").trim();
   const fullName = String(body.full_name || "").trim();
   const companyName = String(body.company_name || "").trim();
 
@@ -46,29 +47,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!fullName) return res.status(400).json({ ok: false, error: "Укажите имя и фамилию." });
   if (password.length < 8) return res.status(400).json({ ok: false, error: "Пароль должен быть не короче 8 символов." });
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (req.headers.origin ? String(req.headers.origin) : "");
-  const supabase = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const supabaseAdmin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const supabaseAnon = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const createRes = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      options: {
-        emailRedirectTo: siteUrl ? `${siteUrl.replace(/\/$/, "")}/dashboard` : undefined,
-        data: {
-          full_name: fullName,
-          company_name: companyName,
-        },
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        company_name: companyName,
       },
     });
 
-    if (error) return res.status(400).json({ ok: false, error: normalizeAuthError(error.message) });
+    if (createRes.error || !createRes.data.user) {
+      return res.status(400).json({ ok: false, error: normalizeAuthError(createRes.error?.message || "Create user failed") });
+    }
+
+    const signInRes = await supabaseAnon.auth.signInWithPassword({ email, password });
+    if (signInRes.error || !signInRes.data.session) {
+      return res.status(200).json({
+        ok: true,
+        created: true,
+        login_required: true,
+        user: createRes.data.user,
+        session: null,
+        email_confirmation_required: false,
+        message: "Кабинет создан. Теперь войдите по email и паролю.",
+      });
+    }
 
     return res.status(200).json({
       ok: true,
-      user: data.user,
-      session: data.session,
-      email_confirmation_required: !data.session,
+      user: signInRes.data.user,
+      session: signInRes.data.session,
+      email_confirmation_required: false,
     });
   } catch (err: any) {
     return res.status(502).json({ ok: false, error: normalizeAuthError(err?.message || "Load failed") });

@@ -72,6 +72,7 @@ function TextSide() {
 }
 
 type Mode = "login" | "signup" | "reset";
+type AuthMethod = "email" | "name";
 
 
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
@@ -93,6 +94,18 @@ type EmailLoginResult = {
 type EmailLoginSession = {
   access_token: string;
   refresh_token: string;
+};
+
+type AuthSessionLike = {
+  access_token?: string;
+  refresh_token?: string;
+} | null | undefined;
+
+type NameAuthResult = {
+  ok?: boolean;
+  error?: string;
+  session?: AuthSessionLike;
+  display_name?: string;
 };
 
 type AuthErrorHelp = {
@@ -212,6 +225,22 @@ async function loginWithServerFallback(email: string, password: string): Promise
   };
 }
 
+async function loginWithNameServer(firstName: string, lastName: string, password: string): Promise<EmailLoginSession> {
+  const response = await fetch("/api/auth/name-login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ first_name: firstName, last_name: lastName, password }),
+  });
+  const data = (await response.json().catch(() => ({}))) as NameAuthResult;
+  if (!response.ok || !data?.ok || !data.session?.access_token || !data.session.refresh_token) {
+    throw new Error(data?.error || "Не удалось войти по имени и паролю. Проверьте данные и попробуйте ещё раз.");
+  }
+  return {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  };
+}
+
 function safeLocalStorageGet(key: string) {
   if (typeof window === "undefined") return "";
   try {
@@ -286,11 +315,15 @@ export default function AuthStartPage() {
   }, [router.query.next]);
 
   const [mode, setMode] = useState<Mode>("signup");
+  const [authMethod, setAuthMethod] = useState<AuthMethod>("email");
   const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [showPassword, setShowPassword] = useState(true);
   const [promoCode, setPromoCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [, setLoginAttempt] = useState(0);
@@ -308,8 +341,8 @@ export default function AuthStartPage() {
   useEffect(() => {
     if (sessionLoading || !session?.access_token || !user) return;
 
-    const metadata = (user.user_metadata || {}) as { full_name?: string; company_name?: string };
-    const fullName = String(metadata.full_name || "").trim();
+    const metadata = (user.user_metadata || {}) as { full_name?: string; company_name?: string; display_name?: string; first_name?: string; last_name?: string };
+    const fullName = String(metadata.full_name || metadata.display_name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ")).trim();
     const companyName = String(metadata.company_name || "").trim();
     const syncKey = `${user.id}:${fullName}:${companyName}`;
     if (profileSyncAttemptRef.current === syncKey) return;
@@ -365,6 +398,7 @@ export default function AuthStartPage() {
 
   function openPasswordReset() {
     setMode("reset");
+    setAuthMethod("email");
     setError("");
     setInfo("");
     setPassword("");
@@ -408,6 +442,46 @@ export default function AuthStartPage() {
     throw lastError || new Error("Не удалось войти. Попробуйте ещё раз.");
   }
 
+  async function applyAuthSession(authClient: NonNullable<typeof supabase>, authSession: AuthSessionLike) {
+    if (!authSession?.access_token) return "";
+    if (authSession.refresh_token) {
+      await authClient.auth.setSession({
+        access_token: authSession.access_token,
+        refresh_token: authSession.refresh_token,
+      });
+    }
+    return authSession.access_token;
+  }
+
+  async function finishSignup(accessToken: string, profileName: string, profileCompany: string) {
+    if (accessToken) {
+      await syncCommercialProfile(accessToken, profileName, profileCompany);
+    }
+
+    if (promoCode.trim()) {
+      const normalizedPromo = promoCode.trim().toUpperCase();
+      if (accessToken) {
+        try {
+          await redeemPromoWithToken(normalizedPromo, accessToken);
+          clearPendingPromoCode();
+          setInfo("Кабинет создан. Промокод активирован, входим...");
+        } catch (promoErr: any) {
+          setPendingPromoCode(normalizedPromo);
+          setInfo("Кабинет создан. Промокод сохранён и будет применен после входа.");
+          setError(promoErr?.message || "Не удалось активировать промокод сразу.");
+        }
+      } else {
+        setPendingPromoCode(normalizedPromo);
+        setInfo("Кабинет создан. Теперь войдите, промокод сохранён.");
+      }
+    } else {
+      setInfo(accessToken ? "Кабинет создан. Входим..." : "Кабинет создан. Теперь войдите.");
+    }
+
+    safeLocalStorageSet(DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY, "1");
+    if (!accessToken) setMode("login");
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const authClient = supabase;
@@ -418,10 +492,23 @@ export default function AuthStartPage() {
     setLoginAttempt(0);
     setError("");
     setInfo("");
+    const passwordValue = password.trim();
+    const password2Value = password2.trim();
+    if (passwordValue !== password) setPassword(passwordValue);
+    if (password2Value !== password2) setPassword2(password2Value);
 
     try {
       if (mode === "login") {
-        const loginSession = await loginWithRetry(authClient, email.trim(), password);
+        const loginSession =
+          authMethod === "name"
+            ? await loginWithNameServer(firstName.trim(), lastName.trim(), passwordValue)
+            : await loginWithRetry(authClient, email.trim(), passwordValue);
+        if (authMethod === "name") {
+          await authClient.auth.setSession({
+            access_token: loginSession.access_token,
+            refresh_token: loginSession.refresh_token,
+          });
+        }
         const sessionAccessToken = loginSession.access_token || "";
         const pendingPromo = getPendingPromoCode();
         if (pendingPromo && sessionAccessToken) {
@@ -435,9 +522,9 @@ export default function AuthStartPage() {
         const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/auth?reset=1` : undefined;
 
         if (session?.access_token) {
-          if (password.length < 8) throw new Error("Новый пароль должен быть не короче 8 символов.");
-          if (password !== password2) throw new Error("Пароли не совпадают.");
-          const { error } = await authClient.auth.updateUser({ password });
+          if (passwordValue.length < 8) throw new Error("Новый пароль должен быть не короче 8 символов.");
+          if (passwordValue !== password2Value) throw new Error("Пароли не совпадают.");
+          const { error } = await authClient.auth.updateUser({ password: passwordValue });
           if (error) throw error;
           setInfo("Пароль изменён. Теперь можно войти с новым паролем.");
           setError("");
@@ -455,8 +542,29 @@ export default function AuthStartPage() {
         return;
       }
 
-      if (password.length < 8) throw new Error("Пароль должен быть не короче 8 символов.");
-      if (password !== password2) throw new Error("Пароли не совпадают.");
+      if (passwordValue.length < 8) throw new Error("Пароль должен быть не короче 8 символов.");
+      if (passwordValue !== password2Value) throw new Error("Пароли не совпадают.");
+      if (authMethod === "name") {
+        if (!firstName.trim() || !lastName.trim()) throw new Error("Укажи имя и фамилию.");
+        const signupResp = await fetch("/api/auth/name-signup", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            password: passwordValue,
+          }),
+        });
+        const signupJson = (await signupResp.json().catch(() => ({}))) as NameAuthResult;
+        if (!signupResp.ok || !signupJson?.ok) {
+          throw new Error(signupJson?.error || "Не удалось создать кабинет. Попробуйте ещё раз.");
+        }
+        const accessToken = await applyAuthSession(authClient, signupJson.session);
+        await finishSignup(accessToken, [firstName.trim(), lastName.trim()].filter(Boolean).join(" "), "");
+        return;
+      }
+
+      if (!email.trim()) throw new Error("Укажи email.");
       if (!fullName.trim()) throw new Error("Укажи имя и фамилию.");
 
       const signupResp = await fetch("/api/auth/signup", {
@@ -464,7 +572,7 @@ export default function AuthStartPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
-          password,
+          password: passwordValue,
           full_name: fullName.trim(),
           company_name: companyName.trim(),
         }),
@@ -473,40 +581,9 @@ export default function AuthStartPage() {
       if (!signupResp.ok || !signupJson?.ok) {
         throw new Error(signupJson?.error || "Не удалось создать кабинет. Попробуйте ещё раз.");
       }
-      const data = signupJson as { session?: { access_token?: string; refresh_token?: string } | null };
-
-      if (data.session?.access_token) {
-        if (data.session.refresh_token) {
-          await authClient.auth.setSession({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
-          });
-        }
-        await syncCommercialProfile(data.session.access_token, fullName, companyName);
-      }
-
-      if (promoCode.trim()) {
-        const normalizedPromo = promoCode.trim().toUpperCase();
-        if (data.session?.access_token) {
-          try {
-            await redeemPromoWithToken(normalizedPromo, data.session.access_token);
-            clearPendingPromoCode();
-            setInfo("Кабинет создан.\nПроверь почту и подтверди email, промокод активирован.");
-          } catch (promoErr: any) {
-            setPendingPromoCode(normalizedPromo);
-            setInfo("Кабинет создан.\nПроверь почту и подтверди email; промокод сохранён.");
-            setError(promoErr?.message || "Не удалось активировать промокод сразу.");
-          }
-        } else {
-          setPendingPromoCode(normalizedPromo);
-          setInfo("Кабинет создан.\nПроверь почту и подтверди email; промокод сохранён.");
-        }
-      } else {
-        setInfo("Кабинет создан.\nПроверь почту и подтверди email, затем войди.");
-      }
-
-      safeLocalStorageSet(DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY, "1");
-      setMode("login");
+      const data = signupJson as { session?: AuthSessionLike };
+      const accessToken = await applyAuthSession(authClient, data.session);
+      await finishSignup(accessToken, fullName, companyName);
     } catch (err: any) {
       setError(normalizeAuthError(err));
     } finally {
@@ -531,23 +608,53 @@ export default function AuthStartPage() {
               <button type="button" disabled={loading} onClick={() => { setMode("signup"); setInfo(""); }} className={`btn btn-sm w-full sm:w-auto disabled:opacity-60 ${mode === "signup" ? "btn-primary" : "btn-secondary"}`}>
                 Регистрация
               </button>
-              <button type="button" disabled={loading} onClick={() => setMode("login")} className={`btn btn-sm w-full sm:w-auto disabled:opacity-60 ${mode === "login" ? "btn-primary" : "btn-secondary"}`}>
+              <button type="button" disabled={loading} onClick={() => { setMode("login"); setInfo(""); }} className={`btn btn-sm w-full sm:w-auto disabled:opacity-60 ${mode === "login" ? "btn-primary" : "btn-secondary"}`}>
                 Войти
               </button>
             </div>
           </div>
 
           <form onSubmit={onSubmit} className="mt-5 grid gap-3">
+            {mode !== "reset" ? (
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => { setAuthMethod("email"); setError(""); setInfo(""); }}
+                  className={`rounded-xl px-3 py-2 text-sm font-semibold transition disabled:opacity-60 ${authMethod === "email" ? "bg-white text-[#167a5a] shadow-sm" : "text-slate-600 hover:bg-white/70"}`}
+                >
+                  По email
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => { setAuthMethod("name"); setError(""); setInfo(""); }}
+                  className={`rounded-xl px-3 py-2 text-sm font-semibold transition disabled:opacity-60 ${authMethod === "name" ? "bg-white text-[#167a5a] shadow-sm" : "text-slate-600 hover:bg-white/70"}`}
+                >
+                  По имени
+                </button>
+              </div>
+            ) : null}
+            {mode !== "reset" && authMethod === "name" ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
+                Вход по имени проще для тех, у кого нет email. Имя и фамилию нужно вводить так же, как при регистрации; для восстановления пароля проще и безопаснее регистрация по email.
+              </div>
+            ) : null}
+
             {mode === "signup" ? (
               <>
-                <label className="grid gap-1">
-                  <span className="text-xs text-slate-700">Имя и фамилия</span>
-                  <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Например: Александр Иванов" required />
-                </label>
-                <label className="grid gap-1">
-                  <span className="text-xs text-slate-700">Компания / команда</span>
-                  <input className="input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Например: Лаборатория кадров" />
-                </label>
+                {authMethod === "email" ? (
+                  <>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-slate-700">Имя и фамилия</span>
+                      <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Например: Александр Иванов" required />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-slate-700">Компания / команда</span>
+                      <input className="input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Например: Лаборатория кадров" />
+                    </label>
+                  </>
+                ) : null}
                 <label className="grid gap-1">
                   <span className="text-xs text-slate-700">Промокод (если есть)</span>
                   <input className="input" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Например: START-500" />
@@ -574,23 +681,64 @@ export default function AuthStartPage() {
             ) : null}
 
             {mode !== "reset" || !session?.access_token ? (
-              <label className="grid gap-1">
-                <span className="text-xs text-slate-700">Email</span>
-                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
-              </label>
+              mode !== "reset" && authMethod === "name" ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-xs text-slate-700">Имя</span>
+                    <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Александр" required />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs text-slate-700">Фамилия</span>
+                    <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Иванов" required />
+                  </label>
+                </div>
+              ) : (
+                <label className="grid gap-1">
+                  <span className="text-xs text-slate-700">Email</span>
+                  <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
+                </label>
+              )
             ) : null}
 
             {mode !== "reset" || session?.access_token ? (
               <label className="grid gap-1">
                 <span className="text-xs text-slate-700">{mode === "reset" ? "Новый пароль" : "Пароль"}</span>
-                <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+                <div className="relative">
+                  <input
+                    className="input pr-24"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={showPassword ? "Введите пароль" : "••••••••"}
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:text-[#167a5a]"
+                    onClick={() => setShowPassword((value) => !value)}
+                  >
+                    {showPassword ? "Скрыть" : "Показать"}
+                  </button>
+                </div>
+                <span className="text-[11px] leading-4 text-slate-500">
+                  Пароль виден, чтобы можно было проверить написание. Пробелы по краям уберём автоматически.
+                </span>
               </label>
             ) : null}
 
             {mode === "signup" || (mode === "reset" && session?.access_token) ? (
               <label className="grid gap-1">
                 <span className="text-xs text-slate-700">{mode === "reset" ? "Повторите новый пароль" : "Повторите пароль"}</span>
-                <input className="input" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} placeholder="••••••••" required />
+                <input
+                  className="input"
+                  type={showPassword ? "text" : "password"}
+                  value={password2}
+                  onChange={(e) => setPassword2(e.target.value)}
+                  placeholder={showPassword ? "Повторите пароль" : "••••••••"}
+                  autoComplete="new-password"
+                  required
+                />
               </label>
             ) : null}
 

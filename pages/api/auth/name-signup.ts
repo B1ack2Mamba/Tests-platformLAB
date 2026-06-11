@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const body: Body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
   const firstName = formatHumanNamePart(body.first_name || "");
   const lastName = formatHumanNamePart(body.last_name || "");
-  const password = String(body.password || "");
+  const password = String(body.password || "").trim();
 
   if (!firstName || !lastName) {
     return res.status(400).json({ ok: false, error: "Укажите имя и фамилию." });

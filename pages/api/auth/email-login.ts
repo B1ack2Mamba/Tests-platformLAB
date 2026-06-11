@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const body: Body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
   const email = String(body.email || "").trim().toLowerCase();
-  const password = String(body.password || "");
+  const password = String(body.password || "").trim();
 
   if (!email || !password) {
     return res.status(400).json({ ok: false, error: "Укажите email и пароль." });
