@@ -222,6 +222,7 @@ export default function Home() {
     const probes = [
       ["browser -> Supabase auth settings", `${supabaseUrl}/auth/v1/settings`],
       ["browser -> Supabase tests REST", `${supabaseUrl}/rest/v1/tests?select=slug,title&limit=5`],
+      ["browser -> Vercel proxy -> Supabase auth settings", "/api/proxy-auth-settings"],
     ] as const;
 
     const results: ProbeSummary[] = [];
