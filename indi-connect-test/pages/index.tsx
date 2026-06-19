@@ -9,6 +9,12 @@ type Sample = {
   ok: boolean;
   ms: number;
   bytes: number;
+  headers?: {
+    cf_ray: string | null;
+    cf_colo: string | null;
+    sb_project_ref: string | null;
+    server: string | null;
+  };
   error?: string;
 };
 
@@ -21,12 +27,42 @@ type ProbeSummary = {
   maxMs: number;
 };
 
+type RouteInfo = {
+  visitor: {
+    country_code: string | null;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    source: string;
+  };
+  vercel: {
+    region: string | null;
+    city: string | null;
+    country: string | null;
+    source: string;
+  };
+  supabase_edge: {
+    cf_colo: string | null;
+    city: string | null;
+    country: string | null;
+    source: string;
+  };
+  supabase_project: {
+    ref: string;
+    region: string;
+    city: string;
+    country: string;
+    source: string;
+  };
+};
+
 type ServerPing = {
   ok: boolean;
   total_ms: number;
   server_time: string;
   runtime: string;
   vercel_region: string | null;
+  route?: RouteInfo;
   checks: Array<{
     name: string;
     url: string;
@@ -34,12 +70,25 @@ type ServerPing = {
     status: number;
     ms: number;
     bytes: number;
+    headers: {
+      cf_ray: string | null;
+      cf_colo: string | null;
+      cf_colo_country: string | null;
+      sb_project_ref: string | null;
+      server: string | null;
+      x_vercel_id: string | null;
+    };
     error?: string;
   }>;
 };
 
 const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/+$/, "");
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_KEY;
+
+function parseCfColo(cfRay: string | null) {
+  if (!cfRay) return null;
+  return cfRay.split("-").pop() || null;
+}
 
 async function runOne(url: string): Promise<Sample> {
   const started = Date.now();
@@ -54,11 +103,18 @@ async function runOne(url: string): Promise<Sample> {
       signal: AbortSignal.timeout(20000),
     });
     const text = await response.text();
+    const cfRay = response.headers.get("cf-ray");
     return {
       status: response.status,
       ok: response.ok,
       ms: Date.now() - started,
       bytes: text.length,
+      headers: {
+        cf_ray: cfRay,
+        cf_colo: parseCfColo(cfRay),
+        sb_project_ref: response.headers.get("sb-project-ref"),
+        server: response.headers.get("server"),
+      },
       error: response.ok ? undefined : text.slice(0, 180),
     };
   } catch (error: any) {
@@ -67,6 +123,12 @@ async function runOne(url: string): Promise<Sample> {
       ok: false,
       ms: Date.now() - started,
       bytes: 0,
+      headers: {
+        cf_ray: null,
+        cf_colo: null,
+        sb_project_ref: null,
+        server: null,
+      },
       error: error?.message || String(error),
     };
   }
@@ -90,8 +152,45 @@ function verdict(summary: ProbeSummary) {
   return "broken";
 }
 
+function formatPlace(country?: string | null, city?: string | null) {
+  if (country && city) return `${country}, ${city}`;
+  return country || city || "Detecting...";
+}
+
 function StatusPill({ value }: { value: string }) {
   return <span className={`pill pill-${value}`}>{value}</span>;
+}
+
+function RouteNode({
+  label,
+  place,
+  detail,
+  source,
+}: {
+  label: string;
+  place: string;
+  detail: string;
+  source: string;
+}) {
+  return (
+    <article className="routeNode">
+      <span>{label}</span>
+      <strong>{place}</strong>
+      <small>{detail}</small>
+      <em>{source}</em>
+    </article>
+  );
+}
+
+function BrowserPopLine({ summary }: { summary: ProbeSummary }) {
+  const sampleWithPop = summary.samples.find((sample) => sample.headers?.cf_colo);
+  const sampleWithProject = summary.samples.find((sample) => sample.headers?.sb_project_ref);
+  return (
+    <p className="routeMeta">
+      Browser Supabase POP: {sampleWithPop?.headers?.cf_colo || "hidden by CORS"}
+      {sampleWithProject?.headers?.sb_project_ref ? ` | project: ${sampleWithProject.headers.sb_project_ref}` : ""}
+    </p>
+  );
 }
 
 export default function Home() {
@@ -111,13 +210,13 @@ export default function Home() {
     setClientError("");
     setClientResults([]);
     setServerPing(null);
-    setLastRun(new Date().toLocaleString("ru-RU"));
+    setLastRun(new Date().toISOString());
 
     try {
       const serverResponse = await fetch("/api/server-ping", { cache: "no-store" });
       setServerPing(await serverResponse.json());
     } catch (error: any) {
-      setClientError(`Не удалось вызвать /api/server-ping: ${error?.message || String(error)}`);
+      setClientError(`Could not call /api/server-ping: ${error?.message || String(error)}`);
     }
 
     const probes = [
@@ -141,44 +240,92 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Indi Supabase Connection Test</title>
+        <title>Indi Supabase Connection Route Test</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <main className="shell">
         <section className="hero">
           <div>
             <p className="eyebrow">Supabase Indi probe</p>
-            <h1>Проверка связи без VPN</h1>
+            <h1>Connection route test</h1>
             <p className="lead">
-              Эта страница отдельно проверяет браузер пользователя и сервер Vercel. Если без VPN не грузится основной сайт,
-              здесь будет видно, где именно обрывается путь.
+              This page shows where traffic goes: user country, Vercel server region, Supabase edge country,
+              and the Supabase project region. Use it with VPN off and then with VPN on.
             </p>
           </div>
           <button className="runButton" disabled={running} onClick={runAll}>
-            {running ? "Проверяю..." : "Повторить проверку"}
+            {running ? "Checking..." : "Run again"}
           </button>
         </section>
 
         <section className="metaGrid">
           <div className="metaCard">
-            <span>Supabase</span>
+            <span>Supabase project</span>
             <strong>npgrkyqtgdhzdsabkhxg</strong>
             <small>{supabaseUrl}</small>
           </div>
           <div className="metaCard">
-            <span>Запуск</span>
+            <span>Run time</span>
             <strong>{lastRun || "..."}</strong>
-            <small>Автоматически при открытии</small>
+            <small>Runs automatically on page load</small>
           </div>
           <div className="metaCard">
-            <span>Сеть браузера</span>
+            <span>Browser network</span>
             <strong>{typeof navigator !== "undefined" && navigator.onLine ? "online" : "unknown"}</strong>
             <small>
               {connection
                 ? `${connection.effectiveType || "type ?"} / downlink ${connection.downlink || "?"}`
-                : "Network Information API недоступен"}
+                : "Network Information API is unavailable"}
             </small>
           </div>
+        </section>
+
+        <section className="routePanel">
+          <div className="panelTitle">
+            <h2>Traffic route by country</h2>
+            {serverPing?.route ? <StatusPill value="stable" /> : <StatusPill value="slow" />}
+          </div>
+          <div className="routeFlow">
+            <RouteNode
+              label="1. User"
+              place={formatPlace(serverPing?.route?.visitor.country, serverPing?.route?.visitor.city)}
+              detail={
+                serverPing?.route?.visitor.country_code
+                  ? `country=${serverPing.route.visitor.country_code}${serverPing.route.visitor.region ? `, region=${serverPing.route.visitor.region}` : ""}`
+                  : "Geo appears after Vercel response"
+              }
+              source="Vercel geolocation headers"
+            />
+            <div className="routeArrow">{"->"}</div>
+            <RouteNode
+              label="2. Vercel"
+              place={formatPlace(serverPing?.route?.vercel.country, serverPing?.route?.vercel.city)}
+              detail={serverPing?.route?.vercel.region ? `region=${serverPing.route.vercel.region}` : "Region appears on Vercel"}
+              source="VERCEL_REGION"
+            />
+            <div className="routeArrow">{"->"}</div>
+            <RouteNode
+              label="3. Supabase edge"
+              place={formatPlace(serverPing?.route?.supabase_edge.country, serverPing?.route?.supabase_edge.city)}
+              detail={
+                serverPing?.route?.supabase_edge.cf_colo
+                  ? `Cloudflare POP=${serverPing.route.supabase_edge.cf_colo}`
+                  : "Cloudflare POP not visible yet"
+              }
+              source="Supabase cf-ray header"
+            />
+            <div className="routeArrow">{"->"}</div>
+            <RouteNode
+              label="4. Supabase project"
+              place={formatPlace(serverPing?.route?.supabase_project.country, serverPing?.route?.supabase_project.city)}
+              detail={serverPing?.route?.supabase_project.region || "ap-south-1"}
+              source="Indi project region"
+            />
+          </div>
+          <p className="routeNote">
+            The server route is exact for Vercel to Supabase because Vercel can read response headers.
+            Browser to Supabase may hide Cloudflare POP headers because of CORS, but status and timeout samples still show if the route works.
+          </p>
         </section>
 
         {clientError ? <div className="warning">{clientError}</div> : null}
@@ -191,8 +338,8 @@ export default function Home() {
           {serverPing ? (
             <div className="serverGrid">
               <div>
-                <span>Общее время</span>
-                <strong>{serverPing.total_ms} мс</strong>
+                <span>Total time</span>
+                <strong>{serverPing.total_ms} ms</strong>
               </div>
               <div>
                 <span>Vercel region</span>
@@ -204,7 +351,7 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <p className="muted">Жду ответ сервера...</p>
+            <p className="muted">Waiting for server response...</p>
           )}
           <div className="cards">
             {serverPing?.checks.map((check) => (
@@ -213,8 +360,12 @@ export default function Home() {
                   <h3>{check.name}</h3>
                   <StatusPill value={check.ok ? "stable" : "broken"} />
                 </div>
-                <p className="metric">{check.ms} мс</p>
+                <p className="metric">{check.ms} ms</p>
                 <p className="url">{check.url}</p>
+                <p className="routeMeta">
+                  Supabase POP: {check.headers.cf_colo || "not visible"} | country: {check.headers.cf_colo_country || "unknown"} |
+                  project: {check.headers.sb_project_ref || "not visible"}
+                </p>
                 {check.error ? <pre>{check.error}</pre> : null}
               </article>
             ))}
@@ -234,31 +385,32 @@ export default function Home() {
                   <StatusPill value={verdict(summary)} />
                 </div>
                 <p className="metric">
-                  {summary.okCount}/{summary.samples.length} ok · avg {summary.avgMs} мс · max {summary.maxMs} мс
+                  {summary.okCount}/{summary.samples.length} ok - avg {summary.avgMs} ms - max {summary.maxMs} ms
                 </p>
                 <p className="url">{summary.url}</p>
                 <div className="sampleList">
                   {summary.samples.map((sample, index) => (
                     <span className={sample.ok ? "sampleOk" : "sampleBad"} key={index}>
-                      {sample.status || "ERR"} · {sample.ms}мс
+                      {sample.status || "ERR"} - {sample.ms}ms
                     </span>
                   ))}
                 </div>
+                <BrowserPopLine summary={summary} />
                 {summary.samples.some((sample) => sample.error) ? (
                   <pre>{summary.samples.find((sample) => sample.error)?.error}</pre>
                 ) : null}
               </article>
             ))}
           </div>
-          {!clientResults.length ? <p className="muted">Проверка браузера запускается...</p> : null}
+          {!clientResults.length ? <p className="muted">Browser checks are starting...</p> : null}
         </section>
 
         <section className="help">
-          <h2>Как читать результат</h2>
+          <h2>How to read it</h2>
           <p>
-            Если блок Vercel зелёный, а Browser красный, значит Vercel до Supabase достучался, но сеть пользователя без VPN
-            режет или теряет запросы к Supabase. Если оба зелёные, проблема вероятнее в тяжёлых ресурсах основного сайта,
-            кешe браузера или переключении сети.
+            If Vercel is green but Browser is red, Vercel can reach Supabase but the user network cannot.
+            If User country is Russia and the Browser block is slow or broken, the issue is likely on the direct user-to-Supabase path.
+            If both Vercel and Browser are green, the main site issue is more likely heavy assets, browser cache, or network switching.
           </p>
         </section>
       </main>

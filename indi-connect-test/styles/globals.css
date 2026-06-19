@@ -130,7 +130,8 @@ h3 {
 
 .metaCard,
 .panel,
-.help {
+.help,
+.routePanel {
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: 0 18px 46px rgba(53, 41, 25, 0.1);
@@ -168,7 +169,8 @@ h3 {
 }
 
 .panel,
-.help {
+.help,
+.routePanel {
   margin-top: 22px;
   border-radius: 30px;
   padding: 26px;
@@ -189,6 +191,80 @@ h3 {
 
 .cards {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.routeFlow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 22px;
+}
+
+.routeNode {
+  min-height: 170px;
+  border: 1px solid rgba(15, 139, 95, 0.18);
+  border-radius: 24px;
+  padding: 18px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(238, 248, 237, 0.72)),
+    radial-gradient(circle at 18% 14%, rgba(15, 139, 95, 0.16), transparent 9rem);
+}
+
+.routeNode span {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.routeNode strong {
+  display: block;
+  min-height: 52px;
+  overflow-wrap: anywhere;
+  font-size: 21px;
+  letter-spacing: -0.04em;
+}
+
+.routeNode small {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.routeNode em {
+  display: block;
+  margin-top: 12px;
+  color: rgba(23, 33, 27, 0.54);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.routeArrow {
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  font-weight: 900;
+}
+
+.routeNote,
+.routeMeta {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.routeNote {
+  margin: 18px 0 0;
+}
+
+.routeMeta {
+  margin: 12px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .resultCard {
@@ -299,13 +375,20 @@ pre {
   .hero,
   .metaGrid,
   .serverGrid,
-  .cards {
+  .cards,
+  .routeFlow {
     grid-template-columns: 1fr;
+  }
+
+  .routeArrow {
+    transform: rotate(90deg);
+    min-height: 22px;
   }
 
   .hero,
   .panel,
-  .help {
+  .help,
+  .routePanel {
     padding: 22px;
     border-radius: 24px;
   }
