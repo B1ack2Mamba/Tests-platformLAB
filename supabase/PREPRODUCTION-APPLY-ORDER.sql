@@ -3,38 +3,39 @@
 -- 1) schema.sql
 -- 2) commercial_schema.sql
 -- 3) commercial_goals_workflow.sql
--- 4) commercial_package_logic_update.sql
+-- 4) commercial_workspace_members_rls_fix.sql
+-- 5) commercial_package_logic_update.sql
 --
 -- Auth and training
--- 5) auth_name_logins.sql
--- 6) training_rooms.sql
--- 7) training_room_sessions.sql
--- 8) training_rooms_personal_data_consent.sql
--- 9) training_room_join_queue.sql
--- 10) training_rooms_hardening.sql
--- 11) training_rooms_digits_mode.sql
--- 12) training_rooms_analysis_prompt.sql
--- 13) test_take_unlocks.sql
+-- 6) auth_name_logins.sql
+-- 7) training_rooms.sql
+-- 8) training_room_sessions.sql
+-- 9) training_rooms_personal_data_consent.sql
+-- 10) training_room_join_queue.sql
+-- 11) training_rooms_hardening.sql
+-- 12) training_rooms_digits_mode.sql
+-- 13) training_rooms_analysis_prompt.sql
+-- 14) test_take_unlocks.sql
 --
 -- Wallet and payments
--- 14) paywall.sql
--- 15) yookassa.sql
--- 16) yookassa_amount_guard_hotfix.sql
--- 17) yookassa_idempotency_fix.sql
--- 18) wallet_debit.sql
+-- 15) paywall.sql
+-- 16) yookassa.sql
+-- 17) yookassa_amount_guard_hotfix.sql
+-- 18) yookassa_idempotency_fix.sql
+-- 19) wallet_debit.sql
 --
 -- Commercial add-ons
--- 19) commercial_fit_profiles.sql
--- 20) commercial_competency_prompts.sql
--- 21) commercial_invites_and_public_attempts.sql
--- 22) commercial_monthly_subscriptions.sql
--- 23) commercial_paid_evaluation_unlocks.sql
--- 24) commercial_promo_codes.sql
--- 25) commercial_support_chat.sql
--- 26) commercial_registry_candidate_analysis.sql
--- 27) commercial_candidate_calibration_cases.sql
--- 28) commercial_evaluation_cache.sql
--- 29) data_api_explicit_grants_2026.sql
+-- 20) commercial_fit_profiles.sql
+-- 21) commercial_competency_prompts.sql
+-- 22) commercial_invites_and_public_attempts.sql
+-- 23) commercial_monthly_subscriptions.sql
+-- 24) commercial_paid_evaluation_unlocks.sql
+-- 25) commercial_promo_codes.sql
+-- 26) commercial_support_chat.sql
+-- 27) commercial_registry_candidate_analysis.sql
+-- 28) commercial_candidate_calibration_cases.sql
+-- 29) commercial_evaluation_cache.sql
+-- 30) data_api_explicit_grants_2026.sql
 --     Explicit Data API grants for the Supabase May/October 2026 public schema rollout.
 --     Safe to rerun after adding new public tables/functions; RLS policies remain unchanged.
 --

@@ -127,14 +127,7 @@ drop policy if exists "Workspace members can view membership" on public.commerci
 create policy "Workspace members can view membership"
   on public.commercial_workspace_members
   for select
-  using (
-    exists (
-      select 1
-      from public.commercial_workspace_members m
-      where m.workspace_id = commercial_workspace_members.workspace_id
-        and m.user_id = auth.uid()
-    )
-  );
+  using (user_id = auth.uid());
 
 drop policy if exists "Workspace members can view people" on public.commercial_people;
 create policy "Workspace members can view people"
