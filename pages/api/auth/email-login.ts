@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { CONNECTION_TROUBLE_HINT } from "@/lib/friendlyErrors";
 
 type Body = {
   email?: string;
@@ -11,8 +12,8 @@ function normalizeLoginError(message: string) {
   if (/invalid login credentials|invalid credentials|email not confirmed/i.test(source)) {
     return "Неверный email или пароль. Проверьте данные и попробуйте ещё раз.";
   }
-  if (/fetch failed|failed to fetch|load failed|network|timeout|econn/i.test(source)) {
-    return "Не удалось связаться с сервером авторизации. Проверьте интернет, VPN или антивирус и попробуйте ещё раз.";
+  if (/fetch failed|failed to fetch|load failed|network|timeout|econn|ERR_NETWORK_CHANGED/i.test(source)) {
+    return `Не удалось связаться с сервером авторизации. ${CONNECTION_TROUBLE_HINT}`;
   }
   return source || "Не удалось войти. Попробуйте ещё раз.";
 }

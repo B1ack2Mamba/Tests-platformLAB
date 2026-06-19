@@ -23,6 +23,7 @@ import type {
 } from "@/lib/testTypes";
 import { scoreForcedPair, scorePairSplit, scoreColorTypes, scoreUSK, score16PF, scoreSituationalGuidance, scoreBelbin, scoreEmin, scoreTimeManagement, scoreLearningTypology } from "@/lib/score";
 import type { ScoreResult } from "@/lib/score";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 import { useSession } from "@/lib/useSession";
 import { PAYMENTS_UI_ENABLED } from "@/lib/payments";
 import { saveAttempt, updateAttempt } from "@/lib/localHistory";
@@ -375,7 +376,7 @@ function BelbinForm({ test }: { test: AnyTest }) {
       await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -557,7 +558,7 @@ function ForcedPairForm({ test }: { test: ForcedPairTestV1 }) {
 
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message ?? "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -740,7 +741,7 @@ function PairSplitForm({ test }: { test: PairSplitTestV1 }) {
 
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message ?? "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -1001,7 +1002,7 @@ function ColorTypesForm({ test }: { test: ColorTypesTestV1 }) {
 
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message ?? "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -1286,7 +1287,7 @@ function USKForm({ test }: { test: USKTestV1 }) {
 
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message ?? "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -1438,7 +1439,7 @@ function SituationalGuidanceForm({ test }: { test: SituationalGuidanceTestV1 }) 
 
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message ?? "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -1600,7 +1601,7 @@ function PF16Form({ test }: { test: PF16TestV1 }) {
 
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message ? String(e.message) : "Не удалось посчитать результат.");
+      setError(friendlyErrorMessage(e, "Не удалось посчитать результат."));
     } finally {
       setBusy(false);
     }
@@ -1736,7 +1737,7 @@ function TimeManagementForm({ test }: { test: TimeManagementTestV1 }) {
       await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -1837,7 +1838,7 @@ function EminForm({ test }: { test: EminTestV1 }) {
       await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }
@@ -1934,7 +1935,7 @@ function LearningTypologyForm({ test }: { test: LearningTypologyTestV1 }) {
       await persistResult({ test, result: res, userId, accessToken: session?.access_token ?? null });
       await navigateAfterSubmit(router, test.slug);
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }

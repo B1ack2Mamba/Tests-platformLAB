@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PAYMENTS_UI_ENABLED, YOOKASSA_TEST_UI_ENABLED } from "@/lib/payments";
 import { isGlobalTemplateOwnerEmail } from "@/lib/admin";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 import {
   MONTHLY_SUBSCRIPTION_PLANS,
   formatMonthlySubscriptionPeriod,
@@ -331,7 +332,7 @@ export default function WalletPage() {
       if (!resp.ok || !data?.ok) throw new Error(data?.error || "Не удалось сохранить шаблон для всех");
       setWalletHermesTemplateInfo("Шаблон окна оплаты сохранен для всех.");
     } catch (e: any) {
-      setWalletHermesTemplateError(e?.message || "Не удалось сохранить шаблон для всех");
+      setWalletHermesTemplateError(friendlyErrorMessage(e, "Не удалось сохранить шаблон для всех"));
     } finally {
       setWalletHermesTemplateBusy(false);
     }
@@ -386,7 +387,7 @@ export default function WalletPage() {
           }
         } catch (err: any) {
           if (delay === lastDelay) {
-            const message = err?.message || "Автоматическое подтверждение оплаты задержалось";
+            const message = friendlyErrorMessage(err, "Автоматическое подтверждение оплаты задержалось");
             if (needsWalletPolling && walletPaymentId) {
               setTopupError(message);
             }
@@ -441,7 +442,7 @@ export default function WalletPage() {
       setWalletHermesLayout(readWalletHermesLayout());
         window.localStorage.setItem(PENDING_PROMO_CODE_KEY, normalizedCode);
       }
-      setPromoError(e?.message || "Не удалось активировать промокод");
+      setPromoError(friendlyErrorMessage(e, "Не удалось активировать промокод"));
     } finally {
       setPromoBusy(false);
     }
@@ -461,7 +462,7 @@ export default function WalletPage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить месячный тариф");
       setActiveSubscription(json.active_subscription || null);
     } catch (err: any) {
-      setSubscriptionError((current) => current || err?.message || "Не удалось загрузить месячный тариф");
+      setSubscriptionError((current) => current || friendlyErrorMessage(err, "Не удалось загрузить месячный тариф"));
     }
   }
 
@@ -507,7 +508,7 @@ export default function WalletPage() {
       setPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY, data.payment_id);
       window.location.href = data.confirmation_url;
     } catch (err: any) {
-      setSubscriptionError(err?.message || "Не удалось создать оплату тарифа");
+      setSubscriptionError(friendlyErrorMessage(err, "Не удалось создать оплату тарифа"));
     } finally {
       setSubscriptionBusyKey(null);
     }
@@ -539,7 +540,7 @@ export default function WalletPage() {
       await refresh();
       await loadSubscriptionStatus();
     } catch (err: any) {
-      setSubscriptionError(err?.message || "Не удалось купить тариф с баланса");
+      setSubscriptionError(friendlyErrorMessage(err, "Не удалось купить тариф с баланса"));
     } finally {
       setSubscriptionBusyKey(null);
     }
@@ -572,7 +573,7 @@ export default function WalletPage() {
       // Redirect to YooKassa confirmation page (SBP QR / bank selection)
       window.location.href = data.confirmation_url;
     } catch (e: any) {
-      setTopupError(e?.message || "Ошибка пополнения");
+      setTopupError(friendlyErrorMessage(e, "Ошибка пополнения"));
     } finally {
       setTopupBusy(false);
     }

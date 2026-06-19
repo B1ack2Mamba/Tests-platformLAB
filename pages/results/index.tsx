@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type AttemptRow = {
   id: string;
@@ -62,7 +63,7 @@ export default function ResultsPage() {
         if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить результаты");
         setRows(json.attempts || []);
       } catch (e: any) {
-        setError(e?.message || "Ошибка загрузки результатов");
+        setError(friendlyErrorMessage(e, "Ошибка загрузки результатов"));
       } finally {
         setLoading(false);
       }

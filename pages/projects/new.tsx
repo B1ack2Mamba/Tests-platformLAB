@@ -33,6 +33,7 @@ import { getAllTests } from "@/lib/loadTests";
 import type { AnyTest } from "@/lib/testTypes";
 import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 import { useWallet } from "@/lib/useWallet";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type WorkspacePayload = {
   ok: true;
@@ -378,7 +379,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   useEffect(() => {
     if (!session?.access_token) return;
-    loadSubscriptionStatus().catch((err) => setPaymentError(err?.message || "Не удалось загрузить тариф"));
+    loadSubscriptionStatus().catch((err) => setPaymentError(friendlyErrorMessage(err, "Не удалось загрузить тариф")));
   }, [loadSubscriptionStatus, session?.access_token]);
 
   useEffect(() => {
@@ -414,7 +415,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
           if (!cancelled) setPaymentInfo("Оплата проверена. Можно создавать проект.");
         } catch (err: any) {
           if (!cancelled && index === delays.length - 1) {
-            setPaymentError(err?.message || "Оплата могла ещё не успеть подтвердиться. Попробуй обновить баланс через несколько секунд.");
+            setPaymentError(friendlyErrorMessage(err, "Оплата могла ещё не успеть подтвердиться. Попробуй обновить баланс через несколько секунд."));
           }
         }
       }, delay);
@@ -636,7 +637,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       setPendingYooKassaPaymentId(YOOKASSA_PENDING_TOPUP_KEY, json.payment_id);
       window.location.href = json.confirmation_url;
     } catch (err: any) {
-      setPaymentError(err?.message || "Не удалось создать оплату");
+      setPaymentError(friendlyErrorMessage(err, "Не удалось создать оплату"));
     } finally {
       setPaymentBusyKey(null);
     }
@@ -670,7 +671,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       setPendingYooKassaPaymentId(YOOKASSA_PENDING_PLAN_KEY, json.payment_id);
       window.location.href = json.confirmation_url;
     } catch (err: any) {
-      setPaymentError(err?.message || "Не удалось создать оплату тарифа");
+      setPaymentError(friendlyErrorMessage(err, "Не удалось создать оплату тарифа"));
     } finally {
       setPaymentBusyKey(null);
     }
@@ -700,7 +701,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       await loadSubscriptionStatus();
       setPaymentInfo("Тариф подключён. Можно создавать проект.");
     } catch (err: any) {
-      setPaymentError(err?.message || "Не удалось купить тариф с баланса");
+      setPaymentError(friendlyErrorMessage(err, "Не удалось купить тариф с баланса"));
     } finally {
       setPaymentBusyKey(null);
     }
@@ -818,7 +819,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
       } catch {}
       router.push(`/projects/${json.project_id}`);
     } catch (err: any) {
-      setError(err?.message || "Ошибка");
+      setError(friendlyErrorMessage(err, "Ошибка"));
     } finally {
       setLoading(false);
     }

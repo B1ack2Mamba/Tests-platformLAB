@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { LineChart } from "@/components/LineChart";
 import type { ScoreResult } from "@/lib/score";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 function levelColor(level: string) {
   const l = String(level || "").toLowerCase();
@@ -50,7 +51,7 @@ export default function TrainingResults() {
         setReveal(Boolean(j.reveal_results));
         setResult((j.reveal_results ? (j.result as ScoreResult) : null) || null);
       } catch (e: any) {
-        setErr(e?.message || "Ошибка");
+        setErr(friendlyErrorMessage(e, "Ошибка"));
       } finally {
         setLoading(false);
       }

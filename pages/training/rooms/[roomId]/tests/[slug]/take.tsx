@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { getTestBySlug } from "@/lib/loadTests";
 import type { AnyTest, ABC, TimeManagementTag, LearningTypologyChoice } from "@/lib/testTypes";
 import { useSession } from "@/lib/useSession";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 function cls(active: boolean) {
   return active
@@ -410,7 +411,7 @@ export default function TrainingTake({ test }: { test: AnyTest }) {
         )}`
       );
     } catch (e: any) {
-      setErr(e?.message || "Ошибка");
+      setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusy(false);
     }

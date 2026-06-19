@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
+import { CONNECTION_TROUBLE_HINT, friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 function TextSide() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -117,7 +118,7 @@ type AuthErrorHelp = {
 function isFetchNetworkError(err: any) {
   const message = String(err?.message || err || "");
   const name = String(err?.name || "");
-  return /failed to fetch|fetch failed|load failed|network|timeout/i.test(`${name} ${message}`);
+  return /failed to fetch|fetch failed|load failed|network|timeout|ERR_NETWORK_CHANGED/i.test(`${name} ${message}`);
 }
 
 function isRetryableLoginError(err: any) {
@@ -137,7 +138,7 @@ function normalizeAuthError(err: any) {
     return "Неверный email или пароль. Проверьте данные и попробуйте ещё раз.";
   }
   if (isFetchNetworkError(err)) {
-    return "Не удалось связаться с сервером авторизации. Проверьте интернет, VPN, антивирус или расширения браузера и попробуйте ещё раз.";
+    return friendlyErrorMessage(err, "Не удалось связаться с сервером авторизации.");
   }
   return message || "Ошибка";
 }
@@ -172,8 +173,9 @@ function getAuthErrorHelp(error: string): AuthErrorHelp | null {
       reason: "Браузер или сеть не смогли связаться с авторизацией.",
       actions: [
         "Обновите страницу через Ctrl+F5 и попробуйте снова.",
-        "На время входа отключите VPN, AdBlock или веб-защиту антивируса.",
-        "Если не помогло, попробуйте другой браузер или другую сеть.",
+        "Обновите страницу через Ctrl+F5 и попробуйте снова.",
+        CONNECTION_TROUBLE_HINT,
+        "Если не помогло, попробуйте другой браузер.",
       ],
       showConnectionSupport: true,
     };
@@ -363,7 +365,7 @@ export default function AuthStartPage() {
         clearPendingPromoCode();
         setPromoFlashSuccess(`Промокод ${pendingPromo} успешно активирован.`);
       } catch (err: any) {
-        setPromoFlashError(err?.message || `Не удалось активировать промокод ${pendingPromo}. Он сохранён, попробуй ещё раз в кошельке.`);
+        setPromoFlashError(friendlyErrorMessage(err, `Не удалось активировать промокод ${pendingPromo}. Он сохранён, попробуй ещё раз в кошельке.`));
       } finally {
         if (!cancelled) router.replace(next);
       }
@@ -706,10 +708,9 @@ export default function AuthStartPage() {
                     </ul>
                     {authErrorHelp.showConnectionSupport ? (
                       <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-amber-950">
-                        <div className="font-semibold">Если входите из Москвы</div>
+                        <div className="font-semibold">Проблемы со связью</div>
                         <div className="mt-1">
-                          При подключении из Москвы могут наблюдаться сбои при входе. Подождите немного и попробуйте ещё раз,
-                          попробуйте включить или выключить VPN. Если решить проблему не удалось, напишите мне лично в Telegram.
+                          {CONNECTION_TROUBLE_HINT} Если решить проблему не удалось, напишите мне лично в Telegram.
                         </div>
                         <a
                           href="https://t.me/BalancEcnalab"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "@/lib/useSession";
 import { isTestUnlimitedEmail, TEST_UNLIMITED_BALANCE_KOPEKS } from "@/lib/testWallet";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 export type WalletRow = {
   user_id: string;
@@ -79,7 +80,7 @@ export function useWallet() {
 
       setLedger((ledgerResp.data ?? []) as any);
     } catch (e: any) {
-      setError(e?.message ?? "Wallet load error");
+      setError(friendlyErrorMessage(e, "Не удалось загрузить кошелёк"));
     } finally {
       setWalletLoading(false);
     }

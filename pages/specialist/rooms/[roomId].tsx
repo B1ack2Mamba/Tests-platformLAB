@@ -6,6 +6,7 @@ import { useSession } from "@/lib/useSession";
 import { isSpecialistUser } from "@/lib/specialist";
 import type { AnyTest } from "@/lib/testTypes";
 import type { ScoreResult } from "@/lib/score";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type Props = { tests: AnyTest[] };
 
@@ -573,7 +574,7 @@ export default function SpecialistRoom({ tests }: Props) {
       setBootstrapped(true);
     } catch (e: any) {
       if (e?.name === "AbortError") return;
-      if (mountedRef.current && requestId === shellRequestIdRef.current) setErr(e?.message || "Ошибка");
+      if (mountedRef.current && requestId === shellRequestIdRef.current) setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       if (mountedRef.current && requestId === shellRequestIdRef.current) setLoading(false);
     }
@@ -602,7 +603,7 @@ export default function SpecialistRoom({ tests }: Props) {
       }
     } catch (e: any) {
       if (e?.name === "AbortError") return;
-      if (mountedRef.current && requestId === resultsRequestIdRef.current) setErr(e?.message || "Ошибка");
+      if (mountedRef.current && requestId === resultsRequestIdRef.current) setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       if (mountedRef.current && requestId === resultsRequestIdRef.current) {
         setRefreshing(false);

@@ -23,6 +23,7 @@ import { getFitRoleProfiles, type FitRoleProfile } from "@/lib/fitProfiles";
 import type { ProjectRoutingMeta } from "@/lib/projectRoutingMeta";
 import { getCompetencyLongLabel } from "@/lib/competencyRouter";
 import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type ProjectPayload = {
   ok: true;
@@ -518,7 +519,7 @@ export default function ProjectDetailsPage() {
         registry_comment: json.project.registry_comment || "",
       });
     } catch (err: any) {
-      setError(err?.message || "Ошибка");
+      setError(friendlyErrorMessage(err, "Ошибка"));
     } finally {
       setLoading(false);
     }
@@ -550,7 +551,7 @@ export default function ProjectDetailsPage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить уровень оценки");
       setEvaluationByMode((prev) => ({ ...prev, [mode]: json }));
     } catch (err: any) {
-      setError(err?.message || "Не удалось загрузить уровень оценки");
+      setError(friendlyErrorMessage(err, "Не удалось загрузить уровень оценки"));
     } finally {
       setEvaluationLoading((prev) => ({ ...prev, [mode]: false }));
     }
@@ -569,7 +570,7 @@ export default function ProjectDetailsPage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить месячный тариф");
       setActiveSubscription(json.active_subscription || null);
     } catch (err: any) {
-      setError(err?.message || "Не удалось загрузить месячный тариф");
+      setError(friendlyErrorMessage(err, "Не удалось загрузить месячный тариф"));
     }
   }
 
@@ -931,7 +932,7 @@ export default function ProjectDetailsPage() {
       await loadProject();
       setEvaluationByMode({});
     } catch (err: any) {
-      setError(err?.message || "Ошибка");
+      setError(friendlyErrorMessage(err, "Ошибка"));
     } finally {
       setSaving(false);
     }
@@ -955,7 +956,7 @@ export default function ProjectDetailsPage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось удалить проект");
       await router.push("/dashboard");
     } catch (err: any) {
-      setError(err?.message || "Ошибка");
+      setError(friendlyErrorMessage(err, "Ошибка"));
       setSaving(false);
     }
   }
@@ -993,7 +994,7 @@ export default function ProjectDetailsPage() {
         await loadEvaluation("premium");
       }
     } catch (err: any) {
-      setError(err?.message || "Ошибка оплаты");
+      setError(friendlyErrorMessage(err, "Ошибка оплаты"));
     } finally {
       setSaving(false);
     }

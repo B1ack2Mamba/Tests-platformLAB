@@ -7,6 +7,7 @@ import { useSession } from "@/lib/useSession";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import { getTestTakePriceRub } from "@/lib/testTakeAccess";
 import { hasActiveTestTakeSession, markTestTakeSession } from "@/lib/testTakeSession";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type Props = {
   slug: string;
@@ -59,7 +60,7 @@ export function TestTakeGate({ slug, title, children }: Props) {
       } catch (e: any) {
         if (!cancelled) {
           setAllowed(false);
-          setError(e?.message || "Не удалось проверить доступ");
+          setError(friendlyErrorMessage(e, "Не удалось проверить доступ"));
         }
       } finally {
         if (!cancelled) setChecking(false);
@@ -92,7 +93,7 @@ export function TestTakeGate({ slug, title, children }: Props) {
       setPriceRub(Number(json.price_rub ?? getTestTakePriceRub()));
       refresh();
     } catch (e: any) {
-      setError(e?.message || "Не удалось открыть тест");
+      setError(friendlyErrorMessage(e, "Не удалось открыть тест"));
     } finally {
       setBusy(false);
     }

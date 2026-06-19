@@ -17,6 +17,7 @@ import { getFitRoleProfiles, type FitRoleProfile } from "@/lib/fitProfiles";
 import { useSession } from "@/lib/useSession";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import type { ResultsBlueprint } from "@/lib/projectResultsBlueprint";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type ResultsPagePayload = {
   ok: true;
@@ -399,7 +400,7 @@ export default function ProjectResultsStandalonePage() {
       if (explicitCollect) setInfo(options?.announce || "Анализ собран заново по всей информации проекта.");
       return payload;
     } catch (err: any) {
-      setError(err?.message || "Не удалось открыть страницу результатов");
+      setError(friendlyErrorMessage(err, "Не удалось открыть страницу результатов"));
       return null;
     } finally {
       if (options?.showSkeleton) setBusy(false);
@@ -420,7 +421,7 @@ export default function ProjectResultsStandalonePage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить месячный тариф");
       setActiveSubscription(json.active_subscription || null);
     } catch (err: any) {
-      setError(err?.message || "Не удалось загрузить месячный тариф");
+      setError(friendlyErrorMessage(err, "Не удалось загрузить месячный тариф"));
     }
   }
 
@@ -592,7 +593,7 @@ export default function ProjectResultsStandalonePage() {
       }
     } catch (err: any) {
       if (err?.name === "AbortError" || isStale()) return;
-      setError(err?.message || "Не удалось загрузить уровень анализа");
+      setError(friendlyErrorMessage(err, "Не удалось загрузить уровень анализа"));
     } finally {
       evaluationInFlightKeys.delete(cacheKey);
       if (evaluationRequestIdRef.current[mode] === requestId) {
@@ -643,7 +644,7 @@ export default function ProjectResultsStandalonePage() {
         await loadEvaluation("premium");
       }
     } catch (err: any) {
-      setError(err?.message || "Ошибка оплаты");
+      setError(friendlyErrorMessage(err, "Ошибка оплаты"));
     } finally {
       setSaving(false);
     }

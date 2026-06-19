@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "@/lib/useSession";
 import { isTestUnlimitedEmail, TEST_UNLIMITED_BALANCE_KOPEKS } from "@/lib/testWallet";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type WalletBalanceRow = {
   user_id: string;
@@ -60,7 +61,7 @@ export function useWalletBalance(_userId: string | null = null) {
         });
       }
     } catch (e: any) {
-      setError(e?.message ?? "Wallet load error");
+      setError(friendlyErrorMessage(e, "Не удалось загрузить баланс"));
     } finally {
       setWalletLoading(false);
     }

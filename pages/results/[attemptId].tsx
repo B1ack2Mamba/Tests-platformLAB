@@ -6,6 +6,7 @@ import { LineChart } from "@/components/LineChart";
 import { useSession } from "@/lib/useSession";
 import type { ScoreResult } from "@/lib/score";
 import { interpretationToDisplayText } from "@/lib/testInterpretationText";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 function levelColor(level: string) {
   const l = String(level || "").toLowerCase();
@@ -49,7 +50,7 @@ export default function AttemptResultPage() {
         if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось загрузить результат");
         setData(json.attempt);
       } catch (e: any) {
-        setError(e?.message || "Ошибка");
+        setError(friendlyErrorMessage(e, "Ошибка"));
       } finally {
         setLoading(false);
       }

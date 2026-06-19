@@ -6,6 +6,7 @@ import { useSession } from "@/lib/useSession";
 import type { AnyTest } from "@/lib/testTypes";
 import { DigitsTable } from "@/components/DigitsTable";
 import type { ScoreResult } from "@/lib/score";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type Row = {
   attempt_id: string;
@@ -97,7 +98,7 @@ export default function MyTrainingResults({ tests }: Props) {
         setDigitsRows([]);
       }
     } catch (e: any) {
-      setErr(e?.message || "Ошибка");
+      setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { isSpecialistUser } from "@/lib/specialist";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type Room = { id: string; name: string; created_at: string; is_active: boolean; participants_can_see_digits?: boolean };
 
@@ -42,7 +43,7 @@ export default function SpecialistHome() {
       setRooms(j.rooms || []);
     } catch (e: any) {
       if (reqId !== loadReqRef.current) return;
-      setErr(e?.message || "Ошибка");
+      setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       if (reqId === loadReqRef.current) setLoading(false);
     }
@@ -94,7 +95,7 @@ export default function SpecialistHome() {
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось удалить комнату");
       await load();
     } catch (e: any) {
-      setErr(e?.message || "Ошибка");
+      setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setDeletingId("");
     }

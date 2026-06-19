@@ -5,6 +5,7 @@ import { useSession } from "@/lib/useSession";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import { getTestTakePriceRub } from "@/lib/testTakeAccess";
 import { hasActiveTestTakeSession, markTestTakeSession } from "@/lib/testTakeSession";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type AccessState = {
   price_rub: number;
@@ -47,7 +48,7 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
           });
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message || "Не удалось проверить доступ");
+        if (!cancelled) setError(friendlyErrorMessage(e, "Не удалось проверить доступ"));
       }
     }
     loadAccess();
@@ -85,7 +86,7 @@ export function TestTakeAction({ slug, compact = false }: { slug: string; compac
       refresh();
       router.push(`/tests/${slug}/take`);
     } catch (e: any) {
-      const msg = e?.message || "Не удалось открыть тест";
+      const msg = friendlyErrorMessage(e, "Не удалось открыть тест");
       setError(msg);
       if (/insufficient|недостаточно/i.test(msg)) {
         router.push(`/wallet?need=${fallbackPrice}`);

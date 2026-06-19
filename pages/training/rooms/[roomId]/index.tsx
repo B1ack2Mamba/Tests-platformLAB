@@ -5,6 +5,7 @@ import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { getPreferredUserName } from "@/lib/nameAuth";
 import type { AnyTest } from "@/lib/testTypes";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type Props = { tests: AnyTest[] };
 
@@ -94,7 +95,7 @@ export default function TrainingRoom({ tests }: Props) {
       setRoomTests(Array.isArray(j.room_tests) ? j.room_tests : []);
       if (!j.member && !joinName && j.prefill_display_name) setJoinName(String(j.prefill_display_name));
     } catch (e: any) {
-      setErr(e?.message || "Ошибка");
+      setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setLoading(false);
       setBootChecked(true);
@@ -181,7 +182,7 @@ export default function TrainingRoom({ tests }: Props) {
       }
       throw new Error("Слишком много одновременных входов. Попробуйте ещё раз через несколько секунд.");
     } catch (e: any) {
-      setJoinError(e?.message || "Ошибка");
+      setJoinError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setJoinBusy(false);
     }

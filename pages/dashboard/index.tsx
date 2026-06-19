@@ -10,6 +10,7 @@ import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRoute
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
 import { isAdminEmail, isGlobalTemplateOwnerEmail } from "@/lib/admin";
+import { friendlyErrorMessage, withConnectionTroubleHint } from "@/lib/friendlyErrors";
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
 import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
@@ -1482,6 +1483,8 @@ export default function DashboardPage() {
   const suppressRoomSwitchClickRef = useRef(false);
   const officeSceneRef = useRef<HTMLDivElement | null>(null);
   const loadedDashboardUserRef = useRef<string | null>(null);
+  const dashboardLoadRequestIdRef = useRef(0);
+  const dashboardLoadAbortRef = useRef<AbortController | null>(null);
   const [officeSceneScale, setOfficeSceneScale] = useState(1);
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
   const [assemblyFolderId, setAssemblyFolderId] = useState<string | null>(null);
@@ -1567,12 +1570,18 @@ export default function DashboardPage() {
 
   const loadDashboard = useCallback(async () => {
     if (!session) return false;
+    const requestId = dashboardLoadRequestIdRef.current + 1;
+    dashboardLoadRequestIdRef.current = requestId;
+    const isLatestRequest = () => dashboardLoadRequestIdRef.current === requestId;
+
+    dashboardLoadAbortRef.current?.abort();
     setLoading(true);
     setError("");
     setSharedSceneReady(false);
     try {
       const requestBootstrap = async (accessToken: string) => {
         const controller = new AbortController();
+        dashboardLoadAbortRef.current = controller;
         const timeoutId = window.setTimeout(() => controller.abort(), 30000);
         try {
           return await fetch("/api/commercial/dashboard/bootstrap", {
@@ -1581,6 +1590,7 @@ export default function DashboardPage() {
           });
         } finally {
           window.clearTimeout(timeoutId);
+          if (dashboardLoadAbortRef.current === controller) dashboardLoadAbortRef.current = null;
         }
       };
 
@@ -1593,15 +1603,18 @@ export default function DashboardPage() {
       }
 
       let resp = await requestBootstrap(accessToken);
+      if (!isLatestRequest()) return false;
       if (resp.status === 401 && supabase) {
         try {
           const { data: refreshed } = await supabase.auth.refreshSession();
           if (refreshed.session?.access_token) {
             resp = await requestBootstrap(refreshed.session.access_token);
+            if (!isLatestRequest()) return false;
           }
         } catch {}
       }
       const json = (await resp.json().catch(() => ({}))) as Partial<DashboardBootstrapPayload> & { error?: string };
+      if (!isLatestRequest()) return false;
       if (!resp.ok || !json?.ok) {
         if (resp.status === 401) throw new Error("Сессия входа устарела. Обновите страницу или войдите снова.");
         throw new Error(json?.error || "Не удалось загрузить кабинет");
@@ -1627,16 +1640,21 @@ export default function DashboardPage() {
       setActiveSubscription(json.active_subscription || null);
       return true;
     } catch (e: any) {
+      if (!isLatestRequest()) return false;
       const fallbackStandard = readSharedSceneStandardFallback();
       setSharedDeskPositions((prev) => Object.keys(prev).length ? prev : ((fallbackStandard.positions || {}) as DeskPositions));
       setSharedSceneWidgets((prev) => prev.length ? prev : ((fallbackStandard.widgets || []) as SceneWidget[]));
       setSharedTrayGuideText((prev) => prev || fallbackStandard.trayGuideText || "");
       setSharedSceneReady(true);
       setActiveSubscription(null);
-      setError(e?.name === "AbortError" ? "Кабинет слишком долго отвечает. Проверьте подключение и обновите страницу." : e?.message || "Ошибка");
+      setError(
+        e?.name === "AbortError"
+          ? withConnectionTroubleHint("Кабинет слишком долго отвечает. Проверьте подключение и обновите страницу.")
+          : friendlyErrorMessage(e, "Ошибка")
+      );
       return false;
     } finally {
-      setLoading(false);
+      if (isLatestRequest()) setLoading(false);
     }
   }, [session, supabase]);
 
@@ -1656,6 +1674,8 @@ export default function DashboardPage() {
     });
     return () => {
       cancelled = true;
+      dashboardLoadRequestIdRef.current += 1;
+      dashboardLoadAbortRef.current?.abort();
     };
   }, [router, session, sessionLoading, user?.id, loadDashboard]);
 
@@ -3155,7 +3175,7 @@ export default function DashboardPage() {
       setAssemblyComparison(json as CandidateComparisonPayload);
     } catch (e: any) {
       setAssemblyComparison(null);
-      setAssemblyError(e?.message || "Не удалось собрать общий анализ папки");
+      setAssemblyError(friendlyErrorMessage(e, "Не удалось собрать общий анализ папки"));
     } finally {
       setAssemblyLoading(false);
     }
@@ -3295,7 +3315,7 @@ export default function DashboardPage() {
       persistAssemblyAiChats((prev) => [chat, ...prev.filter((item) => item.id !== chatId)]);
       await refreshWallet();
     } catch (e: any) {
-      setAssemblyAiError(e?.message || "Не удалось получить AI-ответ.");
+      setAssemblyAiError(friendlyErrorMessage(e, "Не удалось получить AI-ответ."));
       setAssemblyAiMessages((prev) => prev.filter((item) => item.id !== pendingMessage.id));
     } finally {
       setAssemblyAiBusy(false);
@@ -3559,7 +3579,7 @@ export default function DashboardPage() {
       setNewFolderIcon("folder");
       await loadDashboard();
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusyFolderId(null);
     }
@@ -3604,7 +3624,7 @@ export default function DashboardPage() {
       setFolderRenameValue("");
       await loadDashboard();
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusyFolderId(null);
     }
@@ -3628,7 +3648,7 @@ export default function DashboardPage() {
       setFolderActionTarget(null);
       await loadDashboard();
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusyFolderId(null);
     }
@@ -3659,7 +3679,7 @@ export default function DashboardPage() {
       setIconPickerFolder((current) => (current?.id === folder.id ? null : current));
       await loadDashboard();
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusyFolderId(null);
     }
@@ -3684,7 +3704,7 @@ export default function DashboardPage() {
       setIconPickerFolder((current) => (current?.id === folderId ? null : current));
       await loadDashboard();
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusyFolderId(null);
     }
@@ -3706,7 +3726,7 @@ export default function DashboardPage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось переместить проект");
       await loadDashboard();
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setDraggingProjectId(null);
       setBusyFolderId(null);
@@ -3730,7 +3750,7 @@ export default function DashboardPage() {
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось удалить проект");
       await loadDashboard();
     } catch (e: any) {
-      setError(e?.message || "Ошибка");
+      setError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setBusyFolderId(null);
     }

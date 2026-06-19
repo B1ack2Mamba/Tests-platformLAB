@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { CONNECTION_TROUBLE_HINT } from "@/lib/friendlyErrors";
 
 type Body = {
   email?: string;
@@ -15,8 +16,8 @@ function normalizeAuthError(message: string) {
   }
   if (/invalid email/i.test(source)) return "Проверьте email: похоже, адрес указан неверно.";
   if (/password/i.test(source)) return "Пароль должен быть не короче 8 символов.";
-  if (/fetch failed|load failed|network|timeout/i.test(source)) {
-    return "Не удалось связаться с сервисом регистрации. Попробуйте ещё раз через минуту.";
+  if (/fetch failed|load failed|network|timeout|ERR_NETWORK_CHANGED/i.test(source)) {
+    return `Не удалось связаться с сервисом регистрации. ${CONNECTION_TROUBLE_HINT}`;
   }
   return source || "Не удалось создать кабинет.";
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
 import { getPreferredUserName } from "@/lib/nameAuth";
+import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 type Room = { id: string; name: string; created_at: string; created_by_email: string | null; participants_can_see_digits?: boolean; is_joined?: boolean };
 
@@ -60,7 +61,7 @@ export default function TrainingHome() {
       if (!r.ok || !j?.ok) throw new Error(j?.error || "Не удалось загрузить комнаты");
       setRooms(j.rooms || []);
     } catch (e: any) {
-      setErr(e?.message || "Ошибка");
+      setErr(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setLoading(false);
     }
@@ -119,7 +120,7 @@ export default function TrainingHome() {
       }
       throw new Error("Слишком много одновременных входов. Попробуйте ещё раз через несколько секунд.");
     } catch (e: any) {
-      setJoinError(e?.message || "Ошибка");
+      setJoinError(friendlyErrorMessage(e, "Ошибка"));
     } finally {
       setJoinBusy(false);
     }
