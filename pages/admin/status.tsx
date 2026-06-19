@@ -7,6 +7,60 @@ import { RECOVERY_CHECKLIST } from "@/lib/recoveryChecklist";
 import { type ReleaseStatusReport } from "@/lib/releaseStatus";
 import { useSession } from "@/lib/useSession";
 
+type ConnectionProbe = {
+  name: string;
+  url: string;
+  ok: boolean;
+  status: number;
+  ms: number;
+  bytes: number;
+  headers: {
+    cf_ray: string | null;
+    cf_colo: string | null;
+    cf_colo_country: string | null;
+    sb_project_ref: string | null;
+    server: string | null;
+  };
+  error?: string;
+};
+
+type ConnectionRouteReport = {
+  ok: boolean;
+  request_id: string;
+  checked_at: string;
+  total_ms: number;
+  runtime: string;
+  route: {
+    visitor: {
+      country_code: string | null;
+      country: string | null;
+      region: string | null;
+      city: string | null;
+      source: string;
+    };
+    vercel: {
+      region: string | null;
+      city: string | null;
+      country: string | null;
+      source: string;
+    };
+    supabase_edge: {
+      cf_colo: string | null;
+      city: string | null;
+      country: string | null;
+      source: string;
+    };
+    supabase_project: {
+      ref: string | null;
+      region: string | null;
+      city: string | null;
+      country: string | null;
+      source: string;
+    };
+  };
+  checks: ConnectionProbe[];
+};
+
 function statusTone(ok: boolean) {
   return ok
     ? "border-emerald-200 bg-emerald-50 text-emerald-950"
@@ -19,12 +73,25 @@ function toneChip(ok: boolean) {
     : "border-red-200 bg-red-50 text-red-900";
 }
 
+function slowTone(ms: number, ok: boolean) {
+  if (!ok) return "border-red-200 bg-red-50 text-red-900";
+  if (ms > 2500) return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-emerald-200 bg-emerald-50 text-emerald-900";
+}
+
+function formatPlace(country?: string | null, city?: string | null) {
+  return [country, city].filter(Boolean).join(", ") || "Не определено";
+}
+
 export default function AdminStatusPage() {
   const { user, session, loading, envOk } = useSession();
   const canUseAdmin = isAdminEmail(user?.email);
   const [report, setReport] = useState<ReleaseStatusReport | null>(null);
+  const [connectionRoute, setConnectionRoute] = useState<ConnectionRouteReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const [routeBusy, setRouteBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [routeMessage, setRouteMessage] = useState("");
 
   async function loadStatus() {
     if (!session?.access_token || !canUseAdmin) return;
@@ -44,9 +111,28 @@ export default function AdminStatusPage() {
     }
   }
 
+  async function loadConnectionRoute() {
+    if (!session?.access_token || !canUseAdmin) return;
+    setRouteBusy(true);
+    setRouteMessage("");
+    try {
+      const resp = await fetch("/api/admin/connection-route", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.route) throw new Error(json?.error || "Не удалось загрузить маршрут подключений");
+      setConnectionRoute(json as ConnectionRouteReport);
+    } catch (error: any) {
+      setRouteMessage(error?.message || "Не удалось загрузить маршрут подключений");
+    } finally {
+      setRouteBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!session?.access_token || !canUseAdmin) return;
     loadStatus();
+    loadConnectionRoute();
   }, [session?.access_token, canUseAdmin]);
 
   return (
@@ -74,9 +160,113 @@ export default function AdminStatusPage() {
                 <button type="button" className="btn btn-secondary btn-sm" onClick={loadStatus} disabled={busy}>
                   {busy ? "Обновляем…" : "Обновить статус"}
                 </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={loadConnectionRoute} disabled={routeBusy}>
+                  {routeBusy ? "Проверяем маршрут…" : "Обновить маршрут"}
+                </button>
               </div>
             </div>
             {message ? <div className="mt-3 text-sm text-red-700">{message}</div> : null}
+            {routeMessage ? <div className="mt-3 text-sm text-red-700">{routeMessage}</div> : null}
+          </section>
+
+          <section className="card">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Маршрут подключений</div>
+                <div className="mt-1 text-sm text-slate-500">
+                  Показывает, откуда пришел пользователь, где выполнилась Vercel-функция и через какой Cloudflare POP ответил Supabase Edge.
+                </div>
+              </div>
+              <span className={`rounded-full border px-3 py-1 text-xs font-medium ${connectionRoute ? toneChip(connectionRoute.ok) : "border-slate-200 bg-white text-slate-500"}`}>
+                {routeBusy ? "Проверяем" : connectionRoute?.ok ? "STABLE" : "Нужна проверка"}
+              </span>
+            </div>
+
+            {connectionRoute ? (
+              <>
+                <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]">
+                  <div className="rounded-3xl border border-emerald-100 bg-white px-4 py-4 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">1. Пользователь</div>
+                    <div className="mt-3 text-lg font-semibold text-slate-950">
+                      {formatPlace(connectionRoute.route.visitor.country, connectionRoute.route.visitor.city)}
+                    </div>
+                    <div className="mt-4 text-xs text-slate-500">
+                      country={connectionRoute.route.visitor.country_code || "?"}, region={connectionRoute.route.visitor.region || "?"}
+                    </div>
+                    <div className="mt-2 text-xs text-slate-400">{connectionRoute.route.visitor.source}</div>
+                  </div>
+                  <div className="hidden items-center text-xl font-semibold text-emerald-700 xl:flex">-&gt;</div>
+                  <div className="rounded-3xl border border-emerald-100 bg-white px-4 py-4 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">2. Vercel</div>
+                    <div className="mt-3 text-lg font-semibold text-slate-950">
+                      {formatPlace(connectionRoute.route.vercel.country, connectionRoute.route.vercel.city)}
+                    </div>
+                    <div className="mt-4 text-xs text-slate-500">region={connectionRoute.route.vercel.region || "local"}</div>
+                    <div className="mt-2 text-xs text-slate-400">{connectionRoute.route.vercel.source}</div>
+                  </div>
+                  <div className="hidden items-center text-xl font-semibold text-emerald-700 xl:flex">-&gt;</div>
+                  <div className="rounded-3xl border border-emerald-100 bg-white px-4 py-4 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">3. Supabase Edge</div>
+                    <div className="mt-3 text-lg font-semibold text-slate-950">
+                      {formatPlace(connectionRoute.route.supabase_edge.country, connectionRoute.route.supabase_edge.city)}
+                    </div>
+                    <div className="mt-4 text-xs text-slate-500">Cloudflare POP={connectionRoute.route.supabase_edge.cf_colo || "?"}</div>
+                    <div className="mt-2 text-xs text-slate-400">{connectionRoute.route.supabase_edge.source}</div>
+                  </div>
+                  <div className="hidden items-center text-xl font-semibold text-emerald-700 xl:flex">-&gt;</div>
+                  <div className="rounded-3xl border border-emerald-100 bg-white px-4 py-4 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">4. Supabase Project</div>
+                    <div className="mt-3 text-lg font-semibold text-slate-950">
+                      {formatPlace(connectionRoute.route.supabase_project.country, connectionRoute.route.supabase_project.city)}
+                    </div>
+                    <div className="mt-4 text-xs text-slate-500">region={connectionRoute.route.supabase_project.region || "не задан"}</div>
+                    <div className="mt-2 text-xs text-slate-400">ref={connectionRoute.route.supabase_project.ref || "?"}</div>
+                    <div className="mt-2 text-xs text-slate-400">{connectionRoute.route.supabase_project.source}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                    Общее время: <span className="font-semibold text-slate-950">{connectionRoute.total_ms} мс</span>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                    Runtime: <span className="font-semibold text-slate-950">{connectionRoute.runtime}</span>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                    Проверено: <span className="font-semibold text-slate-950">{new Date(connectionRoute.checked_at).toLocaleString("ru-RU")}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {connectionRoute.checks.map((item) => (
+                    <div key={item.name} className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-slate-950">{item.name}</div>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-medium ${slowTone(item.ms, item.ok)}`}>
+                          {item.ok ? item.ms > 2500 ? "SLOW" : "STABLE" : "BROKEN"}
+                        </span>
+                      </div>
+                      <div className="mt-3 text-2xl font-semibold text-slate-950">{item.status || "ERR"} · {item.ms} мс</div>
+                      <div className="mt-2 break-all text-xs text-slate-500">{item.url}</div>
+                      <div className="mt-3 text-xs text-slate-600">
+                        POP={item.headers.cf_colo || "?"} · страна={item.headers.cf_colo_country || "?"} · project={item.headers.sb_project_ref || "?"}
+                      </div>
+                      {item.error ? (
+                        <div className="mt-3 rounded-2xl bg-red-950 px-4 py-3 font-mono text-xs text-red-50">{item.error}</div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Важно: путь браузер -&gt; Supabase может скрывать POP из-за CORS, поэтому здесь самый точный замер для серверного пути Vercel -&gt; Supabase. Именно через него теперь идут кошелек, refresh сессии и часть авторизации.
+                </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
+                {routeBusy ? "Проверяем маршрут подключений…" : "Маршрут еще не загружен."}
+              </div>
+            )}
           </section>
 
           {report ? (
