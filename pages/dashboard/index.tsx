@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { OnboardingTour, openOnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
+import { refreshSessionThroughServer } from "@/lib/authRefreshClient";
 import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
 import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRouter";
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
@@ -1595,22 +1596,18 @@ export default function DashboardPage() {
       };
 
       let accessToken = session.access_token;
-      if (supabase) {
-        try {
-          const { data: current } = await supabase.auth.getSession();
-          if (current.session?.access_token) accessToken = current.session.access_token;
-        } catch {}
-      }
 
       let resp = await requestBootstrap(accessToken);
       if (!isLatestRequest()) return false;
-      if (resp.status === 401 && supabase) {
+      if (resp.status === 401 && supabase && session.refresh_token) {
         try {
-          const { data: refreshed } = await supabase.auth.refreshSession();
-          if (refreshed.session?.access_token) {
-            resp = await requestBootstrap(refreshed.session.access_token);
-            if (!isLatestRequest()) return false;
-          }
+          const refreshedSession = await refreshSessionThroughServer(session.refresh_token);
+          await supabase.auth.setSession({
+            access_token: refreshedSession.access_token,
+            refresh_token: refreshedSession.refresh_token,
+          });
+          resp = await requestBootstrap(refreshedSession.access_token);
+          if (!isLatestRequest()) return false;
         } catch {}
       }
       const json = (await resp.json().catch(() => ({}))) as Partial<DashboardBootstrapPayload> & { error?: string };

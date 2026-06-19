@@ -24,7 +24,7 @@ export function formatRub(kopeks: number): string {
 }
 
 export function useWallet() {
-  const { supabase, user, loading: sessionLoading } = useSession();
+  const { session, user, loading: sessionLoading } = useSession();
   const userId = user?.id || "";
   const userEmail = user?.email || "";
   const isUnlimited = isTestUnlimitedEmail(userEmail);
@@ -36,7 +36,9 @@ export function useWallet() {
   const refresh = useCallback(async () => {
     if (sessionLoading) return;
 
-    if (!supabase || !userId) {
+    const accessToken = session?.access_token || "";
+
+    if (!accessToken || !userId) {
       setWallet(null);
       setLedger([]);
       setWalletLoading(false);
@@ -59,32 +61,20 @@ export function useWallet() {
         return;
       }
 
-      const [walletResp, ledgerResp] = await Promise.all([
-        supabase.from("wallets").select("user_id,balance_kopeks,updated_at").eq("user_id", userId).maybeSingle(),
-        supabase
-          .from("wallet_ledger")
-          .select("id,created_at,amount_kopeks,reason,ref")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(20),
-      ]);
+      const response = await fetch("/api/commercial/wallet?ledger_limit=20", {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      const data = await response.json().catch(() => ({} as any));
+      if (!response.ok || !data?.ok) throw new Error(data?.error || "wallet_load_failed");
 
-      if (walletResp.error) throw walletResp.error;
-      if (ledgerResp.error) throw ledgerResp.error;
-
-      if (walletResp.data) {
-        setWallet(walletResp.data as any);
-      } else {
-        setWallet({ user_id: userId, balance_kopeks: 0, updated_at: new Date().toISOString() });
-      }
-
-      setLedger((ledgerResp.data ?? []) as any);
+      setWallet((data.wallet as WalletRow | null) || { user_id: userId, balance_kopeks: 0, updated_at: new Date().toISOString() });
+      setLedger((data.ledger ?? []) as LedgerRow[]);
     } catch (e: any) {
       setError(friendlyErrorMessage(e, "Не удалось загрузить кошелёк"));
     } finally {
       setWalletLoading(false);
     }
-  }, [supabase, userId, isUnlimited, sessionLoading]);
+  }, [session?.access_token, userId, isUnlimited, sessionLoading]);
 
   useEffect(() => {
     refresh();

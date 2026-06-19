@@ -14,7 +14,7 @@ type WalletBalanceRow = {
  * Avoids loading the full ledger history on every page open.
  */
 export function useWalletBalance(_userId: string | null = null) {
-  const { supabase, user, loading: sessionLoading } = useSession();
+  const { session, user, loading: sessionLoading } = useSession();
   const userId = user?.id || _userId || "";
   const userEmail = user?.email || "";
   const isUnlimited = isTestUnlimitedEmail(userEmail);
@@ -25,7 +25,9 @@ export function useWalletBalance(_userId: string | null = null) {
   const refresh = useCallback(async () => {
     if (sessionLoading) return;
 
-    if (!supabase || !userId) {
+    const accessToken = session?.access_token || "";
+
+    if (!accessToken || !userId) {
       setWallet(null);
       setError("");
       setWalletLoading(false);
@@ -44,28 +46,25 @@ export function useWalletBalance(_userId: string | null = null) {
         return;
       }
 
-      const resp = await supabase
-        .from("wallets")
-        .select("user_id,balance_kopeks,updated_at")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const response = await fetch("/api/commercial/wallet?include_ledger=0", {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      const data = await response.json().catch(() => ({} as any));
+      if (!response.ok || !data?.ok) throw new Error(data?.error || "wallet_balance_load_failed");
 
-      if (resp.error) throw resp.error;
-      if (resp.data) {
-        setWallet(resp.data as WalletBalanceRow);
-      } else {
-        setWallet({
+      setWallet(
+        (data.wallet as WalletBalanceRow) || {
           user_id: userId,
           balance_kopeks: 0,
           updated_at: new Date().toISOString(),
-        });
-      }
+        }
+      );
     } catch (e: any) {
       setError(friendlyErrorMessage(e, "Не удалось загрузить баланс"));
     } finally {
       setWalletLoading(false);
     }
-  }, [isUnlimited, sessionLoading, supabase, userId]);
+  }, [isUnlimited, session?.access_token, sessionLoading, userId]);
 
   useEffect(() => {
     refresh();

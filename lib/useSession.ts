@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { refreshSessionThroughServer } from "@/lib/authRefreshClient";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 const SESSION_REFRESH_CHECK_MS = 15 * 60 * 1000;
@@ -17,7 +18,11 @@ async function refreshPersistedSession(client: SupabaseClient) {
     if (!current.session) return;
     const expiresAtMs = Number(current.session.expires_at || 0) * 1000;
     if (expiresAtMs && expiresAtMs - Date.now() > SESSION_REFRESH_SKEW_MS) return;
-    await client.auth.refreshSession();
+    const refreshedSession = await refreshSessionThroughServer(current.session.refresh_token);
+    await client.auth.setSession({
+      access_token: refreshedSession.access_token,
+      refresh_token: refreshedSession.refresh_token,
+    });
   } catch {
     // Keep the current session during transient network/Auth outages.
   } finally {

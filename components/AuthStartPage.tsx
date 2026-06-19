@@ -399,25 +399,12 @@ export default function AuthStartPage() {
   }
 
   async function loginOnce(authClient: NonNullable<typeof supabase>, loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {
-    try {
-      const { data, error } = await authClient.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
-      if (error) throw error;
-      if (!data.session?.access_token || !data.session.refresh_token) {
-        throw new Error("Не удалось получить сессию входа. Попробуйте ещё раз.");
-      }
-      return {
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      };
-    } catch (loginErr: any) {
-      if (!isFetchNetworkError(loginErr)) throw loginErr;
-      const fallbackSession = await loginWithServerFallback(loginEmail, loginPassword);
-      await authClient.auth.setSession({
-        access_token: fallbackSession.access_token,
-        refresh_token: fallbackSession.refresh_token,
-      });
-      return fallbackSession;
-    }
+    const serverSession = await loginWithServerFallback(loginEmail, loginPassword);
+    await authClient.auth.setSession({
+      access_token: serverSession.access_token,
+      refresh_token: serverSession.refresh_token,
+    });
+    return serverSession;
   }
 
   async function loginWithRetry(authClient: NonNullable<typeof supabase>, loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {

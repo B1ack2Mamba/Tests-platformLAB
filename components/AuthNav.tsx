@@ -38,7 +38,7 @@ export function AuthNav() {
           if (!supabase) return;
           setBusy(true);
           try {
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({ scope: "local" });
           } finally {
             setBusy(false);
           }

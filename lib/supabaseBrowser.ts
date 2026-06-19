@@ -16,7 +16,7 @@ export function getSupabaseBrowser(): SupabaseClient | null {
     browserClient = createClient(env.url, env.key, {
       auth: {
         persistSession: true,
-        autoRefreshToken: true,
+        autoRefreshToken: false,
         detectSessionInUrl: true,
         storage: createSupabaseAuthStorage(),
       },
