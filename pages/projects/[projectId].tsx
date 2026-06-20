@@ -286,9 +286,14 @@ const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v
 const DEFAULT_INVITE_BASE_URL = "https://tests-platform-lab.vercel.app";
 
 function getInviteBaseUrl() {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+
   return (
     process.env.NEXT_PUBLIC_INVITE_BASE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
     DEFAULT_INVITE_BASE_URL
   ).replace(/\/+$/, "");
 }
