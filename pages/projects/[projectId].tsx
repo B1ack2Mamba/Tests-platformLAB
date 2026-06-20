@@ -285,12 +285,8 @@ const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v3";
 const DEFAULT_INVITE_BASE_URL = "https://tests-platform-lab.vercel.app";
 
-function getInviteBaseUrl() {
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin.replace(/\/+$/, "");
-  }
-
-  return (
+function getInviteBaseUrl(currentOrigin?: string) {
+  return (currentOrigin ||
     process.env.NEXT_PUBLIC_INVITE_BASE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -478,6 +474,7 @@ export default function ProjectDetailsPage() {
   const [detailsTemplateMessage, setDetailsTemplateMessage] = useState("");
   const [detailsViewReady, setDetailsViewReady] = useState(false);
   const [projectPaintReady, setProjectPaintReady] = useState(false);
+  const [currentOrigin, setCurrentOrigin] = useState("");
   const [detailsGesture, setDetailsGesture] = useState<null | {
     target: DetailsTemplateTarget;
     mode: DetailsGestureMode;
@@ -598,6 +595,12 @@ export default function ProjectDetailsPage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      setCurrentOrigin(window.location.origin.replace(/\/+$/, ""));
+    }
   }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -840,8 +843,8 @@ export default function ProjectDetailsPage() {
   const shareUrl = useMemo(() => {
     const token = data?.project.invite_token;
     if (!token) return "";
-    return `${getInviteBaseUrl()}/invite/${token}`;
-  }, [data?.project.invite_token]);
+    return `${getInviteBaseUrl(currentOrigin)}/invite/${token}`;
+  }, [currentOrigin, data?.project.invite_token]);
   const progress = useMemo(() => {
     const total = data?.project.tests?.length || 0;
     const completed = completedSet.size;
