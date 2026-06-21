@@ -141,6 +141,151 @@ function formatTopRows(result: any) {
     .join("\n");
 }
 
+function formatNumeric(value: any, digits = 2): string | null {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const rounded = Math.round(num * 10 ** digits) / 10 ** digits;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(".", ",");
+}
+
+function rowCode(row: any, fallback: string) {
+  return String(row?.tag || row?.key || row?.code || row?.scale || fallback).trim() || fallback;
+}
+
+function rowLabel(row: any, fallback: string) {
+  return String(row?.style || row?.name || row?.label || fallback).trim() || fallback;
+}
+
+function readObjectNumber(source: any, key: string) {
+  if (!source || typeof source !== "object") return null;
+  const exact = formatNumeric(source[key]);
+  if (exact !== null) return exact;
+  const upper = formatNumeric(source[String(key).toUpperCase()]);
+  if (upper !== null) return upper;
+  const lower = formatNumeric(source[String(key).toLowerCase()]);
+  return lower;
+}
+
+function formatBase16PfRows(result: any) {
+  const rows = rowsFromResult(result);
+  const meta = result?.meta || {};
+  const rawByFactor = meta.rawByFactor || {};
+  const maxRawByFactor = meta.maxRawByFactor || {};
+  const stenByFactor = meta.stenByFactor || meta.counts || result?.counts || {};
+  const percents = result?.percents || {};
+  const secondary = meta.secondary || {};
+  const secondaryNames: Record<string, string> = {
+    F1: "Экстраверсия - интроверсия",
+    F2: "Низкая тревожность - высокая тревожность",
+    F3: "Сензитивность - стабильность",
+    F4: "Покорность - независимость",
+  };
+  const lines: string[] = [];
+  const normLabel = meta.normGroupLabel || meta.norm_group_label || meta.normLabel || meta.norm_group || meta.normGroup || null;
+  const gender = meta.gender === "male" ? "мужчина" : meta.gender === "female" ? "женщина" : null;
+  const age = formatNumeric(meta.age, 0);
+  const intro = [
+    normLabel ? `нормы: ${normLabel}` : "",
+    gender ? `пол: ${gender}` : "",
+    age ? `возраст: ${age}` : "",
+  ].filter(Boolean);
+  if (intro.length) lines.push(`Параметры расчёта: ${intro.join("; ")}.`);
+
+  for (const [index, row] of rows.entries()) {
+    const code = rowCode(row, String(index + 1));
+    const label = rowLabel(row, code);
+    const sten = formatNumeric(row?.count ?? stenByFactor?.[code], 0);
+    const raw = readObjectNumber(rawByFactor, code);
+    const rawMax = readObjectNumber(maxRawByFactor, code);
+    const percent = formatNumeric(row?.percent ?? percents?.[code], 0);
+    const parts = [
+      sten ? `STEN ${sten}/10` : "",
+      raw ? `сырой балл ${raw}${rawMax ? `/${rawMax}` : ""}` : "",
+      percent ? `${percent}%` : "",
+      row?.level ? String(row.level) : "",
+    ].filter(Boolean);
+    lines.push(`• ${code} — ${label}: ${parts.join("; ") || "показатель сохранён"}.`);
+  }
+
+  const secondaryEntries = Object.entries<any>(secondary).sort(([a], [b]) => String(a).localeCompare(String(b), "ru"));
+  if (secondaryEntries.length) {
+    lines.push("");
+    lines.push("Вторичные факторы:");
+    for (const [code, value] of secondaryEntries) {
+      const label = String(value?.name || secondaryNames[code] || code);
+      const sten = formatNumeric(value?.count ?? value?.sten ?? value?.value, 0);
+      const raw = formatNumeric(value?.raw, 2);
+      const sign = value?.sign ? String(value.sign) : "";
+      const level = value?.level ? String(value.level) : "";
+      const parts = [
+        sten ? `STEN ${sten}/10` : "",
+        raw ? `расчётное значение ${raw}` : "",
+        sign ? `знак ${sign}` : "",
+        level,
+      ].filter(Boolean);
+      lines.push(`• ${code} — ${label}: ${parts.join("; ") || "показатель сохранён"}.`);
+    }
+  }
+
+  return lines.length ? lines.join("\n") : "Цифры сохранены. Для 16PF пока нет унифицированного блока показателей.";
+}
+
+function formatBaseRows(result: any) {
+  const kind = String(result?.kind || "");
+  if (kind === "16pf_v1") return formatBase16PfRows(result);
+
+  const rows = rowsFromResult(result);
+  if (!rows.length) return "Цифры сохранены. Для этого теста пока нет унифицированного блока показателей.";
+
+  const meta = result?.meta || {};
+  const maxByFactor = meta.maxByFactor || {};
+  const norm35ByFactor = meta.norm35ByFactor || {};
+  const counts = meta.counts || result?.counts || {};
+  const percents = result?.percents || {};
+  const total = formatNumeric(result?.total, 0);
+
+  const lines = rows.map((row: any, index: number) => {
+    const code = rowCode(row, String(index + 1));
+    const label = rowLabel(row, code);
+    const count = formatNumeric(row?.count ?? counts?.[code], 2);
+    const max = readObjectNumber(maxByFactor, code);
+    const norm35 = readObjectNumber(norm35ByFactor, code);
+    const percent = formatNumeric(row?.percent ?? percents?.[code], 0);
+    const valueText = count
+      ? max
+        ? `${count}/${max}`
+        : kind === "belbin_v1" && total
+        ? `${count}/${total}`
+        : `${count} ${pluralizePoints(Number(String(count).replace(",", ".")))}`
+      : null;
+    const parts = [
+      valueText ? `баллы ${valueText}` : "",
+      norm35 ? `нормированный балл 0-35: ${norm35}` : "",
+      percent ? `${percent}%` : "",
+      row?.level ? String(row.level) : "",
+    ].filter(Boolean);
+    return `• ${code} — ${label}: ${parts.join("; ") || "показатель сохранён"}.`;
+  });
+
+  if (meta.groups && typeof meta.groups === "object") {
+    const groupLines = Object.entries<any>(meta.groups)
+      .map(([key, value]) => {
+        const sum = formatNumeric(value?.sum, 2);
+        const max = formatNumeric(value?.max, 2);
+        if (!sum && !max) return "";
+        return `• ${key}: ${sum || "—"}${max ? `/${max}` : ""}.`;
+      })
+      .filter(Boolean);
+    if (groupLines.length) {
+      lines.push("");
+      lines.push("Группы:");
+      lines.push(...groupLines);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 function getTopLabels(result: any, limit = 3) {
   const rows = rowsFromResult(result).slice(0, limit);
   return rows.map((row: any) => String(row.style || row.tag || "показатель")).filter(Boolean);
@@ -897,7 +1042,7 @@ export async function buildCommercialEvaluation(
       sections.push({
         kind: "test",
         title: attempt.test_title || attempt.test_slug,
-        body: formatTopRows(attempt.result),
+        body: formatBaseRows(attempt.result),
       });
     }
     return { mode, sections };

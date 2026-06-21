@@ -318,6 +318,7 @@ function buildEvaluationCacheKey(params: {
   const { projectId, mode, customRequest, fitRequested, fitProfileId, fitRequest, registryVersion } = params;
   return [
     "commercial-project-evaluation",
+    mode === "basic" ? "basic-full-score-v1" : "standard-format",
     projectId,
     mode,
     (customRequest || "").trim(),

@@ -52,8 +52,9 @@ function buildEvaluationCacheKey(args: {
   keysBySlug: Record<string, any>;
   routingMeta: any;
 }) {
-  return hashJson({
+  const payload: Record<string, any> = {
     version: EVALUATION_CACHE_VERSION,
+    ...(args.mode === "basic" ? { basic_results_format_version: "full-score-v1" } : {}),
     mode: args.mode,
     stage: args.stage,
     batchStart: args.stage === "tests" ? args.batchStart : 0,
@@ -86,7 +87,8 @@ function buildEvaluationCacheKey(args: {
       result: item?.result,
     })),
     keysBySlug: args.keysBySlug,
-  });
+  };
+  return hashJson(payload);
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
