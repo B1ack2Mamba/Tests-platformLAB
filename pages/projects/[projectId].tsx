@@ -77,6 +77,13 @@ type SubscriptionStatusResp = {
   active_subscription?: WorkspaceSubscriptionStatus | null;
 };
 
+type ParticipantAccessLink = {
+  key: string;
+  label: string;
+  url: string;
+  compactUrl: string;
+};
+
 function getThinkingMessages(mode: EvaluationPackage | null) {
   switch (mode) {
     case "premium_ai_plus":
@@ -160,7 +167,9 @@ function MobileProjectDetails({
   goalTitle,
   shareUrl,
   shareCompactUrl,
+  shareLinks,
   copied,
+  copiedLinkKey,
   progress,
   completedSet,
   totalEstimatedMinutes,
@@ -173,12 +182,15 @@ function MobileProjectDetails({
   onFormChange,
   onSaveDetails,
   onCopyShareUrl,
+  onCopyParticipantLink,
 }: {
   data: ProjectPayload | null;
   goalTitle: string;
   shareUrl: string;
   shareCompactUrl: string;
+  shareLinks: ParticipantAccessLink[];
   copied: boolean;
+  copiedLinkKey: string;
   progress: { completed: number; total: number };
   completedSet: Set<string>;
   totalEstimatedMinutes: number;
@@ -191,6 +203,7 @@ function MobileProjectDetails({
   onFormChange: (patch: Partial<{ email: string; current_position: string; target_role: string; notes: string; registry_comment: string }>) => void;
   onSaveDetails: () => void;
   onCopyShareUrl: () => void;
+  onCopyParticipantLink: (link: ParticipantAccessLink) => void;
 }) {
   const project = data?.project;
   return (
@@ -215,8 +228,22 @@ function MobileProjectDetails({
         <div className="text-base font-semibold text-[#4d3b24]">Доступ участника</div>
         <div className="mt-2 text-sm leading-6 text-[#6f5a42]">Отправьте кандидату ссылку или QR-код для прохождения тестов.</div>
         <div className="mt-3 grid gap-2">
-          <input className="input" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
-          <button type="button" className="btn btn-primary" onClick={onCopyShareUrl}>{copied ? "Скопировано" : "Скопировать ссылку"}</button>
+          {shareLinks.length ? shareLinks.map((link) => (
+            <div key={link.key} className="rounded-2xl border border-[#e1d3bf] bg-white/70 p-2">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9d7a4b]">{link.label}</div>
+              <div className="flex gap-2">
+                <input className="input min-w-0 flex-1" readOnly value={link.compactUrl} />
+                <button type="button" className="btn btn-secondary btn-sm shrink-0" onClick={() => onCopyParticipantLink(link)}>
+                  {copiedLinkKey === link.key ? "Скопировано" : "Копировать"}
+                </button>
+              </div>
+            </div>
+          )) : (
+            <>
+              <input className="input" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
+              <button type="button" className="btn btn-primary" onClick={onCopyShareUrl}>{copied ? "Скопировано" : "Скопировать ссылку"}</button>
+            </>
+          )}
         </div>
         <div className="mt-4 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={156} /> : null}</div>
       </section>
@@ -284,6 +311,10 @@ function MobileProjectDetails({
 const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v3";
 const DEFAULT_INVITE_BASE_URL = "https://tests-platform-lab.vercel.app";
+const PRIMARY_INVITE_BASE_URLS = [
+  { key: "vercel", label: "Vercel", baseUrl: "https://tests-platform-lab.vercel.app" },
+  { key: "rf", label: "\u0420\u0443\u0441\u0441\u043a\u0438\u0439 \u0434\u043e\u043c\u0435\u043d", baseUrl: "https://www.xn--80aaachl0aqe6abetcez8t.xn--p1ai" },
+] as const;
 
 function getInviteBaseUrl(currentOrigin?: string) {
   return (currentOrigin ||
@@ -292,6 +323,18 @@ function getInviteBaseUrl(currentOrigin?: string) {
     process.env.NEXT_PUBLIC_SITE_URL ||
     DEFAULT_INVITE_BASE_URL
   ).replace(/\/+$/, "");
+}
+
+function compactInviteUrl(url: string) {
+  return url.replace(/^https?:\/\//, "");
+}
+
+function buildInviteUrl(baseUrl: string, token: string) {
+  return `${baseUrl.replace(/\/+$/, "")}/invite/${token}`;
+}
+
+function extractInviteTokenFromUrl(url: string) {
+  return url.match(/\/invite\/([^/?#]+)/)?.[1] || "";
 }
 
 const PROJECT_DETAILS_ONBOARDING_STEPS: OnboardingStep[] = [
@@ -457,6 +500,7 @@ export default function ProjectDetailsPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedLinkKey, setCopiedLinkKey] = useState("");
   const [evaluationByMode, setEvaluationByMode] = useState<Partial<Record<EvaluationPackage, EvaluationPayload>>>({});
   const [evaluationLoading, setEvaluationLoading] = useState<Partial<Record<EvaluationPackage, boolean>>>({});
   const [activeEvaluationMode, setActiveEvaluationMode] = useState<EvaluationPackage | null>(null);
@@ -845,6 +889,14 @@ export default function ProjectDetailsPage() {
     if (!token) return "";
     return `${getInviteBaseUrl(currentOrigin)}/invite/${token}`;
   }, [currentOrigin, data?.project.invite_token]);
+  const primaryShareLinks = useMemo<ParticipantAccessLink[]>(() => {
+    const token = data?.project.invite_token || extractInviteTokenFromUrl(shareUrl);
+    if (!token) return [];
+    return PRIMARY_INVITE_BASE_URLS.map((item) => {
+      const url = buildInviteUrl(item.baseUrl, token);
+      return { key: item.key, label: item.label, url, compactUrl: compactInviteUrl(url) };
+    });
+  }, [data?.project.invite_token, shareUrl]);
   const progress = useMemo(() => {
     const total = data?.project.tests?.length || 0;
     const completed = completedSet.size;
@@ -907,6 +959,15 @@ export default function ProjectDetailsPage() {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+    } catch {}
+  }
+
+  async function copyParticipantLink(link: ParticipantAccessLink) {
+    if (!link.url) return;
+    try {
+      await navigator.clipboard.writeText(link.url);
+      setCopiedLinkKey(link.key);
+      setTimeout(() => setCopiedLinkKey(""), 1800);
     } catch {}
   }
 
@@ -1079,7 +1140,9 @@ export default function ProjectDetailsPage() {
           goalTitle={goal?.shortTitle || goal?.title || data?.project.goal || "Цель оценки"}
           shareUrl={shareUrl}
           shareCompactUrl={shareCompactUrl}
+          shareLinks={primaryShareLinks}
           copied={copied}
+          copiedLinkKey={copiedLinkKey}
           progress={progress}
           completedSet={completedSet}
           totalEstimatedMinutes={totalEstimatedMinutes}
@@ -1092,6 +1155,7 @@ export default function ProjectDetailsPage() {
           onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onSaveDetails={saveDetails}
           onCopyShareUrl={copyShareUrl}
+          onCopyParticipantLink={copyParticipantLink}
         />
 
         <div className="relative mx-auto hidden w-full max-w-[1220px] lg:block" style={{ height: detailsCanvasHeight * detailsViewportScale }}>
@@ -1187,15 +1251,27 @@ export default function ProjectDetailsPage() {
             <div data-onboarding-id="project-share-access" className="absolute inset-x-[28px] top-[194px]">
                 <div className="text-[1.12rem] font-semibold text-center">Доступ участника</div>
                 <div className="mt-3 rounded-[18px] border border-[#e1d3bf] bg-white/60 p-3">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Ссылка</div>
-                  <div className="mt-2 flex gap-2">
-                    <input className="input flex-1" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
-                    <button type="button" onClick={copyShareUrl} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">{copied ? "Скопировано" : "Копировать"}</button>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#9d7a4b]">Основные ссылки</div>
+                  <div className="mt-2 grid gap-2">
+                    {primaryShareLinks.length ? primaryShareLinks.map((link) => (
+                      <div key={link.key} className="rounded-2xl border border-[#e8d8bd] bg-white/65 p-2">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9d7a4b]">{link.label}</div>
+                        <div className="flex gap-2">
+                          <input className="input min-w-0 flex-1 text-xs" readOnly value={link.compactUrl} />
+                          <button type="button" onClick={() => copyParticipantLink(link)} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-3 py-2 text-xs font-medium text-[#5b4731]">{copiedLinkKey === link.key ? "Скопировано" : "Копировать"}</button>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="flex gap-2">
+                        <input className="input flex-1" readOnly value={shareCompactUrl || shareUrl || "Ссылка появится после сохранения"} />
+                        <button type="button" onClick={copyShareUrl} className="rounded-2xl border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]">{copied ? "Скопировано" : "Копировать"}</button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 text-center">
                   <div className="text-[11px] uppercase tracking-[0.24em] text-[#9d7a4b]">QR</div>
-                  <div className="mt-2 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={120} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
+                  <div className="mt-2 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={96} /> : <div className="rounded-2xl border border-dashed border-[#d9c4a4] px-4 py-8 text-sm text-[#8d7860]">Сначала сохрани проект</div>}</div>
                 </div>
 
             </div></div></div>
