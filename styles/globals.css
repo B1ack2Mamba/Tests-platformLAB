@@ -2486,13 +2486,17 @@ html.native-app .app-brand {
 
 
   .dashboard-project-preview-wrap {
+    max-height: calc(100vh - 2rem);
     perspective: 1200px;
   }
 
   .dashboard-project-preview-board {
     position: relative;
+    display: flex;
+    flex-direction: column;
     margin: 0 auto;
     max-width: 52rem;
+    max-height: calc(100vh - 2rem);
     border-radius: 0.6rem;
     background: linear-gradient(180deg, rgba(38, 42, 48, 0.98), rgba(23, 25, 29, 0.985));
     padding: 2.25rem 1.75rem 1.75rem;
@@ -2530,6 +2534,10 @@ html.native-app .app-brand {
 
   .dashboard-project-preview-sheet {
     min-height: 40rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     border-radius: 0.2rem;
     background:
       linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(251,252,253,0.998) 100%),
@@ -2649,7 +2657,15 @@ html.native-app .app-brand {
   }
 
   .dashboard-project-preview-actions {
+    position: sticky;
+    bottom: 0;
     margin-top: 1.35rem;
+    margin-right: -2.1rem;
+    margin-bottom: -1.6rem;
+    margin-left: -2.1rem;
+    border-top: 1px solid rgba(214,220,227,0.92);
+    background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.998) 42%);
+    padding: 0.9rem 2.1rem 1rem;
     display: flex;
     justify-content: flex-end;
     gap: 0.75rem;
@@ -2662,6 +2678,7 @@ html.native-app .app-brand {
 
     .dashboard-project-preview-sheet {
       min-height: auto;
+      max-height: calc(100vh - 5rem);
       padding: 1.4rem 1rem 1rem;
     }
 
@@ -2670,6 +2687,13 @@ html.native-app .app-brand {
     .dashboard-project-preview-actions {
       display: grid;
       gap: 0.9rem;
+    }
+
+    .dashboard-project-preview-actions {
+      margin-right: -1rem;
+      margin-bottom: -1rem;
+      margin-left: -1rem;
+      padding: 0.8rem 1rem 0.9rem;
     }
   }
 }
