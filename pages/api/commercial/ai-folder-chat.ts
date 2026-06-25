@@ -48,6 +48,12 @@ type ProjectContextSummary = {
   summary: string;
 };
 
+type ProjectContextDetail = "folder" | "project";
+type ProjectContextOptions = {
+  detail?: ProjectContextDetail;
+  blockMax?: number;
+};
+
 const OPENAI_MODELS = ["gpt-5.4-mini", "gpt-5.5"];
 const DEEPSEEK_MODELS = ["deepseek-v4-flash", "deepseek-v4-pro"];
 const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
@@ -62,6 +68,7 @@ const SYSTEM_PROMPT = [
   "По умолчанию в контекст попадают полностью завершенные проекты. Если пользователь отдельно подтвердил предварительный анализ, могут попасть незавершенные проекты с уже пройденными тестами: обязательно помечай такие выводы как предварительные и не делай выводов по отсутствующим тестам.",
   "Не выдумывай результаты, тесты и факты. Разделяй подтвержденные наблюдения и гипотезы.",
   "Не ставь медицинские диагнозы. Пиши понятным языком для специалиста, который принимает кадровое решение.",
+  "Не используй Markdown-разметку, жирное выделение, заголовки с решетками, маркеры списков, декоративные линии, эмодзи и таблицы. Пиши обычными деловыми предложениями, простыми абзацами и короткими заголовками без спецсимволов.",
 ].join(" ");
 
 export const config = {
@@ -401,9 +408,11 @@ function computeContextSignature(args: {
     .digest("hex");
 }
 
-function summarizeAttempt(attempt: any) {
+function summarizeAttempt(attempt: any, options: { jsonMax?: number; textMax?: number } = {}) {
   const title = getTestDisplayTitle(attempt?.test_slug, attempt?.test_title);
   const result = attempt?.result || {};
+  const jsonMax = options.jsonMax ?? 900;
+  const textMax = options.textMax ?? 1000;
   const direct = [
     result?.summary,
     result?.result_label,
@@ -417,10 +426,13 @@ function summarizeAttempt(attempt: any) {
     .filter(Boolean)
     .slice(0, 3)
     .join(" | ");
-  return `${title}: ${compactText(direct || safeJson(result, 900), 1000)}`;
+  return `${title}: ${compactText(direct || safeJson(result, jsonMax), textMax)}`;
 }
 
-async function buildProjectContext(row: any, fitRequest: string) {
+async function buildProjectContext(row: any, fitRequest: string, options: ProjectContextOptions = {}) {
+  const detail = options.detail || "project";
+  const folderBrief = detail === "folder";
+  const blockMax = options.blockMax ?? (folderBrief ? 1600 : 6000);
   const person = row?.commercial_people || {};
   const tests = Array.isArray(row?.commercial_project_tests) ? row.commercial_project_tests : [];
   const attempts = Array.isArray(row?.commercial_project_attempts) ? row.commercial_project_attempts : [];
@@ -460,8 +472,8 @@ async function buildProjectContext(row: any, fitRequest: string) {
         level: item.level,
       }))
     : [];
-  const topCompetencies = competencies.slice().sort((a, b) => b.score - a.score).slice(0, 8);
-  const lowCompetencies = competencies.slice().sort((a, b) => a.score - b.score).slice(0, 5);
+  const topCompetencies = competencies.slice().sort((a, b) => b.score - a.score).slice(0, folderBrief ? 5 : 8);
+  const lowCompetencies = competencies.slice().sort((a, b) => a.score - b.score).slice(0, folderBrief ? 3 : 5);
   const summary: ProjectContextSummary = {
     projectId: String(row?.id || ""),
     title: project.title,
@@ -476,9 +488,9 @@ async function buildProjectContext(row: any, fitRequest: string) {
     missingTests: progress.missingTests,
     index: analysis?.calibrated.index ?? null,
     baselineIndex: analysis?.baseline.index ?? null,
-    strengths: analysis?.calibrated.strengths.slice(0, 6) || [],
-    risks: analysis?.calibrated.risks.slice(0, 6) || [],
-    questions: analysis?.calibrated.interviewQuestions.slice(0, 6) || [],
+    strengths: analysis?.calibrated.strengths.slice(0, folderBrief ? 3 : 6) || [],
+    risks: analysis?.calibrated.risks.slice(0, folderBrief ? 3 : 6) || [],
+    questions: analysis?.calibrated.interviewQuestions.slice(0, folderBrief ? 3 : 6) || [],
     competencies,
     summary: analysis?.summary || "",
   };
@@ -497,7 +509,7 @@ async function buildProjectContext(row: any, fitRequest: string) {
       tests.length
         ? `Назначенные тесты: ${tests
             .map((test: any) => getTestDisplayTitle(test?.test_slug, test?.test_title))
-            .slice(0, 12)
+            .slice(0, folderBrief ? 8 : 12)
             .join(", ")}`
         : "",
       analysis
@@ -510,11 +522,11 @@ async function buildProjectContext(row: any, fitRequest: string) {
             `Краткий вывод: ${analysis.summary}`,
           ].join("\n")
         : "",
-      attempts.length ? `Краткие результаты тестов:\n${attempts.slice(0, 10).map(summarizeAttempt).join("\n")}` : "",
+      attempts.length && !folderBrief ? `Краткие результаты тестов:\n${attempts.slice(0, 10).map((attempt: any) => summarizeAttempt(attempt)).join("\n")}` : "",
     ]
       .filter(Boolean)
       .join("\n"),
-    6000
+    blockMax
   );
 
   return { block, summary };
@@ -595,7 +607,7 @@ function buildInsightSchema(mode: AiMode, contextLabel: string, projectSummaries
       ? `Лидер по текущей модели оценки: ${ranked[0].name} (${ranked[0].index}/100). Схема показывает, кто сильнее по ключевым компетенциям и кто лучше подходит под заданный запрос.`
       : "Недостаточно данных для сравнения.",
     focus: focusRequest,
-    ranking: ranked.slice(0, 10).map((item, index) => ({
+    ranking: ranked.slice(0, 30).map((item, index) => ({
       project_id: item.projectId,
       name: item.name,
       score: item.index,
@@ -668,13 +680,27 @@ async function buildAnalysisContext(args: {
     );
   }
 
-  const contexts = await Promise.all(projects.map((row) => buildProjectContext(row, args.fitRequest)));
+  const useFolderBriefs = args.scope === "folder" && !args.projectId;
+  const folderBlockMax = useFolderBriefs
+    ? Math.max(900, Math.min(2200, Math.floor((MAX_CONTEXT_CHARS - 6000) / Math.max(projects.length, 1))))
+    : 6000;
+  const contexts = await Promise.all(projects.map((row) => buildProjectContext(row, args.fitRequest, {
+    detail: useFolderBriefs ? "folder" : "project",
+    blockMax: folderBlockMax,
+  })));
+  const roster = contexts.map((item, index) => {
+    const summary = item.summary;
+    const score = summary.index == null ? "н/д" : `${summary.index}/100`;
+    return `${index + 1}. ${summary.name}: индекс ${score}; тесты ${summary.completedTests}/${summary.testsCount}; роль: ${summary.targetRole || summary.currentPosition || "не указана"}`;
+  });
   const context = compactText(
     [
       `Контекст: ${folder.name}`,
       incompleteProjects.length
         ? `В анализе проектов: ${projects.length}. Незавершенных с предварительным выводом: ${incompleteProjects.length}.`
         : `В анализе полностью завершенные проекты: ${projects.length}`,
+      `Обязательный список людей для персональных выводов (${contexts.length}):`,
+      roster.join("\n"),
       incompleteProjects.length
         ? `Предупреждение: по незавершенным проектам используй только уже пройденные тесты. Не хватает: ${incompleteProjects.map((item: any) => `${item.name} (${item.completed}/${item.total})`).join("; ")}.`
         : "",
@@ -772,7 +798,7 @@ async function buildFollowUpContext(args: {
 function buildUserPrompt(mode: AiMode, contextLabel: string, projectName: string | null, message: string) {
   const task = message.trim();
   if (mode === "folder_analysis") {
-    return task || `Сделай общий анализ контекста «${contextLabel}»: сравни людей, выдели сильные стороны, риски, лидеров по компетенциям и практические рекомендации.`;
+    return task || `Сделай компактный анализ контекста «${contextLabel}»: общий вывод, затем 3-4 коротких предложения по каждому человеку, затем рейтинг и практические рекомендации.`;
   }
   if (mode === "project_message") {
     return task || `Разбери выбранный проект «${projectName || "человек"}»: сильные стороны, риски, вопросы для уточнения и что важно учитывать специалисту.`;
@@ -786,15 +812,29 @@ function buildMessages(args: {
   context: string;
   contextLabel: string;
   projectName: string | null;
+  projectCount: number;
   message: string;
 }) {
   const task = buildUserPrompt(args.mode, args.contextLabel, args.projectName, args.message);
   const modeText =
     args.mode === "folder_analysis"
-      ? "Полный анализ выбранного контекста по задаче. В конце дай короткие выводы для наглядной схемы."
+      ? "Компактный анализ выбранной папки. Главная задача — не длинный общий текст, а короткий персональный вывод по каждому человеку без пропусков."
       : args.mode === "project_message"
         ? "Персональное сообщение по одному выбранному проекту-человеку. В конце дай короткие выводы для персональной карты."
         : "Обычное сообщение. Если это продолжение анализа, используй историю чата и не пересчитывай папку или человека заново.";
+  const folderRules = args.mode === "folder_analysis"
+    ? [
+        "Правила ответа для анализа папки.",
+        `В контексте ${args.projectCount} человек. В разделе по людям перечисли ровно ${args.projectCount} человек: всех из обязательного списка, без пропусков.`,
+        "Сначала дай общий вывод по папке в 3-5 коротких деловых предложениях.",
+        `Затем сделай раздел «Кратко по каждому человеку (${args.projectCount}/${args.projectCount})».`,
+        "Для каждого человека дай 3-4 коротких предложения: общий профиль, сильные стороны, риски или зоны внимания, практическая рекомендация.",
+        "Не растягивай абзацы. Один человек: один короткий блок 3-4 предложения.",
+        "Если данных по человеку меньше, прямо напиши, что вывод предварительный, но все равно включи этого человека в список.",
+        "Рейтинг, лидеров и рекомендации давай только после персонального раздела, чтобы персональные выводы не обрезались.",
+        "Не используй декоративную разметку, жирное выделение, маркеры списков, таблицы и эмодзи. Нужны только деловые предложения и обычные знаки препинания.",
+      ].join("\n")
+    : "";
 
   return [
     ...args.history,
@@ -806,6 +846,7 @@ function buildMessages(args: {
         "Контекст данных:",
         args.context,
         "",
+        ...(folderRules ? [folderRules, ""] : []),
         "Задача пользователя:",
         task,
       ].join("\n"),
@@ -899,6 +940,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       context: contextPayload.context,
       contextLabel: contextPayload.folder.name,
       projectName,
+      projectCount: contextPayload.projects.length,
       message,
     });
     const text =
