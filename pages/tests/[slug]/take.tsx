@@ -29,6 +29,7 @@ import { PAYMENTS_UI_ENABLED } from "@/lib/payments";
 import { saveAttempt, updateAttempt } from "@/lib/localHistory";
 import { saveCommercialAttempt } from "@/lib/commercialSync";
 import { clearTestTakeSession } from "@/lib/testTakeSession";
+import { savePublicAttemptResilient } from "@/lib/publicAttemptQueue";
 
 function storageKey(slug: string) {
   return `attempt:${slug}:draft`;
@@ -213,24 +214,17 @@ async function saveInviteAttemptIfNeeded({
   const inviteToken = getInviteTokenFromWindow();
   if (!inviteToken) return null;
 
-  try {
-    const resp = await fetch("/api/commercial/projects/public-attempt-upsert", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        token: inviteToken,
-        test_slug: test.slug,
-        test_title: test.title,
-        result,
-      }),
-    });
-    const json = await resp.json().catch(() => ({}));
-    if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось сохранить результат участника");
-    return json;
-  } catch (error) {
-    console.warn("public invite attempt save failed", error);
-    return null;
+  const saved = await savePublicAttemptResilient({
+    token: inviteToken,
+    test_slug: test.slug,
+    test_title: test.title,
+    result,
+  });
+
+  if (!saved.ok) {
+    console.warn("public invite attempt queued for retry", saved.error);
   }
+  return saved;
 }
 
 async function navigateAfterSubmit(router: ReturnType<typeof useRouter>, slug: string) {

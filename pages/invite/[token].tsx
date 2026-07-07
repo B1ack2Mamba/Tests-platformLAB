@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 import { Layout } from "@/components/Layout";
 import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
+import { flushPublicAttemptQueue, getQueuedPublicAttempts } from "@/lib/publicAttemptQueue";
 
 type InvitePageProps = {
   notFound?: boolean;
@@ -20,6 +23,43 @@ type InvitePageProps = {
 };
 
 export default function InvitePage({ notFound, project, token, doneSlug }: InvitePageProps) {
+  const router = useRouter();
+  const [syncState, setSyncState] = useState<{
+    status: "idle" | "syncing" | "failed";
+    queuedSlugs: string[];
+    error?: string;
+  }>({ status: "idle", queuedSlugs: [] });
+
+  useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+    const queued = getQueuedPublicAttempts(token);
+    if (!queued.length) return;
+
+    setSyncState({ status: "syncing", queuedSlugs: queued.map((item) => item.test_slug) });
+
+    flushPublicAttemptQueue({ token }).then((result) => {
+      if (cancelled) return;
+
+      const remaining = getQueuedPublicAttempts(token);
+      if (result.sent > 0) {
+        router.replace(router.asPath, undefined, { scroll: false });
+        return;
+      }
+
+      setSyncState({
+        status: remaining.length ? "failed" : "idle",
+        queuedSlugs: remaining.map((item) => item.test_slug),
+        error: result.errors[0],
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, token]);
+
   if (notFound || !project || !token) {
     return (
       <Layout title="Приглашение не найдено">
@@ -28,7 +68,10 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
     );
   }
 
-  const doneSet = new Set((project.attempts || []).map((item) => item.test_slug));
+  const doneSet = new Set([
+    ...(project.attempts || []).map((item) => item.test_slug),
+    ...syncState.queuedSlugs,
+  ]);
   const completed = doneSet.size;
   const total = project.tests.length;
   const fullyDone = total > 0 && completed >= total;
@@ -40,7 +83,18 @@ export default function InvitePage({ notFound, project, token, doneSlug }: Invit
       <div className="mx-auto max-w-5xl grid gap-4">
         {doneSlug ? (
           <div className="card border-emerald-200 bg-emerald-50/70 text-sm text-emerald-900">
-            Тест <b>{getTestDisplayTitle(doneSlug, doneSlug)}</b> сохранён. Результаты увидит только специалист. Здесь можно продолжить остальные тесты.
+            Тест <b>{getTestDisplayTitle(doneSlug, doneSlug)}</b> принят. Результаты увидит только специалист. Здесь можно продолжить остальные тесты.
+          </div>
+        ) : null}
+
+        {syncState.status === "syncing" ? (
+          <div className="card border-amber-200 bg-amber-50/80 text-sm leading-6 text-amber-900">
+            Результат уже посчитан на этом устройстве. Досылаем его специалисту, если связь на предыдущем шаге была нестабильной.
+          </div>
+        ) : syncState.status === "failed" ? (
+          <div className="card border-amber-200 bg-amber-50/80 text-sm leading-6 text-amber-900">
+            Результат сохранён на этом устройстве, но пока не отправился специалисту из-за связи. Оставьте эту страницу открытой или обновите её позже, система попробует отправить повторно.
+            {syncState.error ? <div className="mt-2 text-xs text-amber-800">Причина: {syncState.error}</div> : null}
           </div>
         ) : null}
 
