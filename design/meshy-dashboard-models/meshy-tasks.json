@@ -1,0 +1,154 @@
+{
+  "folder-organizer": {
+    "id": "019f7e49-a511-7aa3-aa86-afd820dcdb88",
+    "type": "remesh",
+    "target_polycount": 60000,
+    "status": "SUCCEEDED",
+    "consumed_credits": 5,
+    "output": "folder-organizer.glb",
+    "bytes": 31368416
+  },
+  "balance-wallet": {
+    "id": "019f7e4d-d222-7b48-a366-ff872cd8bf52",
+    "type": "remesh",
+    "target_polycount": 35000,
+    "status": "SUCCEEDED",
+    "consumed_credits": 5,
+    "output": "balance-wallet.glb",
+    "bytes": 31363532
+  },
+  "command-button": {
+    "id": "019f7e50-9bc1-74c3-a1c0-f300cf9ef8e3",
+    "type": "remesh",
+    "target_polycount": 20000,
+    "status": "SUCCEEDED",
+    "consumed_credits": 5,
+    "output": "command-button.glb",
+    "bytes": 32666492
+  },
+  "project-display-frame": {
+    "id": "019f7e54-c34d-7247-b22c-2b7bb42db3cc",
+    "type": "remesh",
+    "target_polycount": 30000,
+    "status": "SUCCEEDED",
+    "consumed_credits": 5,
+    "output": "project-display-frame.glb",
+    "bytes": 23565104
+  },
+  "archive-binder-open": {
+    "id": "019f7e57-47f1-72e7-86d4-10ba88bf7333",
+    "type": "remesh",
+    "target_polycount": 50000,
+    "status": "SUCCEEDED",
+    "consumed_credits": 5,
+    "output": "archive-binder-open.glb",
+    "bytes": 31170252
+  },
+  "ai-smart-glass-frame": {
+    "id": "019f7e59-7693-7651-ab40-3f3337bb2b16",
+    "type": "remesh",
+    "target_polycount": 20000,
+    "status": "SUCCEEDED",
+    "consumed_credits": 5,
+    "output": "ai-smart-glass-frame.glb",
+    "bytes": 29732692
+  },
+  "ai-analyst-character": {
+    "id": "019f7e5b-d27f-73dd-a4c0-820243143930",
+    "type": "multi-image-to-3d",
+    "target_polycount": 60000,
+    "status": "SUCCEEDED",
+    "consumed_credits": 30,
+    "output": "ai-analyst-character.glb",
+    "bytes": 12080780
+  },
+  "ai-analyst-rigged": {
+    "id": "019f7e5f-dd63-7277-90a1-a33c1ba8d47d",
+    "type": "rigging",
+    "source_task_id": "019f7e5b-d27f-73dd-a4c0-820243143930",
+    "status": "SUCCEEDED",
+    "consumed_credits": 5,
+    "output": "ai-analyst-rigged.glb",
+    "bytes": 8460460
+  },
+  "web-folder-organizer": {
+    "id": "019f7e54-5840-7cee-801c-850597788787",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 12000,
+    "source": "03-folder-organizer.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "folder-organizer-web.glb",
+    "bytes": 3843228
+  },
+  "web-balance-wallet": {
+    "id": "019f7e57-a87c-712e-90ea-04eb89635c4f",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 10000,
+    "source": "05-balance-wallet.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "balance-wallet-web.glb",
+    "bytes": 3008484
+  },
+  "web-command-button": {
+    "id": "019f7e59-4bdd-7649-a5d0-6b5b5a1f3979",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 6000,
+    "source": "04-command-button.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "command-button-web.glb",
+    "bytes": 2445512
+  },
+  "web-project-display-frame": {
+    "id": "019f7e5b-005b-7e4a-a31d-dac3a50ff53a",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 8000,
+    "source": "06-project-display-frame.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "project-display-frame-web.glb",
+    "bytes": 2687604
+  },
+  "web-archive-binder-open": {
+    "id": "019f7e5d-079e-740b-978a-187fa0e11837",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 15000,
+    "source": "02-archive-binder-open.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "archive-binder-open-web.glb",
+    "bytes": 3260296
+  },
+  "web-ai-smart-glass-frame": {
+    "id": "019f7e5e-f05e-724c-a477-818d1e01c219",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 8000,
+    "source": "07-ai-smart-glass-frame.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "ai-smart-glass-frame-web.glb",
+    "bytes": 2173892
+  },
+  "web-archive-binder-closed": {
+    "id": "019f7e6e-aac2-7893-b39f-b46cccff322f",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 10000,
+    "source": "08-archive-binder-closed.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "archive-binder-closed-web.glb",
+    "bytes": 2538732
+  },
+  "web-project-folder": {
+    "id": "019f7e70-14d7-76b4-aa90-f1a20cc96364",
+    "type": "image-to-3d-smart-topology",
+    "target_polycount": 5000,
+    "source": "09-project-folder.png",
+    "status": "SUCCEEDED",
+    "consumed_credits": 15,
+    "output": "project-folder-web.glb",
+    "bytes": 3013328
+  }
+}

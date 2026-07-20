@@ -1,0 +1,677 @@
+.shell {
+  --ink: #18261d;
+  --forest: #173c2b;
+  --forest-soft: #315942;
+  --brass: #b58a4d;
+  --cream: #f2eadc;
+  --paper: rgba(249, 244, 234, 0.94);
+  min-height: 100vh;
+  color: var(--ink);
+  background: #d8cdbb;
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+}
+
+.topbar {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(500px, 2.2fr) minmax(190px, 0.8fr);
+  align-items: stretch;
+  min-height: 74px;
+  border-bottom: 1px solid rgba(93, 62, 29, 0.28);
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.5), transparent 24%, transparent 76%, rgba(255,255,255,0.35)),
+    #eee5d6;
+  box-shadow: 0 10px 32px rgba(38, 29, 18, 0.18);
+}
+
+.connection,
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 28px;
+  border-right: 1px solid rgba(93, 62, 29, 0.2);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.connection span,
+.toast span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2f7b45;
+  box-shadow: 0 0 0 4px rgba(47, 123, 69, 0.13);
+}
+
+.topbar nav {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.topbar nav button {
+  position: relative;
+  min-width: 112px;
+  border: 0;
+  color: #473b2c;
+  background: transparent;
+  font: 600 14px/1 "Avenir Next", "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.topbar nav button::after {
+  content: "";
+  position: absolute;
+  right: 22px;
+  bottom: 0;
+  left: 22px;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: transparent;
+}
+
+.topbar nav .activeNav {
+  color: var(--forest);
+}
+
+.topbar nav .activeNav::after {
+  background: var(--forest);
+}
+
+.profile {
+  justify-content: flex-end;
+  border-right: 0;
+  border-left: 1px solid rgba(93, 62, 29, 0.2);
+}
+
+.profile strong,
+.profile span {
+  display: block;
+}
+
+.profile span {
+  color: #786957;
+  font-size: 11px;
+}
+
+.stage {
+  position: relative;
+  height: calc(100vh - 74px);
+  min-height: 720px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(246, 235, 208, 0.8), transparent 27%),
+    radial-gradient(circle at 84% 20%, rgba(69, 100, 75, 0.22), transparent 28%),
+    linear-gradient(145deg, #d6c6ae, #98836d 48%, #5b5c48);
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(32, 51, 38, 0.16) 1px, transparent 1px) 0 0 / 80px 100%,
+    linear-gradient(rgba(255,255,255,0.08), transparent 30%);
+  mix-blend-mode: soft-light;
+}
+
+.titleBlock {
+  position: absolute;
+  top: 42px;
+  left: 4.5vw;
+  max-width: 390px;
+  pointer-events: none;
+  animation: rise 0.7s ease-out both;
+}
+
+.titleBlock span,
+.panelHeading span,
+.archiveCard > span,
+.aiPanel > span,
+.folderLabel > span,
+.balanceLabel > span {
+  color: var(--brass);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+.titleBlock h1 {
+  margin: 5px 0 0;
+  color: #153b29;
+  font: 500 clamp(44px, 5vw, 76px)/0.95 "Iowan Old Style", "Palatino Linotype", serif;
+  letter-spacing: -0.045em;
+  text-shadow: 0 2px 0 rgba(255,255,255,0.2);
+}
+
+.titleBlock p {
+  max-width: 320px;
+  margin: 14px 0 0;
+  color: rgba(24, 38, 29, 0.72);
+  font-size: 13px;
+}
+
+.projectsPanel {
+  position: absolute;
+  top: 9%;
+  left: 50%;
+  width: min(39vw, 620px);
+  padding: 20px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(177, 137, 75, 0.48);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.72), rgba(239,229,210,0.84)),
+    var(--paper);
+  box-shadow: 0 22px 60px rgba(45, 33, 21, 0.2), inset 0 1px 0 white;
+  backdrop-filter: blur(18px);
+  animation: rise 0.75s 0.12s ease-out both;
+}
+
+.panelHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.panelHeading strong {
+  display: block;
+  margin-top: 4px;
+  font: 600 20px/1.1 "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.panelHeading button,
+.archiveCard button,
+.aiPanel button,
+.balanceLabel button {
+  border: 1px solid rgba(133, 92, 42, 0.34);
+  border-radius: 10px;
+  color: #3e3325;
+  background: rgba(255,255,255,0.44);
+  box-shadow: 0 4px 12px rgba(52, 39, 23, 0.1);
+  cursor: pointer;
+}
+
+.panelHeading button {
+  padding: 9px 13px;
+  font-size: 11px;
+}
+
+.projectList {
+  display: grid;
+  gap: 8px;
+}
+
+.projectList > button {
+  display: grid;
+  grid-template-columns: 42px 1fr 48px;
+  gap: 11px;
+  align-items: center;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 1px solid rgba(116, 91, 58, 0.15);
+  border-radius: 13px;
+  color: var(--ink);
+  text-align: left;
+  background: rgba(255,255,255,0.32);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.projectList > button:hover,
+.projectList > .selectedProject {
+  transform: translateX(4px);
+  border-color: rgba(41, 92, 62, 0.42);
+  background: rgba(240, 247, 237, 0.76);
+}
+
+.projectList i {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(179, 139, 78, 0.35);
+  border-radius: 10px;
+  color: var(--forest);
+  background: #eee5d4;
+  font: normal 600 13px/1 "Iowan Old Style", serif;
+}
+
+.projectList span,
+.projectList strong,
+.projectList small {
+  display: block;
+}
+
+.projectList strong {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.projectList small {
+  color: #7c6d59;
+  font-size: 10px;
+}
+
+.projectList b {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #203b2b;
+  background: radial-gradient(circle, #f5eee1 55%, transparent 57%), conic-gradient(var(--forest) var(--progress), #d6cbbb 0);
+  font-size: 10px;
+}
+
+.archiveCard,
+.aiPanel,
+.folderLabel,
+.balanceLabel {
+  position: absolute;
+  border: 1px solid rgba(173, 130, 68, 0.45);
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 20px 45px rgba(38, 28, 18, 0.24), inset 0 1px 0 white;
+  backdrop-filter: blur(16px);
+}
+
+.archiveCard {
+  top: 35%;
+  left: 5.5%;
+  width: 250px;
+  padding: 24px;
+  border-radius: 6px 18px 18px 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-24px) rotateY(-8deg);
+  transition: opacity 240ms ease, transform 320ms ease;
+}
+
+.archiveVisible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) rotateY(0);
+}
+
+.archiveClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+}
+
+.archiveCard h2,
+.aiPanel h2 {
+  margin: 10px 0;
+  font: 600 24px/1.05 "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.archiveCard > strong {
+  display: block;
+  color: var(--forest);
+  font: 500 58px/1 "Iowan Old Style", serif;
+}
+
+.archiveCard p,
+.aiPanel p {
+  color: #6d604f;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.archiveCard > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.archiveCard > div button {
+  flex: 1;
+  padding: 9px;
+}
+
+.aiPanel {
+  top: 15%;
+  right: 3.6%;
+  width: 225px;
+  padding: 22px;
+  border-radius: 18px 6px 18px 18px;
+  opacity: 0;
+  transform: translateY(-12px) scale(0.96);
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 280ms ease;
+}
+
+.aiVisible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.aiPanel button,
+.balanceLabel button {
+  width: 100%;
+  padding: 11px 12px;
+  color: #f4ebdc;
+  background: var(--forest);
+}
+
+.folderLabel {
+  top: 44%;
+  right: 3.7%;
+  width: 230px;
+  padding: 14px 16px;
+  border-radius: 13px;
+  pointer-events: none;
+}
+
+.folderLabel strong,
+.folderLabel small {
+  display: block;
+}
+
+.folderLabel strong {
+  margin: 6px 0 3px;
+  font: 600 15px/1.2 "Iowan Old Style", serif;
+}
+
+.folderLabel small {
+  color: #736551;
+  font-size: 10px;
+}
+
+.balanceLabel {
+  right: 3.8%;
+  bottom: 11%;
+  width: 205px;
+  padding: 16px;
+  border-radius: 14px;
+}
+
+.balanceLabel strong {
+  display: block;
+  margin: 5px 0 11px;
+  color: var(--forest);
+  font: 500 28px/1 "Iowan Old Style", serif;
+}
+
+.balanceLabel button {
+  padding: 8px;
+}
+
+.commandDock {
+  position: absolute;
+  bottom: 4.5%;
+  left: 50%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(105px, 138px));
+  gap: 13px;
+  transform: translateX(-50%);
+}
+
+.commandDock button {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 11px;
+  border: 1px solid rgba(184, 142, 78, 0.48);
+  border-radius: 12px;
+  color: #253429;
+  background: rgba(246, 239, 226, 0.88);
+  box-shadow: 0 9px 22px rgba(42, 31, 19, 0.18);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.commandDock button:hover {
+  transform: translateY(-4px);
+  background: #f8f1e5;
+}
+
+.commandDock i {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #ead9b7;
+  background: var(--forest);
+  font: normal 600 15px/1 "Iowan Old Style", serif;
+}
+
+.commandDock span {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.toast {
+  position: absolute;
+  bottom: 4.5%;
+  left: 3.5%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 260px;
+  padding: 11px 15px;
+  border: 1px solid rgba(63, 100, 72, 0.35);
+  border-radius: 999px;
+  color: #274334;
+  background: rgba(237, 245, 233, 0.86);
+  box-shadow: 0 9px 24px rgba(26, 46, 32, 0.15);
+  font-size: 10px;
+  backdrop-filter: blur(12px);
+}
+
+.experimentBadge {
+  position: absolute;
+  right: 3.5%;
+  bottom: 4%;
+  padding: 8px 12px;
+  border: 1px solid rgba(207, 171, 110, 0.52);
+  color: #e4cca5;
+  background: rgba(25, 55, 39, 0.84);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.loader,
+.errorPanel {
+  position: absolute;
+  z-index: 10;
+  top: 50%;
+  left: 50%;
+  width: min(360px, calc(100vw - 40px));
+  padding: 24px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(178, 137, 77, 0.55);
+  border-radius: 18px;
+  background: rgba(246, 239, 226, 0.95);
+  box-shadow: 0 28px 80px rgba(34, 25, 17, 0.3);
+  text-align: center;
+}
+
+.loader span,
+.loader strong,
+.errorPanel span,
+.errorPanel strong {
+  display: block;
+}
+
+.loader > div {
+  height: 5px;
+  margin: 16px 0 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #d6c9b5;
+}
+
+.loader i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--forest), #69a474);
+  transition: width 220ms ease;
+}
+
+.loader strong {
+  color: var(--forest);
+  font: 500 34px/1 "Iowan Old Style", serif;
+}
+
+.errorPanel {
+  color: #7d271f;
+}
+
+.errorPanel strong {
+  margin-bottom: 8px;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    grid-template-columns: 170px 1fr 170px;
+  }
+  .topbar nav button {
+    min-width: 88px;
+    font-size: 12px;
+  }
+  .connection,
+  .profile {
+    padding: 0 16px;
+  }
+  .projectsPanel {
+    width: 47vw;
+  }
+  .aiPanel,
+  .folderLabel {
+    right: 2%;
+    width: 195px;
+  }
+  .balanceLabel,
+  .experimentBadge {
+    display: none;
+  }
+  .toast {
+    bottom: 11%;
+  }
+}
+
+@media (max-width: 820px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    min-height: 64px;
+  }
+  .topbar nav,
+  .profile span {
+    display: none;
+  }
+  .connection,
+  .profile {
+    min-height: 64px;
+  }
+  .stage {
+    height: calc(100vh - 64px);
+    min-height: 760px;
+    overflow-y: auto;
+  }
+  .titleBlock {
+    top: 24px;
+    left: 22px;
+  }
+  .titleBlock h1 {
+    font-size: 46px;
+  }
+  .titleBlock p {
+    display: none;
+  }
+  .projectsPanel {
+    top: 118px;
+    left: 18px;
+    width: calc(100% - 36px);
+    padding: 14px;
+    transform: none;
+  }
+  .projectList > button:nth-child(n+4) {
+    display: none;
+  }
+  .aiPanel {
+    top: 520px;
+    right: 18px;
+    width: min(245px, calc(100% - 36px));
+  }
+  .archiveCard {
+    top: 510px;
+    left: 18px;
+    width: min(245px, calc(100% - 36px));
+    z-index: 5;
+  }
+  .folderLabel,
+  .balanceLabel,
+  .experimentBadge,
+  .toast {
+    display: none;
+  }
+  .commandDock {
+    position: fixed;
+    z-index: 12;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    transform: none;
+  }
+  .commandDock button {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 62px;
+    padding: 6px;
+  }
+  .commandDock span {
+    font-size: 8px;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titleBlock,
+  .projectsPanel {
+    animation: none;
+  }
+  .archiveCard,
+  .aiPanel,
+  .commandDock button,
+  .projectList > button {
+    transition: none;
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "total_bytes": 4342728,
+  "models": [
+    {
+      "id": "ai-analyst",
+      "file": "ai-analyst-rigged.glb",
+      "bytes": 1702676,
+      "triangles": 61118,
+      "joints": 24,
+      "animations": 1,
+      "role": "animated_ai_assistant"
+    },
+    {
+      "id": "ai-smart-glass-frame",
+      "file": "ai-smart-glass-frame-web.glb",
+      "bytes": 248852,
+      "triangles": 7858,
+      "role": "html_overlay_frame"
+    },
+    {
+      "id": "archive-binder-closed",
+      "file": "archive-binder-closed-web.glb",
+      "bytes": 318940,
+      "triangles": 11094,
+      "role": "archive_closed_state"
+    },
+    {
+      "id": "archive-binder-open",
+      "file": "archive-binder-open-web.glb",
+      "bytes": 506100,
+      "triangles": 15955,
+      "role": "archive_open_state"
+    },
+    {
+      "id": "balance-wallet",
+      "file": "balance-wallet-web.glb",
+      "bytes": 335024,
+      "triangles": 10434,
+      "role": "html_overlay_frame"
+    },
+    {
+      "id": "command-button",
+      "file": "command-button-web.glb",
+      "bytes": 158100,
+      "triangles": 2428,
+      "role": "clone_four_actions"
+    },
+    {
+      "id": "folder-organizer",
+      "file": "folder-organizer-web.glb",
+      "bytes": 493364,
+      "triangles": 12332,
+      "role": "project_folder_dock"
+    },
+    {
+      "id": "project-display-frame",
+      "file": "project-display-frame-web.glb",
+      "bytes": 308136,
+      "triangles": 8742,
+      "role": "html_overlay_frame"
+    },
+    {
+      "id": "project-folder",
+      "file": "project-folder-web.glb",
+      "bytes": 271536,
+      "triangles": 5515,
+      "role": "clone_project_entry"
+    }
+  ]
+}
