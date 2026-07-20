@@ -15,7 +15,7 @@
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(190px, 0.8fr) minmax(500px, 2.2fr) minmax(190px, 0.8fr);
+  grid-template-columns: minmax(190px, 0.75fr) minmax(500px, 2fr) minmax(290px, 1fr);
   align-items: stretch;
   min-height: 74px;
   border-bottom: 1px solid rgba(93, 62, 29, 0.28);
@@ -82,13 +82,46 @@
 
 .profile {
   justify-content: flex-end;
+  gap: 14px;
   border-right: 0;
   border-left: 1px solid rgba(93, 62, 29, 0.2);
+}
+
+.profile > div {
+  min-width: 0;
 }
 
 .profile strong,
 .profile span {
   display: block;
+}
+
+.builderButton {
+  min-width: 108px;
+  padding: 10px 14px;
+  border: 1px solid rgba(123, 89, 44, 0.38);
+  border-radius: 10px;
+  color: #f1e5d1;
+  background: #244a36;
+  box-shadow: 0 5px 14px rgba(35, 55, 40, 0.2), inset 0 1px rgba(255,255,255,0.16);
+  font: 700 11px/1 "Avenir Next", "Trebuchet MS", sans-serif;
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.builderButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #173c2b;
+}
+
+.builderButton:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.builderButtonActive {
+  color: #2f2519;
+  background: #d9b77d;
 }
 
 .profile span {
@@ -113,6 +146,27 @@
     radial-gradient(circle at 15% 12%, rgba(246, 235, 208, 0.8), transparent 27%),
     radial-gradient(circle at 84% 20%, rgba(69, 100, 75, 0.22), transparent 28%),
     linear-gradient(145deg, #d6c6ae, #98836d 48%, #5b5c48);
+}
+
+.themeMarble::before {
+  background:
+    radial-gradient(circle at 15% 12%, rgba(246, 235, 208, 0.8), transparent 27%),
+    radial-gradient(circle at 84% 20%, rgba(69, 100, 75, 0.22), transparent 28%),
+    linear-gradient(145deg, #d6c6ae, #98836d 48%, #5b5c48);
+}
+
+.themeWalnut::before {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(226, 184, 119, 0.2), transparent 28%),
+    linear-gradient(112deg, transparent 0 45%, rgba(255,255,255,0.035) 46% 47%, transparent 48%) 0 0 / 92px 100%,
+    linear-gradient(145deg, #765039, #4a3025 48%, #26382d);
+}
+
+.themeLinen::before {
+  background:
+    repeating-linear-gradient(90deg, rgba(91, 104, 84, 0.04) 0 1px, transparent 1px 5px),
+    radial-gradient(circle at 82% 18%, rgba(91, 130, 100, 0.14), transparent 30%),
+    linear-gradient(145deg, #eee8dc, #d2c6b5 52%, #aab0a0);
 }
 
 .canvas {
@@ -167,6 +221,238 @@
   margin: 14px 0 0;
   color: rgba(24, 38, 29, 0.72);
   font-size: 13px;
+}
+
+.builderPanel {
+  position: absolute;
+  z-index: 14;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  width: 310px;
+  max-height: calc(100% - 48px);
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(181, 138, 77, 0.58);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.72), rgba(236,225,205,0.9)),
+    #efe5d4;
+  box-shadow: 0 28px 75px rgba(35, 25, 17, 0.32), inset 0 1px 0 white;
+  backdrop-filter: blur(22px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(28px) scale(0.98);
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+.builderPanelVisible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+}
+
+.builderHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid rgba(118, 84, 42, 0.17);
+}
+
+.builderHeading span,
+.backgroundPicker > span {
+  display: block;
+  color: var(--brass);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.19em;
+}
+
+.builderHeading strong {
+  display: block;
+  margin-top: 5px;
+  font: 600 18px/1.15 "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.builderHeading > button {
+  display: grid;
+  flex: 0 0 28px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(110, 77, 38, 0.28);
+  border-radius: 8px;
+  color: #59452f;
+  background: rgba(255,255,255,0.44);
+  cursor: pointer;
+}
+
+.transformModes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 13px;
+}
+
+.transformModes button {
+  min-height: 34px;
+  border: 1px solid rgba(110, 77, 38, 0.23);
+  border-radius: 9px;
+  color: #5e4d38;
+  background: rgba(255,255,255,0.36);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.transformModes .transformModeActive {
+  border-color: #315942;
+  color: #f6eddd;
+  background: #244a36;
+}
+
+.builderHint {
+  margin: 10px 0;
+  color: #74634e;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.builderObjectList {
+  display: grid;
+  min-height: 120px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(118, 84, 42, 0.12);
+  border-bottom: 1px solid rgba(118, 84, 42, 0.12);
+  scrollbar-color: #b79a70 transparent;
+  scrollbar-width: thin;
+}
+
+.builderObjectList > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 5px 0 9px;
+  border-bottom: 1px solid rgba(118, 84, 42, 0.08);
+}
+
+.builderObjectList > div:last-child {
+  border-bottom: 0;
+}
+
+.builderObjectList > .builderObjectSelected {
+  background: rgba(53, 95, 66, 0.1);
+  box-shadow: inset 3px 0 #315942;
+}
+
+.builderObjectList button {
+  border: 0;
+  color: #3b3328;
+  text-align: left;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.builderObjectList button:last-child {
+  padding: 5px 7px;
+  border-radius: 6px;
+  color: #7b6750;
+  font-size: 8px;
+}
+
+.builderObjectList .visibilityOff {
+  color: #8c3e35;
+  background: rgba(148, 55, 45, 0.08);
+}
+
+.backgroundPicker {
+  margin-top: 13px;
+}
+
+.backgroundPicker > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.backgroundPicker button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 6px;
+  border: 1px solid rgba(110, 77, 38, 0.2);
+  border-radius: 8px;
+  color: #5f4e39;
+  background: rgba(255,255,255,0.36);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.backgroundPicker i {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(51, 40, 27, 0.17);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0d2bc, #9c8971);
+}
+
+.backgroundPicker button:nth-child(2) i {
+  background: linear-gradient(135deg, #8b5b3b, #3f2b22);
+}
+
+.backgroundPicker button:nth-child(3) i {
+  background: linear-gradient(135deg, #f1ece2, #bbc1b2);
+}
+
+.backgroundPicker .backgroundActive {
+  border-color: #315942;
+  box-shadow: inset 0 0 0 1px rgba(49, 89, 66, 0.18);
+}
+
+.builderActions {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.builderActions button {
+  min-height: 36px;
+  border: 1px solid rgba(110, 77, 38, 0.25);
+  border-radius: 9px;
+  color: #584730;
+  background: rgba(255,255,255,0.42);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.builderActions button:last-child {
+  color: #f7eddd;
+  background: #244a36;
+}
+
+.builderActive .projectsPanel,
+.builderActive .archiveCard,
+.builderActive .aiPanel,
+.builderActive .folderLabel,
+.builderActive .balanceLabel,
+.builderActive .commandDock,
+.builderActive .toast,
+.builderActive .experimentBadge {
+  opacity: 0.08;
+  pointer-events: none;
+  filter: saturate(0.4);
+}
+
+.builderActive .titleBlock {
+  opacity: 0.32;
 }
 
 .projectsPanel {
@@ -425,20 +711,20 @@
   bottom: 4.5%;
   left: 50%;
   display: grid;
-  grid-template-columns: repeat(4, minmax(105px, 138px));
-  gap: 13px;
+  grid-template-columns: repeat(4, minmax(88px, 112px));
+  gap: 8px;
   transform: translateX(-50%);
 }
 
 .commandDock button {
   display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 8px;
+  grid-template-columns: 23px 1fr;
+  gap: 6px;
   align-items: center;
-  min-height: 48px;
-  padding: 8px 11px;
+  min-height: 38px;
+  padding: 6px 8px;
   border: 1px solid rgba(184, 142, 78, 0.48);
-  border-radius: 12px;
+  border-radius: 9px;
   color: #253429;
   background: rgba(246, 239, 226, 0.88);
   box-shadow: 0 9px 22px rgba(42, 31, 19, 0.18);
@@ -455,16 +741,16 @@
 .commandDock i {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   color: #ead9b7;
   background: var(--forest);
-  font: normal 600 15px/1 "Iowan Old Style", serif;
+  font: normal 600 12px/1 "Iowan Old Style", serif;
 }
 
 .commandDock span {
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   text-align: left;
 }
@@ -559,15 +845,22 @@
 
 @media (max-width: 1180px) {
   .topbar {
-    grid-template-columns: 170px 1fr 170px;
+    grid-template-columns: 150px 1fr 144px;
   }
   .topbar nav button {
-    min-width: 88px;
+    min-width: 72px;
     font-size: 12px;
   }
   .connection,
   .profile {
     padding: 0 16px;
+  }
+  .profile > div {
+    display: none;
+  }
+  .builderButton {
+    width: 100%;
+    min-width: 0;
   }
   .projectsPanel {
     width: 47vw;
@@ -580,6 +873,10 @@
   .balanceLabel,
   .experimentBadge {
     display: none;
+  }
+  .builderPanel {
+    right: 16px;
+    width: 288px;
   }
   .toast {
     bottom: 11%;
@@ -654,12 +951,27 @@
   .commandDock button {
     grid-template-columns: 1fr;
     justify-items: center;
-    min-height: 62px;
+    min-height: 48px;
     padding: 6px;
   }
   .commandDock span {
     font-size: 8px;
     text-align: center;
+  }
+  .builderPanel {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    max-height: min(460px, calc(100vh - 104px));
+  }
+  .builderObjectList {
+    max-height: 220px;
+  }
+  .builderActive .titleBlock {
+    opacity: 0;
   }
 }
 
