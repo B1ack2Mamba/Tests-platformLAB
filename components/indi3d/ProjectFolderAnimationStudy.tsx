@@ -3,7 +3,6 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 import styles from "../../styles/IndiProjectFolderStudy.module.css";
 
@@ -113,39 +112,6 @@ function makeSurfaceTexture(kind: "leather" | "wood") {
   return texture;
 }
 
-function makeDesktopTexture() {
-  const size = 1024;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext("2d");
-  if (!context) return null;
-
-  const image = context.createImageData(size, size);
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const index = (y * size + x) * 4;
-      const seed = Math.sin(x * 7.133 + y * 19.731) * 19473.331;
-      const noise = seed - Math.floor(seed);
-      const wave = Math.sin(y * 0.022 + Math.sin(x * 0.006) * 2.8 + Math.sin(x * 0.0017) * 4.2);
-      const vein = Math.pow(Math.abs(wave), 8);
-      const warmth = 7 + wave * 4 + noise * 5 - vein * 13;
-      image.data[index] = Math.round(43 + warmth);
-      image.data[index + 1] = Math.round(23 + warmth * 0.48);
-      image.data[index + 2] = Math.round(14 + warmth * 0.24);
-      image.data[index + 3] = 255;
-    }
-  }
-  context.putImageData(image, 0, 0);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1.05, 1.0);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
-  return texture;
-}
-
 function makeProjectPageTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
@@ -222,6 +188,203 @@ function makeProjectPageTexture() {
   return texture;
 }
 
+function makeDocumentPageTexture(pageIndex: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 1280;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  const paper = context.createLinearGradient(0, 0, 1024, 1280);
+  paper.addColorStop(0, "#f5ecd9");
+  paper.addColorStop(0.5, "#fffaf0");
+  paper.addColorStop(1, "#e8dac0");
+  context.fillStyle = paper;
+  context.fillRect(0, 0, 1024, 1280);
+
+  for (let index = 0; index < 5200; index += 1) {
+    const x = (index * 73) % 1024;
+    const y = (index * 151) % 1280;
+    const alpha = 0.012 + ((index * 17) % 8) / 1000;
+    context.fillStyle = `rgba(84,52,28,${alpha})`;
+    context.fillRect(x, y, 1 + (index % 2), 1);
+  }
+
+  context.strokeStyle = "rgba(118,77,35,.46)";
+  context.lineWidth = 3;
+  context.strokeRect(38, 38, 948, 1204);
+  context.strokeStyle = "rgba(183,133,69,.28)";
+  context.lineWidth = 1;
+  context.strokeRect(54, 54, 916, 1172);
+
+  context.fillStyle = "#644521";
+  context.font = "600 24px Georgia";
+  context.letterSpacing = "5px";
+  context.fillText("ЛАБОРАТОРИЯ ДВИЖЕНИЯ", 82, 105);
+  context.fillStyle = "#a2753e";
+  context.font = "18px Georgia";
+  context.letterSpacing = "2px";
+  context.fillText(`ДОКУМЕНТ 0${pageIndex + 1}  ·  ПРОЕКТНЫЙ АРХИВ`, 82, 144);
+  context.strokeStyle = "rgba(137,92,42,.42)";
+  context.beginPath();
+  context.moveTo(82, 172);
+  context.lineTo(942, 172);
+  context.stroke();
+
+  const documents = [
+    {
+      title: "КАРТОЧКА ПРОЕКТА",
+      subtitle: "Оценка управленческого потенциала",
+      sections: [
+        ["Куратор", "Екатерина Смирнова"],
+        ["Участники", "24 специалиста"],
+        ["Статус", "Активная оценка"],
+        ["Готовность", "94 процента"],
+      ],
+      note: "Следующий этап: итоговая встреча и формирование кадрового резерва.",
+    },
+    {
+      title: "КОМАНДА И ЭТАПЫ",
+      subtitle: "План диагностической сессии",
+      sections: [
+        ["01", "Подготовка профиля роли"],
+        ["02", "Комплексное тестирование"],
+        ["03", "Экспертная интерпретация"],
+        ["04", "Итоговые рекомендации"],
+      ],
+      note: "Все материалы проверены специалистом и готовы к обсуждению с заказчиком.",
+    },
+    {
+      title: "РИСКИ И РЕШЕНИЯ",
+      subtitle: "Краткая аналитическая записка",
+      sections: [
+        ["Сильная сторона", "Системное мышление"],
+        ["Зона внимания", "Делегирование"],
+        ["Рекомендация", "План развития на 90 дней"],
+        ["Приоритет", "Высокий"],
+      ],
+      note: "Рекомендуется контрольная оценка после завершения индивидуального плана развития.",
+    },
+  ];
+  const documentData = documents[pageIndex] ?? documents[0];
+
+  context.fillStyle = "#2d2319";
+  context.font = "600 52px Georgia";
+  context.letterSpacing = "1px";
+  context.fillText(documentData.title, 82, 245);
+  context.fillStyle = "#80684d";
+  context.font = "26px Georgia";
+  context.fillText(documentData.subtitle, 82, 293);
+
+  documentData.sections.forEach(([label, value], index) => {
+    const y = 374 + index * 146;
+    context.fillStyle = index % 2 === 0 ? "rgba(116,79,39,.055)" : "rgba(255,255,255,.18)";
+    context.roundRect(82, y, 860, 112, 12);
+    context.fill();
+    context.fillStyle = "#a27642";
+    context.font = "600 19px Georgia";
+    context.letterSpacing = "2px";
+    context.fillText(label.toLocaleUpperCase("ru-RU"), 112, y + 36);
+    context.fillStyle = "#3b2d20";
+    context.font = "28px Georgia";
+    context.letterSpacing = "0px";
+    context.fillText(value, 112, y + 79);
+  });
+
+  context.fillStyle = "rgba(128,88,43,.08)";
+  context.roundRect(82, 972, 860, 122, 12);
+  context.fill();
+  context.fillStyle = "#594735";
+  context.font = "italic 23px Georgia";
+  const words = documentData.note.split(" ");
+  let line = "";
+  let lineY = 1018;
+  words.forEach((word) => {
+    const next = `${line}${word} `;
+    if (context.measureText(next).width > 790) {
+      context.fillText(line, 112, lineY);
+      line = `${word} `;
+      lineY += 34;
+    } else {
+      line = next;
+    }
+  });
+  context.fillText(line, 112, lineY);
+
+  context.strokeStyle = "rgba(118,77,35,.48)";
+  context.beginPath();
+  context.moveTo(610, 1160);
+  context.lineTo(910, 1160);
+  context.stroke();
+  context.fillStyle = "#80684d";
+  context.font = "18px Georgia";
+  context.fillText("ПОДПИСЬ СПЕЦИАЛИСТА", 650, 1192);
+  context.save();
+  context.translate(188, 1145);
+  context.rotate(-0.12);
+  context.strokeStyle = "rgba(112,46,30,.46)";
+  context.lineWidth = 7;
+  context.beginPath();
+  context.arc(0, 0, 60, 0, Math.PI * 2);
+  context.stroke();
+  context.font = "600 18px Georgia";
+  context.fillStyle = "rgba(112,46,30,.58)";
+  context.textAlign = "center";
+  context.fillText("ПРОВЕРЕНО", 0, 7);
+  context.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function decorateDocumentPages(model: THREE.Group) {
+  ["Page_1", "Page_2", "Page_3"].forEach((pageName, index) => {
+    const page = model.getObjectByName(pageName) as THREE.Mesh | undefined;
+    const frontTexture = makeDocumentPageTexture(index);
+    const backTexture = makeDocumentPageTexture((index + 1) % 3);
+    if (!page || !frontTexture || !backTexture) return;
+
+    page.material = new THREE.MeshStandardMaterial({
+      color: 0xf2e7d3,
+      roughness: 0.78,
+      metalness: 0,
+      envMapIntensity: 0.32,
+      side: THREE.DoubleSide,
+    });
+    page.castShadow = true;
+    page.receiveShadow = true;
+
+    const front = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.56, 4.5),
+      new THREE.MeshBasicMaterial({ map: frontTexture, toneMapped: false, side: THREE.FrontSide }),
+    );
+    front.name = `${pageName}_Front_Document`;
+    front.rotation.x = -Math.PI / 2;
+    front.position.y = 0.052;
+    front.renderOrder = 4;
+    page.add(front);
+
+    backTexture.center.set(0.5, 0.5);
+    backTexture.rotation = Math.PI;
+    const back = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.56, 4.5),
+      new THREE.MeshBasicMaterial({ map: backTexture, toneMapped: false, side: THREE.FrontSide }),
+    );
+    back.name = `${pageName}_Back_Document`;
+    back.rotation.x = Math.PI / 2;
+    back.position.y = -0.052;
+    back.renderOrder = 4;
+    page.add(back);
+
+    ["Header", "Line_A", "Line_B"].forEach((suffix) => {
+      const legacyDetail = model.getObjectByName(`${pageName}_${suffix}`);
+      if (legacyDetail) legacyDetail.visible = false;
+    });
+  });
+}
+
 type SurfaceDetailOptions = {
   name: string;
   width: number;
@@ -261,16 +424,15 @@ function fitGeneratedSurfaceDetail(detail: THREE.Group, parent: THREE.Object3D, 
 
   detail.traverse((object) => {
     const mesh = object as THREE.Mesh;
-    if (options.name === "Meshy_Leather_Cover_Detail") {
-      console.info("Meshy cover node", object.type, Boolean(mesh.isMesh));
-    }
     if (!mesh.isMesh) return;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.frustumCulled = false;
     mesh.renderOrder = 2;
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    mesh.material = materials.map((source) => {
+    const originalMaterial = mesh.material;
+    const hasMaterialArray = Array.isArray(originalMaterial);
+    const materials: THREE.Material[] = hasMaterialArray ? originalMaterial : [originalMaterial];
+    const mappedMaterials = materials.map((source) => {
       const material = source.clone();
       if (material instanceof THREE.MeshStandardMaterial) {
         if (options.tint) material.color.multiply(new THREE.Color(options.tint));
@@ -281,20 +443,24 @@ function fitGeneratedSurfaceDetail(detail: THREE.Group, parent: THREE.Object3D, 
       }
       return material;
     });
+    mesh.material = hasMaterialArray ? mappedMaterials : mappedMaterials[0];
   });
 
   parent.add(wrapper);
 }
 
 function makeSurfaceInvisible(mesh: THREE.Mesh) {
-  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-  mesh.material = materials.map((source) => {
+  const originalMaterial = mesh.material;
+  const hasMaterialArray = Array.isArray(originalMaterial);
+  const materials: THREE.Material[] = hasMaterialArray ? originalMaterial : [originalMaterial];
+  const mappedMaterials = materials.map((source) => {
     const material = source.clone();
     material.transparent = true;
     material.opacity = 0;
     material.depthWrite = false;
     return material;
   });
+  mesh.material = hasMaterialArray ? mappedMaterials : mappedMaterials[0];
 }
 
 function loadGeneratedFolderDetails(loader: GLTFLoader, model: THREE.Group) {
@@ -376,38 +542,44 @@ function loadGeneratedFolderDetails(loader: GLTFLoader, model: THREE.Group) {
   }
 }
 
-function loadExecutiveDesk(loader: GLTFLoader, scene: THREE.Scene) {
+function loadExecutiveDesk(loader: GLTFLoader, scene: THREE.Scene, onLoad: () => void) {
   loader.load(
     "/indi-3d/models/executive-meshy-desk.glb",
     (gltf) => {
       const desk = gltf.scene;
       desk.name = "Meshy_Executive_Desk";
+      const deskWoodTexture = makeSurfaceTexture("wood");
       const box = new THREE.Box3().setFromObject(desk);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
-      const scale = Math.min(13.2 / Math.max(size.x, 0.001), 8.8 / Math.max(size.z, 0.001));
+      const scale = Math.min(13.6 / Math.max(size.x, 0.001), 8.9 / Math.max(size.z, 0.001));
 
       desk.scale.setScalar(scale);
-      desk.position.set(-center.x * scale + 0.2, -0.18 - box.max.y * scale, -center.z * scale + 0.55);
+      desk.position.set(-center.x * scale + 0.2, -0.22 - box.max.y * scale, -center.z * scale + 0.55);
       desk.rotation.y = -0.025;
       desk.renderOrder = -1;
       desk.traverse((object) => {
+        object.visible = true;
         if (!(object instanceof THREE.Mesh)) return;
+        object.frustumCulled = false;
         object.castShadow = true;
         object.receiveShadow = true;
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        object.material = materials.map((source) => {
-          const material = source.clone();
-          if (material instanceof THREE.MeshStandardMaterial) {
-            material.color.multiply(new THREE.Color(0.72, 0.58, 0.46));
-            material.roughness = 0.48;
-            material.metalness = Math.min(material.metalness, 0.3);
-            material.envMapIntensity = 0.62;
-          }
-          return material;
-        });
+        const originalMaterial = object.material;
+        const hasMaterialArray = Array.isArray(originalMaterial);
+        const materials: THREE.Material[] = hasMaterialArray ? originalMaterial : [originalMaterial];
+        const mappedMaterials = materials.map(() => new THREE.MeshStandardMaterial({
+          color: 0x3f2014,
+          bumpMap: deskWoodTexture,
+          bumpScale: 0.018,
+          roughness: 0.38,
+          metalness: 0.04,
+          envMapIntensity: 1.25,
+          side: THREE.DoubleSide,
+        }));
+        object.material = hasMaterialArray ? mappedMaterials : mappedMaterials[0];
       });
       scene.add(desk);
+      onLoad();
     },
     undefined,
     () => {
@@ -416,24 +588,119 @@ function loadExecutiveDesk(loader: GLTFLoader, scene: THREE.Scene) {
   );
 }
 
-function addExecutiveDesktop(scene: THREE.Scene) {
-  const woodTexture = makeDesktopTexture();
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xb07850,
-    map: woodTexture,
-    bumpMap: woodTexture,
-    bumpScale: 0.022,
+type DeskAssetOptions = {
+  name: string;
+  width: number;
+  position: [number, number, number];
+  rotationY?: number;
+  tint?: THREE.ColorRepresentation;
+  roughness?: number;
+  metalnessLimit?: number;
+};
+
+function loadDeskAsset(loader: GLTFLoader, scene: THREE.Scene, url: string, options: DeskAssetOptions, onLoad: () => void) {
+  loader.load(
+    url,
+    (gltf) => {
+      const asset = gltf.scene;
+      asset.name = options.name;
+      const sourceBox = new THREE.Box3().setFromObject(asset);
+      const sourceSize = sourceBox.getSize(new THREE.Vector3());
+      const sourceCenter = sourceBox.getCenter(new THREE.Vector3());
+      const scale = options.width / Math.max(sourceSize.x, sourceSize.z, 0.001);
+
+      asset.scale.setScalar(scale);
+      asset.position.set(-sourceCenter.x * scale, -sourceBox.min.y * scale, -sourceCenter.z * scale);
+
+      const wrapper = new THREE.Group();
+      wrapper.name = `${options.name}_Placement`;
+      wrapper.position.set(...options.position);
+      wrapper.rotation.y = options.rotationY ?? 0;
+      wrapper.add(asset);
+
+      asset.traverse((object) => {
+        object.visible = true;
+        if (!(object instanceof THREE.Mesh)) return;
+        object.frustumCulled = false;
+        object.castShadow = true;
+        object.receiveShadow = true;
+        const originalMaterial = object.material;
+        const hasMaterialArray = Array.isArray(originalMaterial);
+        const materials: THREE.Material[] = hasMaterialArray ? originalMaterial : [originalMaterial];
+        const mappedMaterials = materials.map((source) => {
+          const materialName = source.name.toLocaleLowerCase("en-US");
+          const isBrass = materialName.includes("brass") || materialName.includes("metal");
+          const isWood = materialName.includes("walnut") || materialName.includes("wood");
+          const isLeather = materialName.includes("leather");
+          const color = isBrass ? 0xc08a45 : isWood ? 0x6f391f : isLeather ? 0x1c5946 : (options.tint ?? 0x9b6946);
+          const metalness = isBrass ? 0.72 : isWood || isLeather ? 0.03 : Math.min(0.12, options.metalnessLimit ?? 0.5);
+          const roughness = isBrass ? 0.3 : isWood ? 0.42 : (options.roughness ?? 0.48);
+          return new THREE.MeshStandardMaterial({
+            color,
+            roughness,
+            metalness,
+            envMapIntensity: 1.08,
+            side: THREE.DoubleSide,
+          });
+        });
+        object.material = hasMaterialArray ? mappedMaterials : mappedMaterials[0];
+      });
+
+      scene.add(wrapper);
+      onLoad();
+    },
+    undefined,
+    (error) => console.warn(`${options.name} failed to load`, error),
+  );
+}
+
+function furnishExecutiveDesk(loader: GLTFLoader, scene: THREE.Scene, onLoad: () => void) {
+  const surfaceY = -0.02;
+  loadDeskAsset(loader, scene, "/indi-3d/models/hybrid-archive-planner-closed.glb", {
+    name: "Archive_Binder",
+    width: 2.55,
+    position: [-4.75, surfaceY, 0.75],
+    rotationY: 0.2,
+    tint: 0x225746,
+    roughness: 0.5,
+    metalnessLimit: 0.42,
+  }, onLoad);
+  loadDeskAsset(loader, scene, "/indi-3d/models/hybrid-folder-organizer.glb", {
+    name: "Folder_Organizer",
+    width: 2.65,
+    position: [4.65, surfaceY, -0.5],
+    rotationY: -0.18,
+    tint: 0x7a4528,
     roughness: 0.46,
-    metalness: 0.03,
-    envMapIntensity: 0.72,
-  });
-  const desktop = new THREE.Mesh(new RoundedBoxGeometry(11.4, 0.34, 7.6, 6, 0.16), material);
-  desktop.name = "Executive_Walnut_Desktop";
-  desktop.position.set(0.2, -0.35, 0.55);
-  desktop.rotation.y = -0.025;
-  desktop.castShadow = true;
-  desktop.receiveShadow = true;
-  scene.add(desktop);
+    metalnessLimit: 0.48,
+  }, onLoad);
+  loadDeskAsset(loader, scene, "/indi-3d/models/hybrid-balance-wallet-closed.glb", {
+    name: "Balance_Wallet",
+    width: 2.5,
+    position: [4.7, surfaceY, 2.35],
+    rotationY: -0.14,
+    tint: 0xdec5aa,
+    roughness: 0.5,
+    metalnessLimit: 0.45,
+  }, onLoad);
+  loadDeskAsset(loader, scene, "/indi-3d/models/hybrid-archive-tray.glb", {
+    name: "Archive_Tray",
+    width: 2.1,
+    position: [-4.75, surfaceY, -2.2],
+    rotationY: 0.14,
+    tint: 0xd2b08b,
+    roughness: 0.4,
+    metalnessLimit: 0.52,
+  }, onLoad);
+  loadDeskAsset(loader, scene, "/indi-3d/models/hybrid-trash-tray-closed.glb", {
+    name: "Trash_Tray",
+    width: 1.75,
+    position: [-4.75, surfaceY, 2.65],
+    rotationY: 0.16,
+    tint: 0xd6b692,
+    roughness: 0.4,
+    metalnessLimit: 0.55,
+  }, onLoad);
 }
 
 const PROJECTS = [
@@ -462,6 +729,7 @@ export default function ProjectFolderAnimationStudy() {
   const [cameraGuided, setCameraGuided] = useState(true);
   const [projectQuery, setProjectQuery] = useState("");
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
+  const [loadedDeskObjects, setLoadedDeskObjects] = useState(0);
 
   const phase = [...PHASES].reverse().find((item) => progress >= item.at)?.label || PHASES[0].label;
 
@@ -470,10 +738,10 @@ export default function ProjectFolderAnimationStudy() {
     if (!mount) return;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x090807, 13, 27);
+    scene.fog = new THREE.Fog(0x090807, 17, 34);
 
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-    camera.position.set(7.6, 8.1, 10.2);
+    const camera = new THREE.PerspectiveCamera(41, 1, 0.1, 100);
+    camera.position.set(9.2, 5.35, 13.6);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -494,11 +762,11 @@ export default function ProjectFolderAnimationStudy() {
     controls.enableDamping = true;
     controls.dampingFactor = 0.055;
     controls.enablePan = false;
-    controls.minDistance = 7.4;
-    controls.maxDistance = 16;
+    controls.minDistance = 8.2;
+    controls.maxDistance = 19;
     controls.minPolarAngle = Math.PI * 0.19;
     controls.maxPolarAngle = Math.PI * 0.48;
-    controls.target.set(0, 0.65, 0.1);
+    controls.target.set(0, -0.78, 0.35);
     controlsRef.current = controls;
 
     const stopGuidedCamera = () => {
@@ -524,20 +792,21 @@ export default function ProjectFolderAnimationStudy() {
     groundMaterial.depthWrite = false;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(42, 28), groundMaterial);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.14;
+    ground.position.y = -3.45;
     ground.receiveShadow = true;
     scene.add(ground);
 
     const brassLineMaterial = new THREE.MeshStandardMaterial({ color: 0x6c3b15, roughness: 0.34, metalness: 0.78 });
     for (const z of [-5.6, 5.6]) {
       const line = new THREE.Mesh(new THREE.BoxGeometry(18, 0.035, 0.025), brassLineMaterial);
-      line.position.set(0, -0.1, z);
+      line.position.set(0, -3.4, z);
       scene.add(line);
     }
 
     const loader = new GLTFLoader();
-    addExecutiveDesktop(scene);
-    loadExecutiveDesk(loader, scene);
+    const registerDeskObject = () => setLoadedDeskObjects((count) => count + 1);
+    loadExecutiveDesk(loader, scene, registerDeskObject);
+    furnishExecutiveDesk(loader, scene, registerDeskObject);
     loader.load(
       "/indi-3d/models/executive-project-folder.glb",
       (gltf) => {
@@ -592,6 +861,7 @@ export default function ProjectFolderAnimationStudy() {
         }
 
         loadGeneratedFolderDetails(loader, model);
+        decorateDocumentPages(model);
 
         const projectPage = model.getObjectByName("Project_Dashboard_Page") as THREE.Mesh | undefined;
         const projectTexture = makeProjectPageTexture();
@@ -664,12 +934,12 @@ export default function ProjectFolderAnimationStudy() {
         const cameraEase = smoothstep(Math.min(1, currentProgress / 0.62));
         const projectEase = smoothstep(THREE.MathUtils.clamp((currentProgress - 0.78) / 0.22, 0, 1));
         const desired = new THREE.Vector3(
-          THREE.MathUtils.lerp(THREE.MathUtils.lerp(7.6, 5.8, cameraEase), 4.5, projectEase),
-          THREE.MathUtils.lerp(THREE.MathUtils.lerp(8.1, 6.6, cameraEase), 8.5, projectEase),
-          THREE.MathUtils.lerp(THREE.MathUtils.lerp(10.2, 9.0, cameraEase), 6.4, projectEase),
+          THREE.MathUtils.lerp(THREE.MathUtils.lerp(9.2, 6.3, cameraEase), 5.6, projectEase),
+          THREE.MathUtils.lerp(THREE.MathUtils.lerp(5.35, 6.45, cameraEase), 8.1, projectEase),
+          THREE.MathUtils.lerp(THREE.MathUtils.lerp(13.6, 10.2, cameraEase), 8.7, projectEase),
         );
         camera.position.lerp(desired, 0.035);
-        controls.target.lerp(new THREE.Vector3(0.65 * projectEase, 0.65 - 0.12 * projectEase, 0.1 - 0.1 * projectEase), 0.035);
+        controls.target.lerp(new THREE.Vector3(0.65 * projectEase, -0.78 + 1.31 * projectEase, 0.35 - 0.35 * projectEase), 0.035);
       }
 
       if (modelRef.current && !timelineRef.current && currentProgress < 0.04) {
@@ -721,8 +991,8 @@ export default function ProjectFolderAnimationStudy() {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
-    camera.position.set(7.6, 8.1, 10.2);
-    controls.target.set(0, 0.65, 0.1);
+    camera.position.set(9.2, 5.35, 13.6);
+    controls.target.set(0, -0.78, 0.35);
     controls.update();
     guidedCameraRef.current = true;
     setCameraGuided(true);
@@ -749,7 +1019,7 @@ export default function ProjectFolderAnimationStudy() {
       <header className={styles.topbar}>
         <div className={styles.brand}>
           <span className={styles.brandMark}>ЛК</span>
-          <div><strong>Лаборатория движения</strong><small>Indi · исследование одной детали</small></div>
+          <div><strong>Лаборатория движения</strong><small>Indi · экспериментальный кабинет</small></div>
         </div>
         <span className={styles.experimental}>3D MOTION STUDY 01</span>
       </header>
@@ -757,8 +1027,8 @@ export default function ProjectFolderAnimationStudy() {
       <section className={styles.hero}>
         <div className={styles.copy}>
           <span className={styles.eyebrow}>EXECUTIVE OBJECT</span>
-          <h1>Папка проектов<br />как интерфейс</h1>
-          <p>Одна модель, шесть связанных движений и данные, закреплённые непосредственно на кожаной обложке.</p>
+          <h1>Предметный стол<br />как интерфейс</h1>
+          <p>Настоящий 3D-стол, деловые аксессуары и папка с реалистичными документами работают как единое пространство.</p>
         </div>
 
         <div className={styles.stageShell}>
@@ -814,8 +1084,8 @@ export default function ProjectFolderAnimationStudy() {
           </div>
           <div className={styles.motionNotes}>
             <div><strong>6,3 сек</strong><span>полный цикл</span></div>
-            <div><strong>6 дорожек</strong><span>синхронно</span></div>
-            <div><strong>3,8 МБ</strong><span>сцена</span></div>
+            <div><strong>{loadedDeskObjects + 1} объектов</strong><span>в сцене</span></div>
+            <div><strong>5,4 МБ</strong><span>3D-сцена</span></div>
           </div>
         </aside>
       </section>
