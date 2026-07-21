@@ -121,6 +121,7 @@ WOOD_DARK = material("Walnut shadow", (0.026, 0.012, 0.008), roughness=0.55)
 BRASS = material("Aged brass", (0.50, 0.23, 0.055), metallic=0.92, roughness=0.24)
 PAPER = material("Warm paper", (0.77, 0.67, 0.50), roughness=0.76)
 PAPER_LIGHT = material("Working paper", (0.91, 0.82, 0.65), roughness=0.7)
+WORKSPACE = material("Project workspace leather", (0.022, 0.014, 0.010), roughness=0.57)
 THREAD = material("Tan thread", (0.46, 0.27, 0.10), roughness=0.62)
 GREEN = material("Active emerald", (0.01, 0.12, 0.045), roughness=0.3, emission=(0.05, 0.8, 0.22))
 AMBER = material("Pause amber", (0.20, 0.055, 0.008), roughness=0.3, emission=(1.0, 0.22, 0.02))
@@ -136,7 +137,22 @@ width, depth = 4.35, 5.35
 rounded_box("Back_Cover", (width, depth, 0.13), (0, 0, 0.56), LEATHER, 0.10, root)
 rounded_box("Page_Block", (4.02, 5.00, 0.42), (0.06, 0, 0.80), PAPER, 0.075, root)
 rounded_box("Page_Shadow", (4.07, 5.05, 0.055), (0.04, 0, 1.025), LEATHER_EDGE, 0.03, root)
+for index in range(6):
+    rounded_box(
+        f"Visible_Paper_Layer_{index + 1}",
+        (4.04 - index * 0.012, 5.02 - index * 0.014, 0.012),
+        (0.04, 0.008 * (index % 2), 0.635 + index * 0.061),
+        PAPER_LIGHT if index % 2 == 0 else PAPER,
+        0.012,
+        root,
+    )
 rounded_box("Spine", (0.26, 5.28, 0.68), (-2.08, 0, 0.83), LEATHER_EDGE, 0.08, root)
+
+# This fixed right-hand page is revealed by the turning sheets and carries the
+# project workspace texture in the browser.
+rounded_box("Project_Dashboard_Page", (3.92, 4.86, 0.045), (0.02, 0, 1.06), WORKSPACE, 0.055, root)
+rounded_box("Project_Page_Brass_Top", (3.70, 0.035, 0.025), (0.02, 2.28, 1.095), BRASS, 0.01, root)
+rounded_box("Project_Page_Brass_Bottom", (3.70, 0.035, 0.025), (0.02, -2.28, 1.095), BRASS, 0.01, root)
 
 cover_pivot = empty("Cover_Pivot", (-2.13, 0, 1.20))
 cover_pivot.parent = root
@@ -157,7 +173,7 @@ cylinder("Paused_Light", 0.065, 0.035, (1.78, -0.87, 0.125), AMBER, cover_pivot)
 strap_pivot = empty("Strap_Pivot", (2.12, 0, 1.28))
 strap_pivot.parent = root
 rounded_box("Leather_Strap", (0.82, 1.02, 0.13), (0.28, 0, 0), LEATHER, 0.09, strap_pivot)
-cylinder("Snap_Button", 0.16, 0.065, (0.39, 0, 0.09), BRASS, strap_pivot)
+snap_button = cylinder("Snap_Button", 0.16, 0.065, (0.39, 0, 0.09), BRASS, strap_pivot)
 
 # Three independent pages communicate real depth and give the animation a clear rhythm.
 page_pivots = []
@@ -175,22 +191,31 @@ keyframe(root, 1, location=(0, 0, 0), scale=(0.965, 0.965, 0.965))
 keyframe(root, 22, location=(0, 0, 0.08), scale=(1.0, 1.0, 1.0))
 keyframe(root, 190, location=(0, 0, 0.08), scale=(1.0, 1.0, 1.0))
 
+keyframe(snap_button, 1, location=(0.39, 0, 0.09))
+keyframe(snap_button, 18, location=(0.39, 0, 0.09))
+keyframe(snap_button, 25, location=(0.39, 0, 0.035))
+keyframe(snap_button, 33, location=(0.39, 0, 0.09))
+keyframe(snap_button, 190, location=(0.39, 0, 0.09))
+
 keyframe(strap_pivot, 1, rotation=(0, 0, 0))
-keyframe(strap_pivot, 28, rotation=(0, 0, 0))
-keyframe(strap_pivot, 48, rotation=(0, math.radians(-18), math.radians(-78)))
+keyframe(strap_pivot, 32, rotation=(0, 0, 0))
+keyframe(strap_pivot, 55, rotation=(0, math.radians(-16), math.radians(-82)))
 keyframe(strap_pivot, 190, rotation=(0, math.radians(-18), math.radians(-78)))
 
 keyframe(cover_pivot, 1, rotation=(0, 0, 0))
-keyframe(cover_pivot, 48, rotation=(0, 0, 0))
-keyframe(cover_pivot, 102, rotation=(0, math.radians(-128), 0))
-keyframe(cover_pivot, 190, rotation=(0, math.radians(-128), 0))
+keyframe(cover_pivot, 55, rotation=(0, 0, 0))
+keyframe(cover_pivot, 66, rotation=(0, math.radians(-7), 0))
+keyframe(cover_pivot, 105, rotation=(0, math.radians(-156), 0))
+keyframe(cover_pivot, 116, rotation=(0, math.radians(-181), 0))
+keyframe(cover_pivot, 126, rotation=(0, math.radians(-178), 0))
+keyframe(cover_pivot, 190, rotation=(0, math.radians(-178), 0))
 
-page_frames = ((100, 126), (120, 148), (142, 174))
-for pivot, (start, end) in zip(page_pivots, page_frames):
+page_frames = ((112, 138, -174), (132, 158, -170), (151, 178, -166))
+for pivot, (start, end, angle) in zip(page_pivots, page_frames):
     keyframe(pivot, 1, rotation=(0, 0, 0))
     keyframe(pivot, start, rotation=(0, 0, 0))
-    keyframe(pivot, end, rotation=(0, math.radians(-154), 0))
-    keyframe(pivot, 190, rotation=(0, math.radians(-154), 0))
+    keyframe(pivot, end, rotation=(0, math.radians(angle), 0))
+    keyframe(pivot, 190, rotation=(0, math.radians(angle), 0))
 
 set_interpolation()
 bpy.context.scene.frame_start = 1

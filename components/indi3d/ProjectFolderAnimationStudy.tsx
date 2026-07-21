@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 import styles from "../../styles/IndiProjectFolderStudy.module.css";
 
@@ -112,6 +113,208 @@ function makeSurfaceTexture(kind: "leather" | "wood") {
   return texture;
 }
 
+function makeDesktopTexture() {
+  const size = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  const image = context.createImageData(size, size);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const index = (y * size + x) * 4;
+      const seed = Math.sin(x * 7.133 + y * 19.731) * 19473.331;
+      const noise = seed - Math.floor(seed);
+      const wave = Math.sin(y * 0.022 + Math.sin(x * 0.006) * 2.8 + Math.sin(x * 0.0017) * 4.2);
+      const vein = Math.pow(Math.abs(wave), 8);
+      const warmth = 7 + wave * 4 + noise * 5 - vein * 13;
+      image.data[index] = Math.round(43 + warmth);
+      image.data[index + 1] = Math.round(23 + warmth * 0.48);
+      image.data[index + 2] = Math.round(14 + warmth * 0.24);
+      image.data[index + 3] = 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1.05, 1.0);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function makeProjectPageTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 1280;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  context.fillStyle = "#15110e";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  const glow = context.createRadialGradient(512, 420, 40, 512, 420, 700);
+  glow.addColorStop(0, "rgba(125,79,38,.24)");
+  glow.addColorStop(1, "rgba(10,8,7,0)");
+  context.fillStyle = glow;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  context.strokeStyle = "rgba(205,158,94,.50)";
+  context.lineWidth = 4;
+  context.roundRect(34, 34, 956, 1212, 22);
+  context.stroke();
+  context.fillStyle = "#d8b577";
+  context.font = "600 54px Georgia";
+  context.textAlign = "left";
+  context.fillText("ПРОЕКТЫ", 92, 140);
+  context.font = "500 24px Georgia";
+  context.fillStyle = "#8f806d";
+  context.fillText("12 активных  ·  4 на паузе", 92, 190);
+
+  context.fillStyle = "rgba(255,255,255,.035)";
+  context.strokeStyle = "rgba(205,158,94,.25)";
+  context.lineWidth = 2;
+  context.roundRect(82, 232, 860, 74, 14);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "#766b5e";
+  context.font = "24px Georgia";
+  context.fillText("Поиск проектов...", 126, 278);
+
+  const rows = [
+    ["АЛЬФА", "Активный", "94%", "#63aa79"],
+    ["ORION", "На паузе", "52%", "#d49b4e"],
+    ["NOVA", "Активный", "68%", "#63aa79"],
+    ["СЕВЕР", "Согласование", "37%", "#5f87bc"],
+    ["ATLAS", "Активный", "21%", "#63aa79"],
+  ];
+  rows.forEach((row, index) => {
+    const y = 350 + index * 150;
+    context.fillStyle = index === 0 ? "rgba(203,151,83,.10)" : "rgba(255,255,255,.018)";
+    context.strokeStyle = index === 0 ? "rgba(222,178,113,.58)" : "rgba(205,158,94,.15)";
+    context.roundRect(82, y, 860, 122, 12);
+    context.fill();
+    context.stroke();
+    context.fillStyle = "#e1d3bb";
+    context.font = "600 28px Georgia";
+    context.fillText(row[0], 112, y + 45);
+    context.fillStyle = "#786e62";
+    context.font = "21px Georgia";
+    context.fillText(row[1], 112, y + 86);
+    context.fillStyle = row[3];
+    context.beginPath();
+    context.arc(646, y + 61, 9, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#d9c8ac";
+    context.font = "600 25px Georgia";
+    context.fillText(row[2], 698, y + 54);
+    context.fillStyle = "rgba(255,255,255,.10)";
+    context.fillRect(698, y + 76, 188, 7);
+    context.fillStyle = row[3];
+    context.fillRect(698, y + 76, 188 * (Number.parseInt(row[2], 10) / 100), 7);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function fitDetailToCover(detail: THREE.Group, cover: THREE.Mesh) {
+  const sourceBox = new THREE.Box3().setFromObject(detail);
+  const sourceSize = sourceBox.getSize(new THREE.Vector3());
+  const sourceCenter = sourceBox.getCenter(new THREE.Vector3());
+  const scale = Math.min(4.26 / Math.max(sourceSize.x, 0.001), 5.24 / Math.max(sourceSize.y, 0.001));
+
+  detail.position.sub(sourceCenter);
+  detail.scale.setScalar(scale);
+  detail.rotation.x = -Math.PI / 2;
+  detail.position.y = 0.105;
+  detail.name = "Meshy_Leather_Cover_Detail";
+  detail.renderOrder = 2;
+
+  detail.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    object.castShadow = true;
+    object.receiveShadow = true;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    object.material = materials.map((source) => {
+      const material = source.clone();
+      if (material instanceof THREE.MeshStandardMaterial) {
+        material.color.multiply(new THREE.Color(0.67, 0.47, 0.32));
+        material.roughness = 0.46;
+        material.metalness = Math.min(material.metalness, 0.24);
+        material.envMapIntensity = 0.72;
+      }
+      return material;
+    });
+  });
+
+  cover.add(detail);
+}
+
+function loadExecutiveDesk(loader: GLTFLoader, scene: THREE.Scene) {
+  loader.load(
+    "/indi-3d/models/executive-meshy-desk.glb",
+    (gltf) => {
+      const desk = gltf.scene;
+      desk.name = "Meshy_Executive_Desk";
+      const box = new THREE.Box3().setFromObject(desk);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const scale = Math.min(13.2 / Math.max(size.x, 0.001), 8.8 / Math.max(size.z, 0.001));
+
+      desk.scale.setScalar(scale);
+      desk.position.set(-center.x * scale + 0.2, -0.18 - box.max.y * scale, -center.z * scale + 0.55);
+      desk.rotation.y = -0.025;
+      desk.renderOrder = -1;
+      desk.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.castShadow = true;
+        object.receiveShadow = true;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        object.material = materials.map((source) => {
+          const material = source.clone();
+          if (material instanceof THREE.MeshStandardMaterial) {
+            material.color.multiply(new THREE.Color(0.72, 0.58, 0.46));
+            material.roughness = 0.48;
+            material.metalness = Math.min(material.metalness, 0.3);
+            material.envMapIntensity = 0.62;
+          }
+          return material;
+        });
+      });
+      scene.add(desk);
+    },
+    undefined,
+    () => {
+      // The background desk remains visible if this optional 3D layer fails.
+    },
+  );
+}
+
+function addExecutiveDesktop(scene: THREE.Scene) {
+  const woodTexture = makeDesktopTexture();
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xb07850,
+    map: woodTexture,
+    bumpMap: woodTexture,
+    bumpScale: 0.022,
+    roughness: 0.46,
+    metalness: 0.03,
+    envMapIntensity: 0.72,
+  });
+  const desktop = new THREE.Mesh(new RoundedBoxGeometry(11.4, 0.34, 7.6, 6, 0.16), material);
+  desktop.name = "Executive_Walnut_Desktop";
+  desktop.position.set(0.2, -0.35, 0.55);
+  desktop.rotation.y = -0.025;
+  desktop.castShadow = true;
+  desktop.receiveShadow = true;
+  scene.add(desktop);
+}
+
 const PROJECTS = [
   { title: "Альфа", subtitle: "Внедрение платформы", owner: "Алексей Иванов", status: "Активный", progress: 94, tone: "green" },
   { title: "Orion", subtitle: "Исследование рынка", owner: "Мария Смирнова", status: "На паузе", progress: 52, tone: "amber" },
@@ -137,6 +340,7 @@ export default function ProjectFolderAnimationStudy() {
   const [playing, setPlaying] = useState(false);
   const [cameraGuided, setCameraGuided] = useState(true);
   const [projectQuery, setProjectQuery] = useState("");
+  const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
 
   const phase = [...PHASES].reverse().find((item) => progress >= item.at)?.label || PHASES[0].label;
 
@@ -145,14 +349,14 @@ export default function ProjectFolderAnimationStudy() {
     if (!mount) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x090807);
     scene.fog = new THREE.Fog(0x090807, 13, 27);
 
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
     camera.position.set(7.6, 8.1, 10.2);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.96;
@@ -195,7 +399,8 @@ export default function ProjectFolderAnimationStudy() {
     fill.position.set(-5, 3, -5);
     scene.add(fill);
 
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x170d08, roughness: 0.46, metalness: 0.04 });
+    const groundMaterial = new THREE.ShadowMaterial({ color: 0x050302, opacity: 0.34, transparent: true });
+    groundMaterial.depthWrite = false;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(42, 28), groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.14;
@@ -210,6 +415,8 @@ export default function ProjectFolderAnimationStudy() {
     }
 
     const loader = new GLTFLoader();
+    addExecutiveDesktop(scene);
+    loadExecutiveDesk(loader, scene);
     loader.load(
       "/indi-3d/models/executive-project-folder.glb",
       (gltf) => {
@@ -256,9 +463,33 @@ export default function ProjectFolderAnimationStudy() {
             new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }),
           );
           interfacePlane.name = "Crisp_Cover_Interface";
-          interfacePlane.position.set(0, 0, 0.071);
-          interfacePlane.renderOrder = 4;
+          interfacePlane.rotation.x = -Math.PI / 2;
+          interfacePlane.position.set(0, 0.235, 0);
+          interfacePlane.renderOrder = 5;
           cover.add(interfacePlane);
+
+          loader.load(
+            "/indi-3d/models/executive-meshy-front-cover.glb",
+            (detailGltf) => fitDetailToCover(detailGltf.scene, cover),
+            undefined,
+            () => {
+              // The procedural cover remains a complete fallback if the optional detail fails.
+            },
+          );
+        }
+
+        const projectPage = model.getObjectByName("Project_Dashboard_Page") as THREE.Mesh | undefined;
+        const projectTexture = makeProjectPageTexture();
+        if (projectPage && projectTexture) {
+          const projectInterface = new THREE.Mesh(
+            new THREE.PlaneGeometry(3.62, 4.56),
+            new THREE.MeshBasicMaterial({ map: projectTexture, toneMapped: false }),
+          );
+          projectInterface.name = "Project_Page_Interface";
+          projectInterface.rotation.x = -Math.PI / 2;
+          projectInterface.position.set(0, 0.026, 0);
+          projectInterface.renderOrder = 3;
+          projectPage.add(projectInterface);
         }
 
         const mixer = new THREE.AnimationMixer(model);
@@ -316,12 +547,14 @@ export default function ProjectFolderAnimationStudy() {
       const currentProgress = mixerRef.current ? mixerRef.current.time / durationRef.current : 0;
       if (guidedCameraRef.current) {
         const cameraEase = smoothstep(Math.min(1, currentProgress / 0.62));
+        const projectEase = smoothstep(THREE.MathUtils.clamp((currentProgress - 0.78) / 0.22, 0, 1));
         const desired = new THREE.Vector3(
-          THREE.MathUtils.lerp(7.6, 5.8, cameraEase),
-          THREE.MathUtils.lerp(8.1, 6.6, cameraEase),
-          THREE.MathUtils.lerp(10.2, 9.0, cameraEase),
+          THREE.MathUtils.lerp(THREE.MathUtils.lerp(7.6, 5.8, cameraEase), 4.5, projectEase),
+          THREE.MathUtils.lerp(THREE.MathUtils.lerp(8.1, 6.6, cameraEase), 8.5, projectEase),
+          THREE.MathUtils.lerp(THREE.MathUtils.lerp(10.2, 9.0, cameraEase), 6.4, projectEase),
         );
         camera.position.lerp(desired, 0.035);
+        controls.target.lerp(new THREE.Vector3(0.65 * projectEase, 0.65 - 0.12 * projectEase, 0.1 - 0.1 * projectEase), 0.035);
       }
 
       if (modelRef.current && !timelineRef.current && currentProgress < 0.04) {
@@ -382,6 +615,7 @@ export default function ProjectFolderAnimationStudy() {
 
   const runFullDemo = () => {
     if (!mixerRef.current) return;
+    setWorkspaceExpanded(false);
     if (mixerRef.current.time / durationRef.current > 0.94) {
       mixerRef.current.setTime(0);
       setProgress(0);
@@ -429,7 +663,7 @@ export default function ProjectFolderAnimationStudy() {
             </div>
           </div>
 
-          <section className={`${styles.projectWorkspace} ${progress > 0.90 ? styles.projectWorkspaceVisible : ""}`} aria-hidden={progress <= 0.90}>
+          <section className={`${styles.projectWorkspace} ${progress > 0.90 && workspaceExpanded ? styles.projectWorkspaceVisible : ""}`} aria-hidden={progress <= 0.90 || !workspaceExpanded}>
             <header>
               <div><span className={styles.folderGlyph}>▰</span><strong>Проекты</strong><small>12 активных</small></div>
               <button>+ Создать проект</button>
@@ -459,8 +693,8 @@ export default function ProjectFolderAnimationStudy() {
           </button>
           <div className={styles.controlGrid}>
             <button disabled={loadProgress < 100 || playing} onClick={() => animateTo(0.56)}><span>Открыть</span><small>обложку</small></button>
-            <button disabled={loadProgress < 100 || playing} onClick={() => animateTo(1)}><span>Листать</span><small>страницы</small></button>
-            <button disabled={loadProgress < 100 || playing} onClick={() => animateTo(0)}><span>Закрыть</span><small>механизм</small></button>
+            <button disabled={loadProgress < 100 || playing} onClick={() => { setWorkspaceExpanded(true); if (progress < 0.90) animateTo(1); }}><span>Проекты</span><small>интерактив</small></button>
+            <button disabled={loadProgress < 100 || playing} onClick={() => { setWorkspaceExpanded(false); animateTo(0); }}><span>Закрыть</span><small>механизм</small></button>
             <button onClick={resetCamera}><span>Камера</span><small>{cameraGuided ? "ведомая" : "вернуть"}</small></button>
           </div>
           <div className={styles.motionNotes}>
