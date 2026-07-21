@@ -226,8 +226,11 @@ type SurfaceDetailOptions = {
   name: string;
   width: number;
   height: number;
+  positionX?: number;
   positionY: number;
+  positionZ?: number;
   layFlat?: boolean;
+  rotationY?: number;
   tint?: THREE.ColorRepresentation;
   roughness?: number;
   metalnessLimit?: number;
@@ -245,26 +248,36 @@ function fitGeneratedSurfaceDetail(detail: THREE.Group, parent: THREE.Object3D, 
 
   detail.scale.setScalar(scale);
   detail.position.set(-sourceCenter.x * scale, -sourceCenter.y * scale, -sourceCenter.z * scale);
-  if (options.layFlat) detail.rotation.x = -Math.PI / 2;
 
   const wrapper = new THREE.Group();
   wrapper.name = options.name;
-  wrapper.position.y = options.positionY;
+  wrapper.position.set(options.positionX ?? 0, options.positionY, options.positionZ ?? 0);
+  // Meshy exports upright panels facing +Z. Rotate them toward +Y so their
+  // textured front side remains visible from the camera above the desk.
+  if (options.layFlat) wrapper.rotation.x = -Math.PI / 2;
+  wrapper.rotation.y = options.rotationY ?? 0;
   wrapper.add(detail);
   detail.renderOrder = 2;
 
   detail.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    object.material = materials.map((source) => {
+    const mesh = object as THREE.Mesh;
+    if (options.name === "Meshy_Leather_Cover_Detail") {
+      console.info("Meshy cover node", object.type, Boolean(mesh.isMesh));
+    }
+    if (!mesh.isMesh) return;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 2;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    mesh.material = materials.map((source) => {
       const material = source.clone();
       if (material instanceof THREE.MeshStandardMaterial) {
         if (options.tint) material.color.multiply(new THREE.Color(options.tint));
         material.roughness = options.roughness ?? 0.46;
         material.metalness = Math.min(material.metalness, options.metalnessLimit ?? 0.24);
         material.envMapIntensity = 0.72;
+        material.side = THREE.DoubleSide;
       }
       return material;
     });
@@ -273,47 +286,72 @@ function fitGeneratedSurfaceDetail(detail: THREE.Group, parent: THREE.Object3D, 
   parent.add(wrapper);
 }
 
+function makeSurfaceInvisible(mesh: THREE.Mesh) {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  mesh.material = materials.map((source) => {
+    const material = source.clone();
+    material.transparent = true;
+    material.opacity = 0;
+    material.depthWrite = false;
+    return material;
+  });
+}
+
 function loadGeneratedFolderDetails(loader: GLTFLoader, model: THREE.Group) {
-  const cover = model.getObjectByName("Front_Cover");
-  if (cover) {
-    loader.load(
-      "/indi-3d/models/executive-meshy-front-cover.glb",
-      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, cover, {
-        name: "Meshy_Leather_Cover_Detail",
-        width: 4.26,
-        height: 5.24,
-        positionY: 0.105,
-        layFlat: true,
-        tint: 0xaa7852,
+  const cover = model.getObjectByName("Front_Cover") as THREE.Mesh | undefined;
+  const coverPivot = model.getObjectByName("Cover_Pivot");
+  if (cover && coverPivot) {
+    makeSurfaceInvisible(cover);
+    coverPivot.traverse((object) => {
+      if (object.name.startsWith("Stitch") || object.name.startsWith("Brass_Corner")) {
+        object.visible = false;
+      }
+    });
+    const coverTexture = new THREE.TextureLoader().load("/indi-3d/textures/executive-leather-cover-v1.webp");
+    coverTexture.colorSpace = THREE.SRGBColorSpace;
+    coverTexture.anisotropy = 8;
+    const generatedCover = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.28, 5.27),
+      new THREE.MeshStandardMaterial({
+        map: coverTexture,
+        bumpMap: coverTexture,
+        bumpScale: 0.022,
+        roughness: 0.54,
+        metalness: 0.04,
+        envMapIntensity: 0.7,
+        side: THREE.DoubleSide,
       }),
-      undefined,
-      () => undefined,
     );
+    generatedCover.name = "Generated_Leather_Cover_Surface";
+    generatedCover.rotation.x = -Math.PI / 2;
+    generatedCover.position.set(2.2, 0.19, 0);
+    generatedCover.castShadow = true;
+    generatedCover.receiveShadow = true;
+    generatedCover.renderOrder = 3;
+    coverPivot.add(generatedCover);
   }
 
   const strap = model.getObjectByName("Leather_Strap") as THREE.Mesh | undefined;
-  if (strap) {
-    const materials = Array.isArray(strap.material) ? strap.material : [strap.material];
-    strap.material = materials.map((source) => {
-      const material = source.clone();
-      material.transparent = true;
-      material.opacity = 0;
-      material.depthWrite = false;
-      return material;
-    });
+  const strapPivot = model.getObjectByName("Strap_Pivot");
+  if (strap && strapPivot) {
+    makeSurfaceInvisible(strap);
+    const legacySnap = model.getObjectByName("Snap_Button");
+    if (legacySnap) legacySnap.visible = false;
     loader.load(
       "/indi-3d/models/executive-meshy-clasp-strap.glb",
-      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, strap, {
+      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, strapPivot, {
         name: "Meshy_Clasp_Strap_Detail",
         width: 0.86,
         height: 1.08,
-        positionY: 0.02,
-        tint: 0x9b765d,
+        positionX: 0.28,
+        positionY: 0.13,
+        rotationY: Math.PI / 2,
+        tint: 0xe3c2a4,
         roughness: 0.42,
         metalnessLimit: 0.55,
       }),
       undefined,
-      () => undefined,
+      (error) => console.warn("Meshy clasp detail failed to load", error),
     );
   }
 
@@ -321,18 +359,19 @@ function loadGeneratedFolderDetails(loader: GLTFLoader, model: THREE.Group) {
   if (projectPage) {
     loader.load(
       "/indi-3d/models/executive-meshy-filter-panel.glb",
-      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, projectPage, {
+      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, model, {
         name: "Meshy_Project_Panel_Frame",
         width: 3.82,
         height: 4.72,
-        positionY: 0.018,
+        positionX: 0.02,
+        positionY: 1.14,
         layFlat: true,
-        tint: 0x8b6a50,
+        tint: 0xd5b99d,
         roughness: 0.48,
         metalnessLimit: 0.38,
       }),
       undefined,
-      () => undefined,
+      (error) => console.warn("Meshy panel detail failed to load", error),
     );
   }
 }
@@ -563,7 +602,7 @@ export default function ProjectFolderAnimationStudy() {
           );
           projectInterface.name = "Project_Page_Interface";
           projectInterface.rotation.x = -Math.PI / 2;
-          projectInterface.position.set(0, 0.026, 0);
+          projectInterface.position.set(0, 0.13, 0);
           projectInterface.renderOrder = 3;
           projectPage.add(projectInterface);
         }
@@ -776,7 +815,7 @@ export default function ProjectFolderAnimationStudy() {
           <div className={styles.motionNotes}>
             <div><strong>6,3 сек</strong><span>полный цикл</span></div>
             <div><strong>6 дорожек</strong><span>синхронно</span></div>
-            <div><strong>2,8 МБ</strong><span>сцена</span></div>
+            <div><strong>3,8 МБ</strong><span>сцена</span></div>
           </div>
         </aside>
       </section>
