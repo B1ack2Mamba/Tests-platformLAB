@@ -438,7 +438,6 @@
   background: #244a36;
 }
 
-.builderActive .projectsPanel,
 .builderActive .archiveCard,
 .builderActive .aiPanel,
 .builderActive .folderLabel,
@@ -455,13 +454,29 @@
   opacity: 0.32;
 }
 
+.builderActive .projectsPanel {
+  z-index: 9;
+  opacity: 0.94;
+  pointer-events: auto;
+  filter: none;
+  outline: 2px dashed rgba(38, 84, 57, 0.58);
+  outline-offset: 5px;
+  cursor: grab;
+  user-select: none;
+}
+
+.builderActive .projectsPanelDragging {
+  cursor: grabbing;
+  box-shadow: 0 30px 80px rgba(34, 25, 17, 0.3), inset 0 1px 0 white;
+}
+
 .projectsPanel {
   position: absolute;
   top: 9%;
   left: 50%;
   width: min(39vw, 620px);
   padding: 20px;
-  transform: translateX(-50%);
+  transform: translate(calc(-50% + var(--panel-offset-x, 0px)), var(--panel-offset-y, 0px));
   border: 1px solid rgba(177, 137, 75, 0.48);
   border-radius: 20px;
   background:
@@ -469,7 +484,7 @@
     var(--paper);
   box-shadow: 0 22px 60px rgba(45, 33, 21, 0.2), inset 0 1px 0 white;
   backdrop-filter: blur(18px);
-  animation: rise 0.75s 0.12s ease-out both;
+  transition: opacity 180ms ease, box-shadow 180ms ease;
 }
 
 .panelHeading {
@@ -483,6 +498,18 @@
   display: block;
   margin-top: 4px;
   font: 600 20px/1.1 "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.panelDragHint {
+  padding: 5px 8px;
+  border: 1px solid rgba(48, 93, 65, 0.26);
+  border-radius: 999px;
+  color: #315942;
+  background: rgba(228, 239, 226, 0.74);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .panelHeading button,
@@ -786,6 +813,359 @@
   letter-spacing: 0.2em;
 }
 
+/* Functional office composition: one project folder model, many data states. */
+.titleBlock {
+  top: 24px;
+  left: 3.8vw;
+}
+
+.titleBlock h1 {
+  font-size: clamp(30px, 3vw, 46px);
+}
+
+.titleBlock p {
+  display: none;
+}
+
+.projectsPanel {
+  top: 31%;
+  width: min(32vw, 470px);
+  padding: 18px;
+}
+
+.projectState {
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #315942;
+  background: rgba(223, 237, 220, 0.86);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.projectState_archived {
+  color: #75562c;
+  background: rgba(235, 219, 182, 0.88);
+}
+
+.projectState_trash {
+  color: #8b382f;
+  background: rgba(242, 214, 207, 0.9);
+}
+
+.projectSummary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(122, 91, 51, 0.18);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.32);
+}
+
+.projectSummary > div {
+  display: grid;
+  min-height: 96px;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 10px;
+  border-right: 1px solid rgba(122, 91, 51, 0.14);
+  text-align: center;
+}
+
+.projectSummary > div:last-child {
+  border-right: 0;
+}
+
+.projectSummary span {
+  color: #91704a;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.projectSummary strong {
+  color: #263b2e;
+  font: 600 25px/1 "Iowan Old Style", serif;
+}
+
+.projectSummary > div:last-child strong {
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.projectSummary b {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  color: #213a2b;
+  background: radial-gradient(circle, #f5eee1 55%, transparent 57%), conic-gradient(var(--forest) var(--progress), #d6cbbb 0);
+  font-size: 12px;
+}
+
+.projectActions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.projectActions button {
+  min-height: 41px;
+  border: 1px solid rgba(130, 92, 43, 0.3);
+  border-radius: 10px;
+  color: #4b3d2c;
+  background: rgba(255,255,255,0.48);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.projectActions button:hover {
+  color: #f5ecde;
+  background: var(--forest);
+}
+
+.folderRack {
+  position: absolute;
+  z-index: 7;
+  top: 8.5%;
+  right: 4.4%;
+  display: grid;
+  grid-template-columns: repeat(4, 82px);
+  gap: 8px;
+  transform: perspective(700px) rotateX(3deg);
+}
+
+.folderRack button {
+  min-height: 58px;
+  padding: 8px 6px;
+  border: 1px solid rgba(203, 164, 101, 0.7);
+  border-radius: 7px;
+  color: #ead6b4;
+  background: linear-gradient(145deg, rgba(36, 72, 52, 0.94), rgba(17, 48, 33, 0.98));
+  box-shadow: 0 8px 20px rgba(26, 25, 18, 0.24), inset 0 0 0 2px rgba(210, 170, 98, 0.12);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.folderRack button:hover,
+.folderRack .folderRackSelected {
+  transform: translateY(9px) scale(1.04);
+  box-shadow: 0 0 0 2px #d3ad70, 0 12px 28px rgba(33, 29, 19, 0.34);
+}
+
+.folderRack span,
+.folderRack strong {
+  display: block;
+}
+
+.folderRack span {
+  min-height: 24px;
+  font: 600 11px/1.05 "Iowan Old Style", serif;
+}
+
+.folderRack strong {
+  margin-top: 5px;
+  color: #cda961;
+  font-size: 10px;
+}
+
+.folderRack_archived {
+  filter: sepia(0.45);
+}
+
+.folderRack_trash {
+  opacity: 0.42;
+  filter: grayscale(0.8);
+}
+
+.archiveCard {
+  top: 16%;
+  left: 4.2%;
+  width: 300px;
+  padding: 23px 22px 17px;
+  border-radius: 5px 14px 14px 5px;
+  background: rgba(250, 246, 237, 0.95);
+}
+
+.archiveCard h2 {
+  margin: 8px 0 12px;
+  font-size: 22px;
+}
+
+.archiveTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.archiveTabs button {
+  padding: 6px 9px;
+  font-size: 8px;
+}
+
+.archiveTabs button:first-child {
+  color: #f4eadb;
+  background: var(--forest);
+}
+
+.archiveItems {
+  display: grid;
+}
+
+.archiveItems > div {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 9px;
+  align-items: center;
+  min-height: 54px;
+  border-top: 1px solid rgba(128, 95, 52, 0.14);
+}
+
+.archiveItems i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(56, 101, 70, 0.34);
+  border-radius: 50%;
+  color: #315942;
+  font-style: normal;
+  font-size: 10px;
+}
+
+.archiveItems strong,
+.archiveItems small {
+  display: block;
+}
+
+.archiveItems strong {
+  color: #352e25;
+  font-size: 10px;
+}
+
+.archiveItems small {
+  margin-top: 3px;
+  color: #81715c;
+  font-size: 8px;
+}
+
+.archivePager {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.archivePager button {
+  flex: 1;
+  padding: 7px;
+  font-size: 8px;
+}
+
+.aiPanel {
+  top: 35%;
+  right: 3.5%;
+  width: 250px;
+  border-color: rgba(207, 172, 111, 0.66);
+  background: rgba(245, 238, 225, 0.87);
+}
+
+.aiPanel h2 {
+  font-size: 21px;
+}
+
+.balanceLabel {
+  right: 4%;
+  bottom: 4.5%;
+}
+
+.dropZones {
+  position: absolute;
+  z-index: 8;
+  bottom: 3.6%;
+  left: 50%;
+  display: grid;
+  grid-template-columns: repeat(2, 230px);
+  gap: 14px;
+  transform: translateX(-50%);
+}
+
+.dropZones::before {
+  content: "";
+  position: absolute;
+  top: -80px;
+  left: 72px;
+  width: 150px;
+  height: 86px;
+  border-bottom: 3px dotted rgba(212, 171, 95, 0.82);
+  border-left: 3px dotted rgba(212, 171, 95, 0.82);
+  border-radius: 0 0 0 70px;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
+.dropZones button {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  padding: 12px 15px;
+  border: 1px solid rgba(187, 143, 76, 0.62);
+  border-radius: 12px;
+  color: #ead4ae;
+  text-align: left;
+  background: linear-gradient(145deg, rgba(34, 68, 49, 0.95), rgba(18, 47, 32, 0.96));
+  box-shadow: 0 15px 34px rgba(35, 27, 18, 0.27), inset 0 0 0 2px rgba(218, 176, 102, 0.1);
+  cursor: pointer;
+}
+
+.dropZones button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 38px rgba(35, 27, 18, 0.32), 0 0 0 2px rgba(211, 173, 108, 0.46);
+}
+
+.dropZones i {
+  grid-row: span 2;
+  color: #d8b06b;
+  font: normal 600 20px/1 serif;
+}
+
+.dropZones strong,
+.dropZones span {
+  display: block;
+}
+
+.dropZones strong {
+  font: 600 17px/1 "Iowan Old Style", serif;
+}
+
+.dropZones span {
+  margin-top: 4px;
+  color: #c9b99f;
+  font-size: 8px;
+}
+
+.trashDropZone {
+  color: #e5ccaa !important;
+  background: linear-gradient(145deg, rgba(88, 58, 37, 0.96), rgba(48, 34, 25, 0.97)) !important;
+}
+
+.builderActive .folderRack,
+.builderActive .dropZones {
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+.toast {
+  top: 16px;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .loader,
 .errorPanel {
   position: absolute;
@@ -898,7 +1278,7 @@
   }
   .stage {
     height: calc(100vh - 64px);
-    min-height: 760px;
+    min-height: 1120px;
     overflow-y: auto;
   }
   .titleBlock {
@@ -912,25 +1292,77 @@
     display: none;
   }
   .projectsPanel {
-    top: 118px;
+    top: 112px;
     left: 18px;
     width: calc(100% - 36px);
     padding: 14px;
+    transform: translate(var(--panel-offset-x, 0px), var(--panel-offset-y, 0px));
+  }
+  .projectSummary > div {
+    min-height: 78px;
+    padding: 7px 4px;
+  }
+  .projectSummary strong {
+    font-size: 21px;
+  }
+  .projectSummary > div:last-child strong {
+    font-size: 11px;
+  }
+  .projectSummary b {
+    width: 48px;
+    height: 48px;
+  }
+  .folderRack {
+    top: 420px;
+    right: 18px;
+    left: 18px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
     transform: none;
+  }
+  .folderRack button {
+    min-width: 0;
+    min-height: 52px;
+    padding: 6px 3px;
+  }
+  .folderRack span {
+    overflow: hidden;
+    font-size: 9px;
+    text-overflow: ellipsis;
   }
   .projectList > button:nth-child(n+4) {
     display: none;
   }
   .aiPanel {
-    top: 520px;
+    top: 820px;
     right: 18px;
-    width: min(245px, calc(100% - 36px));
+    width: calc(100% - 36px);
   }
   .archiveCard {
-    top: 510px;
+    top: 505px;
     left: 18px;
-    width: min(245px, calc(100% - 36px));
+    width: calc(100% - 36px);
     z-index: 5;
+  }
+  .dropZones {
+    top: 1005px;
+    right: 12px;
+    bottom: auto;
+    left: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    transform: none;
+  }
+  .dropZones::before {
+    display: none;
+  }
+  .dropZones button {
+    grid-template-columns: 22px 1fr;
+    min-width: 0;
+    padding: 10px 8px;
+  }
+  .dropZones strong {
+    font-size: 14px;
   }
   .folderLabel,
   .balanceLabel,

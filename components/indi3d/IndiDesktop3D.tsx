@@ -4,13 +4,20 @@ import type { CSSProperties } from "react";
 import styles from "../../styles/IndiDesktop3D.module.css";
 
 const MODEL_ROOT = "/indi-3d/models";
-const LAYOUT_STORAGE_KEY = "indi-3d-workspace-layout-v1";
+const LAYOUT_STORAGE_KEY = "indi-3d-workspace-layout-v2";
+const PROJECT_PANEL_STORAGE_KEY = "indi-3d-project-panel-position-v2";
 
 const PROJECTS = [
-  { title: "Оценка руководителей", meta: "24 участника", progress: 75, status: "В процессе" },
-  { title: "Потенциал сотрудников", meta: "36 участников", progress: 60, status: "В процессе" },
-  { title: "Онбординг-оценка", meta: "15 участников", progress: 30, status: "В процессе" },
-  { title: "Оценка soft skills", meta: "22 участника", progress: 100, status: "Завершён" },
+  { title: "Оценка руководителей", folderTitle: "Руководители", meta: "24 участника", participants: 24, progress: 75, status: "В процессе", date: "20 мая 2025" },
+  { title: "Потенциал сотрудников", folderTitle: "Потенциал", meta: "36 участников", participants: 36, progress: 60, status: "В процессе", date: "18 мая 2025" },
+  { title: "Онбординг-оценка", folderTitle: "Онбординг", meta: "15 участников", participants: 15, progress: 30, status: "В процессе", date: "15 мая 2025" },
+  { title: "Оценка soft skills", folderTitle: "Soft skills", meta: "22 участника", participants: 22, progress: 100, status: "Завершён", date: "10 мая 2025" },
+];
+
+const ARCHIVE_ITEMS = [
+  { title: "Оценка soft skills", meta: "22 участника · 10 мая 2025" },
+  { title: "Лидерский потенциал", meta: "18 участников · 5 мая 2025" },
+  { title: "Довольность команд", meta: "32 участника · 28 апр. 2025" },
 ];
 
 const ARCHIVE_PAGES = [
@@ -27,7 +34,9 @@ type ActionName =
   | "create-project"
   | "new-folder"
   | "trash"
-  | "test-catalog";
+  | "test-catalog"
+  | "archive-zone"
+  | "trash-zone";
 
 type SceneObject = import("three").Object3D;
 type BuilderMode = "translate" | "rotate" | "scale";
@@ -50,13 +59,12 @@ const BUILDER_OBJECTS = [
   { id: "folder-1", label: "Папка 1" },
   { id: "folder-2", label: "Папка 2" },
   { id: "folder-3", label: "Папка 3" },
+  { id: "folder-4", label: "Папка 4" },
   { id: "ai-screen", label: "Экран AI" },
   { id: "balance", label: "Кошелёк" },
   { id: "ai-analyst", label: "AI-аналитик" },
-  { id: "command-create", label: "Создать проект" },
-  { id: "command-folder", label: "Новая папка" },
-  { id: "command-trash", label: "Корзина" },
-  { id: "command-tests", label: "Каталог тестов" },
+  { id: "archive-zone", label: "Зона архива" },
+  { id: "trash-zone", label: "Зона корзины" },
 ] as const;
 
 const EMPTY_CONTROLLER: SceneController = {
@@ -79,6 +87,8 @@ function actionLabel(action: ActionName) {
     folder: "Выбрана проектная папка",
     archive: "Архив переключён",
     ai: "AI-аналитик готов к работе",
+    "archive-zone": "Выбранный проект перемещён в архив",
+    "trash-zone": "Выбранный проект перемещён в корзину",
   }[action];
 }
 
@@ -86,20 +96,67 @@ export default function IndiDesktop3D() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const setArchiveModelOpenRef = useRef<(open: boolean) => void>(() => {});
+  const setArchivePageModelRef = useRef<() => void>(() => {});
+  const setProjectFolderSelectionRef = useRef<(index: number) => void>(() => {});
+  const cycleWalletModelRef = useRef<() => void>(() => {});
+  const pulseTrashModelRef = useRef<() => void>(() => {});
   const sceneControllerRef = useRef<SceneController>(EMPTY_CONTROLLER);
   const selectedObjectIdRef = useRef("archive");
+  const selectedProjectRef = useRef(0);
+  const projectPanelDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const [loadProgress, setLoadProgress] = useState(0);
   const [sceneError, setSceneError] = useState("");
-  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(true);
   const [archivePage, setArchivePage] = useState(0);
   const [aiOpen, setAiOpen] = useState(true);
   const [selectedProject, setSelectedProject] = useState(0);
+  const [projectDisposition, setProjectDisposition] = useState<Record<number, "active" | "archived" | "trash">>({});
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderMode, setBuilderMode] = useState<BuilderMode>("translate");
   const [selectedObjectId, setSelectedObjectId] = useState("archive");
   const [hiddenObjectIds, setHiddenObjectIds] = useState<string[]>([]);
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>("marble");
+  const [projectPanelOffset, setProjectPanelOffset] = useState({ x: 0, y: 0 });
+  const [projectPanelDragging, setProjectPanelDragging] = useState(false);
   const [toast, setToast] = useState("Экспериментальный 3D-кабинет Indi готов");
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(PROJECT_PANEL_STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as { x?: unknown; y?: unknown };
+      if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+        setProjectPanelOffset({ x: parsed.x, y: parsed.y });
+      }
+    } catch {
+      window.localStorage.removeItem(PROJECT_PANEL_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!projectPanelDragging) return;
+
+    function onPointerMove(event: PointerEvent) {
+      const drag = projectPanelDragRef.current;
+      if (!drag) return;
+      setProjectPanelOffset({
+        x: drag.originX + event.clientX - drag.startX,
+        y: drag.originY + event.clientY - drag.startY,
+      });
+    }
+
+    function onPointerUp() {
+      projectPanelDragRef.current = null;
+      setProjectPanelDragging(false);
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [projectPanelDragging]);
 
   useEffect(() => {
     sceneControllerRef.current.setBuilderEnabled(builderOpen);
@@ -112,6 +169,11 @@ export default function IndiDesktop3D() {
   useEffect(() => {
     sceneControllerRef.current.setBackground(backgroundTheme);
   }, [backgroundTheme]);
+
+  useEffect(() => {
+    selectedProjectRef.current = selectedProject;
+    setProjectFolderSelectionRef.current(selectedProject);
+  }, [selectedProject]);
 
   useEffect(() => {
     const canvasElement = canvasRef.current;
@@ -237,14 +299,19 @@ export default function IndiDesktop3D() {
       }
 
       const modelFiles = [
-        "archive-binder-closed-web.glb",
-        "archive-binder-open-web.glb",
-        "folder-organizer-web.glb",
-        "project-folder-web.glb",
+        "hybrid-archive-planner-closed.glb",
+        "hybrid-archive-planner-open.glb",
+        "hybrid-archive-planner-page-turn.glb",
+        "hybrid-folder-organizer.glb",
+        "hybrid-project-folder-closed.glb",
         "project-display-frame-web.glb",
         "ai-smart-glass-frame-web.glb",
-        "balance-wallet-web.glb",
-        "command-button-web.glb",
+        "hybrid-balance-wallet-closed.glb",
+        "hybrid-balance-wallet-open.glb",
+        "hybrid-balance-wallet-card-half.glb",
+        "hybrid-archive-tray.glb",
+        "hybrid-trash-tray-closed.glb",
+        "hybrid-trash-tray-open.glb",
         "ai-analyst-rigged.glb",
       ];
 
@@ -261,7 +328,7 @@ export default function IndiDesktop3D() {
       if (disposed) return;
 
       const closedArchive = prepare(
-        loaded.get("archive-binder-closed-web.glb")!.scene,
+        loaded.get("hybrid-archive-planner-closed.glb")!.scene,
         4.2,
         [-4.25, 0, 0.45],
         [0.03, 0.42, 0],
@@ -269,62 +336,23 @@ export default function IndiDesktop3D() {
         "archive",
       );
 
-      const archiveLeather = new THREE.MeshStandardMaterial({ color: 0x17372a, roughness: 0.7, metalness: 0.08 });
-      const archivePages = new THREE.MeshStandardMaterial({ color: 0xeadfc9, roughness: 0.92 });
-      const pageBlock = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.28, 4.05), archivePages);
-      pageBlock.position.set(0.06, 0.12, 0);
-      pageBlock.castShadow = true;
-      pageBlock.receiveShadow = true;
-      const backCover = new THREE.Mesh(new THREE.BoxGeometry(3.55, 0.16, 4.28), archiveLeather);
-      backCover.position.set(0, 0.045, 0);
-      backCover.castShadow = true;
-      const spine = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.42, 4.3), archiveLeather);
-      spine.position.set(-1.72, 0.18, 0);
-      spine.castShadow = true;
-      const strap = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.34, 4.38), archiveLeather);
-      strap.position.set(1.08, 0.21, 0);
-      strap.castShadow = true;
-      const frontPages = new THREE.Mesh(new THREE.BoxGeometry(3.18, 0.42, 0.2), archivePages);
-      frontPages.position.set(0.05, 0.38, 2.03);
-      const rearPages = frontPages.clone();
-      rearPages.position.z = -2.03;
-      const leftLeatherEdge = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.5, 4.25), archiveLeather);
-      leftLeatherEdge.position.set(-1.7, 0.3, 0);
-      const rightLeatherEdge = leftLeatherEdge.clone();
-      rightLeatherEdge.position.x = 1.7;
-      closedArchive.add(pageBlock, backCover, spine, strap, frontPages, rearPages, leftLeatherEdge, rightLeatherEdge);
-
-      const titleCanvas = document.createElement("canvas");
-      titleCanvas.width = 768;
-      titleCanvas.height = 240;
-      const titleContext = titleCanvas.getContext("2d");
-      if (titleContext) {
-        titleContext.clearRect(0, 0, titleCanvas.width, titleCanvas.height);
-        titleContext.fillStyle = "#d6af70";
-        titleContext.textAlign = "center";
-        titleContext.font = "600 66px Georgia";
-        titleContext.fillText("АРХИВ", titleCanvas.width / 2, 105);
-        titleContext.font = "32px Georgia";
-        titleContext.fillText("ЕЖЕДНЕВНИК · 2026", titleCanvas.width / 2, 164);
-        const titleTexture = new THREE.CanvasTexture(titleCanvas);
-        titleTexture.colorSpace = THREE.SRGBColorSpace;
-        const titlePlate = new THREE.Mesh(
-          new THREE.PlaneGeometry(2.15, 0.68),
-          new THREE.MeshStandardMaterial({ map: titleTexture, transparent: true, roughness: 0.78 }),
-        );
-        titlePlate.rotation.x = -Math.PI / 2;
-        titlePlate.position.set(-0.22, 0.78, -0.25);
-        closedArchive.add(titlePlate);
-      }
-
       const openArchive = prepare(
-        loaded.get("archive-binder-open-web.glb")!.scene,
+        loaded.get("hybrid-archive-planner-open.glb")!.scene,
         5.5,
         [-3.6, 0, 0.2],
         [0.02, 0.24, 0],
         "archive",
       );
-      openArchive.visible = false;
+      const pageTurnArchive = prepare(
+        loaded.get("hybrid-archive-planner-page-turn.glb")!.scene,
+        5.5,
+        [-3.6, 0, 0.2],
+        [0.02, 0.24, 0],
+        "archive",
+      );
+      closedArchive.visible = false;
+      openArchive.visible = true;
+      pageTurnArchive.visible = false;
 
       prepare(
         loaded.get("project-display-frame-web.glb")!.scene,
@@ -335,7 +363,7 @@ export default function IndiDesktop3D() {
         "project-display",
       );
       prepare(
-        loaded.get("folder-organizer-web.glb")!.scene,
+        loaded.get("hybrid-folder-organizer.glb")!.scene,
         3.2,
         [4.25, 0, -1.8],
         [0, -0.38, 0],
@@ -343,18 +371,36 @@ export default function IndiDesktop3D() {
         "folder-organizer",
       );
 
-      const folderSource = loaded.get("project-folder-web.glb")!.scene;
-      [-0.42, 0, 0.42].forEach((offset, index) => {
+      const folderSource = loaded.get("hybrid-project-folder-closed.glb")!.scene;
+      const projectFolders: SceneObject[] = [];
+      const folderBasePositions: Array<[number, number, number]> = [];
+      PROJECTS.forEach((project, index) => {
+        const position: [number, number, number] = [2.95 + index * 0.68, 1.04 + index * 0.035, -1.46 - index * 0.09];
         const folder = prepare(
           folderSource.clone(true),
-          1.55,
-          [3.55 + offset * 1.9, 1.17 + index * 0.08, -1.2 - index * 0.18],
-          [-0.08, -0.22, -0.04 + offset * 0.05],
+          1.5,
+          position,
+          [-0.08, -0.18, -0.06 + index * 0.035],
           "folder",
           `folder-${index + 1}`,
         );
         folder.userData.projectIndex = index;
+        folder.userData.projectTitle = project.title;
+        folderBasePositions.push(position);
+        projectFolders.push(folder);
       });
+
+      setProjectFolderSelectionRef.current = (selectedIndex) => {
+        projectFolders.forEach((folder, index) => {
+          const base = folderBasePositions[index];
+          const selected = index === selectedIndex;
+          folder.position.set(base[0] + (selected ? -0.1 : 0), base[1] + (selected ? 0.18 : 0), base[2] + (selected ? 0.68 : 0));
+          folder.userData.baseY = folder.position.y;
+          folder.userData.baseScale = selected ? [1.08, 1.08, 1.08] : [1, 1, 1];
+          folder.scale.setScalar(selected ? 1.08 : 1);
+        });
+      };
+      setProjectFolderSelectionRef.current(0);
 
       prepare(
         loaded.get("ai-smart-glass-frame-web.glb")!.scene,
@@ -364,28 +410,55 @@ export default function IndiDesktop3D() {
         undefined,
         "ai-screen",
       );
-      prepare(
-        loaded.get("balance-wallet-web.glb")!.scene,
+      const closedWallet = prepare(
+        loaded.get("hybrid-balance-wallet-closed.glb")!.scene,
         2.6,
         [4.05, 0, 2.35],
         [0, -0.2, 0],
         "balance",
         "balance",
       );
+      const openWallet = prepare(
+        loaded.get("hybrid-balance-wallet-open.glb")!.scene,
+        2.6,
+        [4.05, 0, 2.35],
+        [0, -0.2, 0],
+        "balance",
+      );
+      const cardWallet = prepare(
+        loaded.get("hybrid-balance-wallet-card-half.glb")!.scene,
+        2.6,
+        [4.05, 0, 2.35],
+        [0, -0.2, 0],
+        "balance",
+      );
+      openWallet.visible = false;
+      cardWallet.visible = false;
 
-      const commandSource = loaded.get("command-button-web.glb")!.scene;
-      const commandActions: ActionName[] = ["create-project", "new-folder", "trash", "test-catalog"];
-      const commandBuilderIds = ["command-create", "command-folder", "command-trash", "command-tests"];
-      commandActions.forEach((action, index) => {
-        prepare(
-          commandSource.clone(true),
-          1.05,
-          [-1.8 + index * 1.2, 0, 3.25],
-          [0, 0, 0],
-          action,
-          commandBuilderIds[index],
-        );
-      });
+      prepare(
+        loaded.get("hybrid-archive-tray.glb")!.scene,
+        2.45,
+        [-1.55, 0, 3.05],
+        [0, 0, 0],
+        "archive-zone",
+        "archive-zone",
+      );
+      const closedTrash = prepare(
+        loaded.get("hybrid-trash-tray-closed.glb")!.scene,
+        2.45,
+        [1.55, 0, 3.05],
+        [0, 0, 0],
+        "trash-zone",
+        "trash-zone",
+      );
+      const openTrash = prepare(
+        loaded.get("hybrid-trash-tray-open.glb")!.scene,
+        2.45,
+        [1.55, 0, 3.05],
+        [0, 0, 0],
+        "trash-zone",
+      );
+      openTrash.visible = false;
 
       const analystGltf = loaded.get("ai-analyst-rigged.glb")!;
       const analyst = prepare(analystGltf.scene, 2.75, [2.95, 0, 0.15], [0, -0.3, 0], "ai", "ai-analyst");
@@ -488,11 +561,41 @@ export default function IndiDesktop3D() {
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
       let hovered: SceneObject | null = null;
-      let archiveIsOpen = false;
+      let archiveIsOpen = true;
+      let archivePageTimer = 0;
+      let trashPulseTimer = 0;
+      let walletState = 0;
       setArchiveModelOpenRef.current = (open) => {
         archiveIsOpen = open;
+        window.clearTimeout(archivePageTimer);
         closedArchive.visible = !open;
         openArchive.visible = open;
+        pageTurnArchive.visible = false;
+      };
+      setArchivePageModelRef.current = () => {
+        if (!archiveIsOpen) return;
+        window.clearTimeout(archivePageTimer);
+        openArchive.visible = false;
+        pageTurnArchive.visible = true;
+        archivePageTimer = window.setTimeout(() => {
+          pageTurnArchive.visible = false;
+          openArchive.visible = true;
+        }, 560);
+      };
+      cycleWalletModelRef.current = () => {
+        walletState = (walletState + 1) % 3;
+        closedWallet.visible = walletState === 0;
+        openWallet.visible = walletState === 1;
+        cardWallet.visible = walletState === 2;
+      };
+      pulseTrashModelRef.current = () => {
+        window.clearTimeout(trashPulseTimer);
+        closedTrash.visible = false;
+        openTrash.visible = true;
+        trashPulseTimer = window.setTimeout(() => {
+          openTrash.visible = false;
+          closedTrash.visible = true;
+        }, 900);
       };
 
       function resolveAction(object: SceneObject | null) {
@@ -520,6 +623,12 @@ export default function IndiDesktop3D() {
           if (enabled) {
             setArchiveOpen(false);
             setArchiveModelOpenRef.current(false);
+            walletState = 0;
+            closedWallet.visible = true;
+            openWallet.visible = false;
+            cardWallet.visible = false;
+            closedTrash.visible = true;
+            openTrash.visible = false;
             selectEditable(selectedEditable ?? editableObjects.get(selectedObjectIdRef.current) ?? editableObjects.get("archive") ?? null);
           } else {
             transformControls.detach();
@@ -615,9 +724,16 @@ export default function IndiDesktop3D() {
           setArchiveOpen(archiveIsOpen);
         } else if (action === "ai") {
           setAiOpen((value) => !value);
+        } else if (action === "balance") {
+          cycleWalletModelRef.current();
         } else if (action === "folder") {
           const index = Number(target?.userData.projectIndex ?? 0);
           setSelectedProject(index % PROJECTS.length);
+        } else if (action === "archive-zone") {
+          setProjectDisposition((current) => ({ ...current, [selectedProjectRef.current]: "archived" }));
+        } else if (action === "trash-zone") {
+          setProjectDisposition((current) => ({ ...current, [selectedProjectRef.current]: "trash" }));
+          pulseTrashModelRef.current();
         }
         setToast(actionLabel(action));
       }
@@ -679,6 +795,8 @@ export default function IndiDesktop3D() {
 
       cleanup = () => {
         cancelAnimationFrame(animationFrame);
+        window.clearTimeout(archivePageTimer);
+        window.clearTimeout(trashPulseTimer);
         resizeObserver.disconnect();
         canvas.removeEventListener("pointermove", onPointerMove);
         canvas.removeEventListener("pointerdown", onPointerDown);
@@ -704,6 +822,10 @@ export default function IndiDesktop3D() {
         timer.dispose();
         renderer.dispose();
         setArchiveModelOpenRef.current = () => {};
+        setArchivePageModelRef.current = () => {};
+        setProjectFolderSelectionRef.current = () => {};
+        cycleWalletModelRef.current = () => {};
+        pulseTrashModelRef.current = () => {};
         sceneControllerRef.current = EMPTY_CONTROLLER;
       };
     }
@@ -720,7 +842,7 @@ export default function IndiDesktop3D() {
   }, []);
 
   const selected = PROJECTS[selectedProject];
-  const archive = ARCHIVE_PAGES[archivePage];
+  const selectedDisposition = projectDisposition[selectedProject] ?? "active";
 
   function runAction(action: ActionName) {
     if (action === "archive") {
@@ -731,7 +853,21 @@ export default function IndiDesktop3D() {
       });
     }
     if (action === "ai") setAiOpen((value) => !value);
+    if (action === "balance") cycleWalletModelRef.current();
+    if (action === "archive-zone") {
+      setProjectDisposition((current) => ({ ...current, [selectedProject]: "archived" }));
+    }
+    if (action === "trash-zone") {
+      setProjectDisposition((current) => ({ ...current, [selectedProject]: "trash" }));
+      pulseTrashModelRef.current();
+    }
     setToast(actionLabel(action));
+  }
+
+  function turnArchivePage(direction: -1 | 1) {
+    setArchivePage((current) => (current + direction + ARCHIVE_PAGES.length) % ARCHIVE_PAGES.length);
+    setArchivePageModelRef.current();
+    setToast(direction > 0 ? "Перелистываем архив вперёд" : "Перелистываем архив назад");
   }
 
   function toggleBuilder() {
@@ -754,13 +890,30 @@ export default function IndiDesktop3D() {
     sceneControllerRef.current.select(id);
   }
 
+  function startProjectPanelDrag(event: React.PointerEvent<HTMLElement>) {
+    if (!builderOpen || event.button !== 0) return;
+    event.preventDefault();
+    projectPanelDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: projectPanelOffset.x,
+      originY: projectPanelOffset.y,
+    };
+    setProjectPanelDragging(true);
+    selectBuilderObject("project-display");
+    setToast("Перемещаем окно проектов");
+  }
+
   function saveBuilderLayout() {
     sceneControllerRef.current.saveLayout(backgroundTheme);
+    window.localStorage.setItem(PROJECT_PANEL_STORAGE_KEY, JSON.stringify(projectPanelOffset));
     setToast("Персональная раскладка сохранена в этом браузере");
   }
 
   function resetBuilderLayout() {
     sceneControllerRef.current.resetLayout();
+    window.localStorage.removeItem(PROJECT_PANEL_STORAGE_KEY);
+    setProjectPanelOffset({ x: 0, y: 0 });
     selectedObjectIdRef.current = "archive";
     setSelectedObjectId("archive");
     setToast("Восстановлена исходная композиция рабочего стола");
@@ -874,49 +1027,66 @@ export default function IndiDesktop3D() {
           </div>
         </aside>
 
-        <section className={styles.projectsPanel} aria-label="Недавние проекты">
+        <section
+          className={`${styles.projectsPanel} ${builderOpen ? styles.projectsPanelEditable : ""} ${projectPanelDragging ? styles.projectsPanelDragging : ""}`}
+          aria-label="Недавние проекты"
+          onPointerDown={startProjectPanelDrag}
+          style={{
+            "--panel-offset-x": `${projectPanelOffset.x}px`,
+            "--panel-offset-y": `${projectPanelOffset.y}px`,
+          } as CSSProperties}
+        >
           <div className={styles.panelHeading}>
-            <div><span>ПРОЕКТЫ</span><strong>Недавняя работа</strong></div>
-            <button>Смотреть все</button>
+            <div><span>ВЫБРАННЫЙ ПРОЕКТ</span><strong>{selected.title}</strong></div>
+            {builderOpen ? <small className={styles.panelDragHint}>Перетащите окно</small> : null}
+            <i className={`${styles.projectState} ${styles[`projectState_${selectedDisposition}`]}`}>
+              {selectedDisposition === "archived" ? "В архиве" : selectedDisposition === "trash" ? "В корзине" : selected.status}
+            </i>
           </div>
-          <div className={styles.projectList}>
-            {PROJECTS.map((project, index) => (
-              <button
-                key={project.title}
-                className={index === selectedProject ? styles.selectedProject : ""}
-                onClick={() => setSelectedProject(index)}
-              >
-                <i>{String(index + 1).padStart(2, "0")}</i>
-                <span><strong>{project.title}</strong><small>{project.meta}</small></span>
-                <b style={{ "--progress": `${project.progress * 3.6}deg` } as CSSProperties}>{project.progress}%</b>
-              </button>
-            ))}
+          <div className={styles.projectSummary}>
+            <div><span>УЧАСТНИКИ</span><strong>{selected.participants}</strong></div>
+            <div><span>ПРОГРЕСС</span><b style={{ "--progress": `${selected.progress * 3.6}deg` } as CSSProperties}>{selected.progress}%</b></div>
+            <div><span>СТАРТ</span><strong>{selected.date}</strong></div>
+          </div>
+          <div className={styles.projectActions}>
+            <button onClick={() => setToast(`Открываем проект «${selected.title}»`)}>Открыть</button>
+            <button onClick={() => setToast(`Показываем результаты проекта «${selected.title}»`)}>Результаты</button>
+            <button onClick={() => setToast(`Создаём приглашение в проект «${selected.title}»`)}>Пригласить</button>
           </div>
         </section>
+
+        <div className={styles.folderRack} aria-label="Папки проектов">
+          {PROJECTS.map((project, index) => (
+            <button
+              key={project.title}
+              className={`${index === selectedProject ? styles.folderRackSelected : ""} ${styles[`folderRack_${projectDisposition[index] ?? "active"}`]}`}
+              onClick={() => setSelectedProject(index)}
+            >
+              <span>{project.folderTitle}</span>
+              <strong>{project.progress}%</strong>
+            </button>
+          ))}
+        </div>
 
         <aside className={`${styles.archiveCard} ${archiveOpen ? styles.archiveVisible : ""}`}>
           <button className={styles.archiveClose} onClick={() => runAction("archive")} aria-label="Закрыть архив">×</button>
           <span>АРХИВ · СТРАНИЦА {archivePage + 1}</span>
-          <h2>{archive.title}</h2>
-          <strong>{archive.value}</strong>
-          <p>{archive.note}</p>
-          <div>
-            <button onClick={() => setArchivePage((archivePage + ARCHIVE_PAGES.length - 1) % ARCHIVE_PAGES.length)}>Назад</button>
-            <button onClick={() => setArchivePage((archivePage + 1) % ARCHIVE_PAGES.length)}>Далее</button>
+          <h2>Завершённые проекты</h2>
+          <div className={styles.archiveTabs}><button>Все</button><button>Завершённые</button></div>
+          <div className={styles.archiveItems}>
+            {ARCHIVE_ITEMS.map((item) => <div key={item.title}><i>✓</i><span><strong>{item.title}</strong><small>{item.meta}</small></span></div>)}
+          </div>
+          <div className={styles.archivePager}>
+            <button onClick={() => turnArchivePage(-1)}>Назад</button>
+            <button onClick={() => turnArchivePage(1)}>Далее</button>
           </div>
         </aside>
 
         <aside className={`${styles.aiPanel} ${aiOpen ? styles.aiVisible : ""}`}>
           <span>AI-АНАЛИТИК</span>
-          <h2>Добрый день</h2>
-          <p>Я могу собрать краткую сводку по проектам и отметить результаты, требующие внимания.</p>
-          <button onClick={() => setToast("Чат AI-аналитика будет подключён к данным Indi на следующем этапе")}>Открыть чат</button>
-        </aside>
-
-        <aside className={styles.folderLabel}>
-          <span>ПАПКА</span>
-          <strong>{selected.title}</strong>
-          <small>{selected.meta} · {selected.status}</small>
+          <h2>3 результата требуют внимания</h2>
+          <p>Подготовлен контекстный разбор проекта «{selected.folderTitle}».</p>
+          <button onClick={() => setToast("Вашу модель AI-аналитика подключим к выбранному проекту")}>Открыть разбор</button>
         </aside>
 
         <aside className={styles.balanceLabel}>
@@ -925,11 +1095,13 @@ export default function IndiDesktop3D() {
           <button onClick={() => runAction("balance")}>Пополнить</button>
         </aside>
 
-        <div className={styles.commandDock} aria-label="Быстрые действия">
-          <button onClick={() => runAction("create-project")}><i>+</i><span>Создать проект</span></button>
-          <button onClick={() => runAction("new-folder")}><i>F</i><span>Новая папка</span></button>
-          <button onClick={() => runAction("trash")}><i>×</i><span>Корзина</span></button>
-          <button onClick={() => runAction("test-catalog")}><i>T</i><span>Каталог тестов</span></button>
+        <div className={styles.dropZones} aria-label="Зоны перемещения проекта">
+          <button className={styles.archiveDropZone} onClick={() => runAction("archive-zone")}>
+            <i>↙</i><strong>В архив</strong><span>Переместить выбранный проект</span>
+          </button>
+          <button className={styles.trashDropZone} onClick={() => runAction("trash-zone")}>
+            <i>×</i><strong>Корзина</strong><span>Хранение удалённых проектов 30 дней</span>
+          </button>
         </div>
 
         <div className={styles.toast} role="status"><span />{toast}</div>
