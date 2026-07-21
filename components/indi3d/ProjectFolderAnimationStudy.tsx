@@ -222,17 +222,35 @@ function makeProjectPageTexture() {
   return texture;
 }
 
-function fitDetailToCover(detail: THREE.Group, cover: THREE.Mesh) {
+type SurfaceDetailOptions = {
+  name: string;
+  width: number;
+  height: number;
+  positionY: number;
+  layFlat?: boolean;
+  tint?: THREE.ColorRepresentation;
+  roughness?: number;
+  metalnessLimit?: number;
+};
+
+function fitGeneratedSurfaceDetail(detail: THREE.Group, parent: THREE.Object3D, options: SurfaceDetailOptions) {
   const sourceBox = new THREE.Box3().setFromObject(detail);
   const sourceSize = sourceBox.getSize(new THREE.Vector3());
   const sourceCenter = sourceBox.getCenter(new THREE.Vector3());
-  const scale = Math.min(4.26 / Math.max(sourceSize.x, 0.001), 5.24 / Math.max(sourceSize.y, 0.001));
+  const sourceHeight = options.layFlat ? sourceSize.y : sourceSize.z;
+  const scale = Math.min(
+    options.width / Math.max(sourceSize.x, 0.001),
+    options.height / Math.max(sourceHeight, 0.001),
+  );
 
-  detail.position.sub(sourceCenter);
   detail.scale.setScalar(scale);
-  detail.rotation.x = -Math.PI / 2;
-  detail.position.y = 0.105;
-  detail.name = "Meshy_Leather_Cover_Detail";
+  detail.position.set(-sourceCenter.x * scale, -sourceCenter.y * scale, -sourceCenter.z * scale);
+  if (options.layFlat) detail.rotation.x = -Math.PI / 2;
+
+  const wrapper = new THREE.Group();
+  wrapper.name = options.name;
+  wrapper.position.y = options.positionY;
+  wrapper.add(detail);
   detail.renderOrder = 2;
 
   detail.traverse((object) => {
@@ -243,16 +261,80 @@ function fitDetailToCover(detail: THREE.Group, cover: THREE.Mesh) {
     object.material = materials.map((source) => {
       const material = source.clone();
       if (material instanceof THREE.MeshStandardMaterial) {
-        material.color.multiply(new THREE.Color(0.67, 0.47, 0.32));
-        material.roughness = 0.46;
-        material.metalness = Math.min(material.metalness, 0.24);
+        if (options.tint) material.color.multiply(new THREE.Color(options.tint));
+        material.roughness = options.roughness ?? 0.46;
+        material.metalness = Math.min(material.metalness, options.metalnessLimit ?? 0.24);
         material.envMapIntensity = 0.72;
       }
       return material;
     });
   });
 
-  cover.add(detail);
+  parent.add(wrapper);
+}
+
+function loadGeneratedFolderDetails(loader: GLTFLoader, model: THREE.Group) {
+  const cover = model.getObjectByName("Front_Cover");
+  if (cover) {
+    loader.load(
+      "/indi-3d/models/executive-meshy-front-cover.glb",
+      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, cover, {
+        name: "Meshy_Leather_Cover_Detail",
+        width: 4.26,
+        height: 5.24,
+        positionY: 0.105,
+        layFlat: true,
+        tint: 0xaa7852,
+      }),
+      undefined,
+      () => undefined,
+    );
+  }
+
+  const strap = model.getObjectByName("Leather_Strap") as THREE.Mesh | undefined;
+  if (strap) {
+    const materials = Array.isArray(strap.material) ? strap.material : [strap.material];
+    strap.material = materials.map((source) => {
+      const material = source.clone();
+      material.transparent = true;
+      material.opacity = 0;
+      material.depthWrite = false;
+      return material;
+    });
+    loader.load(
+      "/indi-3d/models/executive-meshy-clasp-strap.glb",
+      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, strap, {
+        name: "Meshy_Clasp_Strap_Detail",
+        width: 0.86,
+        height: 1.08,
+        positionY: 0.02,
+        tint: 0x9b765d,
+        roughness: 0.42,
+        metalnessLimit: 0.55,
+      }),
+      undefined,
+      () => undefined,
+    );
+  }
+
+  const projectPage = model.getObjectByName("Project_Dashboard_Page");
+  if (projectPage) {
+    loader.load(
+      "/indi-3d/models/executive-meshy-filter-panel.glb",
+      (gltf) => fitGeneratedSurfaceDetail(gltf.scene, projectPage, {
+        name: "Meshy_Project_Panel_Frame",
+        width: 3.82,
+        height: 4.72,
+        positionY: 0.018,
+        layFlat: true,
+        tint: 0x8b6a50,
+        roughness: 0.48,
+        metalnessLimit: 0.38,
+      }),
+      undefined,
+      () => undefined,
+    );
+  }
 }
 
 function loadExecutiveDesk(loader: GLTFLoader, scene: THREE.Scene) {
@@ -468,15 +550,9 @@ export default function ProjectFolderAnimationStudy() {
           interfacePlane.renderOrder = 5;
           cover.add(interfacePlane);
 
-          loader.load(
-            "/indi-3d/models/executive-meshy-front-cover.glb",
-            (detailGltf) => fitDetailToCover(detailGltf.scene, cover),
-            undefined,
-            () => {
-              // The procedural cover remains a complete fallback if the optional detail fails.
-            },
-          );
         }
+
+        loadGeneratedFolderDetails(loader, model);
 
         const projectPage = model.getObjectByName("Project_Dashboard_Page") as THREE.Mesh | undefined;
         const projectTexture = makeProjectPageTexture();
@@ -700,7 +776,7 @@ export default function ProjectFolderAnimationStudy() {
           <div className={styles.motionNotes}>
             <div><strong>6,3 сек</strong><span>полный цикл</span></div>
             <div><strong>6 дорожек</strong><span>синхронно</span></div>
-            <div><strong>1,7 МБ</strong><span>модель</span></div>
+            <div><strong>2,8 МБ</strong><span>сцена</span></div>
           </div>
         </aside>
       </section>
