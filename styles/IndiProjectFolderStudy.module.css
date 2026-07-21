@@ -1,0 +1,283 @@
+.page {
+  --ink: #f1e7d3;
+  --muted: #aa9b86;
+  --brass: #d6a967;
+  --brass-dark: #79502a;
+  min-height: 100vh;
+  overflow: hidden;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(104, 62, 30, .22), transparent 38%),
+    linear-gradient(145deg, #080706 0%, #100c09 48%, #050504 100%);
+  font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+}
+
+.page::before {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  opacity: .18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.16'/%3E%3C/svg%3E");
+}
+
+.topbar {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76px;
+  padding: 0 4vw;
+  border-bottom: 1px solid rgba(213, 169, 103, .22);
+  background: rgba(9, 8, 7, .78);
+  backdrop-filter: blur(18px);
+}
+
+.brand { display: flex; align-items: center; gap: 14px; }
+.brandMark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(214, 169, 103, .55);
+  color: var(--brass);
+  transform: rotate(45deg);
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+.brandMark::first-line { transform: rotate(-45deg); }
+.brand div { display: grid; gap: 3px; }
+.brand strong { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; }
+.brand small { color: var(--muted); font: 11px/1.2 "Trebuchet MS", sans-serif; letter-spacing: .1em; }
+.experimental { color: var(--brass); font: 700 10px/1 "Trebuchet MS", sans-serif; letter-spacing: .24em; }
+
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(540px, 1.9fr) minmax(240px, .75fr);
+  align-items: center;
+  gap: clamp(20px, 2.3vw, 46px);
+  min-height: calc(100vh - 77px);
+  padding: 38px 4vw 44px;
+}
+
+.copy { position: relative; z-index: 3; align-self: start; padding-top: 9vh; }
+.eyebrow, .controlLabel {
+  color: var(--brass);
+  font: 700 10px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: .28em;
+}
+.copy h1 {
+  margin: 20px 0 24px;
+  font-size: clamp(38px, 4.3vw, 74px);
+  font-weight: 400;
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+.copy p { max-width: 390px; margin: 0; color: var(--muted); font: 15px/1.72 "Trebuchet MS", sans-serif; }
+
+.stageShell {
+  position: relative;
+  min-width: 0;
+  height: min(76vh, 780px);
+  overflow: hidden;
+  border: 1px solid rgba(214, 169, 103, .30);
+  border-radius: 28px;
+  background: #090807;
+  box-shadow: 0 34px 100px rgba(0, 0, 0, .55), inset 0 0 80px rgba(113, 65, 25, .08);
+}
+.stageShell::after {
+  position: absolute;
+  inset: 14px;
+  pointer-events: none;
+  content: "";
+  border: 1px solid rgba(214, 169, 103, .10);
+  border-radius: 20px;
+}
+.stage { position: absolute; inset: 0; }
+.stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+
+.loader, .error {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  text-align: center;
+  background: rgba(8, 7, 6, .88);
+}
+.loader span { color: var(--muted); font: 11px "Trebuchet MS", sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+.loader strong { color: var(--brass); font-size: 42px; font-weight: 400; }
+.error { color: #e2a38e; font: 14px "Trebuchet MS", sans-serif; }
+
+.phaseBadge {
+  position: absolute;
+  top: 32px;
+  left: 34px;
+  z-index: 3;
+  display: grid;
+  gap: 7px;
+  padding-left: 14px;
+  border-left: 2px solid var(--brass);
+}
+.phaseBadge span { color: var(--muted); font: 9px "Trebuchet MS", sans-serif; letter-spacing: .17em; text-transform: uppercase; }
+.phaseBadge strong { font-size: 18px; font-weight: 400; }
+.dragHint { position: absolute; top: 34px; right: 34px; z-index: 3; color: var(--muted); font: 11px "Trebuchet MS", sans-serif; }
+.dragHint span { margin-right: 8px; color: var(--brass); font-size: 15px; }
+
+.timeline {
+  position: absolute;
+  right: 34px;
+  bottom: 30px;
+  left: 34px;
+  z-index: 3;
+  padding: 16px 18px 14px;
+  border: 1px solid rgba(214, 169, 103, .14);
+  border-radius: 14px;
+  background: rgba(7, 6, 5, .72);
+  backdrop-filter: blur(14px);
+}
+
+.projectWorkspace {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  z-index: 5;
+  width: min(76%, 760px);
+  padding: 18px;
+  border: 1px solid rgba(211, 166, 102, .42);
+  border-radius: 14px;
+  opacity: 0;
+  color: #e9ddc7;
+  background: linear-gradient(145deg, rgba(22, 18, 15, .96), rgba(9, 8, 7, .97));
+  box-shadow: 0 28px 64px rgba(0, 0, 0, .64), inset 0 0 0 4px rgba(85, 49, 23, .18);
+  pointer-events: none;
+  transform: translate(-50%, 22px) perspective(900px) rotateX(4deg) scale(.92);
+  transition: opacity .5s ease, transform .7s cubic-bezier(.2,.75,.2,1);
+  font-family: "Trebuchet MS", sans-serif;
+}
+.projectWorkspaceVisible { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) perspective(900px) rotateX(0) scale(1); }
+.projectWorkspace header, .projectWorkspace header > div, .projectToolbar, .projectTableHead, .projectRow { display: flex; align-items: center; }
+.projectWorkspace header { justify-content: space-between; gap: 14px; padding: 3px 4px 14px; }
+.projectWorkspace header > div { gap: 9px; }
+.projectWorkspace header strong { font-family: "Palatino Linotype", Georgia, serif; font-size: 20px; font-weight: 400; }
+.projectWorkspace header small { color: #8f8577; font-size: 9px; }
+.folderGlyph { color: var(--brass); }
+.projectWorkspace header button, .projectToolbar button {
+  border: 1px solid rgba(214, 169, 103, .35);
+  border-radius: 6px;
+  color: #e6d4b6;
+  background: linear-gradient(#3a2819, #251911);
+  font: 9px "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+.projectWorkspace header button { padding: 9px 12px; }
+.projectToolbar { gap: 7px; margin-bottom: 10px; }
+.projectToolbar label { display: flex; flex: 1; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid rgba(214,169,103,.18); border-radius: 7px; background: rgba(255,255,255,.025); }
+.projectToolbar input { width: 100%; border: 0; outline: 0; color: #e9ddc7; background: transparent; font: 10px "Trebuchet MS", sans-serif; }
+.projectToolbar input::placeholder { color: #746b60; }
+.projectToolbar button { padding: 9px 11px; background: rgba(255,255,255,.025); }
+.projectTable { overflow: hidden; border: 1px solid rgba(214,169,103,.14); border-radius: 8px; }
+.projectTableHead, .projectRow { display: grid; grid-template-columns: 1.35fr .85fr 1.05fr .82fr; gap: 10px; text-align: left; }
+.projectTableHead { padding: 9px 12px; color: #9f8c73; background: rgba(255,255,255,.025); font-size: 8px; letter-spacing: .05em; text-transform: uppercase; }
+.projectRow { width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid rgba(214,169,103,.11); color: #d9cbb4; background: transparent; cursor: pointer; font: 9px "Trebuchet MS", sans-serif; transition: background .18s ease, box-shadow .18s ease; }
+.projectRow:hover { background: rgba(197,139,73,.08); box-shadow: inset 2px 0 #c99555; }
+.projectRow > span { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.projectRow > span:first-child, .projectRow > span:last-child { display: grid; gap: 4px; }
+.projectRow strong { overflow: hidden; font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.projectRow small { overflow: hidden; color: #756c61; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.projectRow span > i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; }
+.tone_green { background: #61a875; box-shadow: 0 0 8px rgba(97,168,117,.5); }
+.tone_amber { background: #d29a4e; box-shadow: 0 0 8px rgba(210,154,78,.5); }
+.tone_blue { background: #5d84bb; box-shadow: 0 0 8px rgba(93,132,187,.5); }
+.projectRow em { width: 100%; height: 3px; overflow: hidden; border-radius: 4px; background: rgba(255,255,255,.09); }
+.projectRow em i { display: block; height: 100%; background: linear-gradient(90deg, #b38148, #6db07e); }
+.timelineTrack { height: 2px; overflow: hidden; background: rgba(255, 255, 255, .12); }
+.timelineTrack i { display: block; height: 100%; background: linear-gradient(90deg, #714822, #e1b777); box-shadow: 0 0 18px rgba(225, 183, 119, .7); transition: width .08s linear; }
+.phaseTicks { display: flex; justify-content: space-between; gap: 10px; margin-top: 11px; }
+.phaseTicks span { color: #6f665b; font: 8px "Trebuchet MS", sans-serif; letter-spacing: .06em; text-transform: uppercase; transition: color .25s ease; }
+.phaseTicks .phaseActive { color: #d8c4a6; }
+
+.controls {
+  position: relative;
+  z-index: 3;
+  align-self: end;
+  margin-bottom: 6vh;
+}
+.primaryButton {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  margin: 19px 0 12px;
+  padding: 17px 18px;
+  border: 1px solid rgba(214, 169, 103, .46);
+  border-radius: 12px;
+  color: #16100b;
+  background: linear-gradient(135deg, #e2bc7c, #a87439);
+  box-shadow: 0 12px 34px rgba(159, 104, 45, .18);
+  font: 700 11px "Trebuchet MS", sans-serif;
+  letter-spacing: .05em;
+  cursor: pointer;
+}
+.primaryButton:disabled, .controlGrid button:disabled { cursor: wait; opacity: .48; }
+.primaryButton i { font-style: normal; }
+.controlGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.controlGrid button {
+  display: grid;
+  gap: 5px;
+  min-height: 70px;
+  padding: 13px;
+  border: 1px solid rgba(214, 169, 103, .20);
+  border-radius: 11px;
+  color: var(--ink);
+  text-align: left;
+  background: rgba(27, 20, 15, .72);
+  cursor: pointer;
+  transition: border-color .2s ease, background .2s ease, transform .2s ease;
+}
+.controlGrid button:hover:not(:disabled) { border-color: rgba(214, 169, 103, .58); background: rgba(48, 33, 22, .86); transform: translateY(-2px); }
+.controlGrid span { font: 700 11px "Trebuchet MS", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.controlGrid small { color: var(--muted); font: 10px "Trebuchet MS", sans-serif; }
+.motionNotes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 24px; }
+.motionNotes div { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid rgba(214, 169, 103, .18); }
+.motionNotes strong { color: var(--brass); font-size: 13px; font-weight: 400; }
+.motionNotes span { color: var(--muted); font: 8px "Trebuchet MS", sans-serif; letter-spacing: .05em; text-transform: uppercase; }
+
+@media (max-width: 1180px) {
+  .hero { grid-template-columns: 220px minmax(500px, 1fr); }
+  .controls { grid-column: 1 / -1; display: grid; grid-template-columns: 180px 1fr 1.5fr; align-items: center; gap: 16px; margin: 0; }
+  .primaryButton { margin: 0; }
+  .motionNotes { margin: 0; }
+}
+
+@media (max-width: 820px) {
+  .page { overflow: auto; }
+  .topbar { min-height: 64px; padding: 0 18px; }
+  .brand small, .experimental { display: none; }
+  .hero { display: flex; min-height: auto; flex-direction: column; align-items: stretch; padding: 30px 16px 40px; }
+  .copy { padding: 0 4px; }
+  .copy h1 { margin: 14px 0 16px; font-size: clamp(38px, 12vw, 58px); }
+  .copy p { font-size: 13px; }
+  .stageShell { order: 2; height: 64vh; min-height: 500px; border-radius: 20px; }
+  .controls { order: 3; display: block; margin: 0; }
+  .controlLabel { display: block; margin-top: 8px; }
+  .primaryButton { margin: 14px 0 10px; }
+  .phaseBadge { top: 24px; left: 22px; }
+  .dragHint { top: 27px; right: 22px; font-size: 0; }
+  .dragHint span { font-size: 16px; }
+  .timeline { right: 18px; bottom: 18px; left: 18px; padding: 13px; }
+  .phaseTicks span { display: none; }
+  .phaseTicks span:last-child { display: block; }
+  .projectWorkspace { top: 15%; width: calc(100% - 28px); padding: 12px; }
+  .projectWorkspace header small, .projectTableHead, .projectRow > span:nth-child(2), .projectRow > span:nth-child(3) { display: none; }
+  .projectTableHead, .projectRow { grid-template-columns: 1fr .7fr; }
+  .projectToolbar button { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timelineTrack i, .controlGrid button { transition: none; }
+}
