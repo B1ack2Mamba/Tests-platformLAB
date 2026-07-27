@@ -1,0 +1,868 @@
+.shell {
+  min-height: 100vh;
+  overflow: hidden;
+  color: #f4ead9;
+  background: #080706;
+  font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+}
+
+.header {
+  position: relative;
+  z-index: 20;
+  height: 72px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 42px;
+  border-bottom: 1px solid rgba(214, 164, 90, 0.24);
+  background:
+    linear-gradient(90deg, rgba(23, 21, 19, 0.98), rgba(7, 7, 7, 0.99)),
+    #090909;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.58);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.brand strong {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: #deb06c;
+  border: 1px solid rgba(222, 176, 108, 0.45);
+  font-size: 13px;
+  letter-spacing: -0.08em;
+  transform: rotate(45deg);
+}
+
+.brand strong::first-line {
+  transform: rotate(-45deg);
+}
+
+.brand span {
+  font: 700 12px/1.1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.28em;
+}
+
+.overview {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  color: #dca962;
+  font: 700 12px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.24em;
+}
+
+.overview i {
+  position: relative;
+  width: 170px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #d8a25a 18%, #d8a25a 82%, transparent);
+}
+
+.overview i::after {
+  position: absolute;
+  inset: -3px auto auto 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f6dcaf;
+  box-shadow: 0 0 14px #dd9f4d;
+  content: "";
+}
+
+.profile {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  font-family: "Trebuchet MS", sans-serif;
+}
+
+.profile b {
+  font-size: 13px;
+}
+
+.profile small {
+  color: #8f8981;
+  font-size: 11px;
+}
+
+.stage {
+  position: relative;
+  min-height: calc(100vh - 72px);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.stage canvas {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+}
+
+.stage::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 42%, transparent 34%, rgba(0, 0, 0, 0.3) 82%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.14), transparent 22%, transparent 80%, rgba(0, 0, 0, 0.36));
+  content: "";
+}
+
+.summary {
+  position: absolute;
+  z-index: 4;
+  top: 25px;
+  left: 50%;
+  width: min(700px, 53vw);
+  padding: 15px 22px 17px;
+  border: 1px solid rgba(214, 168, 101, 0.24);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(41, 38, 35, 0.93), rgba(15, 14, 13, 0.96));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.36), inset 0 1px rgba(255, 255, 255, 0.055);
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.summary > span {
+  display: block;
+  margin-bottom: 11px;
+  color: #d9d1c5;
+  font: 12px/1 "Trebuchet MS", sans-serif;
+}
+
+.summary > div {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.summary button {
+  display: grid;
+  gap: 5px;
+  padding: 2px 20px;
+  border: 0;
+  border-left: 1px solid rgba(215, 175, 115, 0.22);
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.summary button:first-child {
+  border-left: 0;
+}
+
+.summary small {
+  color: #b7aea2;
+  font: 10px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.summary strong {
+  white-space: nowrap;
+  font: 500 19px/1.1 "Trebuchet MS", sans-serif;
+}
+
+.objectLabels {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  color: rgba(239, 215, 179, 0.74);
+  font: 700 10px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.2em;
+  text-shadow: 0 2px 10px #000;
+}
+
+.objectLabels span {
+  position: absolute;
+}
+
+.archiveLabel {
+  top: 41%;
+  left: 30%;
+}
+
+.projectsLabel {
+  top: 37%;
+  left: 47%;
+}
+
+.aiLabel {
+  top: 32%;
+  right: 10%;
+}
+
+.navigationHint,
+.settings,
+.bottomNav,
+.toast {
+  position: absolute;
+  z-index: 5;
+  border: 1px solid rgba(202, 158, 95, 0.22);
+  background: rgba(18, 16, 14, 0.86);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
+}
+
+.navigationHint {
+  bottom: 18px;
+  left: 20px;
+  display: grid;
+  gap: 5px;
+  width: 270px;
+  padding: 14px 18px 14px 54px;
+  border-radius: 9px;
+}
+
+.navigationHint::before {
+  position: absolute;
+  top: 17px;
+  left: 20px;
+  font: 25px/1 sans-serif;
+  content: "↗";
+}
+
+.navigationHint span {
+  font: 700 11px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.navigationHint small {
+  color: #999086;
+  font: 10px/1.25 "Trebuchet MS", sans-serif;
+}
+
+.bottomNav {
+  bottom: 13px;
+  left: 50%;
+  display: flex;
+  padding: 5px;
+  border-radius: 9px;
+  transform: translateX(-50%);
+}
+
+.bottomNav button,
+.settings {
+  border: 0;
+  color: #91897e;
+  background: transparent;
+  font: 11px/1 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.bottomNav button {
+  min-width: 115px;
+  padding: 10px 13px;
+  border-radius: 6px;
+}
+
+.bottomNav button:hover,
+.bottomNav .active {
+  color: #f7e4c3;
+  background: linear-gradient(#6d5435, #3a2b1c);
+}
+
+.bottomNav b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  margin-left: 4px;
+  border: 1px solid #72624c;
+  border-radius: 50%;
+  font-size: 9px;
+}
+
+.settings {
+  right: 20px;
+  bottom: 18px;
+  padding: 14px 18px;
+  border: 1px solid rgba(202, 158, 95, 0.22);
+  border-radius: 9px;
+}
+
+.toast {
+  top: 114px;
+  right: 24px;
+  padding: 11px 15px;
+  border-radius: 8px;
+  color: #d8c7ad;
+  font: 10px/1.3 "Trebuchet MS", sans-serif;
+  animation: toastIn 0.38s ease both;
+}
+
+.loader,
+.sceneError {
+  position: absolute;
+  z-index: 30;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  width: min(360px, 80vw);
+  padding: 28px;
+  border: 1px solid rgba(221, 172, 99, 0.42);
+  border-radius: 15px;
+  background: rgba(12, 10, 8, 0.94);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72);
+  transform: translate(-50%, -50%);
+}
+
+.loader span {
+  color: #c99a58;
+  font: 700 10px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.23em;
+}
+
+.loader strong {
+  margin: 18px 0;
+  font: 500 36px/1 "Trebuchet MS", sans-serif;
+}
+
+.loader i {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #2e251d;
+}
+
+.loader i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #7f5425, #f1c680);
+  transition: width 0.25s ease;
+}
+
+.sceneError {
+  gap: 10px;
+  color: #ffd4c8;
+  font-family: "Trebuchet MS", sans-serif;
+}
+
+.sceneError span {
+  color: #bdaaa2;
+  font-size: 12px;
+}
+
+.bookPanel,
+.archivePanel,
+.aiPanel {
+  position: absolute;
+  z-index: 15;
+  border: 1px solid rgba(231, 185, 116, 0.48);
+  color: #e9d9bf;
+  box-shadow: 0 35px 100px rgba(0, 0, 0, 0.76), inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.panelEnter {
+  animation: panelEnter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.close {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(215, 173, 112, 0.25);
+  border-radius: 50%;
+  color: #d5c4aa;
+  background: rgba(8, 7, 6, 0.58);
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.bookPanel {
+  top: 11%;
+  left: 50%;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  width: min(980px, 88vw);
+  height: min(660px, 74vh);
+  padding: 22px;
+  border-radius: 26px 20px 20px 26px;
+  background:
+    linear-gradient(90deg, #24150e 0 20%, #16110e 20% 100%);
+  transform: translateX(-50%);
+  transform-origin: 50% 80%;
+}
+
+.bookPanel.panelEnter {
+  animation-name: bookEnter;
+}
+
+.bookPanel::before {
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  border: 1px solid rgba(208, 155, 79, 0.36);
+  border-radius: 20px 15px 15px 20px;
+  box-shadow: inset 0 0 0 5px rgba(45, 26, 17, 0.8);
+  content: "";
+}
+
+.bookFilters {
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 35px 18px 20px 8px;
+  border-right: 1px solid rgba(213, 163, 91, 0.2);
+}
+
+.bookFilters > span,
+.archivePanel > span,
+.aiPanel > span {
+  margin-bottom: 12px;
+  color: #c4904c;
+  font: 700 9px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.22em;
+}
+
+.bookFilters button {
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #a99a87;
+  text-align: left;
+  background: transparent;
+  font: 11px/1.2 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.bookFilters .selectedFilter {
+  border-color: rgba(220, 176, 110, 0.25);
+  color: #f0d7af;
+  background: rgba(170, 116, 52, 0.13);
+}
+
+.bookFilters hr {
+  width: 100%;
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid rgba(212, 173, 116, 0.18);
+}
+
+.bookFilters small {
+  color: #71675b;
+  font: 9px/1.4 "Trebuchet MS", sans-serif;
+}
+
+.bookPage {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  margin: 7px 7px 7px 18px;
+  padding: 28px 32px 20px;
+  overflow: hidden;
+  border-radius: 7px 12px 12px 7px;
+  color: #e9ded0;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22), transparent 4%),
+    linear-gradient(145deg, #211d19, #121110);
+  box-shadow: -8px 0 22px rgba(0, 0, 0, 0.35), inset 0 0 38px rgba(226, 174, 95, 0.025);
+}
+
+.bookPage > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(216, 175, 113, 0.24);
+}
+
+.bookPage header small {
+  color: #8e7354;
+  font: 700 8px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.2em;
+}
+
+.bookPage h2,
+.archivePanel h2,
+.aiPanel h2 {
+  margin: 5px 0 0;
+  font-size: clamp(27px, 3vw, 43px);
+  font-weight: 500;
+}
+
+.bookPage header button,
+.bookPage footer button,
+.aiAction {
+  padding: 10px 14px;
+  border: 1px solid #9e723d;
+  border-radius: 6px;
+  color: #26180e;
+  background: linear-gradient(#efd2a1, #b27c3e);
+  font: 700 10px/1 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.projectRows {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 18px 0;
+  overflow: auto;
+  scrollbar-color: #765332 #171411;
+  scrollbar-width: thin;
+}
+
+.projectRows::-webkit-scrollbar {
+  width: 8px;
+}
+
+.projectRows::-webkit-scrollbar-track {
+  border-radius: 99px;
+  background: #171411;
+}
+
+.projectRows::-webkit-scrollbar-thumb {
+  border: 2px solid #171411;
+  border-radius: 99px;
+  background: #765332;
+}
+
+.projectRows > button {
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 42%);
+  align-items: center;
+  gap: 18px;
+  padding: 13px 16px;
+  border: 1px solid rgba(216, 173, 109, 0.14);
+  border-radius: 7px;
+  color: #cbbdab;
+  text-align: left;
+  background: rgba(43, 39, 35, 0.62);
+  cursor: pointer;
+}
+
+.projectRows .selectedProject {
+  border-color: #c7914e;
+  color: #fae6c8;
+  background: linear-gradient(90deg, rgba(126, 83, 37, 0.28), rgba(39, 34, 29, 0.8));
+  box-shadow: 0 0 18px rgba(210, 151, 72, 0.11), inset 0 0 18px rgba(226, 175, 105, 0.04);
+}
+
+.projectRows span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.projectRows strong {
+  font: 700 12px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.projectRows small {
+  color: #8d8275;
+  font: 9px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.projectStatus {
+  display: grid;
+  grid-template-columns: 80px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+}
+
+.projectStatus i {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #3c3832;
+}
+
+.projectStatus i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #5b994f, #b0d784);
+}
+
+.projectStatus em {
+  color: #bdb1a3;
+  font: normal 10px/1 "Trebuchet MS", sans-serif;
+}
+
+.bookPage > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid rgba(216, 175, 113, 0.18);
+  color: #877c6e;
+  font: 10px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.pageStack {
+  position: absolute;
+  z-index: 1;
+  right: 9px;
+  bottom: 9px;
+  left: 216px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.pageStack i {
+  position: absolute;
+  right: 6px;
+  bottom: 0;
+  left: 6px;
+  height: 7px;
+  border: 1px solid rgba(209, 174, 118, 0.25);
+  border-radius: 0 0 8px 8px;
+  background: #171411;
+}
+
+.pageStack i:nth-child(2) { bottom: 5px; right: 10px; left: 10px; }
+.pageStack i:nth-child(3) { bottom: 10px; right: 14px; left: 14px; }
+
+.archivePanel,
+.aiPanel {
+  top: 16%;
+  width: min(430px, 86vw);
+  padding: 34px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 75% 0, rgba(149, 94, 39, 0.22), transparent 34%),
+    linear-gradient(145deg, rgba(53, 35, 23, 0.98), rgba(14, 12, 11, 0.99));
+}
+
+.archivePanel {
+  left: 6%;
+  transform-origin: 20% 80%;
+}
+
+.aiPanel {
+  right: 5%;
+  transform-origin: 80% 70%;
+}
+
+.archiveList {
+  display: grid;
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.archiveList article {
+  display: grid;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid rgba(218, 172, 105, 0.16);
+  border-radius: 7px;
+  background: rgba(10, 9, 8, 0.36);
+}
+
+.archiveList strong {
+  font: 700 11px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.archiveList small {
+  color: #8e8274;
+  font: 9px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.archivePanel footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #8e8274;
+  font: 9px/1 "Trebuchet MS", sans-serif;
+}
+
+.archivePanel footer button {
+  width: 36px;
+  height: 32px;
+  border: 1px solid rgba(215, 169, 102, 0.26);
+  border-radius: 6px;
+  color: #dcb77d;
+  background: #17120e;
+  cursor: pointer;
+}
+
+.aiPanel p {
+  color: #bcae9d;
+  font: 12px/1.65 "Trebuchet MS", sans-serif;
+}
+
+.aiPanel > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 22px 0;
+}
+
+.aiPanel article {
+  display: grid;
+  gap: 7px;
+  padding: 15px;
+  border: 1px solid rgba(214, 168, 99, 0.2);
+  border-radius: 8px;
+  background: rgba(11, 10, 9, 0.42);
+}
+
+.aiPanel article small {
+  color: #887d70;
+  font: 9px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.aiPanel article strong {
+  font: 500 25px/1 "Trebuchet MS", sans-serif;
+}
+
+.aiAction {
+  width: 100%;
+}
+
+@keyframes panelEnter {
+  from { opacity: 0; transform: translateY(22px) scale(0.94) rotateX(8deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotateX(0); }
+}
+
+@keyframes bookEnter {
+  from { opacity: 0; transform: translateX(-50%) translateY(22px) scale(0.94) rotateX(8deg); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1) rotateX(0); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .header {
+    height: 62px;
+    padding: 0 18px;
+  }
+
+  .overview {
+    display: none;
+  }
+
+  .header {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stage {
+    min-height: calc(100vh - 62px);
+  }
+
+  .summary {
+    top: 14px;
+    width: calc(100% - 28px);
+    padding: 12px;
+  }
+
+  .summary > span {
+    display: none;
+  }
+
+  .summary button {
+    padding: 3px 8px;
+  }
+
+  .summary strong {
+    font-size: 13px;
+  }
+
+  .objectLabels,
+  .navigationHint,
+  .settings {
+    display: none;
+  }
+
+  .bottomNav {
+    bottom: 9px;
+    width: calc(100% - 28px);
+  }
+
+  .bottomNav button {
+    min-width: 0;
+    flex: 1;
+    padding-inline: 6px;
+  }
+
+  .toast {
+    top: 84px;
+    right: 14px;
+    left: 14px;
+    text-align: center;
+  }
+
+  .bookPanel {
+    top: 13%;
+    grid-template-columns: 1fr;
+    width: calc(100% - 24px);
+    height: 72vh;
+    padding: 12px;
+  }
+
+  .bookFilters {
+    display: none;
+  }
+
+  .bookPage {
+    margin: 8px;
+    padding: 23px 16px 14px;
+  }
+
+  .bookPage > header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .bookPage h2 {
+    font-size: 29px;
+  }
+
+  .bookPage header button {
+    margin-right: 38px;
+  }
+
+  .projectRows > button {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .projectStatus {
+    grid-template-columns: 70px 1fr 30px;
+  }
+
+  .bookPage > footer span {
+    display: none;
+  }
+
+  .bookPage > footer {
+    justify-content: flex-end;
+  }
+
+  .pageStack {
+    left: 22px;
+  }
+
+  .archivePanel,
+  .aiPanel {
+    top: 16%;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    padding: 30px 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panelEnter,
+  .toast {
+    animation: none;
+  }
+}

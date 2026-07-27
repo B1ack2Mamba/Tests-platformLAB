@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import IndiDesktop3D from "../indi3d/IndiDesktop3D";
 import type { ExecutiveLabWorkspace } from "../../lib/executiveLab";
 import styles from "../../styles/ExecutiveLab.module.css";
+import ExecutiveDeskScene from "./ExecutiveDeskScene";
 
 type BootstrapResponse =
   | { ok: true; workspace: ExecutiveLabWorkspace }
@@ -97,9 +97,8 @@ export default function ExecutiveLabWorkspacePage() {
 
   return (
     <>
-      <IndiDesktop3D
+      <ExecutiveDeskScene
         workspace={workspace}
-        labName="Executive Space"
         onCreateProject={() => setCreateOpen(true)}
       />
 

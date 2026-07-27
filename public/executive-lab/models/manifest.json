@@ -1,0 +1,51 @@
+[
+  {
+    "asset": "desk-organizer",
+    "source": "Meshy_AI_Wooden_desk_organizer_0727050115_texture.glb",
+    "source_triangles": 122260,
+    "optimized_triangles": 64999,
+    "bytes": 1821796
+  },
+  {
+    "asset": "document-tray",
+    "source": "Meshy_AI_Copper_Leather_Desk_T_0727050229_texture.glb",
+    "source_triangles": 318350,
+    "optimized_triangles": 69999,
+    "bytes": 2349624
+  },
+  {
+    "asset": "trash-tray",
+    "source": "Meshy_AI_Golden_Rimmed_Wooden__0727050132_texture.glb",
+    "source_triangles": 182178,
+    "optimized_triangles": 59998,
+    "bytes": 1995812
+  },
+  {
+    "asset": "desk-lamp",
+    "source": "Meshy_AI_Golden_Brass_Desk_Lam_0727050355_texture.glb",
+    "source_triangles": 322540,
+    "optimized_triangles": 75000,
+    "bytes": 2174764
+  },
+  {
+    "asset": "projects-book",
+    "source": "Meshy_AI_Leather_Projects_Note_0727050428_texture.glb",
+    "source_triangles": 910474,
+    "optimized_triangles": 110000,
+    "bytes": 4745640
+  },
+  {
+    "asset": "ai-droid",
+    "source": "Meshy_AI_Dapper_Droid_on_a_Ped_0727050439_texture.glb",
+    "source_triangles": 385520,
+    "optimized_triangles": 84999,
+    "bytes": 2349224
+  },
+  {
+    "asset": "ai-console",
+    "source": "Meshy_AI_AI_аналитик__0727050740_texture.glb",
+    "source_triangles": 501488,
+    "optimized_triangles": 85000,
+    "bytes": 2683284
+  }
+]
