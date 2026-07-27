@@ -157,9 +157,9 @@
 
 .themeWalnut::before {
   background:
-    radial-gradient(circle at 18% 12%, rgba(226, 184, 119, 0.2), transparent 28%),
+    radial-gradient(circle at 18% 12%, rgba(226, 184, 119, 0.13), transparent 28%),
     linear-gradient(112deg, transparent 0 45%, rgba(255,255,255,0.035) 46% 47%, transparent 48%) 0 0 / 92px 100%,
-    linear-gradient(145deg, #765039, #4a3025 48%, #26382d);
+    linear-gradient(145deg, #493024, #241913 48%, #111b16);
 }
 
 .themeLinen::before {
@@ -814,6 +814,79 @@
 }
 
 /* Functional office composition: one project folder model, many data states. */
+.executiveSummary {
+  position: absolute;
+  z-index: 8;
+  top: 3.2%;
+  left: 28%;
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(86px, 1fr)) auto;
+  align-items: center;
+  width: min(67vw, 980px);
+  min-height: 96px;
+  padding: 13px 16px;
+  border: 1px solid rgba(217, 175, 108, 0.38);
+  border-radius: 13px;
+  color: #efe3d1;
+  background:
+    linear-gradient(115deg, rgba(53, 40, 31, 0.92), rgba(13, 14, 13, 0.92)),
+    #171412;
+  box-shadow: 0 20px 46px rgba(13, 9, 6, 0.34), inset 0 1px rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(18px);
+  animation: rise 0.75s 80ms ease-out both;
+}
+
+.executiveSummary > span {
+  align-self: start;
+  padding: 4px 18px 0 2px;
+  color: #d5aa6d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.19em;
+  white-space: nowrap;
+}
+
+.executiveSummary > div {
+  display: grid;
+  min-height: 60px;
+  align-content: center;
+  padding: 0 15px;
+  border-left: 1px solid rgba(220, 185, 133, 0.17);
+}
+
+.executiveSummary small,
+.executiveSummary i {
+  color: #a99c8b;
+  font-size: 8px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+
+.executiveSummary strong {
+  margin: 3px 0;
+  color: #fff4df;
+  font: 500 clamp(16px, 1.5vw, 23px)/1.05 "Iowan Old Style", "Palatino Linotype", serif;
+  white-space: nowrap;
+}
+
+.executiveSummary button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(222, 181, 116, 0.58);
+  border-radius: 8px;
+  color: #f8e8cf;
+  background: linear-gradient(145deg, rgba(135, 91, 49, 0.78), rgba(73, 46, 27, 0.92));
+  box-shadow: inset 0 1px rgba(255,255,255,0.1);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.executiveSummary button:hover {
+  color: #21160e;
+  background: linear-gradient(#f3d6a4, #c58e49);
+}
+
 .titleBlock {
   top: 24px;
   left: 3.8vw;
@@ -932,7 +1005,7 @@
 .folderRack {
   position: absolute;
   z-index: 7;
-  top: 8.5%;
+  top: 15%;
   right: 4.4%;
   display: grid;
   grid-template-columns: repeat(4, 82px);
@@ -1245,6 +1318,15 @@
   .projectsPanel {
     width: 47vw;
   }
+  .executiveSummary {
+    left: 24%;
+    grid-template-columns: repeat(4, 1fr);
+    width: 72%;
+  }
+  .executiveSummary > span,
+  .executiveSummary button {
+    display: none;
+  }
   .aiPanel,
   .folderLabel {
     right: 2%;
@@ -1278,7 +1360,7 @@
   }
   .stage {
     height: calc(100vh - 64px);
-    min-height: 1120px;
+    min-height: 1240px;
     overflow-y: auto;
   }
   .titleBlock {
@@ -1292,11 +1374,43 @@
     display: none;
   }
   .projectsPanel {
-    top: 112px;
+    top: 224px;
     left: 18px;
     width: calc(100% - 36px);
     padding: 14px;
     transform: translate(var(--panel-offset-x, 0px), var(--panel-offset-y, 0px));
+  }
+  .executiveSummary {
+    top: 104px;
+    right: 18px;
+    left: 18px;
+    grid-template-columns: repeat(2, 1fr);
+    width: auto;
+    min-height: 105px;
+    padding: 8px;
+  }
+  .executiveSummary > div {
+    min-height: 43px;
+    padding: 0 10px;
+  }
+  .executiveSummary > div:nth-of-type(3) {
+    border-left: 0;
+  }
+  .executiveSummary strong {
+    font-size: 16px;
+  }
+  .executiveSummary small,
+  .executiveSummary i {
+    font-size: 7px;
+  }
+  .executiveSummary button {
+    position: absolute;
+    top: -47px;
+    right: 0;
+    display: block;
+    min-height: 36px;
+    padding: 0 11px;
+    font-size: 9px;
   }
   .projectSummary > div {
     min-height: 78px;
@@ -1313,7 +1427,7 @@
     height: 48px;
   }
   .folderRack {
-    top: 420px;
+    top: 532px;
     right: 18px;
     left: 18px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1334,18 +1448,18 @@
     display: none;
   }
   .aiPanel {
-    top: 820px;
+    top: 932px;
     right: 18px;
     width: calc(100% - 36px);
   }
   .archiveCard {
-    top: 505px;
+    top: 617px;
     left: 18px;
     width: calc(100% - 36px);
     z-index: 5;
   }
   .dropZones {
-    top: 1005px;
+    top: 1117px;
     right: 12px;
     bottom: auto;
     left: 12px;
