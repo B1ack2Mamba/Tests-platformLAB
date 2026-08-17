@@ -57,9 +57,11 @@ const VERCEL_REGION_PLACES: Record<string, Place> = {
   bom1: { city: "Мумбаи", country: "Индия" },
   cdg1: { city: "Париж", country: "Франция" },
   cle1: { city: "Кливленд", country: "США" },
+  cpt1: { city: "Кейптаун", country: "ЮАР" },
   dub1: { city: "Дублин", country: "Ирландия" },
   fra1: { city: "Франкфурт", country: "Германия" },
   gru1: { city: "Сан-Паулу", country: "Бразилия" },
+  hkg1: { city: "Гонконг", country: "Гонконг" },
   hnd1: { city: "Токио", country: "Япония" },
   iad1: { city: "Вашингтон, D.C.", country: "США" },
   lhr1: { city: "Лондон", country: "Великобритания" },
@@ -74,6 +76,7 @@ const CLOUDFLARE_COLO_PLACES: Record<string, Place> = {
   ARN: { city: "Стокгольм", country: "Швеция" },
   BOM: { city: "Мумбаи", country: "Индия" },
   CDG: { city: "Париж", country: "Франция" },
+  CPT: { city: "Кейптаун", country: "ЮАР" },
   DME: { city: "Москва", country: "Россия" },
   DXB: { city: "Дубай", country: "ОАЭ" },
   FRA: { city: "Франкфурт", country: "Германия" },
@@ -150,6 +153,25 @@ function getProjectRegionFromEnv() {
         ? "SUPABASE_PROJECT_REGION"
         : "POSTGRES_POOLER_URL"
       : "Задайте SUPABASE_PROJECT_REGION, чтобы видеть регион базы",
+  };
+}
+
+function getAppServerRoute(vercelRegion: string | null) {
+  if (vercelRegion) {
+    const place = VERCEL_REGION_PLACES[vercelRegion] || null;
+    return {
+      region: vercelRegion,
+      city: place?.city || null,
+      country: place?.country || null,
+      source: "VERCEL_REGION",
+    };
+  }
+
+  return {
+    region: process.env.APP_SERVER_REGION || "self-host",
+    city: process.env.APP_SERVER_CITY || null,
+    country: process.env.APP_SERVER_COUNTRY || null,
+    source: process.env.APP_SERVER_PROVIDER ? `Self-host: ${process.env.APP_SERVER_PROVIDER}` : "Self-host server",
   };
 }
 
@@ -237,7 +259,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const visitorCity = getHeaderValue(req, "x-vercel-ip-city");
     const visitorRegion = getHeaderValue(req, "x-vercel-ip-country-region");
     const vercelRegion = process.env.VERCEL_REGION || null;
-    const vercelPlace = vercelRegion ? VERCEL_REGION_PLACES[vercelRegion] : null;
+    const appServerRoute = getAppServerRoute(vercelRegion);
     const firstCfColo = checks.find((item) => item.headers.cf_colo)?.headers.cf_colo || null;
     const cfPlace = firstCfColo ? CLOUDFLARE_COLO_PLACES[firstCfColo] : null;
     const projectRegion = getProjectRegionFromEnv();
@@ -257,10 +279,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           source: "Vercel request geolocation headers",
         },
         vercel: {
-          region: vercelRegion,
-          city: vercelPlace?.city || null,
-          country: vercelPlace?.country || null,
-          source: "VERCEL_REGION",
+          ...appServerRoute,
         },
         supabase_edge: {
           cf_colo: firstCfColo,

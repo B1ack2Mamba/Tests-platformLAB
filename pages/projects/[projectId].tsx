@@ -24,6 +24,7 @@ import type { ProjectRoutingMeta } from "@/lib/projectRoutingMeta";
 import { getCompetencyLongLabel } from "@/lib/competencyRouter";
 import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 import { friendlyErrorMessage } from "@/lib/friendlyErrors";
+import { ONBOARDING_GUIDE_POSES, PLATFORM_ONBOARDING_GUIDE } from "@/lib/onboardingGuide";
 
 type ProjectPayload = {
   ok: true;
@@ -347,26 +348,32 @@ const PROJECT_DETAILS_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     target: "project-share-access",
     title: "Отправьте кандидату",
-    body: "Это доступ кандидата к тестам. Скопируйте ссылку и отправьте её в мессенджер или покажите QR-код: по нему кандидат откроет страницу прохождения.",
+    body: "Отправьте кандидату основную ссылку или покажите QR-код. Запасная ссылка ведёт в тот же проект: используйте её, если основной адрес у участника не открывается.",
     placement: "left",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
+    guideSide: "right",
   },
   {
     target: "project-tests-progress",
     title: "Прогресс по тестам",
     body: "Здесь видно, какие тесты назначены и что кандидат уже прошёл. Когда напротив теста появляется «Готово», этот результат уже учтён в проекте.",
     placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.present,
   },
   {
     target: "project-progress-counter",
     title: "Сколько уже пройдено",
     body: "Этот счётчик показывает общий прогресс кандидата: сколько тестов готово из всего набора. По нему быстро видно, можно ли уже ждать итоговую оценку.",
     placement: "bottom",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
   },
   {
     target: "project-get-result",
     title: "Получить результат",
-    body: "Когда кандидат завершит все тесты, эта печать станет активной. Нажмите её, чтобы перейти к странице оценки проекта и открыть итоговый результат.",
+    body: "Когда станет доступен результат, откройте его здесь. На следующей странице можно выбрать глубину ИИ-анализа, посмотреть полный вывод и скачать отчёт.",
     placement: "left",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.results,
+    guideSide: "right",
   },
 ];
 
@@ -1119,7 +1126,7 @@ export default function ProjectDetailsPage() {
 
   return (
     <Layout title={data?.project.title || "Проект оценки"}>
-      {!simpleEmbedded ? <OnboardingTour tourId="project-details-v1" steps={PROJECT_DETAILS_ONBOARDING_STEPS} /> : null}
+      {!simpleEmbedded ? <OnboardingTour tourId="project-details-v2" steps={PROJECT_DETAILS_ONBOARDING_STEPS} guide={PLATFORM_ONBOARDING_GUIDE} /> : null}
       <div className={`mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4 ${simpleEmbedded ? "project-details-simple" : ""}`}>
         {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_10px_24px_rgba(124,45,18,0.08)]">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}

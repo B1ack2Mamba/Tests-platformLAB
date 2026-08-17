@@ -35,6 +35,7 @@ import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, g
 import { useWallet } from "@/lib/useWallet";
 import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 import { useInterfaceMode } from "@/lib/interfaceMode";
+import { ONBOARDING_GUIDE_POSES, PLATFORM_ONBOARDING_GUIDE } from "@/lib/onboardingGuide";
 
 type WorkspacePayload = {
   ok: true;
@@ -95,24 +96,30 @@ const PROJECT_CREATE_ONBOARDING_STEPS: OnboardingStep[] = [
     title: "Кого оцениваем",
     body: "Обязательно заполните имя и фамилию. Email, текущая должность, будущая роль и комментарий помогают сделать отчёт точнее, но проект можно создать и с базовыми данными.",
     placement: "bottom",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
   },
   {
     target: "project-assessment-focus",
     title: "Что проверяем",
     body: "Для быстрого старта оставьте режим «По текущей цели» и выберите сценарий оценки. Если нужен точный профиль под компетенции, переключитесь на режим компетенций.",
     placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointLeft,
+    guideSide: "right",
   },
   {
     target: "project-tests-list",
     title: "Набор тестов",
     body: "Система сама подбирает тесты под выбранную цель или компетенции. Редактор нужен только когда вы сознательно хотите убрать или добавить отдельный тест.",
     placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.present,
   },
   {
     target: "project-submit",
     title: "Создание проекта",
     body: "После нажатия появится карточка проекта со ссылкой и QR-кодом для клиента. Эту ссылку можно отправить кандидату для прохождения тестов.",
     placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.results,
+    guideSide: "right",
   },
 ];
 
@@ -936,7 +943,15 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   return (
     <Layout title="Новый проект оценки">
-      {!simpleEmbedded ? <OnboardingTour tourId="project-create-v1" steps={PROJECT_CREATE_ONBOARDING_STEPS} /> : null}
+      <OnboardingTour
+        tourId={simpleEmbedded ? "project-create-simple-v2" : "project-create-v2"}
+        steps={PROJECT_CREATE_ONBOARDING_STEPS}
+        guide={{
+          ...PLATFORM_ONBOARDING_GUIDE,
+          welcomeTitle: "Создадим проект вместе?",
+          welcomeBody: "Я покажу, какие данные нужны, как выбрать цель и тесты и что произойдёт после создания проекта.",
+        }}
+      />
       <div className={`project-create-page mx-auto px-2 pb-6 pt-2 sm:px-4 ${simpleEmbedded ? "project-create-simple" : ""}`}>
         <div className="project-create-shell relative mx-auto min-h-[calc(100vh-40px)] max-w-[1280px] overflow-visible">
           <div className="project-create-stage flex min-h-[calc(100vh-40px)] items-start justify-center overflow-visible pt-4">

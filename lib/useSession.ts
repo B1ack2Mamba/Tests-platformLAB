@@ -71,6 +71,17 @@ export function useSession() {
       setLoading(false);
     });
 
+    const handleLocalAuthSession = (event: Event) => {
+      if (!mounted) return;
+      const nextSession = (event as CustomEvent<Session | null>).detail ?? null;
+      setSession(nextSession);
+      setLoading(false);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("lk-auth-session", handleLocalAuthSession);
+    }
+
     const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
@@ -79,6 +90,9 @@ export function useSession() {
 
     return () => {
       mounted = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("lk-auth-session", handleLocalAuthSession);
+      }
       data.subscription.unsubscribe();
     };
   }, [supabase]);

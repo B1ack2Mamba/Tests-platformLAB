@@ -18,6 +18,7 @@ import { useSession } from "@/lib/useSession";
 import { useWalletBalance } from "@/lib/useWalletBalance";
 import type { ResultsBlueprint } from "@/lib/projectResultsBlueprint";
 import { friendlyErrorMessage } from "@/lib/friendlyErrors";
+import { ONBOARDING_GUIDE_POSES, PLATFORM_ONBOARDING_GUIDE } from "@/lib/onboardingGuide";
 
 type ResultsPagePayload = {
   ok: true;
@@ -80,30 +81,37 @@ const PROJECT_RESULTS_ONBOARDING_STEPS: OnboardingStep[] = [
     title: "Уровни оценки",
     body: "Здесь выбирается глубина результата: базовый вывод, AI-анализ или AI+ с расширенной калибровкой. Недоступный уровень можно открыть по тарифу или оплатой.",
     placement: "bottom",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.present,
   },
   {
     target: "project-results-status",
     title: "Статус анализа",
     body: "Этот блок показывает, сколько тестов, компетенций и связей попало в расчёт. По нему удобно понять полноту собранной оценки.",
     placement: "left",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
+    guideSide: "right",
   },
   {
     target: "project-results-tabs",
     title: "Открытые результаты",
     body: "После открытия уровня переключайтесь между доступными версиями анализа. Если данных стало больше, результат можно обновить.",
     placement: "bottom",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
   },
   {
     target: "project-results-export",
     title: "Экспорт отчёта",
     body: "Когда результат собран, его можно скачать как файл Word или сохранить в PDF для передачи заказчику.",
     placement: "left",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
+    guideSide: "right",
   },
   {
     target: "project-results-ai-plus",
     title: "Уточнение AI+",
     body: "В AI+ можно задать дополнительный акцент: роль, управленческий потенциал, риски, соответствие цели или другой фокус отчёта.",
     placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.results,
   },
 ];
 
@@ -1022,7 +1030,7 @@ export default function ProjectResultsStandalonePage() {
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
-      {!compactEmbedded ? <OnboardingTour tourId="project-results-v1" steps={PROJECT_RESULTS_ONBOARDING_STEPS} /> : null}
+      {!compactEmbedded ? <OnboardingTour tourId="project-results-v2" steps={PROJECT_RESULTS_ONBOARDING_STEPS} guide={PLATFORM_ONBOARDING_GUIDE} /> : null}
       <div className={`project-results-page mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4 ${compactEmbedded ? "project-results-compact" : ""}`}>
         {error ? <div className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
@@ -1182,6 +1190,7 @@ export default function ProjectResultsStandalonePage() {
                           <>
                             <button
                               type="button"
+                              data-simple-download-analysis
                               onClick={exportWord}
                               className="rounded-[18px] border border-[#d9c4a4] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-[#5b4731]"
                             >

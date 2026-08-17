@@ -98,13 +98,380 @@
   isolation: isolate;
 }
 
-.stage canvas {
+.deskBackground {
   position: absolute;
   z-index: 0;
   inset: 0;
   width: 100%;
   height: 100%;
-  touch-action: manipulation;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ambientLight {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 12% 37%, rgba(255, 162, 69, 0.14), transparent 24%),
+    radial-gradient(ellipse at 74% 34%, rgba(111, 185, 222, 0.07), transparent 20%);
+  mix-blend-mode: screen;
+}
+
+.deskObject {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  aspect-ratio: 1.35;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #eadcc5;
+  background: transparent;
+  transform-origin: center;
+  transition: filter 0.24s ease, opacity 0.24s ease, transform 0.16s ease-out;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.deskObject:hover {
+  z-index: 3;
+  filter: brightness(1.08) drop-shadow(0 13px 18px rgba(0, 0, 0, 0.36));
+}
+
+.deskObject > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.builderObject {
+  cursor: grab;
+}
+
+.builderObject:active {
+  cursor: grabbing;
+}
+
+.selectedDeskObject::after {
+  position: absolute;
+  z-index: 9;
+  inset: 5%;
+  border: 1px dashed rgba(242, 191, 111, 0.92);
+  border-radius: 12px;
+  box-shadow: 0 0 0 5px rgba(201, 139, 67, 0.12), 0 0 28px rgba(235, 173, 89, 0.22);
+  content: "";
+  pointer-events: none;
+}
+
+.trashObject {
+  aspect-ratio: 3.25;
+  filter: drop-shadow(0 15px 15px rgba(0, 0, 0, 0.42));
+}
+
+.trashObject > img {
+  transform: perspective(720px) rotateX(48deg) translateY(4%) scaleX(0.96);
+  transform-origin: 50% 78%;
+  filter: brightness(0.78) contrast(1.12);
+}
+
+.trashObject::before {
+  position: absolute;
+  z-index: 1;
+  top: 25%;
+  right: 13%;
+  bottom: 23%;
+  left: 13%;
+  border-radius: 42%;
+  background: radial-gradient(ellipse at 50% 100%, rgba(20, 15, 11, 0.1), rgba(0, 0, 0, 0.74) 78%);
+  box-shadow: inset 0 14px 21px rgba(0, 0, 0, 0.68), 0 8px 13px rgba(0, 0, 0, 0.27);
+  content: "";
+  pointer-events: none;
+  transform: perspective(720px) rotateX(48deg) translateY(4%);
+  transform-origin: 50% 78%;
+}
+
+.archiveObject {
+  aspect-ratio: 1.28;
+}
+
+.projectsObject {
+  aspect-ratio: 1.05;
+  z-index: 3;
+}
+
+.organizerObject {
+  aspect-ratio: 1.72;
+}
+
+.aiObject {
+  aspect-ratio: 1.1;
+}
+
+.modelObject {
+  aspect-ratio: 1;
+  overflow: visible;
+}
+
+.lampObject {
+  aspect-ratio: 1.18;
+}
+
+.droidObject {
+  aspect-ratio: 0.85;
+}
+
+.modelViewport,
+.modelViewport canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.lampAura {
+  position: absolute;
+  z-index: -1;
+  top: 25%;
+  left: 5%;
+  width: 70%;
+  height: 60%;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(ellipse, rgba(255, 166, 69, 0.52), rgba(255, 128, 38, 0.12) 46%, transparent 72%);
+  filter: blur(18px);
+  transition: opacity 0.45s ease;
+  transform: rotate(-16deg);
+}
+
+.lampOn .lampAura {
+  opacity: 1;
+}
+
+.trayContent,
+.archiveCover,
+.projectsCover,
+.infoBoardContent,
+.aiScreenContent {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  font-family: "Trebuchet MS", sans-serif;
+  text-shadow: 0 2px 9px #000;
+}
+
+.trayContent {
+  top: 45%;
+  left: 27%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  transform: translateY(-50%) scale(0.86);
+  transform-origin: left center;
+}
+
+.trayContent b {
+  font-size: clamp(8px, 0.9vw, 14px);
+  font-weight: 500;
+}
+
+.trayContent small {
+  color: #9a8c79;
+  font-size: clamp(6px, 0.65vw, 10px);
+}
+
+.archiveCover {
+  top: 31%;
+  left: 33%;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  width: 39%;
+}
+
+.archiveCover b {
+  color: #dec39a;
+  font: italic 500 clamp(10px, 1.3vw, 20px)/1 Georgia, serif;
+}
+
+.archiveCover strong {
+  margin-top: 3px;
+  color: #e4d6c4;
+  font: italic 400 clamp(13px, 1.75vw, 28px)/1 Georgia, serif;
+}
+
+.archiveCover small {
+  color: #978873;
+  font-size: clamp(6px, 0.62vw, 10px);
+}
+
+.projectsCover {
+  top: 31%;
+  left: 19%;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 62%;
+}
+
+.projectsCover i {
+  color: #e6cca1;
+  font: normal 500 clamp(13px, 2vw, 31px)/1 sans-serif;
+}
+
+.projectsCover b {
+  margin-bottom: 7px;
+  color: #ddcfbc;
+  font: 500 clamp(12px, 1.8vw, 28px)/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.projectsCover small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 88px;
+  color: #9d8f7e;
+  font-size: clamp(6px, 0.6vw, 9px);
+}
+
+.projectsCover em {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #76aa70;
+  box-shadow: 0 0 8px rgba(118, 170, 112, 0.54);
+}
+
+.projectsCover .pauseDot {
+  background: #d8a24c;
+  box-shadow: 0 0 8px rgba(216, 162, 76, 0.5);
+}
+
+.infoBoardContent {
+  top: 17%;
+  left: 15.5%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5%;
+  width: 70%;
+  color: #d9cbb7;
+  transform: perspective(900px) rotateZ(3.1deg) skewX(-1.2deg);
+  transform-origin: 50% 45%;
+}
+
+.infoBoardContent > b {
+  grid-column: 1 / -1;
+  padding-bottom: 5%;
+  border-bottom: 1px solid rgba(211, 164, 96, 0.27);
+  font: 500 clamp(7px, 0.9vw, 14px)/1 Georgia, serif;
+}
+
+.infoBoardContent > span {
+  display: grid;
+  gap: 4px;
+  padding-right: 6px;
+  border-right: 1px solid rgba(211, 164, 96, 0.16);
+}
+
+.infoBoardContent .boardRule {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 1px;
+  margin: 2px 0 0;
+  background: linear-gradient(90deg, transparent, rgba(209, 160, 93, 0.28), transparent);
+}
+
+.infoBoardContent .boardLine {
+  padding-top: 2px;
+  border-right: 0;
+}
+
+.infoBoardContent .boardLine strong {
+  color: #9fc38a;
+  font-size: clamp(5px, 0.55vw, 9px);
+}
+
+.infoBoardContent > span:last-child {
+  border-right: 0;
+}
+
+.infoBoardContent small {
+  color: #817667;
+  font-size: clamp(4px, 0.42vw, 7px);
+}
+
+.infoBoardContent strong {
+  color: #e3d8c8;
+  font: 500 clamp(6px, 0.75vw, 12px)/1.1 "Trebuchet MS", sans-serif;
+}
+
+.aiScreenContent {
+  top: 16.5%;
+  left: 18%;
+  display: grid;
+  gap: 6px;
+  width: 62%;
+  text-align: left;
+  transform: perspective(850px) rotateZ(3.6deg) skewX(-0.8deg);
+  transform-origin: 50% 45%;
+}
+
+.aiScreenContent b {
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(214, 171, 107, 0.2);
+  font: 500 clamp(7px, 0.8vw, 13px)/1 Georgia, serif;
+}
+
+.aiScreenContent i {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7dbc80;
+  box-shadow: 0 0 10px #7dbc80;
+}
+
+.aiScreenContent small {
+  color: #877b6c;
+  font-size: clamp(4px, 0.45vw, 7px);
+}
+
+.aiScreenContent strong {
+  font-size: clamp(6px, 0.65vw, 10px);
+  font-weight: 500;
+}
+
+.aiScreenContent em {
+  color: #8b806f;
+  font: normal clamp(4px, 0.4vw, 7px)/1.35 "Trebuchet MS", sans-serif;
+}
+
+.aiScreenContent span {
+  margin-top: 3px;
+  padding: 5px 7px;
+  border: 1px solid rgba(205, 159, 93, 0.16);
+  border-radius: 3px;
+  color: #cbb99f;
+  background: rgba(93, 60, 30, 0.15);
+  font-size: clamp(4px, 0.42vw, 7px);
+}
+
+.projectsOpening {
+  opacity: 0 !important;
+  transform: translate(-50%, -38%) scale(1.12) !important;
 }
 
 .stage::after {
@@ -118,12 +485,34 @@
   content: "";
 }
 
+.panelFocus > .deskObject {
+  opacity: 0.2 !important;
+  filter: brightness(0.52) saturate(0.68) blur(0.5px);
+  pointer-events: none !important;
+}
+
+.panelFocus > .lampObject,
+.panelFocus > .droidObject {
+  opacity: 0.38 !important;
+}
+
+.panelFocus > .summary,
+.panelFocus > .navigationHint,
+.panelFocus > .bottomNav,
+.panelFocus > .settings,
+.panelFocus > .toast {
+  opacity: 0.32;
+  filter: blur(0.35px);
+  pointer-events: none;
+  transition: opacity 0.28s ease, filter 0.28s ease;
+}
+
 .summary {
   position: absolute;
   z-index: 4;
   top: 25px;
   left: 50%;
-  width: min(700px, 53vw);
+  width: min(760px, 46vw);
   padding: 15px 22px 17px;
   border: 1px solid rgba(214, 168, 101, 0.24);
   border-radius: 10px;
@@ -289,6 +678,197 @@
   border-radius: 9px;
 }
 
+.settings:disabled {
+  cursor: wait;
+  opacity: 0.42;
+}
+
+.settingsActive {
+  color: #21150c;
+  border-color: #d5a660;
+  background: linear-gradient(#ebcb96, #ad7638);
+}
+
+.builderPanel {
+  position: absolute;
+  z-index: 18;
+  top: 112px;
+  right: 20px;
+  width: 310px;
+  padding: 18px;
+  border: 1px solid rgba(224, 179, 110, 0.38);
+  border-radius: 15px;
+  color: #ded1be;
+  background:
+    radial-gradient(circle at 100% 0, rgba(155, 102, 43, 0.2), transparent 32%),
+    linear-gradient(145deg, rgba(45, 31, 22, 0.98), rgba(13, 12, 11, 0.98));
+  box-shadow: 0 28px 75px rgba(0, 0, 0, 0.68), inset 0 1px rgba(255, 255, 255, 0.055);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(24px) scale(0.97);
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  backdrop-filter: blur(15px);
+}
+
+.builderPanelOpen {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+}
+
+.builderPanel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(211, 168, 104, 0.18);
+}
+
+.builderPanel > header div {
+  display: grid;
+  gap: 6px;
+}
+
+.builderPanel > header span {
+  color: #b98443;
+  font: 700 8px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.2em;
+}
+
+.builderPanel > header strong {
+  font: 500 21px/1.15 "Palatino Linotype", Georgia, serif;
+}
+
+.builderPanel > header button {
+  width: 29px;
+  height: 29px;
+  border: 1px solid rgba(208, 166, 103, 0.23);
+  border-radius: 50%;
+  color: #c9b79d;
+  background: rgba(8, 7, 6, 0.45);
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.builderModes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 15px 0;
+  padding: 5px;
+  border: 1px solid rgba(213, 169, 104, 0.14);
+  border-radius: 9px;
+  background: rgba(7, 6, 5, 0.28);
+}
+
+.builderModes button {
+  padding: 9px 5px;
+  border: 0;
+  border-radius: 6px;
+  color: #817669;
+  background: transparent;
+  font: 10px/1 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.builderModes .builderModeActive {
+  color: #21150d;
+  background: linear-gradient(#efd19e, #b27c3e);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+.builderObjects {
+  display: grid;
+  gap: 5px;
+  max-height: min(330px, 42vh);
+  overflow: auto;
+  padding-right: 3px;
+  scrollbar-color: #6f4c2e transparent;
+  scrollbar-width: thin;
+}
+
+.builderObjects > div {
+  display: grid;
+  grid-template-columns: 1fr 38px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: rgba(18, 15, 13, 0.5);
+}
+
+.builderObjects .builderObjectActive {
+  border-color: rgba(216, 166, 91, 0.5);
+  background: linear-gradient(90deg, rgba(131, 84, 37, 0.3), rgba(18, 15, 13, 0.62));
+}
+
+.builderObjects button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 0;
+  color: #bcae9c;
+  text-align: left;
+  background: transparent;
+  font: 10px/1.2 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.builderObjects button:disabled {
+  opacity: 0.38;
+}
+
+.builderObjects i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border: 1px solid #c18a46;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.builderObjects span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.builderObjects .visibilityButton {
+  justify-content: center;
+  padding: 8px;
+  color: #c18a46;
+  font-size: 9px;
+}
+
+.builderPanel > p {
+  margin: 13px 2px;
+  color: #796f64;
+  font: 9px/1.5 "Trebuchet MS", sans-serif;
+}
+
+.builderPanel > footer {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 8px;
+}
+
+.builderPanel > footer button {
+  padding: 11px 10px;
+  border: 1px solid rgba(210, 164, 96, 0.28);
+  border-radius: 7px;
+  color: #aa9b89;
+  background: rgba(12, 10, 9, 0.55);
+  font: 700 9px/1 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.builderPanel > footer .saveLayoutButton {
+  color: #24160c;
+  border-color: #c89550;
+  background: linear-gradient(#efd19e, #b27c3e);
+}
+
 .toast {
   top: 114px;
   right: 24px;
@@ -383,16 +963,13 @@
 }
 
 .bookPanel {
-  top: 11%;
+  top: 7%;
   left: 50%;
-  display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  width: min(980px, 88vw);
-  height: min(660px, 74vh);
-  padding: 22px;
-  border-radius: 26px 20px 20px 26px;
-  background:
-    linear-gradient(90deg, #24150e 0 20%, #16110e 20% 100%);
+  width: min(1280px, 96vw, calc(84vh * 1.457));
+  height: auto;
+  aspect-ratio: 1224 / 840;
+  border: 0;
+  background: transparent;
   transform: translateX(-50%);
   transform-origin: 50% 80%;
 }
@@ -402,22 +979,502 @@
 }
 
 .bookPanel::before {
-  position: absolute;
-  inset: 8px;
-  pointer-events: none;
-  border: 1px solid rgba(208, 155, 79, 0.36);
-  border-radius: 20px 15px 15px 20px;
-  box-shadow: inset 0 0 0 5px rgba(45, 26, 17, 0.8);
+  position: fixed;
+  z-index: -1;
+  inset: 72px 0 0;
+  background:
+    radial-gradient(circle at 50% 52%, transparent 22%, rgba(0, 0, 0, 0.34) 70%),
+    rgba(3, 3, 3, 0.54);
   content: "";
+  backdrop-filter: blur(2px);
+}
+
+.openBookVisual {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 34px 45px rgba(0, 0, 0, 0.7));
+}
+
+.bookPanel > .close {
+  top: 5%;
+  right: 4%;
+  background: rgba(12, 10, 8, 0.92);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.48);
+}
+
+.folioFilters {
+  position: absolute;
+  z-index: 3;
+  top: 19%;
+  bottom: 13%;
+  left: 5.8%;
+  display: grid;
+  align-content: start;
+  gap: 13px;
+  width: 18%;
+  padding: 19px 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid rgba(208, 161, 92, 0.14);
+  border-radius: 7px 5px 5px 10px;
+  color: #a99b89;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.28), transparent 11%),
+    rgba(13, 12, 11, 0.6);
+  box-shadow: inset -10px 0 22px rgba(0, 0, 0, 0.2);
+  transform: perspective(850px) rotateY(3deg);
+}
+
+.folioFilters > span {
+  padding-bottom: 11px;
+  border-bottom: 1px solid rgba(207, 160, 93, 0.15);
+  color: #dbc7a9;
+  font: 500 15px/1 Georgia, serif;
+}
+
+.folioFilters section {
+  display: grid;
+  gap: 3px;
+}
+
+.folioFilters section > b {
+  position: relative;
+  margin-bottom: 4px;
+  padding-right: 15px;
+  color: #9d7c52;
+  font: 500 9px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioFilters section > b::after {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  content: "⌃";
+}
+
+.folioFilters section button,
+.resetFolioFilters {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #7f766b;
+  text-align: left;
+  background: transparent;
+  font: 8px/1.1 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.folioFilters section button:hover,
+.folioFilters section .folioFilterActive {
+  border-color: rgba(207, 160, 93, 0.19);
+  color: #c9b89f;
+  background: rgba(119, 78, 35, 0.17);
+}
+
+.folioFilters button > em {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border: 1px solid #5e5143;
+  border-radius: 2px;
+}
+
+.folioFilters .folioFilterActive > em {
+  border-color: #b9874d;
+  background: linear-gradient(#d9af72, #8d5f32);
+  box-shadow: inset 0 0 0 2px #20150d;
+}
+
+.folioFilters button > i,
+.folioRows button > span:nth-child(2) > i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.green { background: #66a267; box-shadow: 0 0 7px rgba(102, 162, 103, 0.4); }
+.amber { background: #ce973f; box-shadow: 0 0 7px rgba(206, 151, 63, 0.36); }
+.gray { background: #6d7780; box-shadow: 0 0 7px rgba(109, 119, 128, 0.3); }
+
+.folioFilters .resetFolioFilters {
+  margin-top: 1px;
+  color: #665c52;
+}
+
+.folioScreen {
+  position: absolute;
+  z-index: 3;
+  top: 10.5%;
+  right: 12.7%;
+  bottom: 13.5%;
+  left: 24.6%;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  padding: 22px 24px 17px;
+  overflow: hidden;
+  border: 1px solid rgba(211, 163, 94, 0.16);
+  border-radius: 6px 9px 9px 6px;
+  color: #d8c9b5;
+  background:
+    radial-gradient(circle at 65% 0, rgba(125, 82, 38, 0.09), transparent 34%),
+    linear-gradient(145deg, rgba(24, 22, 20, 0.97), rgba(11, 11, 10, 0.98));
+  box-shadow:
+    -9px 0 24px rgba(0, 0, 0, 0.3),
+    inset 0 0 38px rgba(224, 173, 99, 0.02);
+  backdrop-filter: blur(3px);
+}
+
+.folioScreen > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 13px;
+}
+
+.folioTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.folioTitle > i {
+  color: #d8b578;
+  font: normal 18px/1 sans-serif;
+}
+
+.folioTitle h2 {
+  margin: 0;
+  color: #e7ded1;
+  font: 500 clamp(22px, 2.2vw, 35px)/1 "Trebuchet MS", sans-serif;
+}
+
+.folioTitle > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #8f8476;
+  font: 8px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioTitle > span em {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #65a168;
+}
+
+.createFolioProject,
+.folioActions button,
+.folioPagination button {
+  border: 1px solid rgba(209, 161, 91, 0.3);
+  border-radius: 5px;
+  color: #cbb99d;
+  background: linear-gradient(#3a2c20, #201913);
+  font: 8px/1 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.createFolioProject {
+  padding: 10px 13px;
+}
+
+.folioToolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(145px, auto);
+  gap: 8px;
+  padding: 0 0 13px;
+}
+
+.folioToolbar label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid rgba(204, 158, 91, 0.17);
+  border-radius: 5px;
+  background: rgba(8, 8, 7, 0.34);
+}
+
+.folioToolbar label > i {
+  color: #766a5d;
+  font: normal 17px/1 sans-serif;
+}
+
+.folioToolbar input,
+.folioToolbar select,
+.folioToolbar > button {
+  min-width: 0;
+  border: 1px solid rgba(204, 158, 91, 0.17);
+  border-radius: 5px;
+  outline: 0;
+  color: #9d9182;
+  background: rgba(8, 8, 7, 0.34);
+  font: 8px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioToolbar input {
+  width: 100%;
+  padding: 9px 0;
+  border: 0;
+  background: transparent;
+}
+
+.folioToolbar select,
+.folioToolbar > button {
+  padding: 9px 11px;
+  cursor: pointer;
+}
+
+.folioToolbar select option {
+  color: #d8c9b5;
+  background: #171411;
+}
+
+.folioTable {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(211, 164, 95, 0.15);
+  border-radius: 6px;
+  background: rgba(8, 8, 7, 0.22);
+}
+
+.folioColumns,
+.folioRows > button {
+  display: grid;
+  grid-template-columns: 1.55fr 0.82fr 1fr 0.8fr 0.9fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.folioColumns {
+  padding: 9px 13px;
+  border-bottom: 1px solid rgba(209, 162, 94, 0.14);
+  color: #9e7c50;
+  font: 8px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioRows {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  padding: 7px;
+  overflow: auto;
+  scrollbar-color: #6f492c #151210;
+  scrollbar-width: thin;
+}
+
+.folioRows > button {
+  min-height: 54px;
+  padding: 7px 12px;
+  border: 1px solid rgba(211, 164, 95, 0.11);
+  border-radius: 5px;
+  color: #a99d8e;
+  text-align: left;
+  background: rgba(34, 31, 28, 0.66);
+  cursor: pointer;
+}
+
+.folioRows > button:hover,
+.folioRows > .selectedFolioProject {
+  border-color: rgba(222, 174, 98, 0.77);
+  color: #e4d3bb;
+  background: linear-gradient(90deg, rgba(103, 69, 35, 0.34), rgba(31, 28, 25, 0.84));
+  box-shadow: 0 0 14px rgba(211, 157, 79, 0.11), inset 0 0 15px rgba(225, 174, 97, 0.03);
+}
+
+.folioRows > button > span {
+  min-width: 0;
+}
+
+.folioRows > button > span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.folioRows > button > span:first-child strong {
+  overflow: hidden;
+  color: #ddd2c2;
+  font: 500 10px/1.1 "Trebuchet MS", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folioRows > button > span:first-child small {
+  overflow: hidden;
+  color: #736b62;
+  font: 7px/1 "Trebuchet MS", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folioRows > button > span:nth-child(2),
+.folioRows > button > span:nth-child(3) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 7px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioRows > button > span:nth-child(3) em {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(204, 156, 88, 0.25);
+  border-radius: 50%;
+  color: #b89b74;
+  background: #28221c;
+  font: normal 8px/1 Georgia, serif;
+}
+
+.folioRows > button > span:nth-child(4) {
+  color: #978c7e;
+  font: 7px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioRows > button > span:last-child {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr 8px;
+  align-items: center;
+  gap: 6px;
+}
+
+.folioRows > button > span:last-child > strong {
+  font: 500 8px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioRows > button > span:last-child > i {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #39352f;
+}
+
+.folioRows > button > span:last-child > i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #5c9955, #9fc57a);
+}
+
+.folioRows > button > span:last-child > small {
+  color: #c4b294;
+  font: 14px/1 sans-serif;
+}
+
+.folioPagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  color: #6f675d;
+  font: 7px/1 "Trebuchet MS", sans-serif;
+}
+
+.folioPagination > div {
+  display: flex;
+  gap: 4px;
+}
+
+.folioPagination button {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  color: #756b60;
+  background: rgba(12, 10, 9, 0.6);
+}
+
+.folioPagination .activeFolioPage {
+  color: #d7c19d;
+  border-color: #986b38;
+  background: #3e2d20;
+}
+
+.folioTabs {
+  position: absolute;
+  z-index: 2;
+  top: 21%;
+  right: 3.2%;
+  display: grid;
+  gap: 7px;
+  width: 9.5%;
+}
+
+.folioTabs button {
+  min-height: 70px;
+  padding: 9px 7px 9px 18px;
+  border: 1px solid rgba(207, 157, 87, 0.22);
+  border-radius: 0 9px 9px 0;
+  color: #8c7d69;
+  background:
+    linear-gradient(90deg, #2a1b12, #4a3222 65%, #342116);
+  box-shadow: 7px 8px 13px rgba(0, 0, 0, 0.35), inset 0 1px rgba(255, 255, 255, 0.03);
+  font: 8px/1.25 Georgia, serif;
+  cursor: pointer;
+}
+
+.folioTabs button:hover,
+.folioTabs .activeFolioTab {
+  color: #e0c9a5;
+  border-color: rgba(220, 170, 95, 0.55);
+  background: linear-gradient(90deg, #45301f, #735033 70%, #4a2f1c);
+  transform: translateX(5px);
+}
+
+.folioActions {
+  position: absolute;
+  z-index: 4;
+  bottom: 5.2%;
+  left: 39%;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 58px;
+  gap: 13px;
+  width: 39%;
+}
+
+.folioActions button {
+  padding: 12px 16px;
+}
+
+.folioActions .openFolioProject {
+  color: #27190f;
+  border-color: #c9964e;
+  background: linear-gradient(#edcc94, #a96e34);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.45), 0 5px 13px rgba(0, 0, 0, 0.35);
 }
 
 .bookFilters {
+  position: absolute;
   z-index: 1;
+  top: 19%;
+  bottom: 20%;
+  left: 7.5%;
   display: grid;
   align-content: start;
   gap: 8px;
-  padding: 35px 18px 20px 8px;
-  border-right: 1px solid rgba(213, 163, 91, 0.2);
+  width: 18%;
+  padding: 24px 17px;
+  border: 1px solid rgba(213, 163, 91, 0.15);
+  border-radius: 8px;
+  background: rgba(7, 7, 7, 0.2);
+  transform: perspective(800px) rotateY(4deg);
 }
 
 .bookFilters > span,
@@ -459,19 +1516,24 @@
 }
 
 .bookPage {
-  position: relative;
+  position: absolute;
   z-index: 2;
+  top: 13.5%;
+  right: 9.8%;
+  bottom: 16%;
+  left: 29%;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  margin: 7px 7px 7px 18px;
   padding: 28px 32px 20px;
   overflow: hidden;
-  border-radius: 7px 12px 12px 7px;
+  border: 1px solid rgba(218, 174, 108, 0.12);
+  border-radius: 6px 10px 10px 6px;
   color: #e9ded0;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.22), transparent 4%),
-    linear-gradient(145deg, #211d19, #121110);
-  box-shadow: -8px 0 22px rgba(0, 0, 0, 0.35), inset 0 0 38px rgba(226, 174, 95, 0.025);
+    linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 4%),
+    linear-gradient(145deg, rgba(33, 29, 25, 0.93), rgba(18, 17, 16, 0.95));
+  box-shadow: -8px 0 22px rgba(0, 0, 0, 0.24), inset 0 0 42px rgba(226, 174, 95, 0.035);
+  backdrop-filter: blur(3px);
 }
 
 .bookPage > header {
@@ -606,9 +1668,9 @@
 .pageStack {
   position: absolute;
   z-index: 1;
-  right: 9px;
-  bottom: 9px;
-  left: 216px;
+  right: 10%;
+  bottom: 14%;
+  left: 29%;
   height: 24px;
   pointer-events: none;
 }
@@ -724,6 +1786,410 @@
   width: 100%;
 }
 
+.bookHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 34px;
+}
+
+.bookHeaderActions input,
+.aiAsk input {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(208, 163, 96, 0.22);
+  border-radius: 6px;
+  outline: 0;
+  color: #d8c9b5;
+  background: rgba(8, 7, 6, 0.5);
+  font: 9px/1 "Trebuchet MS", sans-serif;
+}
+
+.bookHeaderActions input {
+  width: 150px;
+}
+
+.bookHeaderActions input:focus,
+.aiAsk input:focus {
+  border-color: rgba(220, 171, 96, 0.62);
+  box-shadow: 0 0 0 3px rgba(182, 119, 49, 0.1);
+}
+
+.emptyProjects {
+  margin: 25px 0;
+  color: #877a6b;
+  text-align: center;
+  font: 10px/1.5 "Trebuchet MS", sans-serif;
+}
+
+.aiAsk {
+  display: grid;
+  gap: 8px;
+}
+
+.aiAsk input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.workspacePanel {
+  position: absolute;
+  z-index: 16;
+  top: 13%;
+  left: 50%;
+  display: grid;
+  width: min(880px, 86vw);
+  max-height: 74vh;
+  padding: 34px;
+  overflow: auto;
+  border: 1px solid rgba(219, 171, 99, 0.42);
+  border-radius: 21px;
+  color: #e5d6c0;
+  background:
+    radial-gradient(circle at 90% 0, rgba(151, 96, 37, 0.2), transparent 30%),
+    linear-gradient(145deg, rgba(47, 32, 23, 0.98), rgba(12, 11, 10, 0.99));
+  box-shadow:
+    0 38px 110px rgba(0, 0, 0, 0.82),
+    inset 0 1px rgba(255, 255, 255, 0.055),
+    inset 0 0 0 7px rgba(83, 49, 28, 0.3);
+  transform: translateX(-50%);
+  scrollbar-color: #6e482c transparent;
+  scrollbar-width: thin;
+  backdrop-filter: blur(17px);
+}
+
+.workspacePanel::before {
+  position: absolute;
+  inset: 9px;
+  pointer-events: none;
+  border: 1px solid rgba(213, 162, 87, 0.13);
+  border-radius: 14px;
+  content: "";
+}
+
+.workspacePanel > header {
+  display: grid;
+  gap: 5px;
+  padding: 3px 44px 22px 2px;
+  border-bottom: 1px solid rgba(215, 169, 101, 0.18);
+}
+
+.workspacePanel > header > span {
+  color: #bd8848;
+  font: 700 8px/1 "Trebuchet MS", sans-serif;
+  letter-spacing: 0.22em;
+}
+
+.workspacePanel > header h2 {
+  margin: 4px 0 0;
+  font-size: clamp(31px, 4vw, 50px);
+  font-weight: 500;
+}
+
+.workspacePanel > header p,
+.safeNote {
+  margin: 3px 0 0;
+  color: #8d8173;
+  font: 10px/1.45 "Trebuchet MS", sans-serif;
+}
+
+.insightMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 22px 0 15px;
+}
+
+.insightMetrics article {
+  display: grid;
+  gap: 8px;
+  padding: 17px;
+  border: 1px solid rgba(211, 164, 95, 0.16);
+  border-radius: 9px;
+  background: rgba(10, 9, 8, 0.42);
+}
+
+.insightMetrics small,
+.projectDetailGrid small {
+  color: #8c8072;
+  font: 9px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.insightMetrics strong {
+  font: 500 29px/1 "Trebuchet MS", sans-serif;
+}
+
+.insightMetrics em {
+  color: #746a5e;
+  font: normal 8px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.insightMetrics i,
+.portfolioRows i,
+.projectProgress i {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #38332d;
+}
+
+.insightMetrics i b,
+.portfolioRows i b,
+.projectProgress i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #588a50, #abd080);
+}
+
+.portfolioRows {
+  display: grid;
+  gap: 7px;
+}
+
+.portfolioRows button {
+  display: grid;
+  grid-template-columns: 1fr minmax(150px, 35%) 42px;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid rgba(211, 164, 95, 0.13);
+  border-radius: 7px;
+  color: #cfc0ac;
+  text-align: left;
+  background: rgba(10, 9, 8, 0.32);
+  cursor: pointer;
+}
+
+.portfolioRows button:hover {
+  border-color: rgba(211, 164, 95, 0.42);
+  background: rgba(100, 63, 30, 0.2);
+}
+
+.portfolioRows span {
+  display: grid;
+  gap: 4px;
+}
+
+.portfolioRows strong {
+  font: 700 11px/1 "Trebuchet MS", sans-serif;
+}
+
+.portfolioRows small,
+.portfolioRows em {
+  color: #82776a;
+  font: normal 8px/1 "Trebuchet MS", sans-serif;
+}
+
+.testCatalog {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.testCatalog button {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid rgba(211, 164, 95, 0.13);
+  border-radius: 8px;
+  color: #cdbda8;
+  text-align: left;
+  background: rgba(9, 8, 7, 0.38);
+  cursor: pointer;
+}
+
+.testCatalog button > i {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #765331;
+  border-radius: 50%;
+  color: #c69858;
+  font: normal 16px/1 sans-serif;
+}
+
+.testCatalog button > span {
+  display: grid;
+  gap: 5px;
+}
+
+.testCatalog strong {
+  font: 700 10px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.testCatalog small,
+.testCatalog em {
+  color: #7f7467;
+  font: normal 8px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.testCatalog .testAssigned {
+  border-color: rgba(183, 145, 82, 0.54);
+  background: linear-gradient(90deg, rgba(112, 75, 37, 0.28), rgba(14, 12, 10, 0.56));
+}
+
+.testCatalog .testAssigned > i {
+  color: #1f170f;
+  background: linear-gradient(#efcf98, #b0793c);
+}
+
+.panelFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid rgba(213, 165, 96, 0.17);
+  color: #877b6d;
+  font: 9px/1 "Trebuchet MS", sans-serif;
+}
+
+.panelFooter button,
+.trashList button,
+.projectActions button,
+.walletActions button {
+  padding: 10px 13px;
+  border: 1px solid rgba(203, 155, 87, 0.34);
+  border-radius: 6px;
+  color: #cbb99e;
+  background: rgba(50, 34, 23, 0.7);
+  font: 700 9px/1 "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+
+.panelFooter button,
+.projectActions .primaryAction {
+  color: #25170d;
+  border-color: #b17a3b;
+  background: linear-gradient(#efcf98, #b0793c);
+}
+
+.walletPanel {
+  width: min(620px, 86vw);
+}
+
+.walletCard {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 15px;
+  padding: 25px;
+  border: 1px solid rgba(222, 176, 106, 0.3);
+  border-radius: 13px;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(211, 158, 77, 0.2), transparent 30%),
+    linear-gradient(135deg, #182019, #10100e 56%, #291b12);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.walletCard small,
+.walletCard span {
+  color: #8a8175;
+  font: 9px/1 "Trebuchet MS", sans-serif;
+}
+
+.walletCard strong {
+  font: 500 clamp(32px, 6vw, 55px)/1 Georgia, serif;
+}
+
+.walletActions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.safeNote {
+  padding: 14px;
+  border: 1px solid rgba(205, 154, 86, 0.13);
+  border-radius: 7px;
+  background: rgba(8, 7, 6, 0.28);
+}
+
+.trashList {
+  display: grid;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.trashList article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 14px;
+  border: 1px solid rgba(211, 164, 95, 0.14);
+  border-radius: 8px;
+  background: rgba(8, 7, 6, 0.36);
+}
+
+.trashList article > span {
+  display: grid;
+  gap: 5px;
+}
+
+.trashList strong {
+  font: 700 11px/1 "Trebuchet MS", sans-serif;
+}
+
+.trashList small,
+.emptyTrash span {
+  color: #82766a;
+  font: 8px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.emptyTrash {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 45px 20px;
+  border: 1px dashed rgba(210, 164, 95, 0.2);
+  border-radius: 10px;
+  color: #aa9b89;
+}
+
+.projectDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.projectDetailGrid article {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(211, 164, 95, 0.14);
+  border-radius: 8px;
+  background: rgba(8, 7, 6, 0.34);
+}
+
+.projectDetailGrid strong {
+  font: 500 18px/1.2 "Trebuchet MS", sans-serif;
+}
+
+.projectProgress {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(211, 164, 95, 0.14);
+  border-radius: 8px;
+  color: #8c8072;
+  background: rgba(8, 7, 6, 0.34);
+  font: 9px/1 "Trebuchet MS", sans-serif;
+}
+
+.projectActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
 @keyframes panelEnter {
   from { opacity: 0; transform: translateY(22px) scale(0.94) rotateX(8deg); }
   to { opacity: 1; transform: translateY(0) scale(1) rotateX(0); }
@@ -776,9 +2242,29 @@
   }
 
   .objectLabels,
-  .navigationHint,
-  .settings {
+  .navigationHint {
     display: none;
+  }
+
+  .settings {
+    right: 12px;
+    bottom: 60px;
+    padding: 10px 12px;
+    font-size: 9px;
+  }
+
+  .builderPanel {
+    top: auto;
+    right: 12px;
+    bottom: 104px;
+    left: 12px;
+    width: auto;
+    max-height: 67vh;
+    overflow: auto;
+  }
+
+  .builderObjects {
+    max-height: 28vh;
   }
 
   .bottomNav {
@@ -800,20 +2286,101 @@
   }
 
   .bookPanel {
-    top: 13%;
-    grid-template-columns: 1fr;
-    width: calc(100% - 24px);
-    height: 72vh;
-    padding: 12px;
+    top: 10%;
+    width: calc(100% - 16px);
+    height: 79vh;
+    aspect-ratio: auto;
+    padding: 0;
   }
 
-  .bookFilters {
+  .bookFilters,
+  .folioFilters,
+  .folioTabs {
     display: none;
   }
 
-  .bookPage {
-    margin: 8px;
+  .openBookVisual {
+    opacity: 0.42;
+    object-fit: cover;
+  }
+
+  .folioScreen {
+    top: 7%;
+    right: 5%;
+    bottom: 14%;
+    left: 5%;
     padding: 23px 16px 14px;
+    border-radius: 11px;
+  }
+
+  .folioScreen > header {
+    align-items: flex-start;
+  }
+
+  .folioTitle {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .folioTitle h2 {
+    font-size: 25px;
+  }
+
+  .createFolioProject {
+    padding: 9px 10px;
+  }
+
+  .folioToolbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .folioToolbar select {
+    grid-column: 1 / -1;
+  }
+
+  .folioColumns,
+  .folioRows > button {
+    grid-template-columns: minmax(0, 1.45fr) minmax(76px, 0.8fr) minmax(86px, 0.9fr);
+  }
+
+  .folioColumns > span:nth-child(3),
+  .folioColumns > span:nth-child(4),
+  .folioRows > button > span:nth-child(3),
+  .folioRows > button > span:nth-child(4) {
+    display: none;
+  }
+
+  .folioRows > button {
+    min-height: 58px;
+  }
+
+  .folioPagination > span {
+    display: none;
+  }
+
+  .folioPagination {
+    justify-content: flex-end;
+  }
+
+  .folioActions {
+    right: 8%;
+    bottom: 5%;
+    left: 8%;
+    grid-template-columns: 1.3fr 1fr 45px;
+    width: auto;
+  }
+
+  .folioActions button {
+    padding: 10px 9px;
+  }
+
+  .bookPage {
+    top: 12%;
+    right: 7%;
+    bottom: 13%;
+    left: 7%;
+    padding: 23px 16px 14px;
+    border-radius: 11px;
   }
 
   .bookPage > header {
@@ -825,8 +2392,15 @@
     font-size: 29px;
   }
 
-  .bookPage header button {
-    margin-right: 38px;
+  .bookHeaderActions {
+    display: grid;
+    width: 48%;
+    margin-right: 34px;
+  }
+
+  .bookHeaderActions input {
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .projectRows > button {
@@ -847,7 +2421,24 @@
   }
 
   .pageStack {
-    left: 22px;
+    right: 8%;
+    bottom: 10%;
+    left: 8%;
+  }
+
+  .openBookVisual {
+    filter: blur(0.2px) drop-shadow(0 25px 35px rgba(0, 0, 0, 0.62));
+  }
+
+  .deskObject {
+    min-width: 90px;
+  }
+
+  .archiveCover,
+  .trayContent,
+  .infoBoardContent,
+  .aiScreenContent {
+    display: none;
   }
 
   .archivePanel,
@@ -857,6 +2448,38 @@
     left: 12px;
     width: auto;
     padding: 30px 22px;
+  }
+
+  .workspacePanel {
+    top: 12%;
+    width: calc(100% - 24px);
+    max-height: 76vh;
+    box-sizing: border-box;
+    padding: 28px 20px;
+  }
+
+  .insightMetrics,
+  .testCatalog,
+  .projectDetailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolioRows button {
+    grid-template-columns: 1fr 80px 34px;
+  }
+
+  .walletActions {
+    grid-template-columns: 1fr;
+  }
+
+  .projectActions {
+    display: grid;
+  }
+
+  .panelFooter,
+  .trashList article {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

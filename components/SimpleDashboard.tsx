@@ -74,6 +74,7 @@ type Props = {
   onRefresh: () => Promise<unknown>;
   accessToken: string;
   onOpenResults: (projectId: string) => void;
+  onProjectOpenChange?: (open: boolean, userInitiated: boolean) => void;
 };
 
 const PRIMARY_INVITE_BASE_URLS = [
@@ -81,15 +82,47 @@ const PRIMARY_INVITE_BASE_URLS = [
   { key: "rf", label: "Запасная ссылка", baseUrl: "https://www.xn--80aaachl0aqe6abetcez8t.xn--p1ai" },
 ] as const;
 
+const PROJECT_STATUS_LABELS: Record<string, string> = {
+  active: "В процессе",
+  archived: "В архиве",
+  awaiting: "Ожидает",
+  cancelled: "Отменён",
+  completed: "Завершён",
+  complete: "Завершён",
+  created: "Новый",
+  done: "Завершён",
+  draft: "Черновик",
+  failed: "Требует внимания",
+  finished: "Завершён",
+  in_progress: "В процессе",
+  new: "Новый",
+  on_hold: "На паузе",
+  paused: "На паузе",
+  pending: "Ожидает",
+  processing: "В процессе",
+  ready: "Завершён",
+  running: "В процессе",
+  waiting: "Ожидает",
+};
+
+function projectStatusLabel(status: string) {
+  const value = String(status || "").trim();
+  if (!value) return "В процессе";
+  const key = value.toLocaleLowerCase("ru").replace(/[\s-]+/gu, "_");
+  if (PROJECT_STATUS_LABELS[key]) return PROJECT_STATUS_LABELS[key];
+  return /[a-z]/iu.test(value) ? "В процессе" : value;
+}
+
 function projectProgress(project: SimpleDashboardProject) {
-  if (/готов|заверш/i.test(project.status)) return 100;
+  if (/готов|заверш|completed|complete|done|finished|ready/i.test(project.status)) return 100;
   if (!project.tests.length) return 0;
   return Math.min(100, Math.round((project.attempts_count / project.tests.length) * 100));
 }
 
 function statusTone(project: SimpleDashboardProject) {
-  if (/готов|заверш/i.test(project.status)) return "ready";
-  if (/ожида|пауз|не нач/i.test(project.status)) return "waiting";
+  const label = projectStatusLabel(project.status);
+  if (/готов|заверш/i.test(label)) return "ready";
+  if (/ожида|пауз|не нач|чернов/i.test(label)) return "waiting";
   return "active";
 }
 
@@ -102,7 +135,7 @@ function initials(value: string) {
     .join("") || "ЛК";
 }
 
-function Icon({ name }: { name: "tests" | "folder" | "search" | "filter" | "plus" | "arrow" | "person" | "sparkles" | "archive" | "copy" | "edit" | "sliders" | "drag" }) {
+function Icon({ name }: { name: "tests" | "folder" | "search" | "filter" | "plus" | "arrow" | "person" | "sparkles" | "archive" | "copy" | "download" | "edit" | "sliders" | "drag" }) {
   const paths: Record<typeof name, ReactNode> = {
     tests: <><path d="M7 4.5h10v15H7z" /><path d="M9.5 9h5M9.5 12h5M9.5 15h3M9 4.5V3h6v1.5" /></>,
     folder: <><path d="M3.5 7.5h6l2 2H20.5v9H3.5z" /><path d="M3.5 7.5V5h6l2 2" /></>,
@@ -114,6 +147,7 @@ function Icon({ name }: { name: "tests" | "folder" | "search" | "filter" | "plus
     sparkles: <><path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2z" /><path d="m18.5 13 .7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7z" /></>,
     archive: <><path d="M5 7h14v12H5zM4 4h16v3H4z" /><path d="M9 11h6" /></>,
     copy: <><rect x="8" y="8" width="10" height="11" rx="2" /><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" /></>,
+    download: <><path d="M12 4v10" /><path d="m8 10 4 4 4-4" /><path d="M5 19h14" /></>,
     edit: <><path d="m5 16-.8 3.8L8 19l9.8-9.8-3-3z" /><path d="m13.8 7.2 3 3" /></>,
     sliders: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></>,
     drag: <><circle cx="8" cy="7" r="1" /><circle cx="16" cy="7" r="1" /><circle cx="8" cy="12" r="1" /><circle cx="16" cy="12" r="1" /><circle cx="8" cy="17" r="1" /><circle cx="16" cy="17" r="1" /></>,
@@ -187,6 +221,7 @@ export function SimpleDashboard({
   onRefresh,
   accessToken,
   onOpenResults,
+  onProjectOpenChange,
 }: Props) {
   const [query, setQuery] = useState("");
   const [folderFilter, setFolderFilter] = useState<string>("all");
@@ -208,7 +243,12 @@ export function SimpleDashboard({
   const [inlineEditError, setInlineEditError] = useState("");
   const [savedProjectId, setSavedProjectId] = useState("");
   const firstProjectSelectedRef = useRef(false);
+  const aiPreviewFrameRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase("ru"));
+
+  useEffect(() => {
+    onProjectOpenChange?.(Boolean(selectedProjectId), false);
+  }, [onProjectOpenChange, selectedProjectId]);
 
   useEffect(() => {
     if (!projects.length) {
@@ -283,7 +323,9 @@ export function SimpleDashboard({
   const activeFolder = folders.find((folder) => folder.id === folderFilter) || null;
 
   function selectProject(projectId: string) {
-    setSelectedProjectId((current) => current === projectId ? null : projectId);
+    const nextProjectId = selectedProjectId === projectId ? null : projectId;
+    setSelectedProjectId(nextProjectId);
+    onProjectOpenChange?.(Boolean(nextProjectId), true);
     setProjectView("overview");
     setEditingProjectId("");
     setInlineEditForm(null);
@@ -304,6 +346,16 @@ export function SimpleDashboard({
     } catch {}
   }
 
+  function downloadProjectAnalysis(projectId: string) {
+    const frameDocument = aiPreviewFrameRefs.current[projectId]?.contentDocument;
+    const downloadButton = frameDocument?.querySelector<HTMLButtonElement>("[data-simple-download-analysis]");
+    if (downloadButton && !downloadButton.disabled) {
+      downloadButton.click();
+      return;
+    }
+    setProjectView("results");
+  }
+
   async function moveProjectToFolder(projectId: string, folderId: string) {
     setMovingProjectId(projectId);
     try {
@@ -313,7 +365,12 @@ export function SimpleDashboard({
     }
   }
 
-  function beginProjectDrag(event: ReactDragEvent<HTMLButtonElement>, projectId: string) {
+  function beginProjectDrag(event: ReactDragEvent<HTMLElement>, projectId: string) {
+    const target = event.target as HTMLElement;
+    if (target.closest('[data-no-row-drag="true"], select, input, textarea, a')) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", projectId);
     setDraggedProjectId(projectId);
@@ -436,11 +493,11 @@ export function SimpleDashboard({
       {mainView === "projects" ? (
         <>
           <div className={styles.projectsLayout}>
-            <aside className={styles.folderSection} data-drag-active={Boolean(draggedProjectId)} aria-label="Папки проектов">
+            <aside className={styles.folderSection} data-drag-active={Boolean(draggedProjectId)} data-onboarding-id="simple-folders" aria-label="Папки проектов">
               <div className={styles.sectionHeading}>
                 <strong>Папки</strong>
               </div>
-              <button type="button" className={styles.newFolderCard} onClick={onCreateFolder}>
+              <button type="button" className={styles.newFolderCard} data-onboarding-id="dashboard-create-folder" onClick={onCreateFolder}>
                 <Icon name="plus" /><span>Создать папку</span>
               </button>
               <div className={styles.folderCards}>
@@ -481,8 +538,8 @@ export function SimpleDashboard({
                 {draggedProjectId ? "Перетащите проект в нужную папку" : folderMoveNotice}
               </div>
               <div className={styles.folderUtilityActions}>
-                <button type="button" onClick={onOpenAiAnalytics}>
-                  <Icon name="sparkles" /><span>AI-аналитика и чат</span><Icon name="arrow" />
+                <button type="button" data-onboarding-id="dashboard-ai-analytics-entry" onClick={onOpenAiAnalytics}>
+                  <Icon name="sparkles" /><span>ИИ-аналитика и чат</span><Icon name="arrow" />
                 </button>
               </div>
               {activeFolder ? (
@@ -495,7 +552,7 @@ export function SimpleDashboard({
 
             <div className={styles.projectWorkspace}>
               <section className={styles.toolbar}>
-                <button type="button" className={styles.createButton} onClick={() => setMainView("create")}>
+                <button type="button" className={styles.createButton} data-onboarding-id="dashboard-create-project" onClick={() => setMainView("create")}>
                   <Icon name="plus" />Создать проект
                 </button>
                 <label className={styles.search}>
@@ -515,7 +572,7 @@ export function SimpleDashboard({
                 </section>
               ) : null}
 
-              <section className={styles.registry}>
+              <section className={styles.registry} data-onboarding-id="simple-project-list">
             {loading ? <div className={styles.empty}>Загружаем проекты...</div> : null}
             {!loading && !projects.length ? (
               <div className={styles.empty}><strong>Проектов пока нет</strong><span>Создайте первый проект, чтобы начать оценку.</span><button type="button" onClick={() => setMainView("create")}>Создать проект</button></div>
@@ -528,6 +585,7 @@ export function SimpleDashboard({
               const progress = projectProgress(project);
               const isSelected = selectedProject?.id === project.id;
               const completed = Math.min(project.attempts_count, project.tests.length);
+              const allTestsCompleted = project.tests.length > 0 && completed >= project.tests.length;
               const shareLinks = project.invite_token
                 ? PRIMARY_INVITE_BASE_URLS.map((item) => ({ ...item, url: `${item.baseUrl}/invite/${project.invite_token}` }))
                 : [];
@@ -538,28 +596,31 @@ export function SimpleDashboard({
               const aiPreview = aiPreviews[project.id];
               const goalDefinition = getGoalDefinition(project.goal);
               const isEditing = editingProjectId === project.id && inlineEditForm;
+              const statusLabel = projectStatusLabel(project.status);
 
               return (
                 <article key={project.id} className={styles.projectEntry} data-open={isSelected} data-dragging={draggedProjectId === project.id}>
-                  <div className={styles.projectRow}>
-                    <button
-                      type="button"
+                  <div
+                    className={styles.projectRow}
+                    draggable={movingProjectId !== project.id}
+                    data-draggable={movingProjectId !== project.id}
+                    onDragStart={(event) => beginProjectDrag(event, project.id)}
+                    onDragEnd={finishProjectDrag}
+                    title="Строку можно перетащить в папку"
+                  >
+                    <span
                       className={styles.dragHandle}
-                      draggable={movingProjectId !== project.id}
-                      aria-label={`Перетащить проект «${project.title}» в другую папку`}
-                      title="Перетащить в папку"
-                      onDragStart={(event) => beginProjectDrag(event, project.id)}
-                      onDragEnd={finishProjectDrag}
+                      aria-hidden="true"
                     >
                       <Icon name="drag" />
-                    </button>
+                    </span>
                     <button type="button" className={styles.projectToggle} onClick={() => selectProject(project.id)} aria-expanded={isSelected}>
                       <span className={styles.rowTitle}><i><Icon name="folder" /></i><span><strong>{project.title}</strong><small>{project.target_role || "Проект оценки"}</small></span></span>
-                      <span className={styles.status} data-tone={statusTone(project)}>{project.status}</span>
+                      <span className={styles.status} data-tone={statusTone(project)}>{statusLabel}</span>
                       <span className={styles.rowProgress}><b>{progress}%</b><i><u style={{ width: `${progress}%` }} /></i></span>
                       <span className={styles.chevron}><Icon name="arrow" /></span>
                     </button>
-                    <label className={styles.folderMove} title="Переместить проект в папку">
+                    <label className={styles.folderMove} data-no-row-drag="true" title="Переместить проект в папку">
                       <Icon name="folder" />
                       <select
                         value={project.folder_id || ""}
@@ -574,10 +635,10 @@ export function SimpleDashboard({
                   </div>
 
                   {isSelected ? (
-                    <div className={styles.projectDetails}>
+                    <div className={styles.projectDetails} data-onboarding-id="simple-project-details">
                       {projectView === "overview" ? (
                         <div className={styles.approvedGrid}>
-                          <section className={styles.detailPanel} data-collapsed={participantCollapsed}>
+                          <section className={styles.detailPanel} data-collapsed={participantCollapsed} data-onboarding-id="simple-project-participant">
                             <PanelHeader title="Участник" icon="person" collapsed={participantCollapsed} onToggle={() => togglePanel(project.id, "participant")} />
                             {!participantCollapsed ? (
                               <div className={styles.panelBody}>
@@ -598,7 +659,7 @@ export function SimpleDashboard({
                                       />
                                     </label>
                                     <label className={styles.inlineEditField}>
-                                      <span>Email</span>
+                                      <span>Электронная почта</span>
                                       <input
                                         type="email"
                                         value={inlineEditForm.email}
@@ -658,7 +719,7 @@ export function SimpleDashboard({
                                   <>
                                     <div className={styles.participantCard}>
                                       <span>{initials(project.person?.full_name || project.title)}</span>
-                                      <div><strong>{project.person?.full_name || "Участник не указан"}</strong><small>{project.person?.email || "Email не указан"}</small></div>
+                                      <div><strong>{project.person?.full_name || "Участник не указан"}</strong><small>{project.person?.email || "Электронная почта не указана"}</small></div>
                                     </div>
                                     <dl className={styles.personFacts}>
                                       <div><dt>Текущая роль</dt><dd>{project.person?.current_position || "Не указана"}</dd></div>
@@ -675,7 +736,7 @@ export function SimpleDashboard({
                             ) : null}
                           </section>
 
-                          <section className={styles.detailPanel} data-collapsed={accessCollapsed}>
+                          <section className={styles.detailPanel} data-collapsed={accessCollapsed} data-onboarding-id="simple-project-access">
                             <PanelHeader title="Доступ и тестирование" icon="tests" collapsed={accessCollapsed} onToggle={() => togglePanel(project.id, "access")} />
                             {!accessCollapsed ? (
                               <div className={styles.panelBody}>
@@ -702,8 +763,10 @@ export function SimpleDashboard({
                                   </div>
                                   <div className={styles.qrBox}>{qrUrl ? <QRCodeBlock value={qrUrl} title="QR-код участника" size={112} /> : <span>QR появится после сохранения ссылки</span>}</div>
                                 </div>
-                                <div className={styles.testsHeading}><strong>Назначенные тесты</strong><span>{completed} из {project.tests.length} завершено</span></div>
-                                <div className={styles.completionBar}><i style={{ width: `${progress}%` }} /></div>
+                                <div data-onboarding-id="simple-project-progress">
+                                  <div className={styles.testsHeading}><strong>Назначенные тесты</strong><span>{completed} из {project.tests.length} завершено</span></div>
+                                  <div className={styles.completionBar}><i style={{ width: `${progress}%` }} /></div>
+                                </div>
                                 <div className={styles.testList}>
                                   {project.tests.slice().sort((a, b) => a.sort_order - b.sort_order).map((test) => (
                                     <div key={test.test_slug}><span>{test.test_title}</span><small>{progress === 100 ? "Завершён" : "Назначен"}</small></div>
@@ -714,13 +777,16 @@ export function SimpleDashboard({
                             ) : null}
                           </section>
 
-                          <section className={`${styles.detailPanel} ${styles.resultsPanel}`} data-collapsed={resultsCollapsed}>
+                          <section className={`${styles.detailPanel} ${styles.resultsPanel}`} data-collapsed={resultsCollapsed} data-onboarding-id="simple-project-results">
                             <PanelHeader title="Результаты и ИИ" icon="sparkles" collapsed={resultsCollapsed} onToggle={() => togglePanel(project.id, "results")} />
                             {!resultsCollapsed ? (
                               <div className={`${styles.panelBody} ${styles.resultsBody}`}>
                                 {project.attempts_count > 0 ? (
                                   <iframe
                                     key={`${project.id}:${aiPreviewRevisions[project.id] || 0}`}
+                                    ref={(node) => {
+                                      aiPreviewFrameRefs.current[project.id] = node;
+                                    }}
                                     className={styles.aiPreviewBridge}
                                     src={`/projects/${project.id}/results?embedded=1&compact=1`}
                                     title={`Подготовка аналитического вывода: ${project.title}`}
@@ -777,8 +843,25 @@ export function SimpleDashboard({
                                   </div>
                                 )}
 
-                                <button type="button" className={styles.primaryAction} onClick={() => setProjectView("results")} disabled={!project.tests.length}>Открыть полный анализ <Icon name="arrow" /></button>
-                                <span className={styles.scrollHint}>Результат прокручивается внутри этого окна</span>
+                                {allTestsCompleted ? (
+                                  <div className={styles.analysisActions}>
+                                    <button type="button" className={styles.primaryAction} onClick={() => setProjectView("results")}>
+                                      <Icon name="sparkles" />Сделать ИИ-анализ
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={styles.secondaryAction}
+                                      onClick={() => downloadProjectAnalysis(project.id)}
+                                      disabled={aiPreview?.state !== "ready"}
+                                      title={aiPreview?.state === "ready" ? "Скачать сформированный анализ в Word" : "Сначала сформируйте ИИ-анализ"}
+                                    >
+                                      <Icon name="download" />Скачать анализ
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={styles.analysisWaiting}>Кнопки анализа появятся после завершения всех тестов.</span>
+                                )}
+                                {aiPreview?.state === "ready" ? <span className={styles.scrollHint}>Результат прокручивается внутри этого окна</span> : null}
                               </div>
                             ) : null}
                           </section>
@@ -789,7 +872,7 @@ export function SimpleDashboard({
                         <EmbeddedWorkspace
                           src={`/projects/${project.id}/results?embedded=1&compact=1`}
                           title={`Анализ: ${project.person?.full_name || project.title}`}
-                          description="База, Премиум и Премиум AI+"
+                          description="База, Премиум и Премиум ИИ+"
                           variant="analysis"
                           onBack={() => setProjectView("overview")}
                           onOpenSeparate={() => onOpenResults(project.id)}

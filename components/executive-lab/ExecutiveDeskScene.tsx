@@ -1,75 +1,66 @@
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-import type { ExecutiveLabWorkspace } from "../../lib/executiveLab";
+import type { ExecutiveLabProject, ExecutiveLabWorkspace } from "../../lib/executiveLab";
 import styles from "../../styles/ExecutiveDeskScene.module.css";
 
 const MODEL_ROOT = "/executive-lab/models";
+const LAYER_ROOT = "/executive-lab/layers";
 
 type Props = {
   workspace: ExecutiveLabWorkspace;
   onCreateProject: () => void;
 };
 
-type PanelName = "projects" | "archive" | "ai" | null;
+type PanelName = "projects" | "archive" | "ai" | "insights" | "tests" | "wallet" | "trash" | "project" | null;
+type BuilderMode = "translate" | "rotate" | "scale";
+type ObjectId = "projects" | "archive" | "organizer" | "trash" | "lamp" | "droid" | "ai";
+type ProjectFilter = "all" | "active" | "paused" | "completed";
+type ProjectView = "all" | "mine" | "favorites" | "archive";
+type ProjectSort = "progress_desc" | "progress_asc" | "title";
+type ProjectOwnerFilter = "all" | "owner" | "maria" | "dmitry";
+type ProjectDeadlineFilter = "any" | "overdue" | "week" | "month";
 
-type InteractiveObject = {
-  id: string;
-  root: import("three").Group;
-  basePosition: import("three").Vector3;
-  baseRotation: import("three").Euler;
+type LayoutItem = {
+  x: number;
+  y: number;
+  width: number;
+  scale: number;
+  rotation: number;
+  hidden: boolean;
 };
 
-const MODEL_SPECS = [
-  {
-    id: "organizer",
-    file: "desk-organizer.glb",
-    size: 4.4,
-    position: [4.75, 0, 2.15] as const,
-    rotation: [0, -0.16, 0] as const,
-  },
-  {
-    id: "archive",
-    file: "document-tray.glb",
-    size: 3.8,
-    position: [-4.75, 0, 1.85] as const,
-    rotation: [0, 0.18, 0] as const,
-  },
-  {
-    id: "trash",
-    file: "trash-tray.glb",
-    size: 2.65,
-    position: [-3.6, 0, -2.95] as const,
-    rotation: [0, 0.08, 0] as const,
-  },
-  {
-    id: "lamp",
-    file: "desk-lamp.glb",
-    size: 3.5,
-    position: [-6.15, 0, -2.45] as const,
-    rotation: [0, 0.35, 0] as const,
-  },
-  {
-    id: "projects",
-    file: "projects-book.glb",
-    size: 5.1,
-    position: [-0.2, 0, 0.55] as const,
-    rotation: [0, Math.PI, 0] as const,
-  },
-  {
-    id: "droid",
-    file: "ai-droid.glb",
-    size: 2.15,
-    position: [3.85, 0, -2.72] as const,
-    rotation: [0, -0.28, 0] as const,
-  },
-  {
-    id: "ai",
-    file: "ai-console.glb",
-    size: 3.2,
-    position: [5.65, 0, -1.85] as const,
-    rotation: [0, -0.24, 0] as const,
-  },
-] as const;
+type DeskLayout = Record<ObjectId, LayoutItem>;
+
+const BUILDER_OBJECTS: Array<{ id: ObjectId; label: string }> = [
+  { id: "projects", label: "Книга проектов" },
+  { id: "archive", label: "Архивный блокнот" },
+  { id: "organizer", label: "Информационное табло" },
+  { id: "trash", label: "Корзина" },
+  { id: "lamp", label: "Настольная лампа" },
+  { id: "droid", label: "AI-дроид" },
+  { id: "ai", label: "Экран аналитика" },
+];
+
+const DEFAULT_LAYOUT: DeskLayout = {
+  trash: { x: 15, y: 35, width: 19, scale: 1, rotation: -1.5, hidden: false },
+  archive: { x: 15.5, y: 70, width: 27, scale: 1, rotation: -1.2, hidden: false },
+  lamp: { x: 9, y: 26, width: 18, scale: 1, rotation: 0, hidden: false },
+  projects: { x: 49, y: 59, width: 32, scale: 1, rotation: 0, hidden: false },
+  droid: { x: 70.5, y: 31, width: 10.5, scale: 1, rotation: 0, hidden: false },
+  ai: { x: 87, y: 30, width: 15.5, scale: 1, rotation: -1.2, hidden: false },
+  organizer: { x: 82, y: 70, width: 28, scale: 1, rotation: 0.6, hidden: false },
+};
+
+function cloneDefaultLayout(): DeskLayout {
+  return Object.fromEntries(
+    Object.entries(DEFAULT_LAYOUT).map(([id, item]) => [id, { ...item }]),
+  ) as DeskLayout;
+}
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
 
 function formatBalance(kopeks: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -79,391 +70,421 @@ function formatBalance(kopeks: number) {
   }).format(kopeks / 100);
 }
 
-export default function ExecutiveDeskScene({ workspace, onCreateProject }: Props) {
+const PROJECT_MONTHS: Record<string, number> = {
+  янв: 0,
+  февр: 1,
+  мар: 2,
+  апр: 3,
+  мая: 4,
+  июн: 5,
+  июл: 6,
+  авг: 7,
+  сент: 8,
+  окт: 9,
+  нояб: 10,
+  дек: 11,
+};
+
+function projectOwnerKey(index: number): Exclude<ProjectOwnerFilter, "all"> {
+  if (index % 3 === 0) return "owner";
+  if (index % 3 === 1) return "maria";
+  return "dmitry";
+}
+
+function parseProjectDate(value: string) {
+  const match = value.toLocaleLowerCase("ru-RU").match(/(\d{1,2})\s+([а-яё.]+)\s+(\d{4})/u);
+  if (!match) return null;
+  const monthToken = match[2].replaceAll(".", "");
+  const monthKey = Object.keys(PROJECT_MONTHS).find((key) => monthToken.startsWith(key));
+  if (!monthKey) return null;
+  return new Date(Number(match[3]), PROJECT_MONTHS[monthKey], Number(match[1]), 23, 59, 59);
+}
+
+type ModelViewportProps = {
+  file: string;
+  kind: "lamp" | "droid";
+  lampOn?: boolean;
+  onLoaded: (kind: "lamp" | "droid") => void;
+};
+
+function ModelViewport({ file, kind, lampOn = true, onLoaded }: ModelViewportProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lampOnRef = useRef(lampOn);
+  const onLoadedRef = useRef(onLoaded);
+
+  useEffect(() => {
+    lampOnRef.current = lampOn;
+  }, [lampOn]);
+
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  }, [onLoaded]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const sceneCanvas: HTMLCanvasElement = canvas;
+
+    let disposed = false;
+    let frame = 0;
+    let cleanup = () => {};
+
+    async function start() {
+      const THREE = await import("three");
+      const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+      if (disposed) return;
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(kind === "lamp" ? 24 : 30, 1, 0.1, 50);
+      camera.position.set(0, kind === "lamp" ? 2.4 : 1.7, kind === "lamp" ? 12 : 6.8);
+      camera.lookAt(0, kind === "lamp" ? 2.1 : 1.3, 0);
+
+      const renderer = new THREE.WebGLRenderer({
+        canvas: sceneCanvas,
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance",
+      });
+      renderer.setClearColor(0x000000, 0);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.18;
+
+      scene.add(new THREE.HemisphereLight(0xe9ded0, 0x130b08, 1.9));
+      const warm = new THREE.DirectionalLight(0xffc174, 5.2);
+      warm.position.set(-4, 7, 5);
+      scene.add(warm);
+      const rim = new THREE.DirectionalLight(0x9ccfee, 2.1);
+      rim.position.set(5, 4, -3);
+      scene.add(rim);
+      const lampLight = new THREE.PointLight(0xff9c3d, lampOnRef.current ? 34 : 0, 8, 2);
+      lampLight.position.set(-0.6, 2.9, 1.6);
+      scene.add(lampLight);
+
+      const gltf = await new GLTFLoader().loadAsync(`${MODEL_ROOT}/${file}`);
+      if (disposed) return;
+      const model = gltf.scene;
+      model.traverse((child) => {
+        const mesh = child as import("three").Mesh;
+        if (!mesh.isMesh) return;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((material) => {
+          material.side = THREE.FrontSide;
+        });
+      });
+
+      const originalBox = new THREE.Box3().setFromObject(model);
+      const originalSize = originalBox.getSize(new THREE.Vector3());
+      const targetSize = kind === "lamp" ? 4.5 : 3.5;
+      model.scale.setScalar(targetSize / Math.max(originalSize.x, originalSize.y, originalSize.z, 0.001));
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.set(-center.x, -box.min.y, -center.z);
+      model.rotation.y = kind === "lamp" ? 0.42 : -0.26;
+      scene.add(model);
+      onLoadedRef.current(kind);
+
+      function resize() {
+        const width = Math.max(sceneCanvas.clientWidth, 1);
+        const height = Math.max(sceneCanvas.clientHeight, 1);
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      }
+
+      const observer = new ResizeObserver(resize);
+      observer.observe(sceneCanvas);
+      resize();
+      const started = performance.now();
+
+      function render() {
+        const elapsed = (performance.now() - started) / 1000;
+        if (kind === "droid") {
+          model.position.y = Math.sin(elapsed * 1.55) * 0.045;
+          model.rotation.y = -0.26 + Math.sin(elapsed * 0.62) * 0.06;
+        }
+        lampLight.intensity += ((lampOnRef.current ? 34 : 0) - lampLight.intensity) * 0.08;
+        renderer.render(scene, camera);
+        frame = requestAnimationFrame(render);
+      }
+      render();
+
+      cleanup = () => {
+        observer.disconnect();
+        cancelAnimationFrame(frame);
+        renderer.dispose();
+        scene.traverse((object) => {
+          const mesh = object as import("three").Mesh;
+          mesh.geometry?.dispose?.();
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          materials.forEach((material) => material?.dispose?.());
+        });
+      };
+    }
+
+    void start().catch(() => {
+      onLoadedRef.current(kind);
+    });
+    return () => {
+      disposed = true;
+      cleanup();
+    };
+  }, [file, kind]);
+
+  return <canvas ref={canvasRef} aria-hidden="true" />;
+}
+
+export default function ExecutiveDeskScene({ workspace, onCreateProject }: Props) {
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const actionRef = useRef<(id: string) => void>(() => {});
-  const lampOnRef = useRef(true);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [sceneError, setSceneError] = useState("");
+  const dragRef = useRef<{
+    id: ObjectId;
+    startX: number;
+    startY: number;
+    initial: LayoutItem;
+  } | null>(null);
+  const [loadedModels, setLoadedModels] = useState<Array<"lamp" | "droid">>([]);
   const [panel, setPanel] = useState<PanelName>(null);
   const [selectedProject, setSelectedProject] = useState(0);
+  const [projectFilter, setProjectFilter] = useState<ProjectFilter>("all");
+  const [projectView, setProjectView] = useState<ProjectView>("all");
+  const [projectSort, setProjectSort] = useState<ProjectSort>("progress_desc");
+  const [projectOwnerFilter, setProjectOwnerFilter] = useState<ProjectOwnerFilter>("all");
+  const [projectDeadlineFilter, setProjectDeadlineFilter] = useState<ProjectDeadlineFilter>("any");
+  const [favoriteProjectIds, setFavoriteProjectIds] = useState<string[]>([]);
+  const [projectPage, setProjectPage] = useState(0);
+  const [projectSearch, setProjectSearch] = useState("");
   const [archivePage, setArchivePage] = useState(0);
-  const [, setLampOn] = useState(true);
+  const [assignedTests, setAssignedTests] = useState<string[]>(["16PF-A", "Эмоциональный интеллект"]);
+  const [restoredProjectIds, setRestoredProjectIds] = useState<string[]>([]);
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiAnswer, setAiAnswer] = useState("");
+  const [lampOn, setLampOn] = useState(true);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [builderMode, setBuilderMode] = useState<BuilderMode>("translate");
+  const [selectedObjectId, setSelectedObjectId] = useState<ObjectId>("projects");
+  const [layout, setLayout] = useState<DeskLayout>(cloneDefaultLayout);
   const [toast, setToast] = useState("Кабинет подключён к отдельной тестовой базе");
+  const layoutStorageKey = `executive-lab-${workspace.id}-desk-layout-v4`;
 
   const activeProjects = workspace.projects.filter((project) => project.disposition === "active");
   const archivedProjects = workspace.projects.filter((project) => project.disposition === "archived");
+  const trashProjects = workspace.projects.filter(
+    (item) => item.disposition === "trash" && !restoredProjectIds.includes(item.id),
+  );
   const project = workspace.projects[selectedProject] ?? workspace.projects[0];
+  const loadProgress = Math.round((loadedModels.length / 2) * 100);
+  const visibleProjects = workspace.projects.filter((item, index) => {
+    const normalizedStatus = item.status.toLocaleLowerCase("ru-RU");
+    const ownerKey = projectOwnerKey(index);
+    const matchesSearch = `${item.title} ${item.folderTitle}`
+      .toLocaleLowerCase("ru-RU")
+      .includes(projectSearch.trim().toLocaleLowerCase("ru-RU"));
+    if (!matchesSearch) return false;
+    if (projectView === "mine" && ownerKey !== "owner") return false;
+    if (projectView === "favorites" && !favoriteProjectIds.includes(item.id)) return false;
+    if (projectView === "archive" && item.disposition !== "archived") return false;
+    if (projectView !== "archive" && item.disposition === "trash") return false;
+    if (projectOwnerFilter !== "all" && ownerKey !== projectOwnerFilter) return false;
+    if (projectDeadlineFilter !== "any") {
+      const deadline = parseProjectDate(item.date);
+      if (!deadline) return false;
+      const days = Math.ceil((deadline.getTime() - Date.now()) / 86_400_000);
+      if (projectDeadlineFilter === "overdue" && days >= 0) return false;
+      if (projectDeadlineFilter === "week" && (days < 0 || days > 7)) return false;
+      if (projectDeadlineFilter === "month" && (days < 0 || days > 30)) return false;
+    }
+    if (projectFilter === "active") return item.disposition === "active" && !normalizedStatus.includes("пауз");
+    if (projectFilter === "paused") return normalizedStatus.includes("пауз");
+    if (projectFilter === "completed") {
+      return item.disposition === "archived" || normalizedStatus.includes("заверш");
+    }
+    return true;
+  }).sort((left, right) => {
+    if (projectSort === "progress_asc") return left.progress - right.progress;
+    if (projectSort === "title") return left.title.localeCompare(right.title, "ru");
+    return right.progress - left.progress;
+  });
+  const projectPageCount = Math.max(1, Math.ceil(visibleProjects.length / 5));
+  const paginatedProjects = visibleProjects.slice(projectPage * 5, projectPage * 5 + 5);
+  const averageProgress = activeProjects.length
+    ? Math.round(activeProjects.reduce((total, item) => total + item.progress, 0) / activeProjects.length)
+    : 0;
 
-  function activate(id: string) {
-    if (id === "projects" || id === "organizer") {
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(layoutStorageKey);
+      if (saved) setLayout({ ...cloneDefaultLayout(), ...(JSON.parse(saved) as Partial<DeskLayout>) });
+    } catch {
+      window.localStorage.removeItem(layoutStorageKey);
+    }
+  }, [layoutStorageKey]);
+
+  useEffect(() => {
+    setProjectPage((current) => Math.min(current, projectPageCount - 1));
+  }, [projectPageCount]);
+
+  useEffect(() => {
+    function onPointerMove(event: PointerEvent) {
+      const drag = dragRef.current;
+      const stage = stageRef.current;
+      if (!drag || !stage) return;
+      const rect = stage.getBoundingClientRect();
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+
+      setLayout((current) => {
+        const next = { ...current, [drag.id]: { ...current[drag.id] } };
+        if (builderMode === "translate") {
+          next[drag.id].x = clamp(drag.initial.x + (dx / rect.width) * 100, 3, 97);
+          next[drag.id].y = clamp(drag.initial.y + (dy / rect.height) * 100, 10, 94);
+        } else if (builderMode === "rotate") {
+          next[drag.id].rotation = drag.initial.rotation + dx * 0.18;
+        } else {
+          next[drag.id].scale = clamp(drag.initial.scale + dx / 260, 0.45, 1.8);
+        }
+        return next;
+      });
+    }
+
+    function onPointerUp() {
+      dragRef.current = null;
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [builderMode]);
+
+  function markModelLoaded(kind: "lamp" | "droid") {
+    setLoadedModels((current) => (current.includes(kind) ? current : [...current, kind]));
+  }
+
+  function activate(id: ObjectId) {
+    if (builderOpen) return;
+    if (id === "projects") {
       setPanel("projects");
-      setToast("Книга проектов открыта");
+      setToast("Книга проектов раскрыта");
+    } else if (id === "organizer") {
+      setPanel("insights");
+      setToast("Информационное табло раскрыто");
     } else if (id === "archive") {
       setPanel("archive");
-      setToast("Архив выдвинут");
+      setToast("Архивный блокнот открыт");
     } else if (id === "ai" || id === "droid") {
       setPanel("ai");
       setToast("AI-аналитик готов к диалогу");
     } else if (id === "lamp") {
       setLampOn((value) => {
-        const nextValue = !value;
-        lampOnRef.current = nextValue;
-        setToast(nextValue ? "Рабочая лампа включена" : "Рабочая лампа выключена");
-        return nextValue;
+        setToast(value ? "Рабочая лампа выключена" : "Рабочая лампа включена");
+        return !value;
       });
-    } else if (id === "trash") {
-      setToast("Корзина пуста");
+    } else {
+      setPanel("trash");
+      setToast(trashProjects.length ? "Корзина открыта" : "Корзина пуста");
     }
-    actionRef.current(id);
   }
 
-  useEffect(() => {
-    const canvasElement = canvasRef.current;
-    const stageElement = stageRef.current;
-    if (!canvasElement || !stageElement) return;
-    const sceneCanvas: HTMLCanvasElement = canvasElement;
-    const sceneStage: HTMLDivElement = stageElement;
-
-    let disposed = false;
-    let animationFrame = 0;
-    let cleanup = () => {};
-
-    async function startScene() {
-      try {
-        const THREE = await import("three");
-        const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
-        if (disposed) return;
-
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x090807);
-        scene.fog = new THREE.FogExp2(0x090807, 0.028);
-
-        const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 80);
-        camera.position.set(0, 9.1, 12.8);
-        camera.lookAt(0, 0.3, 0);
-
-        const renderer = new THREE.WebGLRenderer({
-          canvas: sceneCanvas,
-          antialias: true,
-          alpha: false,
-          powerPreference: "high-performance",
-        });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.08;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFShadowMap;
-
-        const deskMaterial = new THREE.MeshPhysicalMaterial({
-          color: 0x2b1209,
-          roughness: 0.34,
-          metalness: 0.02,
-          clearcoat: 0.24,
-          clearcoatRoughness: 0.38,
-        });
-        const desk = new THREE.Mesh(new THREE.BoxGeometry(18, 0.7, 11.2, 1, 1, 1), deskMaterial);
-        desk.position.y = -0.42;
-        desk.receiveShadow = true;
-        scene.add(desk);
-
-        const grainCanvas = document.createElement("canvas");
-        grainCanvas.width = 1024;
-        grainCanvas.height = 512;
-        const grainContext = grainCanvas.getContext("2d");
-        if (grainContext) {
-          const gradient = grainContext.createLinearGradient(0, 0, 0, grainCanvas.height);
-          gradient.addColorStop(0, "#35180c");
-          gradient.addColorStop(0.5, "#1b0d08");
-          gradient.addColorStop(1, "#2f140a");
-          grainContext.fillStyle = gradient;
-          grainContext.fillRect(0, 0, grainCanvas.width, grainCanvas.height);
-          grainContext.globalAlpha = 0.2;
-          for (let row = 0; row < 72; row += 1) {
-            grainContext.strokeStyle = row % 4 === 0 ? "#d48b45" : "#090504";
-            grainContext.lineWidth = row % 5 === 0 ? 2 : 1;
-            grainContext.beginPath();
-            const y = (row / 72) * grainCanvas.height;
-            grainContext.moveTo(0, y);
-            for (let x = 0; x <= grainCanvas.width; x += 24) {
-              grainContext.lineTo(x, y + Math.sin(x * 0.023 + row) * 3.5);
-            }
-            grainContext.stroke();
-          }
-        }
-        const grainTexture = new THREE.CanvasTexture(grainCanvas);
-        grainTexture.colorSpace = THREE.SRGBColorSpace;
-        grainTexture.wrapS = THREE.RepeatWrapping;
-        grainTexture.wrapT = THREE.RepeatWrapping;
-        grainTexture.repeat.set(2.4, 2.2);
-        deskMaterial.map = grainTexture;
-        deskMaterial.needsUpdate = true;
-
-        const wall = new THREE.Mesh(
-          new THREE.PlaneGeometry(22, 9),
-          new THREE.MeshStandardMaterial({ color: 0x11100f, roughness: 0.82 }),
-        );
-        wall.position.set(0, 3.8, -5.35);
-        scene.add(wall);
-
-        const brassStrip = new THREE.Mesh(
-          new THREE.BoxGeometry(18, 0.06, 0.08),
-          new THREE.MeshStandardMaterial({ color: 0xb17b36, metalness: 0.92, roughness: 0.2 }),
-        );
-        brassStrip.position.set(0, 0.08, -4.75);
-        scene.add(brassStrip);
-
-        scene.add(new THREE.HemisphereLight(0xd9e2e5, 0x160906, 0.78));
-        scene.add(new THREE.AmbientLight(0xbda991, 0.38));
-
-        const keyLight = new THREE.DirectionalLight(0xffc67d, 4.8);
-        keyLight.position.set(-5, 9, 4);
-        keyLight.castShadow = true;
-        keyLight.shadow.mapSize.set(2048, 2048);
-        keyLight.shadow.camera.left = -10;
-        keyLight.shadow.camera.right = 10;
-        keyLight.shadow.camera.top = 8;
-        keyLight.shadow.camera.bottom = -8;
-        scene.add(keyLight);
-
-        const coolRim = new THREE.DirectionalLight(0x8cc4e2, 1.5);
-        coolRim.position.set(7, 6, -5);
-        scene.add(coolRim);
-
-        const lampLight = new THREE.PointLight(0xffa94f, lampOnRef.current ? 32 : 0, 8, 2);
-        lampLight.position.set(-5.7, 3.2, -2);
-        lampLight.castShadow = true;
-        scene.add(lampLight);
-
-        const loader = new GLTFLoader();
-        const interactive: InteractiveObject[] = [];
-        const interactiveRoots: import("three").Object3D[] = [];
-        const objectById = new Map<string, InteractiveObject>();
-        const animationStartedAt = performance.now();
-        const pointer = new THREE.Vector2(9, 9);
-        const raycaster = new THREE.Raycaster();
-        let hoveredId = "";
-        let pointerX = 0;
-        let pointerY = 0;
-        let bookFocus = 0;
-        let bookFocusTarget = 0;
-        let archiveSlide = 0;
-        let archiveSlideTarget = 0;
-        let aiPulse = 0;
-        let aiPulseTarget = 0;
-
-        function prepare(
-          source: import("three").Object3D,
-          spec: (typeof MODEL_SPECS)[number],
-        ) {
-          source.traverse((child) => {
-            const mesh = child as import("three").Mesh;
-            if (!mesh.isMesh) return;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            const material = mesh.material;
-            if (Array.isArray(material)) {
-              material.forEach((item) => {
-                item.side = THREE.FrontSide;
-              });
-            } else {
-              material.side = THREE.FrontSide;
-            }
-          });
-
-          const box = new THREE.Box3().setFromObject(source);
-          const size = box.getSize(new THREE.Vector3());
-          const scale = spec.size / Math.max(size.x, size.y, size.z, 0.001);
-          source.scale.setScalar(scale);
-
-          const scaledBox = new THREE.Box3().setFromObject(source);
-          const center = scaledBox.getCenter(new THREE.Vector3());
-          source.position.x -= center.x;
-          source.position.z -= center.z;
-          source.position.y -= scaledBox.min.y;
-
-          const root = new THREE.Group();
-          root.name = spec.id;
-          root.userData.interactiveId = spec.id;
-          root.add(source);
-          root.position.set(spec.position[0], spec.position[1], spec.position[2]);
-          root.rotation.set(spec.rotation[0], spec.rotation[1], spec.rotation[2]);
-          scene.add(root);
-
-          const record: InteractiveObject = {
-            id: spec.id,
-            root,
-            basePosition: root.position.clone(),
-            baseRotation: root.rotation.clone(),
-          };
-          interactive.push(record);
-          interactiveRoots.push(root);
-          objectById.set(spec.id, record);
-        }
-
-        let loadedCount = 0;
-        await Promise.all(
-          MODEL_SPECS.map(async (spec) => {
-            const gltf = await loader.loadAsync(`${MODEL_ROOT}/${spec.file}`);
-            if (disposed) return;
-            prepare(gltf.scene, spec);
-            loadedCount += 1;
-            setLoadProgress(Math.round((loadedCount / MODEL_SPECS.length) * 100));
-          }),
-        );
-        if (disposed) return;
-
-        function resize() {
-          const width = Math.max(sceneStage.clientWidth, 1);
-          const height = Math.max(sceneStage.clientHeight, 1);
-          renderer.setSize(width, height, false);
-          camera.aspect = width / height;
-          camera.fov = width < 760 ? 47 : 34;
-          camera.position.y = width < 760 ? 10.8 : 9.1;
-          camera.position.z = width < 760 ? 16.5 : 12.8;
-          camera.updateProjectionMatrix();
-          camera.lookAt(0, 0.25, 0);
-        }
-
-        function pointerCoordinates(event: PointerEvent) {
-          const rect = sceneCanvas.getBoundingClientRect();
-          pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-          pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-          pointerX = pointer.x;
-          pointerY = pointer.y;
-        }
-
-        function findInteractiveId(object: import("three").Object3D | null) {
-          let current = object;
-          while (current) {
-            if (typeof current.userData.interactiveId === "string") {
-              return current.userData.interactiveId as string;
-            }
-            current = current.parent;
-          }
-          return "";
-        }
-
-        function onPointerMove(event: PointerEvent) {
-          pointerCoordinates(event);
-          raycaster.setFromCamera(pointer, camera);
-          const hit = raycaster.intersectObjects(interactiveRoots, true)[0];
-          hoveredId = findInteractiveId(hit?.object ?? null);
-          sceneCanvas.style.cursor = hoveredId ? "pointer" : "default";
-        }
-
-        function onPointerLeave() {
-          pointer.set(9, 9);
-          hoveredId = "";
-          pointerX = 0;
-          pointerY = 0;
-          sceneCanvas.style.cursor = "default";
-        }
-
-        function onClick(event: PointerEvent) {
-          pointerCoordinates(event);
-          raycaster.setFromCamera(pointer, camera);
-          const hit = raycaster.intersectObjects(interactiveRoots, true)[0];
-          const id = findInteractiveId(hit?.object ?? null);
-          if (id) activate(id);
-        }
-
-        actionRef.current = (id) => {
-          if (id === "projects" || id === "organizer") {
-            bookFocusTarget = bookFocusTarget > 0.5 ? 0 : 1;
-          }
-          if (id === "archive") archiveSlideTarget = archiveSlideTarget > 0.5 ? 0 : 1;
-          if (id === "ai" || id === "droid") aiPulseTarget = 1;
-        };
-
-        const observer = new ResizeObserver(resize);
-        observer.observe(sceneStage);
-        sceneCanvas.addEventListener("pointermove", onPointerMove);
-        sceneCanvas.addEventListener("pointerleave", onPointerLeave);
-        sceneCanvas.addEventListener("pointerup", onClick);
-        resize();
-
-        function render() {
-          const elapsed = (performance.now() - animationStartedAt) / 1000;
-          bookFocus += (bookFocusTarget - bookFocus) * 0.075;
-          archiveSlide += (archiveSlideTarget - archiveSlide) * 0.08;
-          aiPulse += (aiPulseTarget - aiPulse) * 0.1;
-          aiPulseTarget *= 0.96;
-
-          const book = objectById.get("projects");
-          if (book) {
-            book.root.position.x = book.basePosition.x;
-            book.root.position.y = book.basePosition.y + bookFocus * 0.85;
-            book.root.position.z = book.basePosition.z + bookFocus * 1.15;
-            book.root.rotation.x = book.baseRotation.x - bookFocus * 0.17;
-            book.root.rotation.y = book.baseRotation.y;
-            book.root.scale.setScalar(1 + bookFocus * 0.075);
-          }
-
-          const archive = objectById.get("archive");
-          if (archive) {
-            archive.root.position.x = archive.basePosition.x + archiveSlide * 0.72;
-            archive.root.position.z = archive.basePosition.z + archiveSlide * 0.3;
-          }
-
-          const droid = objectById.get("droid");
-          if (droid) {
-            droid.root.position.y = droid.basePosition.y + Math.sin(elapsed * 1.55) * 0.045;
-            droid.root.rotation.y = droid.baseRotation.y + Math.sin(elapsed * 0.65) * 0.055;
-            droid.root.scale.setScalar(1 + aiPulse * 0.035);
-          }
-
-          const hovered = objectById.get(hoveredId);
-          for (const item of interactive) {
-            if (item.id === "projects" || item.id === "archive" || item.id === "droid") continue;
-            const targetScale = item === hovered ? 1.025 : 1;
-            item.root.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.12);
-          }
-
-          lampLight.intensity += ((lampOnRef.current ? 32 : 0) - lampLight.intensity) * 0.08;
-          camera.position.x += (pointerX * 0.28 - camera.position.x) * 0.025;
-          camera.position.y += ((sceneStage.clientWidth < 760 ? 10.8 : 9.1) + pointerY * 0.1 - camera.position.y) * 0.025;
-          camera.lookAt(0, 0.25, 0);
-          renderer.render(scene, camera);
-          animationFrame = requestAnimationFrame(render);
-        }
-        render();
-
-        cleanup = () => {
-          observer.disconnect();
-          sceneCanvas.removeEventListener("pointermove", onPointerMove);
-          sceneCanvas.removeEventListener("pointerleave", onPointerLeave);
-          sceneCanvas.removeEventListener("pointerup", onClick);
-          cancelAnimationFrame(animationFrame);
-          renderer.dispose();
-          grainTexture.dispose();
-          scene.traverse((object) => {
-            const mesh = object as import("three").Mesh;
-            mesh.geometry?.dispose?.();
-            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            materials.forEach((material) => material?.dispose?.());
-          });
-        };
-      } catch (error) {
-        if (!disposed) {
-          setSceneError(error instanceof Error ? error.message : "Не удалось открыть 3D-кабинет");
-        }
-      }
-    }
-
-    void startScene();
-    return () => {
-      disposed = true;
-      cleanup();
+  function beginTransform(event: React.PointerEvent, id: ObjectId) {
+    if (!builderOpen || layout[id].hidden) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedObjectId(id);
+    dragRef.current = {
+      id,
+      startX: event.clientX,
+      startY: event.clientY,
+      initial: { ...layout[id] },
     };
-  }, []);
-
-  function closePanel() {
-    setPanel(null);
-    actionRef.current("projects");
   }
+
+  function objectStyle(id: ObjectId) {
+    const item = layout[id];
+    return {
+      left: `${item.x}%`,
+      top: `${item.y}%`,
+      width: `${item.width}%`,
+      opacity: item.hidden ? 0 : 1,
+      pointerEvents: item.hidden ? "none" as const : "auto" as const,
+      transform: `translate(-50%, -50%) rotate(${item.rotation}deg) scale(${item.scale})`,
+    };
+  }
+
+  function objectClass(id: ObjectId, extra = "") {
+    return [
+      styles.deskObject,
+      extra,
+      builderOpen ? styles.builderObject : "",
+      builderOpen && selectedObjectId === id ? styles.selectedDeskObject : "",
+      panel === "projects" && id === "projects" ? styles.projectsOpening : "",
+    ].filter(Boolean).join(" ");
+  }
+
+  function toggleBuilder() {
+    setBuilderOpen((current) => {
+      const next = !current;
+      if (next) {
+        setPanel(null);
+        setToast("Конструктор включён: двигайте предмет прямо по столу");
+      } else {
+        setToast("Расположение предметов готово");
+      }
+      return next;
+    });
+  }
+
+  function toggleVisibility(id: ObjectId) {
+    setLayout((current) => ({
+      ...current,
+      [id]: { ...current[id], hidden: !current[id].hidden },
+    }));
+  }
+
+  function saveBuilderLayout() {
+    window.localStorage.setItem(layoutStorageKey, JSON.stringify(layout));
+    setToast("Расположение сохранено в этом браузере");
+  }
+
+  function resetBuilderLayout() {
+    window.localStorage.removeItem(layoutStorageKey);
+    setLayout(cloneDefaultLayout());
+    setSelectedObjectId("projects");
+    setToast("Восстановлена исходная композиция");
+  }
+
+  function closeProjects() {
+    setPanel(null);
+    setToast("Книга проектов закрыта");
+  }
+
+  function toggleTest(test: string) {
+    setAssignedTests((current) => (
+      current.includes(test) ? current.filter((item) => item !== test) : [...current, test]
+    ));
+  }
+
+  function restoreProject(item: ExecutiveLabProject) {
+    setRestoredProjectIds((current) => [...new Set([...current, item.id])]);
+    setToast(`Проект «${item.title}» восстановлен`);
+  }
+
+  function askAi(event: React.FormEvent) {
+    event.preventDefault();
+    const question = aiQuestion.trim();
+    if (!question) return;
+    const weakest = [...activeProjects].sort((left, right) => left.progress - right.progress)[0];
+    setAiAnswer(
+      weakest
+        ? `В портфеле ${activeProjects.length} активных проекта, средний прогресс ${averageProgress}%. В первую очередь проверьте «${weakest.title}»: его готовность ${weakest.progress}%. Затем сформируйте сводку по участникам и незавершённым оценкам.`
+        : "Сначала создайте активный проект. После этого аналитик сможет сравнить прогресс и предложить следующий шаг.",
+    );
+    setAiQuestion("");
+  }
+
+  const selectedBuilderObject = BUILDER_OBJECTS.find((item) => item.id === selectedObjectId);
 
   return (
     <main className={styles.shell}>
@@ -482,10 +503,113 @@ export default function ExecutiveDeskScene({ workspace, onCreateProject }: Props
         </div>
       </header>
 
-      <section ref={stageRef} className={styles.stage}>
-        <canvas ref={canvasRef} aria-label="Интерактивный кабинет Executive Space" />
+      <section ref={stageRef} className={`${styles.stage} ${panel ? styles.panelFocus : ""}`}>
+        <Image
+          className={styles.deskBackground}
+          src={`${LAYER_ROOT}/desk-background.webp`}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          unoptimized
+          draggable={false}
+        />
+        <div className={styles.ambientLight} aria-hidden="true" />
 
-        {loadProgress < 100 && !sceneError ? (
+        <button
+          className={objectClass("trash", styles.trashObject)}
+          style={objectStyle("trash")}
+          onClick={() => activate("trash")}
+          onPointerDown={(event) => beginTransform(event, "trash")}
+        >
+          <Image src={`${LAYER_ROOT}/trash-tray.webp`} alt="" fill sizes="28vw" unoptimized draggable={false} />
+          <span className={styles.trayContent}><b>Корзина</b><small>3 документа</small></span>
+        </button>
+
+        <button
+          className={objectClass("archive", styles.archiveObject)}
+          style={objectStyle("archive")}
+          onClick={() => activate("archive")}
+          onPointerDown={(event) => beginTransform(event, "archive")}
+        >
+          <Image src={`${LAYER_ROOT}/archive-book.webp`} alt="" fill sizes="30vw" unoptimized draggable={false} />
+          <span className={styles.archiveCover}><b>Архив</b><strong>156</strong><small>документов</small></span>
+        </button>
+
+        <button
+          className={objectClass("projects", styles.projectsObject)}
+          style={objectStyle("projects")}
+          onClick={() => activate("projects")}
+          onPointerDown={(event) => beginTransform(event, "projects")}
+        >
+          <Image src={`${LAYER_ROOT}/projects-closed.webp`} alt="" fill sizes="34vw" unoptimized draggable={false} />
+          <span className={styles.projectsCover}>
+            <i>▰</i><b>ПРОЕКТЫ</b>
+            <small><em /> {activeProjects.length} активных</small>
+            <small><em className={styles.pauseDot} /> 4 на паузе</small>
+          </span>
+        </button>
+
+        <button
+          className={objectClass("organizer", styles.organizerObject)}
+          style={objectStyle("organizer")}
+          onClick={() => activate("organizer")}
+          onPointerDown={(event) => beginTransform(event, "organizer")}
+        >
+          <Image src={`${LAYER_ROOT}/info-board.webp`} alt="" fill sizes="32vw" unoptimized draggable={false} />
+          <span className={styles.infoBoardContent}>
+            <b>Информационное табло</b>
+            <span><small>Прогресс портфеля</small><strong>72%</strong></span>
+            <span><small>Бюджет портфеля</small><strong>{formatBalance(workspace.balanceKopeks)}</strong></span>
+            <span><small>Командная активность</small><strong>85%</strong></span>
+            <em className={styles.boardRule} />
+            <span className={styles.boardLine}><small>Проекты без риска</small><strong>{Math.max(activeProjects.length - 1, 0)}</strong></span>
+            <span className={styles.boardLine}><small>Ждут решения</small><strong>2</strong></span>
+            <span className={styles.boardLine}><small>Новые отчёты</small><strong>4</strong></span>
+          </span>
+        </button>
+
+        <button
+          className={objectClass("ai", styles.aiObject)}
+          style={objectStyle("ai")}
+          onClick={() => activate("ai")}
+          onPointerDown={(event) => beginTransform(event, "ai")}
+        >
+          <Image src={`${LAYER_ROOT}/ai-console.webp`} alt="" fill sizes="18vw" unoptimized draggable={false} />
+          <span className={styles.aiScreenContent}>
+            <b>AI-аналитик</b>
+            <i />
+            <small>Рекомендация на сегодня</small>
+            <strong>Проверить проект «{project?.title ?? "Альфа"}»</strong>
+            <em>Вероятность успешного завершения: {workspace.aiEfficiency}%</em>
+            <span>Подробнее&nbsp;&nbsp;→</span>
+          </span>
+        </button>
+
+        <button
+          className={objectClass("lamp", `${styles.modelObject} ${styles.lampObject} ${lampOn ? styles.lampOn : ""}`)}
+          style={objectStyle("lamp")}
+          onClick={() => activate("lamp")}
+          onPointerDown={(event) => beginTransform(event, "lamp")}
+        >
+          <span className={styles.lampAura} />
+          <span className={styles.modelViewport}>
+            <ModelViewport file="desk-lamp.glb" kind="lamp" lampOn={lampOn} onLoaded={markModelLoaded} />
+          </span>
+        </button>
+
+        <button
+          className={objectClass("droid", `${styles.modelObject} ${styles.droidObject}`)}
+          style={objectStyle("droid")}
+          onClick={() => activate("droid")}
+          onPointerDown={(event) => beginTransform(event, "droid")}
+        >
+          <span className={styles.modelViewport}>
+            <ModelViewport file="ai-droid.glb" kind="droid" onLoaded={markModelLoaded} />
+          </span>
+        </button>
+
+        {loadProgress < 100 ? (
           <div className={styles.loader}>
             <span>СОБИРАЕМ КАБИНЕТ</span>
             <strong>{loadProgress}%</strong>
@@ -493,36 +617,15 @@ export default function ExecutiveDeskScene({ workspace, onCreateProject }: Props
           </div>
         ) : null}
 
-        {sceneError ? (
-          <div className={styles.sceneError}>
-            <strong>3D-сцена не загрузилась</strong>
-            <span>{sceneError}</span>
-          </div>
-        ) : null}
-
         <section className={styles.summary}>
           <span>Сводка за сегодня</span>
           <div>
-            <button onClick={() => activate("projects")}>
-              <small>Проекты</small><strong>{activeProjects.length}</strong>
-            </button>
-            <button onClick={() => setToast("Каталог тестов откроется следующим модулем")}>
-              <small>Тесты</small><strong>{workspace.projects.length * 2 + 18}</strong>
-            </button>
-            <button onClick={() => setToast("Баланс тестового кабинета")}>
-              <small>Баланс</small><strong>{formatBalance(workspace.balanceKopeks)}</strong>
-            </button>
-            <button onClick={() => activate("ai")}>
-              <small>AI-аналитик</small><strong>{workspace.aiEfficiency}%</strong>
-            </button>
+            <button onClick={() => activate("projects")}><small>Проекты</small><strong>{activeProjects.length}</strong></button>
+            <button onClick={() => setPanel("tests")}><small>Тесты</small><strong>{workspace.projects.length * 2 + 18}</strong></button>
+            <button onClick={() => setPanel("wallet")}><small>Баланс</small><strong>{formatBalance(workspace.balanceKopeks)}</strong></button>
+            <button onClick={() => activate("ai")}><small>AI-аналитик</small><strong>{workspace.aiEfficiency}%</strong></button>
           </div>
         </section>
-
-        <div className={styles.objectLabels} aria-hidden="true">
-          <span className={styles.archiveLabel}>АРХИВ</span>
-          <span className={styles.projectsLabel}>ПРОЕКТЫ</span>
-          <span className={styles.aiLabel}>AI-АНАЛИТИК</span>
-        </div>
 
         <aside className={styles.navigationHint}>
           <span>Навигация по пространству</span>
@@ -535,59 +638,207 @@ export default function ExecutiveDeskScene({ workspace, onCreateProject }: Props
           <button onClick={() => setToast("Новых уведомлений: 3")}>Уведомления <b>3</b></button>
         </nav>
 
-        <button className={styles.settings} onClick={() => setToast("Настройки пространства сохранены локально")}>
-          Настроить пространство
+        <button className={`${styles.settings} ${builderOpen ? styles.settingsActive : ""}`} onClick={toggleBuilder} disabled={loadProgress < 100}>
+          {builderOpen ? "Готово" : "Настроить пространство"}
         </button>
 
         <div className={styles.toast} key={toast}>{toast}</div>
 
+        <aside className={`${styles.builderPanel} ${builderOpen ? styles.builderPanelOpen : ""}`} aria-hidden={!builderOpen}>
+          <header>
+            <div><span>КОНСТРУКТОР СЦЕНЫ</span><strong>{selectedBuilderObject?.label}</strong></div>
+            <button onClick={toggleBuilder} aria-label="Закрыть конструктор">×</button>
+          </header>
+          <div className={styles.builderModes}>
+            {([
+              ["translate", "Двигать"],
+              ["rotate", "Вращать"],
+              ["scale", "Размер"],
+            ] as const).map(([mode, label]) => (
+              <button key={mode} className={builderMode === mode ? styles.builderModeActive : ""} onClick={() => setBuilderMode(mode)}>{label}</button>
+            ))}
+          </div>
+          <div className={styles.builderObjects}>
+            {BUILDER_OBJECTS.map((item) => {
+              const hidden = layout[item.id].hidden;
+              return (
+                <div key={item.id} className={selectedObjectId === item.id ? styles.builderObjectActive : ""}>
+                  <button onClick={() => setSelectedObjectId(item.id)} disabled={hidden}><i /><span>{item.label}</span></button>
+                  <button className={styles.visibilityButton} onClick={() => toggleVisibility(item.id)}>{hidden ? "○" : "●"}</button>
+                </div>
+              );
+            })}
+          </div>
+          <p>Режим «Двигать» меняет позицию, «Вращать» поворачивает, «Размер» масштабирует предмет.</p>
+          <footer>
+            <button onClick={resetBuilderLayout}>Сбросить</button>
+            <button className={styles.saveLayoutButton} onClick={saveBuilderLayout}>Сохранить</button>
+          </footer>
+        </aside>
+
         {panel === "projects" ? (
           <section className={`${styles.bookPanel} ${styles.panelEnter}`} aria-label="Книга проектов">
-            <button className={styles.close} onClick={closePanel} aria-label="Закрыть">×</button>
-            <aside className={styles.bookFilters}>
-              <span>ФИЛЬТРЫ</span>
-              <button className={styles.selectedFilter}>Все проекты</button>
-              <button>Активные</button>
-              <button>На паузе</button>
-              <button>Завершённые</button>
-              <hr />
-              <small>{workspace.projects.length} проектов в книге</small>
-            </aside>
-            <div className={styles.bookPage}>
-              <header>
-                <div>
-                  <small>EXECUTIVE REGISTER</small>
-                  <h2>Проекты</h2>
-                </div>
-                <button onClick={onCreateProject}>+ Создать проект</button>
-              </header>
-              <div className={styles.projectRows}>
-                {workspace.projects.map((item, index) => (
+            <Image className={styles.openBookVisual} src={`${LAYER_ROOT}/projects-open.webp`} alt="" fill sizes="94vw" unoptimized draggable={false} />
+            <button className={styles.close} onClick={closeProjects} aria-label="Закрыть">×</button>
+            <aside className={styles.folioFilters}>
+              <span>Фильтры</span>
+              <section>
+                <b>Статус</b>
+                {([
+                  ["active", "Активный", "green"],
+                  ["paused", "На паузе", "amber"],
+                  ["completed", "Завершён", "gray"],
+                ] as const).map(([filter, label, color]) => (
                   <button
-                    key={item.id}
-                    className={index === selectedProject ? styles.selectedProject : ""}
-                    onClick={() => setSelectedProject(index)}
+                    key={filter}
+                    className={projectFilter === filter ? styles.folioFilterActive : ""}
+                    onClick={() => {
+                      setProjectFilter(projectFilter === filter ? "all" : filter);
+                      setProjectPage(0);
+                    }}
                   >
-                    <span>
-                      <strong>{item.title}</strong>
-                      <small>{item.folderTitle} · {item.participants} участников</small>
-                    </span>
-                    <span className={styles.projectStatus}>
-                      <small>{item.status}</small>
-                      <i><b style={{ width: `${item.progress}%` }} /></i>
-                      <em>{item.progress}%</em>
-                    </span>
+                    <i className={styles[color]} />
+                    <em />
+                    {label}
                   </button>
                 ))}
+              </section>
+              <section>
+                <b>Владелец</b>
+                <button className={projectOwnerFilter === "all" ? styles.folioFilterActive : ""} onClick={() => {
+                  setProjectOwnerFilter("all");
+                  setProjectPage(0);
+                }}><em />Все владельцы</button>
+                <button className={projectOwnerFilter === "owner" ? styles.folioFilterActive : ""} onClick={() => {
+                  setProjectOwnerFilter("owner");
+                  setProjectPage(0);
+                }}><em />{workspace.ownerName}</button>
+                <button className={projectOwnerFilter === "maria" ? styles.folioFilterActive : ""} onClick={() => {
+                  setProjectOwnerFilter("maria");
+                  setProjectPage(0);
+                }}><em />Мария Смирнова</button>
+                <button className={projectOwnerFilter === "dmitry" ? styles.folioFilterActive : ""} onClick={() => {
+                  setProjectOwnerFilter("dmitry");
+                  setProjectPage(0);
+                }}><em />Дмитрий Волков</button>
+              </section>
+              <section>
+                <b>Дедлайн</b>
+                {([
+                  ["any", "Любой период"],
+                  ["overdue", "Просроченные"],
+                  ["week", "До 7 дней"],
+                  ["month", "До 30 дней"],
+                ] as const).map(([filter, label]) => (
+                  <button key={filter} className={projectDeadlineFilter === filter ? styles.folioFilterActive : ""} onClick={() => {
+                    setProjectDeadlineFilter(filter);
+                    setProjectPage(0);
+                  }}><em />{label}</button>
+                ))}
+              </section>
+              <button className={styles.resetFolioFilters} onClick={() => {
+                setProjectFilter("all");
+                setProjectView("all");
+                setProjectOwnerFilter("all");
+                setProjectDeadlineFilter("any");
+                setProjectSearch("");
+                setProjectPage(0);
+              }}>Сбросить фильтры</button>
+            </aside>
+
+            <div className={styles.folioScreen}>
+              <header>
+                <div className={styles.folioTitle}>
+                  <i>▰</i>
+                  <h2>Проекты</h2>
+                  <span><em /> {activeProjects.length} активных</span>
+                </div>
+                <button className={styles.createFolioProject} onClick={onCreateProject}>+ Создать проект</button>
+              </header>
+              <div className={styles.folioToolbar}>
+                <label>
+                  <i>⌕</i>
+                  <input
+                    value={projectSearch}
+                    onChange={(event) => {
+                      setProjectSearch(event.target.value);
+                      setProjectPage(0);
+                    }}
+                    placeholder="Поиск проектов..."
+                    aria-label="Поиск проектов"
+                  />
+                </label>
+                <button onClick={() => setProjectFilter(projectFilter === "all" ? "active" : "all")}>Фильтры⌄</button>
+                <select value={projectSort} onChange={(event) => setProjectSort(event.target.value as ProjectSort)} aria-label="Сортировка проектов">
+                  <option value="progress_desc">Прогресс: сначала высокий</option>
+                  <option value="progress_asc">Прогресс: сначала низкий</option>
+                  <option value="title">По названию</option>
+                </select>
               </div>
-              {project ? (
-                <footer>
-                  <span>Выбрано: <strong>{project.title}</strong></span>
-                  <button>Открыть проект</button>
-                </footer>
-              ) : null}
+              <div className={styles.folioTable}>
+                <div className={styles.folioColumns}>
+                  <span>Проект</span><span>Статус</span><span>Владелец</span><span>Дедлайн</span><span>Прогресс</span>
+                </div>
+                <div className={styles.folioRows}>
+                  {paginatedProjects.map((item) => {
+                    const index = workspace.projects.findIndex((projectItem) => projectItem.id === item.id);
+                    const owner = index % 3 === 0 ? workspace.ownerName : index % 3 === 1 ? "Мария Смирнова" : "Дмитрий Волков";
+                    const selected = index === selectedProject;
+                    return (
+                      <button
+                        key={item.id}
+                        className={selected ? styles.selectedFolioProject : ""}
+                        onClick={() => setSelectedProject(index)}
+                        onDoubleClick={() => setPanel("project")}
+                      >
+                        <span><strong>{item.title}</strong><small>{item.folderTitle} · {item.participants} участников</small></span>
+                        <span><i className={item.disposition === "archived" ? styles.gray : item.status.toLocaleLowerCase("ru-RU").includes("пауз") ? styles.amber : styles.green} />{item.status}</span>
+                        <span><em>{owner.slice(0, 1)}</em>{owner}</span>
+                        <span>{item.date}</span>
+                        <span><strong>{item.progress}%</strong><i><b style={{ width: `${item.progress}%` }} /></i><small>›</small></span>
+                      </button>
+                    );
+                  })}
+                  {paginatedProjects.length === 0 ? <p className={styles.emptyProjects}>Проекты по заданным условиям не найдены.</p> : null}
+                </div>
+              </div>
+              <footer className={styles.folioPagination}>
+                <span>Показано {paginatedProjects.length ? projectPage * 5 + 1 : 0}–{Math.min((projectPage + 1) * 5, visibleProjects.length)} из {visibleProjects.length}</span>
+                <div>
+                  <button onClick={() => setProjectPage((page) => Math.max(0, page - 1))}>‹</button>
+                  {Array.from({ length: projectPageCount }, (_, index) => (
+                    <button key={index} className={projectPage === index ? styles.activeFolioPage : ""} onClick={() => setProjectPage(index)}>{index + 1}</button>
+                  ))}
+                  <button onClick={() => setProjectPage((page) => Math.min(projectPageCount - 1, page + 1))}>›</button>
+                </div>
+              </footer>
             </div>
-            <div className={styles.pageStack} aria-hidden="true"><i /><i /><i /></div>
+
+            <nav className={styles.folioTabs}>
+              {([
+                ["all", "Все проекты"],
+                ["mine", "Мои проекты"],
+                ["favorites", "Избранное"],
+                ["archive", "Архив"],
+              ] as const).map(([view, label]) => (
+                <button key={view} className={projectView === view ? styles.activeFolioTab : ""} onClick={() => {
+                  setProjectView(view);
+                  setProjectOwnerFilter(view === "mine" ? "owner" : "all");
+                  setProjectFilter("all");
+                  setProjectPage(0);
+                }}>{label}</button>
+              ))}
+            </nav>
+
+            <footer className={styles.folioActions}>
+              <button className={styles.openFolioProject} onClick={() => setPanel("project")}>Открыть</button>
+              <button onClick={() => setPanel("project")}>Подробнее</button>
+              <button onClick={() => {
+                if (!project) return;
+                setFavoriteProjectIds((current) => current.includes(project.id) ? current.filter((id) => id !== project.id) : [...current, project.id]);
+                setToast(favoriteProjectIds.includes(project.id) ? "Проект удалён из избранного" : "Проект добавлен в избранное");
+              }}>•••</button>
+            </footer>
           </section>
         ) : null}
 
@@ -598,10 +849,7 @@ export default function ExecutiveDeskScene({ workspace, onCreateProject }: Props
             <h2>{archivePage === 0 ? "Завершённые проекты" : "Документы и отчёты"}</h2>
             <div className={styles.archiveList}>
               {(archivedProjects.length ? archivedProjects : workspace.projects.slice(0, 3)).map((item) => (
-                <article key={item.id}>
-                  <strong>{item.title}</strong>
-                  <small>{item.date} · {item.participants} участников</small>
-                </article>
+                <article key={item.id}><strong>{item.title}</strong><small>{item.date} · {item.participants} участников</small></article>
               ))}
             </div>
             <footer>
@@ -617,16 +865,133 @@ export default function ExecutiveDeskScene({ workspace, onCreateProject }: Props
             <button className={styles.close} onClick={() => setPanel(null)} aria-label="Закрыть">×</button>
             <span>AI-АНАЛИТИК · В СЕТИ</span>
             <h2>Рекомендация на сегодня</h2>
-            <p>
-              {project
-                ? `Проект «${project.title}» выполнен на ${project.progress}%. Следующий приоритет: проверить незавершённые оценки и подготовить краткую управленческую сводку.`
-                : "Создайте первый проект, чтобы получить рекомендации."}
-            </p>
+            <p>{aiAnswer || (project ? `Проект «${project.title}» выполнен на ${project.progress}%. Следующий приоритет: проверить незавершённые оценки и подготовить краткую управленческую сводку.` : "Создайте первый проект, чтобы получить рекомендации.")}</p>
             <div>
               <article><small>Эффективность</small><strong>{workspace.aiEfficiency}%</strong></article>
               <article><small>Активных проектов</small><strong>{activeProjects.length}</strong></article>
             </div>
-            <button className={styles.aiAction}>Открыть чат</button>
+            <form className={styles.aiAsk} onSubmit={askAi}>
+              <input value={aiQuestion} onChange={(event) => setAiQuestion(event.target.value)} placeholder="Спросить о портфеле проектов" />
+              <button className={styles.aiAction} type="submit">Получить рекомендацию</button>
+            </form>
+          </section>
+        ) : null}
+
+        {panel === "insights" ? (
+          <section className={`${styles.workspacePanel} ${styles.insightsPanel} ${styles.panelEnter}`}>
+            <button className={styles.close} onClick={() => setPanel(null)} aria-label="Закрыть">×</button>
+            <header>
+              <span>ЦЕНТР ПОКАЗАТЕЛЕЙ</span>
+              <h2>Состояние портфеля</h2>
+              <p>Данные рассчитаны по проектам отдельного Executive Lab.</p>
+            </header>
+            <div className={styles.insightMetrics}>
+              <article><small>Средний прогресс</small><strong>{averageProgress}%</strong><i><b style={{ width: `${averageProgress}%` }} /></i></article>
+              <article><small>Участников</small><strong>{workspace.projects.reduce((total, item) => total + item.participants, 0)}</strong><em>во всех проектах</em></article>
+              <article><small>Нуждаются во внимании</small><strong>{activeProjects.filter((item) => item.progress < 50).length}</strong><em>прогресс ниже 50%</em></article>
+            </div>
+            <div className={styles.portfolioRows}>
+              {activeProjects.map((item) => (
+                <button key={item.id} onClick={() => {
+                  setSelectedProject(workspace.projects.findIndex((projectItem) => projectItem.id === item.id));
+                  setPanel("project");
+                }}>
+                  <span><strong>{item.title}</strong><small>{item.participants} участников</small></span>
+                  <i><b style={{ width: `${item.progress}%` }} /></i>
+                  <em>{item.progress}%</em>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {panel === "tests" ? (
+          <section className={`${styles.workspacePanel} ${styles.panelEnter}`}>
+            <button className={styles.close} onClick={() => setPanel(null)} aria-label="Закрыть">×</button>
+            <header>
+              <span>КАТАЛОГ МЕТОДИК</span>
+              <h2>Тесты</h2>
+              <p>Выберите инструменты для нового проекта. Настройка сохраняется в текущей сессии.</p>
+            </header>
+            <div className={styles.testCatalog}>
+              {[
+                ["16PF-A", "Личностный профиль", "35 мин"],
+                ["Эмоциональный интеллект", "Эмоциональные компетенции", "6 мин"],
+                ["Мотивационные карты", "Ведущие мотиваторы", "7 мин"],
+                ["Ваш переговорный стиль", "Поведение в переговорах", "5 мин"],
+                ["Тайм-менеджмент", "Организация времени", "3 мин"],
+                ["Ситуативное руководство", "Управленческий стиль", "5 мин"],
+              ].map(([title, description, duration]) => {
+                const assigned = assignedTests.includes(title);
+                return (
+                  <button key={title} className={assigned ? styles.testAssigned : ""} onClick={() => toggleTest(title)}>
+                    <i>{assigned ? "✓" : "+"}</i>
+                    <span><strong>{title}</strong><small>{description}</small></span>
+                    <em>{duration}</em>
+                  </button>
+                );
+              })}
+            </div>
+            <footer className={styles.panelFooter}>
+              <span>Выбрано методик: <strong>{assignedTests.length}</strong></span>
+              <button onClick={() => {
+                setPanel("projects");
+                setToast("Набор тестов подготовлен для проекта");
+              }}>Использовать в проекте</button>
+            </footer>
+          </section>
+        ) : null}
+
+        {panel === "wallet" ? (
+          <section className={`${styles.workspacePanel} ${styles.walletPanel} ${styles.panelEnter}`}>
+            <button className={styles.close} onClick={() => setPanel(null)} aria-label="Закрыть">×</button>
+            <header><span>EXECUTIVE WALLET</span><h2>Баланс</h2><p>Демонстрационный кошелёк отдельного тестового кабинета.</p></header>
+            <div className={styles.walletCard}>
+              <small>Доступно средств</small>
+              <strong>{formatBalance(workspace.balanceKopeks)}</strong>
+              <span>Тестовая среда · платежи отключены</span>
+            </div>
+            <div className={styles.walletActions}>
+              {[50000, 100000, 250000].map((amount) => (
+                <button key={amount} onClick={() => setToast(`Подготовлено пополнение на ${formatBalance(amount * 100)}`)}>
+                  + {new Intl.NumberFormat("ru-RU").format(amount)} ₽
+                </button>
+              ))}
+            </div>
+            <p className={styles.safeNote}>Реальные списания и ЮKassa в этом экспериментальном интерфейсе не вызываются.</p>
+          </section>
+        ) : null}
+
+        {panel === "trash" ? (
+          <section className={`${styles.workspacePanel} ${styles.trashPanel} ${styles.panelEnter}`}>
+            <button className={styles.close} onClick={() => setPanel(null)} aria-label="Закрыть">×</button>
+            <header><span>КОРЗИНА</span><h2>Удалённые проекты</h2><p>Восстановление действует только в текущем тестовом интерфейсе.</p></header>
+            <div className={styles.trashList}>
+              {trashProjects.length ? trashProjects.map((item) => (
+                <article key={item.id}>
+                  <span><strong>{item.title}</strong><small>{item.folderTitle} · {item.date}</small></span>
+                  <button onClick={() => restoreProject(item)}>Восстановить</button>
+                </article>
+              )) : <div className={styles.emptyTrash}><strong>Корзина пуста</strong><span>Удалённые проекты появятся здесь.</span></div>}
+            </div>
+          </section>
+        ) : null}
+
+        {panel === "project" && project ? (
+          <section className={`${styles.workspacePanel} ${styles.projectDetailPanel} ${styles.panelEnter}`}>
+            <button className={styles.close} onClick={() => setPanel("projects")} aria-label="Закрыть">×</button>
+            <header><span>КАРТОЧКА ПРОЕКТА</span><h2>{project.title}</h2><p>{project.folderTitle} · обновлено {project.date}</p></header>
+            <div className={styles.projectDetailGrid}>
+              <article><small>Статус</small><strong>{project.status}</strong></article>
+              <article><small>Участников</small><strong>{project.participants}</strong></article>
+              <article><small>Готовность</small><strong>{project.progress}%</strong></article>
+            </div>
+            <div className={styles.projectProgress}><i><b style={{ width: `${project.progress}%` }} /></i><span>{project.progress}% выполнено</span></div>
+            <div className={styles.projectActions}>
+              <button onClick={() => setPanel("ai")}>Спросить AI</button>
+              <button onClick={() => setPanel("tests")}>Настроить тесты</button>
+              <button className={styles.primaryAction} onClick={() => setToast(`Проект «${project.title}» подготовлен к открытию`)}>Перейти к проекту</button>
+            </div>
           </section>
         ) : null}
       </section>

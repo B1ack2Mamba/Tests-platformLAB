@@ -461,6 +461,14 @@
   background: transparent;
 }
 
+.projectRow[data-draggable="true"] {
+  cursor: grab;
+}
+
+.projectRow[data-draggable="true"]:active {
+  cursor: grabbing;
+}
+
 .dragHandle {
   display: grid;
   place-items: center;
@@ -504,6 +512,10 @@
   text-align: left;
   background: transparent;
   cursor: pointer;
+}
+
+.projectRow[data-draggable="true"] .projectToggle {
+  cursor: grab;
 }
 
 .projectToggle:hover {
@@ -1543,6 +1555,35 @@
   cursor: not-allowed;
 }
 
+.analysisActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.analysisActions .primaryAction,
+.analysisActions .secondaryAction {
+  min-width: 0;
+  margin-top: 0;
+}
+
+.analysisActions .secondaryAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.analysisWaiting {
+  display: block;
+  margin-top: auto;
+  padding-top: 12px;
+  color: #7e8c83;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .scrollHint {
   margin-top: 9px;
   color: #929c96;
@@ -2038,6 +2079,10 @@
 }
 
 @media (max-width: 560px) {
+  .analysisActions {
+    grid-template-columns: 1fr;
+  }
+
   .toolbar {
     gap: 8px;
   }

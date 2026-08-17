@@ -174,7 +174,7 @@ export default function AdminStatusPage() {
               <div>
                 <div className="text-sm font-semibold text-slate-900">Маршрут подключений</div>
                 <div className="mt-1 text-sm text-slate-500">
-                  Показывает, откуда пришел пользователь, где выполнилась Vercel-функция и через какой Cloudflare POP ответил Supabase Edge.
+                  Показывает, откуда пришел пользователь, где выполнился сервер приложения и через какой Cloudflare POP ответил Supabase Edge.
                 </div>
               </div>
               <span className={`rounded-full border px-3 py-1 text-xs font-medium ${connectionRoute ? toneChip(connectionRoute.ok) : "border-slate-200 bg-white text-slate-500"}`}>
@@ -197,7 +197,7 @@ export default function AdminStatusPage() {
                   </div>
                   <div className="hidden items-center text-xl font-semibold text-emerald-700 xl:flex">-&gt;</div>
                   <div className="rounded-3xl border border-emerald-100 bg-white px-4 py-4 shadow-sm">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">2. Vercel</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">2. Сервер приложения</div>
                     <div className="mt-3 text-lg font-semibold text-slate-950">
                       {formatPlace(connectionRoute.route.vercel.country, connectionRoute.route.vercel.city)}
                     </div>
@@ -259,7 +259,7 @@ export default function AdminStatusPage() {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Важно: путь браузер -&gt; Supabase может скрывать POP из-за CORS, поэтому здесь самый точный замер для серверного пути Vercel -&gt; Supabase. Именно через него теперь идут кошелек, refresh сессии и часть авторизации.
+                  Важно: путь браузер -&gt; Supabase может скрывать POP из-за CORS, поэтому здесь самый точный замер для серверного пути приложение -&gt; Supabase. Именно через него идут кошелек, refresh сессии и часть авторизации.
                 </div>
               </>
             ) : (

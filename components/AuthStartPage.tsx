@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { Layout } from "@/components/Layout";
 import { useSession } from "@/lib/useSession";
+import { getSupabaseAuthStorageKey } from "@/lib/supabaseBrowser";
 import { CONNECTION_TROUBLE_HINT, friendlyErrorMessage } from "@/lib/friendlyErrors";
 
 function TextSide() {
@@ -82,25 +84,25 @@ const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 const LOGIN_RETRY_ATTEMPTS = 4;
 const LOGIN_RETRY_DELAYS_MS = [700, 1400, 2400];
+const AUTH_SET_SESSION_TIMEOUT_MS = 2500;
+
+type AuthSessionPayload = Partial<Session> & {
+  access_token?: string;
+  refresh_token?: string;
+};
+
+type AuthSessionLike = AuthSessionPayload | null | undefined;
 
 type EmailLoginResult = {
   ok?: boolean;
   error?: string;
-  session?: {
-    access_token?: string;
-    refresh_token?: string;
-  } | null;
+  session?: AuthSessionLike;
 };
 
-type EmailLoginSession = {
+type EmailLoginSession = AuthSessionPayload & {
   access_token: string;
   refresh_token: string;
 };
-
-type AuthSessionLike = {
-  access_token?: string;
-  refresh_token?: string;
-} | null | undefined;
 
 type NameAuthResult = {
   ok?: boolean;
@@ -221,10 +223,7 @@ async function loginWithServerFallback(email: string, password: string): Promise
   if (!response.ok || !data?.ok || !data.session?.access_token || !data.session.refresh_token) {
     throw new Error(data?.error || "Не удалось войти. Попробуйте ещё раз.");
   }
-  return {
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  };
+  return data.session as EmailLoginSession;
 }
 
 async function loginWithNameServer(firstName: string, lastName: string, password: string): Promise<EmailLoginSession> {
@@ -237,10 +236,7 @@ async function loginWithNameServer(firstName: string, lastName: string, password
   if (!response.ok || !data?.ok || !data.session?.access_token || !data.session.refresh_token) {
     throw new Error(data?.error || "Не удалось войти по имени и паролю. Проверьте данные и попробуйте ещё раз.");
   }
-  return {
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  };
+  return data.session as EmailLoginSession;
 }
 
 function safeLocalStorageGet(key: string) {
@@ -267,6 +263,30 @@ function safeLocalStorageRemove(key: string) {
     window.localStorage.removeItem(key);
   } catch {
     // Ignore blocked storage environments.
+  }
+}
+
+function persistAuthSessionLocally(authSession: AuthSessionLike) {
+  if (!authSession?.access_token) return "";
+  safeLocalStorageSet(getSupabaseAuthStorageKey(), JSON.stringify(authSession));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("lk-auth-session", { detail: authSession as Session }));
+  }
+  return authSession.access_token;
+}
+
+async function setSupabaseSessionBestEffort(authClient: SupabaseClient, authSession: AuthSessionLike) {
+  if (!authSession?.access_token || !authSession.refresh_token) return;
+  try {
+    await Promise.race([
+      authClient.auth.setSession({
+        access_token: authSession.access_token,
+        refresh_token: authSession.refresh_token,
+      }),
+      wait(AUTH_SET_SESSION_TIMEOUT_MS),
+    ]);
+  } catch {
+    // The local session is already saved. Do not block login on direct browser -> Supabase connectivity.
   }
 }
 
@@ -398,21 +418,16 @@ export default function AuthStartPage() {
     setPassword2("");
   }
 
-  async function loginOnce(authClient: NonNullable<typeof supabase>, loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {
-    const serverSession = await loginWithServerFallback(loginEmail, loginPassword);
-    await authClient.auth.setSession({
-      access_token: serverSession.access_token,
-      refresh_token: serverSession.refresh_token,
-    });
-    return serverSession;
+  async function loginOnce(loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {
+    return loginWithServerFallback(loginEmail, loginPassword);
   }
 
-  async function loginWithRetry(authClient: NonNullable<typeof supabase>, loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {
+  async function loginWithRetry(loginEmail: string, loginPassword: string): Promise<EmailLoginSession> {
     let lastError: any = null;
     for (let attempt = 1; attempt <= LOGIN_RETRY_ATTEMPTS; attempt += 1) {
       setLoginAttempt(attempt);
       try {
-        return await loginOnce(authClient, loginEmail, loginPassword);
+        return await loginOnce(loginEmail, loginPassword);
       } catch (err: any) {
         lastError = err;
         if (attempt >= LOGIN_RETRY_ATTEMPTS || !isRetryableLoginError(err)) throw err;
@@ -424,13 +439,9 @@ export default function AuthStartPage() {
 
   async function applyAuthSession(authClient: NonNullable<typeof supabase>, authSession: AuthSessionLike) {
     if (!authSession?.access_token) return "";
-    if (authSession.refresh_token) {
-      await authClient.auth.setSession({
-        access_token: authSession.access_token,
-        refresh_token: authSession.refresh_token,
-      });
-    }
-    return authSession.access_token;
+    const accessToken = persistAuthSessionLocally(authSession);
+    void setSupabaseSessionBestEffort(authClient, authSession);
+    return accessToken;
   }
 
   async function finishSignup(accessToken: string, profileName: string) {
@@ -463,18 +474,23 @@ export default function AuthStartPage() {
         const loginSession =
           authMethod === "name"
             ? await loginWithNameServer(firstName.trim(), lastName.trim(), passwordValue)
-            : await loginWithRetry(authClient, email.trim(), passwordValue);
-        if (authMethod === "name") {
-          await authClient.auth.setSession({
-            access_token: loginSession.access_token,
-            refresh_token: loginSession.refresh_token,
-          });
-        }
-        const sessionAccessToken = loginSession.access_token || "";
+            : await loginWithRetry(email.trim(), passwordValue);
+        const sessionAccessToken = persistAuthSessionLocally(loginSession);
+        void setSupabaseSessionBestEffort(authClient, loginSession);
         const pendingPromo = getPendingPromoCode();
         if (pendingPromo && sessionAccessToken) {
+          const attemptUserId = loginSession.user?.id || sessionAccessToken.slice(0, 16);
+          autoRedeemAttemptRef.current = `${attemptUserId}:${pendingPromo}`;
+          try {
+            await redeemPromoWithToken(pendingPromo, sessionAccessToken);
+            clearPendingPromoCode();
+            setPromoFlashSuccess(`Промокод ${pendingPromo} успешно активирован.`);
+          } catch (err: any) {
+            setPromoFlashError(friendlyErrorMessage(err, `Не удалось активировать промокод ${pendingPromo}. Он сохранён, попробуй ещё раз в кошельке.`));
+          }
           setInfo(`Промокод ${pendingPromo} проверяется и применится после входа.`);
         }
+        await router.replace(next);
         return;
       }
 

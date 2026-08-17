@@ -17,6 +17,7 @@ import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplat
 import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 import { MOBILE_INTERFACE_MEDIA_QUERY, useInterfaceMode } from "@/lib/interfaceMode";
+import { ONBOARDING_GUIDE_POSES, PLATFORM_ONBOARDING_GUIDE } from "@/lib/onboardingGuide";
 
 type DashboardPayload = {
   profile: {
@@ -384,16 +385,88 @@ const DASHBOARD_ONBOARDING_STEPS: OnboardingStep[] = [
   },
   {
     target: "dashboard-ai-analytics-entry",
-    title: "AI-чат и аналитика",
-    body: "Нажмите на аналитика у доски, чтобы открыть новый раздел. Там можно сравнить людей в папке, разобрать одного кандидата или задать обычный вопрос AI-аналитику.",
+    title: "ИИ-чат и аналитика",
+    body: "Нажмите на аналитика у доски, чтобы открыть новый раздел. Там можно сравнить людей в папке, разобрать одного кандидата или задать обычный вопрос ИИ-аналитику.",
     placement: "right",
+  },
+];
+
+const SIMPLE_DASHBOARD_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "simple-folders",
+    title: "Папки проектов",
+    body: "Слева находятся все папки, проекты без папки и кнопка создания новой папки. Выберите папку, чтобы оставить в списке только относящиеся к ней проекты.",
+    placement: "right",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointLeft,
+  },
+  {
+    target: "dashboard-create-project",
+    title: "Создание проекта",
+    body: "Нажмите «Создать проект», заполните данные участника, выберите цель оценки и назначьте тесты. После сохранения проект сразу появится в этом списке.",
+    placement: "bottom",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.present,
+    guideSide: "right",
+  },
+  {
+    target: "simple-project-list",
+    title: "Перенос и просмотр проектов",
+    body: "На компьютере проект можно перетащить в папку за любое свободное место строки, а не только за шесть точек. На телефоне выберите нужную папку в списке справа от проекта.",
+    placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
+  },
+  {
+    target: "dashboard-ai-analytics-entry",
+    title: "ИИ-аналитика и чат",
+    body: "Откройте этот раздел, чтобы сравнить участников из папки, разобрать отдельный проект или задать вопрос ИИ-аналитику по результатам оценки.",
+    placement: "right",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointLeft,
+  },
+];
+
+const SIMPLE_PROJECT_ONBOARDING_STEPS: OnboardingStep[] = [
+  {
+    target: "simple-project-details",
+    title: "Проект раскрывается здесь",
+    body: "Нажмите строку проекта, чтобы работать с ним на этой же странице. Три блока ниже можно независимо сворачивать и разворачивать.",
+    placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.present,
+  },
+  {
+    target: "simple-project-participant",
+    title: "Данные участника",
+    body: "Здесь находятся имя, должности, цель оценки и комментарии. Кнопка «Редактировать проект» позволяет дополнить сведения, которые учитывает ИИ-анализ.",
+    placement: "right",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointLeft,
+  },
+  {
+    target: "simple-project-access",
+    title: "Что отправить участнику",
+    body: "Скопируйте основную ссылку и отправьте её участнику. Запасная ссылка открывает тот же проект и пригодится, если основной адрес недоступен. Вместо ссылки можно показать QR-код.",
+    placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.pointRight,
+  },
+  {
+    target: "simple-project-progress",
+    title: "Как следить за прохождением",
+    body: "Счётчик и полоса показывают, сколько назначенных тестов уже завершено. Ниже видно состояние каждого теста отдельно; данные обновляются после сохранения ответа участника.",
+    placement: "top",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.present,
+    guideSide: "right",
+  },
+  {
+    target: "simple-project-results",
+    title: "Результаты и ИИ-анализ",
+    body: "Здесь появляется адаптированный итоговый вывод. После завершения всех тестов кнопка «Сделать ИИ-анализ» откроет выбор уровня, а «Скачать анализ» сохранит уже сформированный отчёт Word.",
+    placement: "left",
+    guideImageSrc: ONBOARDING_GUIDE_POSES.results,
+    guideSide: "right",
   },
 ];
 
 const ASSEMBLY_AI_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     target: "assembly-ai-overview",
-    title: "AI-аналитика",
+    title: "ИИ-аналитика",
     body: "Здесь можно разобрать папку с завершенными проектами, одного человека или задать обычный вопрос без данных кандидатов.",
     placement: "bottom",
   },
@@ -418,7 +491,7 @@ const ASSEMBLY_AI_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     target: "assembly-ai-chat-panel",
     title: "Окно диалога",
-    body: "Здесь остается переписка с AI-аналитиком. Первый запрос запускает выбранный анализ, а продолжения в том же чате идут как обычные сообщения.",
+    body: "Здесь остается переписка с ИИ-аналитиком. Первый запрос запускает выбранный анализ, а продолжения в том же чате идут как обычные сообщения.",
     placement: "top",
   },
   {
@@ -1048,10 +1121,10 @@ function isDeprecatedProjectAssemblyWidget(widget: SceneWidget | null | undefine
 function buildSchemeSceneWidgets(): SceneWidget[] {
   return [
     { id: "board-scheme", kind: "image", text: "", src: "/dashboard-board-marker-scheme-transparent.png", action: "none", tone: "scheme", x: 52, y: 26, width: 1296, height: 716, rotation: 0, fontSize: 0, z: 10 },
-    { id: AI_CHAT_BOARD_ID, kind: "image", text: "AI-чат и аналитика", src: AI_CHAT_BOARD_SRC, action: "none", tone: "scheme", x: 770, y: 232, width: 420, height: 356, rotation: -1.2, fontSize: 0, z: 22 },
+    { id: AI_CHAT_BOARD_ID, kind: "image", text: "ИИ-чат и аналитика", src: AI_CHAT_BOARD_SRC, action: "none", tone: "scheme", x: 770, y: 232, width: 420, height: 356, rotation: -1.2, fontSize: 0, z: 22 },
     { id: CERTIFICATE_PSI_PROFILE_ID, kind: "image", text: "Свидетельство о регистрации программы", src: "/dashboard-certificate-psi-profile.png", action: "none", tone: "scheme", x: 278, y: 122, width: 146, height: 207, rotation: -3.8, fontSize: 0, z: 26 },
     { id: CERTIFICATE_COGITO_ID, kind: "image", text: "Сертификат Когито-Центр", src: "/dashboard-certificate-cogito.png", action: "none", tone: "scheme", x: 844, y: 118, width: 148, height: 210, rotation: 2.9, fontSize: 0, z: 27 },
-    { id: PROJECT_ASSEMBLY_GUIDE_ID, kind: "video", text: "AI-аналитик", src: PROJECT_ASSEMBLY_GUIDE_SRC, action: "openProjectAssembly", tone: "scheme", x: 404, y: 284, width: 124, height: 274, rotation: 0, fontSize: 0, z: 29 },
+    { id: PROJECT_ASSEMBLY_GUIDE_ID, kind: "video", text: "ИИ-аналитик", src: PROJECT_ASSEMBLY_GUIDE_SRC, action: "openProjectAssembly", tone: "scheme", x: 404, y: 284, width: 124, height: 274, rotation: 0, fontSize: 0, z: 29 },
     { id: "create-project", kind: "button", text: "Создать проект", action: "createProject", tone: "buttonPrimary", x: 230, y: 330, width: 360, height: 110, rotation: 0.4, fontSize: 30, z: 31 },
     { id: "open-tests", kind: "button", text: "Каталог тестов", action: "openCatalog", tone: "buttonPrimary", x: 770, y: 330, width: 388, height: 110, rotation: -0.2, fontSize: 30, z: 31 },
   ];
@@ -1539,6 +1612,15 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
   const [assemblyAiError, setAssemblyAiError] = useState("");
   const [assemblyAiLastCharge, setAssemblyAiLastCharge] = useState<number | null>(null);
   const [dashboardTourStartTarget, setDashboardTourStartTarget] = useState<string | null>(null);
+  const [simpleProjectOpen, setSimpleProjectOpen] = useState(false);
+  const [simpleTourStartTarget, setSimpleTourStartTarget] = useState<string | null>(null);
+
+  const handleSimpleProjectOpenChange = useCallback((open: boolean, userInitiated: boolean) => {
+    setSimpleProjectOpen(open);
+    if (!open || !userInitiated) return;
+    setSimpleTourStartTarget("simple-project-participant");
+    window.setTimeout(() => setSimpleTourStartTarget(null), 1800);
+  }, []);
 
   const walletBalanceReady = isUnlimited || Boolean(wallet);
   const walletChecking = walletLoading && !walletBalanceReady;
@@ -3253,7 +3335,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
       return;
     }
     if (assemblyAiNeedsIncompleteConsent && !assemblyAiIncompleteConsent) {
-      setAssemblyAiError("Подтвердите предварительный анализ незавершенных кандидатов. AI будет использовать только уже пройденные тесты.");
+      setAssemblyAiError("Подтвердите предварительный анализ незавершенных кандидатов. ИИ будет использовать только уже пройденные тесты.");
       return;
     }
     if (!assemblyAiCanAfford) {
@@ -3319,7 +3401,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
         }),
       });
       const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось получить AI-ответ.");
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Не удалось получить ответ ИИ.");
       setAssemblyAiLastCharge(Math.floor(Number(json.charged_kopeks || json.price_kopeks || 0) / 100));
       const assistantMessage: AssemblyAiMessage = {
         id: `assembly-ai-assistant-${Date.now()}`,
@@ -3366,7 +3448,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
       persistAssemblyAiChats((prev) => [chat, ...prev.filter((item) => item.id !== chatId)]);
       await refreshWallet();
     } catch (e: any) {
-      setAssemblyAiError(friendlyErrorMessage(e, "Не удалось получить AI-ответ."));
+      setAssemblyAiError(friendlyErrorMessage(e, "Не удалось получить ответ ИИ."));
       setAssemblyAiMessages((prev) => prev.filter((item) => item.id !== pendingMessage.id));
     } finally {
       setAssemblyAiBusy(false);
@@ -3958,7 +4040,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
         className="btn btn-secondary btn-sm"
         onClick={() => router.push("/analytics")}
       >
-        AI-аналитика
+        ИИ-аналитика
       </button>
       <button type="button" className="btn btn-secondary btn-sm" onClick={arrangeClassicDesktop}>
         Упорядочить
@@ -4019,7 +4101,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
     </>
   );
   const assemblyAiWorkspace = (
-    <Layout title={standaloneAiWorkspace ? undefined : "AI-аналитика папок"}>
+    <Layout title={standaloneAiWorkspace ? undefined : "ИИ-аналитика папок"}>
       <OnboardingTour tourId="dashboard-ai-analytics-v1" steps={ASSEMBLY_AI_ONBOARDING_STEPS} autoStart={false} />
       {!standaloneAiWorkspace && interfaceMode === "classic" ? mobileDashboard : null}
       <div className={`dashboard-ai-workspace dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 ${standaloneAiWorkspace || interfaceMode === "light" ? "block" : "hidden lg:block"}`}>
@@ -4045,7 +4127,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
         <div data-onboarding-id="assembly-ai-overview" className="mb-4 rounded-[26px] border border-[#d8e4ef] bg-[linear-gradient(180deg,#ffffff_0%,#edf6ff_100%)] px-5 py-4 shadow-[0_20px_42px_-32px_rgba(37,63,89,0.2)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#647c95]">AI-аналитика</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#647c95]">ИИ-аналитика</div>
               <h1 className="mt-1 text-2xl font-semibold text-[#17283a]">Чат и анализ папок</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5d7185]">
                 Выберите папку с проектами, задайте вопрос или запустите полный анализ. Система берет в контекст людей, тесты, результаты и комментарии Registry внутри выбранной папки.
@@ -4164,7 +4246,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
                     className={`max-w-[86%] rounded-[20px] border px-4 py-3 text-sm leading-6 shadow-[0_12px_28px_-24px_rgba(37,63,89,0.22)] ${message.role === "user" ? "ml-auto border-[#c9e3cc] bg-[#eff9ee] text-[#29472d]" : "mr-auto border-[#dde7f2] bg-[#fbfdff] text-[#26394d]"}`}
                   >
                     <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7a8fa4]">
-                      {message.role === "user" ? "Вы" : "AI-аналитик"}
+                      {message.role === "user" ? "Вы" : "ИИ-аналитик"}
                     </div>
                     <div className="whitespace-pre-wrap">{message.content}</div>
                   </div>
@@ -4183,7 +4265,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
                     if (assemblyAiCanSend) void sendAssemblyAiMessage();
                   }
                 }}
-                placeholder={assemblyAiEffectiveMode === "folder_analysis" ? "Например: сравни людей под руководителя отдела продаж и выдели риски. Можно оставить пустым." : assemblyAiEffectiveMode === "project_message" ? "Например: какие вопросы задать этому человеку? Можно оставить пустым." : "Задайте обычный вопрос AI-аналитику"}
+                placeholder={assemblyAiEffectiveMode === "folder_analysis" ? "Например: сравни людей под руководителя отдела продаж и выдели риски. Можно оставить пустым." : assemblyAiEffectiveMode === "project_message" ? "Например: какие вопросы задать этому человеку? Можно оставить пустым." : "Задайте обычный вопрос ИИ-аналитику"}
                 disabled={assemblyAiBusy}
               />
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -4325,13 +4407,13 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
                 <div className="mt-3 rounded-[18px] border border-[#ead8b4] bg-[#fff8ea] px-3 py-3">
                   <div className="text-sm font-semibold text-[#5d4320]">Незавершенные кандидаты подключены автоматически</div>
                   <div className="mt-1 text-xs leading-5 text-[#7b6143]">
-                    Для аккаунта {INCOMPLETE_AI_ANALYSIS_EMAIL} AI сам добавляет в анализ кандидатов, у которых есть хотя бы один пройденный тест. Отдельные галочки и подтверждения больше не нужны.
+                    Для аккаунта {INCOMPLETE_AI_ANALYSIS_EMAIL} ИИ сам добавляет в анализ кандидатов, у которых есть хотя бы один пройденный тест. Отдельные галочки и подтверждения больше не нужны.
                   </div>
                   {assemblyAiCurrentIncludesIncomplete ? (
                     <div className="mt-3 rounded-[14px] border border-[#dfc18c] bg-white/78 px-3 py-2">
                       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8a6a41]">Предварительный анализ</div>
                       <div className="mt-1 text-xs leading-5 text-[#6f5a3c]">
-                        Незавершенных в выбранном анализе: {assemblyAiIncompleteProjects.length}. AI будет учитывать только уже пройденные тесты и отдельно пометит выводы как предварительные.
+                        Незавершенных в выбранном анализе: {assemblyAiIncompleteProjects.length}. ИИ будет учитывать только уже пройденные тесты и отдельно пометит выводы как предварительные.
                       </div>
                     </div>
                   ) : null}
@@ -4394,7 +4476,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
               ) : (
                 <div className="mt-3 rounded-[20px] border border-[#d5deea] bg-white px-4 py-3">
                   <div className="text-sm font-semibold text-[#223548]">Обычное сообщение</div>
-                  <div className="mt-1 text-xs leading-5 text-[#64788c]">AI ответит без данных конкретной папки или кандидата. Результаты людей в такой запрос не попадут.</div>
+                  <div className="mt-1 text-xs leading-5 text-[#64788c]">ИИ ответит без данных конкретной папки или кандидата. Результаты людей в такой запрос не попадут.</div>
                 </div>
               )}
             </div>
@@ -4462,7 +4544,12 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
   if (desktopVariant === "simple") {
     return (
       <Layout title="Кабинет специалиста">
-        <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
+        <OnboardingTour
+          tourId="dashboard-simple-v3"
+          steps={simpleProjectOpen ? [...SIMPLE_DASHBOARD_ONBOARDING_STEPS, ...SIMPLE_PROJECT_ONBOARDING_STEPS] : SIMPLE_DASHBOARD_ONBOARDING_STEPS}
+          startTarget={simpleTourStartTarget}
+          guide={PLATFORM_ONBOARDING_GUIDE}
+        />
         <div>
           <SimpleDashboard
             displayName={displayName}
@@ -4487,6 +4574,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
             onRefresh={loadDashboard}
             accessToken={session.access_token}
             onOpenResults={(projectId) => router.push(`/projects/${projectId}/results`)}
+            onProjectOpenChange={handleSimpleProjectOpenChange}
           />
         </div>
         {folderManagementDialogs}
@@ -5429,7 +5517,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
                       <div data-onboarding-id={widget.id === PROJECT_ASSEMBLY_GUIDE_ID ? "dashboard-ai-analytics-entry" : undefined} className="h-full w-full">
                       <SceneVideoWidget
                         src={widget.src || PROJECT_ASSEMBLY_GUIDE_SRC}
-                        title={widget.text || "AI-аналитик"}
+                        title={widget.text || "ИИ-аналитик"}
                         active={activeAssemblyGuideId === widget.id}
                       />
                       </div>
@@ -6411,7 +6499,7 @@ function ProjectSheetPreviewModal({ project, onClose, onOpenFull }: ProjectSheet
                 <div className="dashboard-project-preview-section-title">Карточка участника</div>
                 <div className="dashboard-project-preview-table">
                   <div><span>Имя и фамилия</span><strong>{displayName}</strong></div>
-                  <div><span>Email</span><strong>{project.person?.email || "Не указан"}</strong></div>
+                  <div><span>Электронная почта</span><strong>{project.person?.email || "Не указана"}</strong></div>
                   <div><span>Текущая должность</span><strong>{project.person?.current_position || "Не указана"}</strong></div>
                   <div><span>Целевая роль</span><strong>{roleLine}</strong></div>
                   <div><span>Цель оценки</span><strong>{goal?.title || goal?.shortTitle || project.goal}</strong></div>

@@ -4,6 +4,17 @@ import { getSupabaseEnv } from "@/lib/supabaseClient";
 
 let browserClient: SupabaseClient | null = null;
 
+export function getSupabaseAuthStorageKey(url?: string) {
+  const env = getSupabaseEnv();
+  const sourceUrl = url || env?.url || "";
+  try {
+    const projectRef = new URL(sourceUrl).hostname.split(".")[0];
+    return projectRef ? `sb-${projectRef}-auth-token` : "sb-auth-token";
+  } catch {
+    return "sb-auth-token";
+  }
+}
+
 /**
  * Browser-only singleton Supabase client.
  * Returns null if env is not configured.
@@ -18,6 +29,7 @@ export function getSupabaseBrowser(): SupabaseClient | null {
         persistSession: true,
         autoRefreshToken: false,
         detectSessionInUrl: true,
+        storageKey: getSupabaseAuthStorageKey(env.url),
         storage: createSupabaseAuthStorage(),
       },
     });
