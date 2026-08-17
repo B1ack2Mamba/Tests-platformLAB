@@ -130,7 +130,7 @@ function extractOpenAIText(payload: any) {
 async function callOpenAI(prompt: string): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
-  const model = process.env.OPENAI_MODEL || "gpt-5.5";
+  const model = process.env.OPENAI_TEST_MODEL || "gpt-5.6-terra";
   const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },

@@ -354,6 +354,7 @@ export default function ProjectResultsStandalonePage() {
   const { session, user, loading, envOk } = useSession();
   const { balance_rub, refresh: refreshWallet, isUnlimited } = useWalletBalance();
   const projectId = typeof router.query.projectId === "string" ? router.query.projectId : "";
+  const compactEmbedded = router.query.embedded === "1" && router.query.compact === "1";
   const [data, setData] = useState<ResultsPagePayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [collecting, setCollecting] = useState(false);
@@ -760,6 +761,39 @@ export default function ProjectResultsStandalonePage() {
   const testSections = useMemo(() => activeSections.filter((item) => item.kind === "test"), [activeSections]);
   const competencySections = useMemo(() => activeSections.filter((item) => item.kind === "development"), [activeSections]);
 
+  const compactAiPreview = useMemo(() => {
+    const summarySection = overviewSections.find((item) => /коротк|итогов|общий вывод/.test(normalizeTitle(item.title))) || null;
+    const strengthsSection = overviewSections.find((item) => /сильн|ресурс|преимущ|опора/.test(normalizeTitle(item.title))) || null;
+    const risksSection = overviewSections.find((item) => /риск|огранич|уязвим|зона риска/.test(normalizeTitle(item.title))) || null;
+    const importantSection = overviewSections.find((item) => /важно|учетом профиля|учётом профиля|рекомендац/.test(normalizeTitle(item.title))) || null;
+    const parsed = parseSummaryOutline(summarySection?.body);
+
+    return {
+      modeTitle: activeEvaluationMode ? getEvaluationPackageDefinition(activeEvaluationMode)?.title || "Результат" : "Результат",
+      summary: parsed.summary || (summarySection ? splitSectionBody(summarySection.body).preview : ""),
+      strengths: strengthsSection ? parseCompactList(strengthsSection.body) : parsed.strengths,
+      risks: risksSection ? parseCompactList(risksSection.body) : parsed.risks,
+      recommendation: importantSection ? cleanSectionBody(importantSection.body) : parsed.important,
+    };
+  }, [activeEvaluationMode, overviewSections]);
+
+  useEffect(() => {
+    if (!compactEmbedded || typeof window === "undefined" || window.parent === window || !projectId) return;
+    const state = !data || loading || busy
+      ? "loading"
+      : !activeEvaluationMode
+        ? "locked"
+        : activeSections.length
+          ? "ready"
+          : "loading";
+    window.parent.postMessage({
+      type: "commercial-project-ai-preview",
+      projectId,
+      state,
+      payload: compactAiPreview,
+    }, window.location.origin);
+  }, [activeEvaluationMode, activeSections.length, busy, compactAiPreview, compactEmbedded, data, loading, projectId]);
+
 
 
   if (!envOk) {
@@ -988,15 +1022,15 @@ export default function ProjectResultsStandalonePage() {
 
   return (
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
-      <OnboardingTour tourId="project-results-v1" steps={PROJECT_RESULTS_ONBOARDING_STEPS} />
-      <div className="project-results-page mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4">
+      {!compactEmbedded ? <OnboardingTour tourId="project-results-v1" steps={PROJECT_RESULTS_ONBOARDING_STEPS} /> : null}
+      <div className={`project-results-page mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4 ${compactEmbedded ? "project-results-compact" : ""}`}>
         {error ? <div className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
 
-        <div className="relative overflow-hidden rounded-[38px] border border-[#dcc8aa] bg-[radial-gradient(circle_at_14%_18%,rgba(164,137,92,0.08)_0,transparent_26%),radial-gradient(circle_at_78%_22%,rgba(129,157,115,0.07)_0,transparent_24%),linear-gradient(180deg,#fffefb_0%,#f7f0e4_100%)] shadow-[0_22px_48px_rgba(93,71,39,0.08)]">
+        <div className="project-results-shell relative overflow-hidden rounded-[38px] border border-[#dcc8aa] bg-[radial-gradient(circle_at_14%_18%,rgba(164,137,92,0.08)_0,transparent_26%),radial-gradient(circle_at_78%_22%,rgba(129,157,115,0.07)_0,transparent_24%),linear-gradient(180deg,#fffefb_0%,#f7f0e4_100%)] shadow-[0_22px_48px_rgba(93,71,39,0.08)]">
           <div className="absolute inset-0 opacity-[0.05] [background-image:radial-gradient(#ab9067_0.55px,transparent_0.55px)] [background-size:13px_13px]" />
 
-          <div className="relative border-b border-[#eadbc3] px-6 py-5 sm:px-8 sm:py-6">
+          {!compactEmbedded ? <div className="project-results-hero relative border-b border-[#eadbc3] px-6 py-5 sm:px-8 sm:py-6">
             <div className="project-results-hero-copy pr-[170px] sm:pr-[210px]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1">
@@ -1023,7 +1057,7 @@ export default function ProjectResultsStandalonePage() {
                 className="h-full w-full object-contain opacity-90"
               />
             </div>
-          </div>
+          </div> : null}
 
           <div className="relative px-6 py-5 sm:px-8 sm:py-6">
             {!resultsReady ? (
@@ -1037,7 +1071,7 @@ export default function ProjectResultsStandalonePage() {
                     Для этого аккаунта открыт предварительный результат по уже пройденным тестам. Когда появятся остальные ответы, результат можно обновить.
                   </div>
                 ) : null}
-                <div data-onboarding-id="project-results-packages" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.08fr)_220px] xl:items-stretch">
+                {!compactEmbedded || !activeEvaluationMode ? <div data-onboarding-id="project-results-packages" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.08fr)_220px] xl:items-stretch">
                   {EVALUATION_PACKAGES.map((item) => {
                     const unlocked = isPackageAccessible(unlockedMode, item.key);
                     const currentEval = evaluationByMode[item.key];
@@ -1109,10 +1143,10 @@ export default function ProjectResultsStandalonePage() {
                     </div>
                     {collectedLabel ? <div className="mt-10 text-[0.96rem] text-[#7d6953]">Собрано: {collectedLabel}</div> : null}
                   </aside>
-                </div>
+                </div> : null}
 
                 {activeEvaluationMode && isPackageAccessible(unlockedMode, activeEvaluationMode) ? (
-                  <div className="mt-6 rounded-[32px] border border-[#d7c4a6] bg-[linear-gradient(180deg,#fffdf9_0%,#f9f3e8_100%)] p-6 shadow-[0_14px_32px_rgba(93,71,39,0.05)]">
+                  <div className="project-results-analysis mt-6 rounded-[32px] border border-[#d7c4a6] bg-[linear-gradient(180deg,#fffdf9_0%,#f9f3e8_100%)] p-6 shadow-[0_14px_32px_rgba(93,71,39,0.05)]">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9bf] pb-4">
                       <div data-onboarding-id="project-results-tabs" className="flex flex-wrap items-center gap-8 text-[1.08rem] font-medium">
                         {availablePackages.map((mode) => {

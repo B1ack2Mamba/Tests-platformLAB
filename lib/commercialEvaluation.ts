@@ -81,9 +81,10 @@ type TestNarrative = {
 
 type OpenAiTask = "testSummary" | "finalPortrait" | "premiumReview";
 
-const DEFAULT_OPENAI_TEST_MODEL = "gpt-5.4-mini";
-const DEFAULT_OPENAI_FINAL_MODEL = "gpt-5.4";
-const DEFAULT_OPENAI_PREMIUM_MODEL = "gpt-5.4";
+const DEFAULT_OPENAI_TEST_MODEL = "gpt-5.6-terra";
+const DEFAULT_OPENAI_FINAL_MODEL = "gpt-5.6-sol";
+// Terra handles repeated test and competency reviews; Sol performs the final synthesis.
+const DEFAULT_OPENAI_PREMIUM_MODEL = "gpt-5.6-terra";
 const DEFAULT_OPENAI_MODEL = DEFAULT_OPENAI_TEST_MODEL;
 const DEFAULT_OPENAI_AI_PLUS_MODEL = DEFAULT_OPENAI_FINAL_MODEL;
 const RUSSIAN_TERMS_RULE =

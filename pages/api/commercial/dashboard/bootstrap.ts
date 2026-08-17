@@ -59,8 +59,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           folder_id,
           created_at,
           updated_at,
+          registry_comment,
           registry_comment_updated_at,
-          commercial_people(id, full_name, email, current_position, updated_at),
+          commercial_people(id, full_name, email, current_position, notes, updated_at),
           commercial_project_tests(test_slug, test_title, sort_order),
           commercial_project_attempts(test_slug)
         `)
@@ -103,6 +104,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: item.status,
         created_at: item.created_at,
         updated_at: item.updated_at || null,
+        registry_comment: item.registry_comment || null,
         registry_comment_updated_at: item.registry_comment_updated_at || null,
         invite_token: item.invite_token || null,
         folder_id: item.folder_id || null,

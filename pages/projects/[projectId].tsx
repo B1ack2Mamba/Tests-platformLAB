@@ -183,6 +183,7 @@ function MobileProjectDetails({
   onSaveDetails,
   onCopyShareUrl,
   onCopyParticipantLink,
+  simpleMode = false,
 }: {
   data: ProjectPayload | null;
   goalTitle: string;
@@ -197,18 +198,19 @@ function MobileProjectDetails({
   fullyDone: boolean;
   resultsReady: boolean;
   editing: boolean;
-  form: { email: string; current_position: string; target_role: string; notes: string; registry_comment: string };
+  form: { full_name: string; email: string; current_position: string; goal: AssessmentGoal; target_role: string; notes: string; registry_comment: string };
   saving: boolean;
   onToggleEditing: () => void;
-  onFormChange: (patch: Partial<{ email: string; current_position: string; target_role: string; notes: string; registry_comment: string }>) => void;
+  onFormChange: (patch: Partial<{ full_name: string; email: string; current_position: string; goal: AssessmentGoal; target_role: string; notes: string; registry_comment: string }>) => void;
   onSaveDetails: () => void;
   onCopyShareUrl: () => void;
   onCopyParticipantLink: (link: ParticipantAccessLink) => void;
+  simpleMode?: boolean;
 }) {
   const project = data?.project;
   return (
     <div className="project-details-mobile space-y-4 lg:hidden">
-      <section className="rounded-[24px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f7f0e4_100%)] p-4 shadow-[0_18px_34px_rgba(93,71,39,0.08)]">
+      <section className="simple-project-summary rounded-[24px] border border-[#dcc8aa] bg-[linear-gradient(180deg,#fffdfa_0%,#f7f0e4_100%)] p-4 shadow-[0_18px_34px_rgba(93,71,39,0.08)]">
         <div className="text-[11px] font-semibold uppercase text-[#9d7a4b]">Проект оценки</div>
         <h2 className="mt-2 text-2xl font-semibold leading-tight text-[#2f5031]">{project?.title || "Проект оценки"}</h2>
         <div className="mt-2 text-sm leading-6 text-[#6f5a42]">{project?.person?.full_name || "Участник"} · {goalTitle}</div>
@@ -224,7 +226,7 @@ function MobileProjectDetails({
         </div>
       </section>
 
-      <section data-onboarding-id="project-share-access" className="rounded-[22px] border border-[#dcc8aa] bg-[#fffaf0] p-4">
+      <section data-onboarding-id="project-share-access" className="simple-project-access rounded-[22px] border border-[#dcc8aa] bg-[#fffaf0] p-4">
         <div className="text-base font-semibold text-[#4d3b24]">Доступ участника</div>
         <div className="mt-2 text-sm leading-6 text-[#6f5a42]">Отправьте кандидату ссылку или QR-код для прохождения тестов.</div>
         <div className="mt-3 grid gap-2">
@@ -248,7 +250,7 @@ function MobileProjectDetails({
         <div className="mt-4 flex justify-center">{shareUrl ? <QRCodeBlock value={shareUrl} title="QR-код" size={156} /> : null}</div>
       </section>
 
-      <section className="rounded-[22px] border border-[#dcc8aa] bg-white p-4">
+      <section className="simple-project-profile rounded-[22px] border border-[#dcc8aa] bg-white p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="text-base font-semibold text-[#4d3b24]">Профиль</div>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onToggleEditing}>{editing ? "Отменить" : "Редактировать"}</button>
@@ -256,8 +258,12 @@ function MobileProjectDetails({
         {editing ? (
           <>
             <div className="mt-3 grid gap-2">
+              <input className="input" value={form.full_name} onChange={(e) => onFormChange({ full_name: e.target.value })} placeholder="Имя и фамилия" />
               <input className="input" value={form.email} onChange={(e) => onFormChange({ email: e.target.value })} placeholder="Email" />
               <input className="input" value={form.current_position} onChange={(e) => onFormChange({ current_position: e.target.value })} placeholder="Текущая должность" />
+              <select className="input" value={form.goal} onChange={(e) => onFormChange({ goal: e.target.value as AssessmentGoal })} aria-label="Цель оценки">
+                {COMMERCIAL_GOALS.map((item) => <option key={item.key} value={item.key}>{item.shortTitle}</option>)}
+              </select>
               <input className="input" value={form.target_role} onChange={(e) => onFormChange({ target_role: e.target.value })} placeholder="Будущая предполагаемая должность" />
               <textarea className="input min-h-[96px]" value={form.notes} onChange={(e) => onFormChange({ notes: e.target.value })} placeholder="Комментарий специалиста" />
               <textarea className="input min-h-[112px]" value={form.registry_comment} onChange={(e) => onFormChange({ registry_comment: e.target.value })} placeholder="Registry-комментарий" />
@@ -279,7 +285,7 @@ function MobileProjectDetails({
         )}
       </section>
 
-      <section data-onboarding-id="project-tests-progress" className="rounded-[22px] border border-[#dcc8aa] bg-white p-4">
+      <section data-onboarding-id="project-tests-progress" className="simple-project-tests rounded-[22px] border border-[#dcc8aa] bg-white p-4">
         <div className="text-base font-semibold text-[#4d3b24]">Назначенные тесты</div>
         <div className="mt-3 grid gap-2">
           {(project?.tests || []).map((test) => {
@@ -297,9 +303,9 @@ function MobileProjectDetails({
         </div>
       </section>
 
-      <section data-onboarding-id="project-get-result" className="rounded-[22px] border border-[#dcc8aa] bg-[#fffaf0] p-4 text-center">
+      <section data-onboarding-id="project-get-result" className="simple-project-result rounded-[22px] border border-[#dcc8aa] bg-[#fffaf0] p-4 text-center">
         {resultsReady ? (
-          <Link href={`/projects/${project?.id}/results`} className="btn btn-primary w-full">Получить результат</Link>
+          <Link href={`/projects/${project?.id}/results${simpleMode ? "?embedded=1&compact=1" : ""}`} className="btn btn-primary w-full">Открыть полный анализ</Link>
         ) : (
           <button type="button" className="btn btn-secondary w-full" disabled>Осталось тестов: {Math.max(0, progress.total - progress.completed)}</button>
         )}
@@ -493,6 +499,7 @@ export default function ProjectDetailsPage() {
   const { balance_rub, refresh: refreshWallet, loading: walletLoading, isUnlimited } = useWalletBalance();
   const router = useRouter();
   const projectId = typeof router.query.projectId === "string" ? router.query.projectId : "";
+  const simpleEmbedded = router.query.embedded === "1" && router.query.simple === "1";
   const [data, setData] = useState<ProjectPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1000,6 +1007,9 @@ export default function ProjectDetailsPage() {
       setEditing(false);
       await loadProject();
       setEvaluationByMode({});
+      if (simpleEmbedded && typeof window !== "undefined" && window.parent !== window) {
+        window.parent.postMessage({ type: "commercial-project-updated", projectId: data.project.id }, window.location.origin);
+      }
     } catch (err: any) {
       setError(friendlyErrorMessage(err, "Ошибка"));
     } finally {
@@ -1088,7 +1098,7 @@ export default function ProjectDetailsPage() {
   if (projectBootPending) {
     return (
       <Layout title={data?.project?.title || "Проект оценки"}>
-        <div className="mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4">
+        <div className={`mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4 ${simpleEmbedded ? "project-details-simple-loading" : ""}`}>
           <div className="mx-auto mb-4 flex max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)]">
             <div>
               <div className="h-4 w-48 animate-pulse rounded bg-[#eadfc8]" />
@@ -1109,12 +1119,12 @@ export default function ProjectDetailsPage() {
 
   return (
     <Layout title={data?.project.title || "Проект оценки"}>
-      <OnboardingTour tourId="project-details-v1" steps={PROJECT_DETAILS_ONBOARDING_STEPS} />
-      <div className="mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4">
+      {!simpleEmbedded ? <OnboardingTour tourId="project-details-v1" steps={PROJECT_DETAILS_ONBOARDING_STEPS} /> : null}
+      <div className={`mx-auto max-w-[1280px] px-3 pb-10 pt-2 sm:px-4 ${simpleEmbedded ? "project-details-simple" : ""}`}>
         {error ? <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_10px_24px_rgba(124,45,18,0.08)]">{error}</div> : null}
         {info ? <div className="mb-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-[0_10px_24px_rgba(16,84,57,0.08)]">{info}</div> : null}
 
-        {canEditProjectDetailsTemplate ? (
+        {!simpleEmbedded && canEditProjectDetailsTemplate ? (
           <div className="mx-auto mb-4 hidden max-w-[1220px] flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#dcc8aa] bg-[#fbf5e7] px-4 py-3 text-sm shadow-[0_12px_30px_rgba(90,68,33,0.08)] lg:flex">
             <div>
               <div className="text-xs uppercase tracking-[0.24em] text-[#9d7a4b]">Конструктор страницы проекта</div>
@@ -1129,7 +1139,7 @@ export default function ProjectDetailsPage() {
           </div>
         ) : null}
 
-        {canEditProjectDetailsTemplate && detailsTemplate.builderOpen ? (
+        {!simpleEmbedded && canEditProjectDetailsTemplate && detailsTemplate.builderOpen ? (
           <div className="mx-auto mb-4 hidden max-w-[1220px] rounded-[20px] border border-[#dcc8aa] bg-[#fffaf0] px-4 py-3 text-sm text-[#6f5a42] shadow-[0_10px_24px_rgba(90,68,33,0.05)] lg:block">
             Тянуть — перенос блока, ↘ — общий масштаб, ↔ — ширина, ↕ — высота, A — размер текста и содержимого, Слой — сдвиг внутреннего слоя без движения фона.
           </div>
@@ -1156,9 +1166,10 @@ export default function ProjectDetailsPage() {
           onSaveDetails={saveDetails}
           onCopyShareUrl={copyShareUrl}
           onCopyParticipantLink={copyParticipantLink}
+          simpleMode={simpleEmbedded}
         />
 
-        <div className="relative mx-auto hidden w-full max-w-[1220px] lg:block" style={{ height: detailsCanvasHeight * detailsViewportScale }}>
+        <div className="project-details-classic-canvas relative mx-auto hidden w-full max-w-[1220px] lg:block" style={{ height: detailsCanvasHeight * detailsViewportScale }}>
           <div className="absolute left-1/2 top-0 origin-top" style={{ width: 1220, height: detailsCanvasHeight, transform: `translateX(-50%) scale(${detailsViewportScale})` }}>
           <div className="absolute inset-0 rounded-[36px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(247,243,235,0.72))]" />
 

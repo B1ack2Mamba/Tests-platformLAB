@@ -3,6 +3,7 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
+import { SimpleDashboard } from "@/components/SimpleDashboard";
 import { OnboardingTour, openOnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
 import { refreshSessionThroughServer } from "@/lib/authRefreshClient";
@@ -15,6 +16,7 @@ import { friendlyErrorMessage, withConnectionTroubleHint } from "@/lib/friendlyE
 import { FOLDER_TEMPLATE_ID, PROJECT_TEMPLATE_ID, pickSceneStandard, pickTemplatePositions as pickGlobalDeskTemplates } from "@/lib/globalDeskTemplate";
 import { type WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 import { formatEstimatedMinutes, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
+import { MOBILE_INTERFACE_MEDIA_QUERY, useInterfaceMode } from "@/lib/interfaceMode";
 
 type DashboardPayload = {
   profile: {
@@ -45,9 +47,10 @@ type ProjectRow = {
   status: string;
   created_at: string;
   updated_at?: string | null;
+  registry_comment?: string | null;
   registry_comment_updated_at?: string | null;
   folder_id: string | null;
-  person: { id: string; full_name: string; email: string | null; current_position: string | null; updated_at?: string | null } | null;
+  person: { id: string; full_name: string; email: string | null; current_position: string | null; notes?: string | null; updated_at?: string | null } | null;
   tests: Array<{ test_slug: string; test_title: string; sort_order: number }>;
   attempts_count: number;
 };
@@ -237,7 +240,7 @@ type DeskItemInteractionState = {
 type SceneWidgetKind = "text" | "button" | "image" | "video";
 type SceneWidgetAction = "createProject" | "createFolder" | "openCatalog" | "openProjectAssembly" | "none";
 type SceneWidgetTone = "marker" | "note" | "buttonPrimary" | "buttonSecondary" | "buttonSketch" | "scheme";
-type DesktopVariant = "scheme" | "classic" | "assembly";
+type DesktopVariant = "simple" | "scheme" | "classic" | "assembly";
 type ClassicViewMode = "desktop" | "sheet";
 type ClassicSheetKindFilter = "all" | "folder" | "project";
 type ClassicSheetPlaceFilter = "all" | "desktop" | "folder";
@@ -290,6 +293,10 @@ type WidgetInteractionState = {
   widget: SceneWidget;
 };
 
+type DashboardPageProps = {
+  standaloneAiWorkspace?: boolean;
+};
+
 const DESK_WIDTH = 1400;
 const DESK_HEIGHT = 760;
 const OFFICE_SCENE_WIDTH = 1400;
@@ -301,7 +308,7 @@ const DESK_SHEET_HEIGHT = 132;
 const DESK_STORAGE_PREFIX = "commercialDeskLayout:v1835:";
 const GLOBAL_DESK_TEMPLATE_STORAGE_KEY = "commercialGlobalDeskTemplate:v1839";
 const SCENE_WIDGETS_STORAGE_PREFIX = "commercialSceneWidgets:v1840:";
-const DESKTOP_VARIANT_STORAGE_PREFIX = "commercialDesktopVariant:v1841:";
+const DESKTOP_VARIANT_STORAGE_PREFIX = "commercialDesktopVariant:v1842:";
 const ROOM_LIGHT_STORAGE_PREFIX = "commercialRoomLight:v1842:";
 const ROOM_SWITCH_STORAGE_PREFIX = "commercialRoomSwitch:v1843:";
 const CLASSIC_VIEW_MODE_STORAGE_PREFIX = "commercialClassicViewMode:v1844:";
@@ -342,8 +349,8 @@ const PROJECT_ASSEMBLY_GUIDE_ID = "project-assembly-guide";
 const PROJECT_ASSEMBLY_GUIDE_SRC = "/dashboard-guide.webm";
 const ASSEMBLY_AI_MAX_OUTPUT_TOKENS = 11776;
 const ASSEMBLY_AI_OPENAI_MODELS = [
-  { id: "gpt-5.4-mini", label: "OpenAI 5.4 mini" },
-  { id: "gpt-5.5", label: "OpenAI 5.5" },
+  { id: "gpt-5.6-terra", label: "OpenAI 5.6 Terra" },
+  { id: "gpt-5.6-sol", label: "OpenAI 5.6 Sol" },
 ];
 const ASSEMBLY_AI_DEEPSEEK_MODELS = [
   { id: "deepseek-v4-flash", label: "DeepSeek обычная" },
@@ -876,7 +883,7 @@ function writeLayoutBackups(workspaceId: string, snapshots: LayoutBackupSnapshot
 }
 
 function isDesktopVariant(value: unknown): value is DesktopVariant {
-  return value === "scheme" || value === "classic" || value === "assembly";
+  return value === "simple" || value === "scheme" || value === "classic" || value === "assembly";
 }
 
 function isClassicViewMode(value: unknown): value is ClassicViewMode {
@@ -926,18 +933,27 @@ function isGlobalSchemeWidget(id: string) {
   return !id.startsWith("folder:") && !id.startsWith("project:");
 }
 
+function normalizeAssemblyAiModel(provider: AssemblyAiProvider, model?: string | null) {
+  const value = String(model || "").trim();
+  if (provider !== "openai") return value || ASSEMBLY_AI_DEEPSEEK_MODELS[0].id;
+  if (value === "gpt-5.6-luna" || value === "gpt-5.4-mini" || value === "gpt-5.4" || value === "gpt-5.5") return "gpt-5.6-terra";
+  if (ASSEMBLY_AI_OPENAI_MODELS.some((item) => item.id === value)) return value;
+  return "gpt-5.6-terra";
+}
+
 function getAssemblyAiPriceRub(provider: AssemblyAiProvider, model: string, mode: AssemblyAiMode) {
   if (mode === "message") {
     if (provider === "deepseek") return model === "deepseek-v4-pro" ? 20 : 10;
-    return model === "gpt-5.4-mini" ? 30 : 50;
+    if (model === "gpt-5.6-sol") return 75;
+    return 50;
   }
   if (provider === "deepseek") {
     const base = mode === "folder_analysis" ? 500 : 200;
     return model === "deepseek-v4-pro" ? base * 2 : base;
   }
-  if (model === "gpt-5.4-mini") {
-    if (mode === "folder_analysis") return 1000;
-    if (mode === "project_message") return 350;
+  if (model === "gpt-5.6-sol") {
+    if (mode === "folder_analysis") return 3000;
+    if (mode === "project_message") return 750;
   }
   if (mode === "folder_analysis") return 2000;
   if (mode === "project_message") return 500;
@@ -965,11 +981,13 @@ function makeAssemblyProjectSignature(project: ProjectRow | null | undefined) {
     project.folder_id || "",
     project.created_at,
     project.updated_at || "",
+    project.registry_comment || "",
     project.registry_comment_updated_at || "",
     project.person?.id || "",
     project.person?.full_name || "",
     project.person?.email || "",
     project.person?.current_position || "",
+    project.person?.notes || "",
     project.person?.updated_at || "",
     project.tests.map((test) => `${test.test_slug}:${test.sort_order}`).sort().join(","),
     project.attempts_count,
@@ -1421,9 +1439,10 @@ function mergeDeskPositions(folders: FolderRow[], projects: ProjectRow[], saved:
   return next;
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ standaloneAiWorkspace = false }: DashboardPageProps = {}) {
   const { supabase, session, user, loading: sessionLoading } = useSession();
   const router = useRouter();
+  const { interfaceMode, isMobileViewport } = useInterfaceMode();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [workspace, setWorkspace] = useState<WorkspacePayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1456,7 +1475,7 @@ export default function DashboardPage() {
   const canEditScene = isAdmin;
   const [sceneEditMode, setSceneEditMode] = useState(false);
   const [sceneWidgets, setSceneWidgets] = useState<SceneWidget[]>([]);
-  const [desktopVariant, setDesktopVariant] = useState<DesktopVariant>("scheme");
+  const [desktopVariant, setDesktopVariant] = useState<DesktopVariant>(standaloneAiWorkspace ? "assembly" : "simple");
   const [classicViewMode, setClassicViewMode] = useState<ClassicViewMode>("desktop");
   const [classicSheetQuery, setClassicSheetQuery] = useState("");
   const [classicSheetKindFilter, setClassicSheetKindFilter] = useState<ClassicSheetKindFilter>("all");
@@ -1495,7 +1514,7 @@ export default function DashboardPage() {
   const [assemblySelectedCompetencyIds, setAssemblySelectedCompetencyIds] = useState<string[]>([]);
   const [assemblyFitRequest, setAssemblyFitRequest] = useState("");
   const [assemblyAiProvider, setAssemblyAiProvider] = useState<AssemblyAiProvider>("openai");
-  const [assemblyAiModel, setAssemblyAiModel] = useState("gpt-5.4-mini");
+  const [assemblyAiModel, setAssemblyAiModel] = useState("gpt-5.6-terra");
   const [assemblyAiMode, setAssemblyAiMode] = useState<AssemblyAiMode>("message");
   const [assemblyAiContextScope, setAssemblyAiContextScope] = useState<AssemblyAiContextScope>("folder");
   const [assemblyAiFolderTarget, setAssemblyAiFolderTarget] = useState<AssemblyAiFolderTarget>("folder");
@@ -1761,36 +1780,65 @@ export default function DashboardPage() {
   }, [desktopVariant]);
 
   useEffect(() => {
+    if (standaloneAiWorkspace) {
+      setDesktopVariant("assembly");
+      return;
+    }
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id));
-      if (raw === "classic" || raw === "scheme" || raw === "assembly") setDesktopVariant(raw);
+      if (isMobileViewport || window.matchMedia(MOBILE_INTERFACE_MEDIA_QUERY).matches) {
+        setDesktopVariant("simple");
+      } else if (isDesktopVariant(raw)) {
+        setDesktopVariant(raw);
+      }
     } catch {}
-  }, [workspace?.workspace?.workspace_id]);
+  }, [isMobileViewport, standaloneAiWorkspace, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
-    if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
+    if (standaloneAiWorkspace || !workspace?.workspace?.workspace_id || typeof window === "undefined" || isMobileViewport) return;
     try {
       window.localStorage.setItem(getDesktopVariantStorageKey(workspace.workspace.workspace_id), desktopVariant);
     } catch {}
-  }, [desktopVariant, workspace?.workspace?.workspace_id]);
+  }, [desktopVariant, isMobileViewport, standaloneAiWorkspace, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
+    if (standaloneAiWorkspace) return;
     const forcedDesktop = typeof router.query.desktop === "string" ? router.query.desktop : "";
-    if (forcedDesktop !== "scheme") return;
-    setDesktopVariant("scheme");
-    setClassicViewMode("desktop");
-  }, [router.query.desktop]);
+    if (!isDesktopVariant(forcedDesktop)) return;
+    const mobileViewport = isMobileViewport || (typeof window !== "undefined" && window.matchMedia(MOBILE_INTERFACE_MEDIA_QUERY).matches);
+    if (mobileViewport && forcedDesktop !== "simple" && forcedDesktop !== "assembly") return;
+    if (interfaceMode === "light" && forcedDesktop !== "simple" && forcedDesktop !== "assembly") return;
+    setDesktopVariant(forcedDesktop);
+    if (forcedDesktop === "scheme" || forcedDesktop === "classic") setClassicViewMode("desktop");
+  }, [interfaceMode, isMobileViewport, router.query.desktop, standaloneAiWorkspace]);
+
+  useEffect(() => {
+    if (standaloneAiWorkspace) {
+      setDesktopVariant("assembly");
+      return;
+    }
+    if (isMobileViewport) {
+      setDesktopVariant((current) => current === "assembly" ? current : "simple");
+      return;
+    }
+    if (interfaceMode === "light") {
+      setDesktopVariant((current) => current === "assembly" ? current : "simple");
+      return;
+    }
+    setDesktopVariant((current) => current === "simple" ? "scheme" : current);
+  }, [interfaceMode, isMobileViewport, standaloneAiWorkspace, workspace?.workspace?.workspace_id]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const openCabinet = () => {
-      setDesktopVariant("scheme");
+      if (standaloneAiWorkspace) return;
+      setDesktopVariant(isMobileViewport || interfaceMode === "light" ? "simple" : "scheme");
       setClassicViewMode("desktop");
     };
     window.addEventListener("dashboard-open-cabinet", openCabinet);
     return () => window.removeEventListener("dashboard-open-cabinet", openCabinet);
-  }, []);
+  }, [interfaceMode, isMobileViewport, standaloneAiWorkspace]);
 
   useEffect(() => {
     if (!workspace?.workspace?.workspace_id || typeof window === "undefined") return;
@@ -2556,14 +2604,14 @@ export default function DashboardPage() {
           setActiveAssemblyGuideId(widget.id);
           assemblyGuideTimerRef.current = window.setTimeout(() => {
             setClassicViewMode("desktop");
-            setDesktopVariant("assembly");
+            void router.push("/analytics");
             setActiveAssemblyGuideId(null);
             assemblyGuideTimerRef.current = null;
           }, 2600);
           return;
         }
         setClassicViewMode("desktop");
-        setDesktopVariant("assembly");
+        void router.push("/analytics");
         return;
       }
     },
@@ -2988,14 +3036,20 @@ export default function DashboardPage() {
     try {
       const raw = window.localStorage.getItem(assemblyAiStorageKey);
       const loaded = raw ? JSON.parse(raw) : [];
-      const chats = Array.isArray(loaded) ? (loaded as AssemblyAiChat[]) : [];
+      const chats = Array.isArray(loaded)
+        ? (loaded as AssemblyAiChat[]).map((chat) => ({
+            ...chat,
+            model: normalizeAssemblyAiModel(chat.provider || "openai", chat.model),
+          }))
+        : [];
       setAssemblyAiChats(chats);
+      window.localStorage.setItem(assemblyAiStorageKey, JSON.stringify(chats));
       if (chats[0] && !assemblyAiActiveChatId) {
         setAssemblyAiActiveChatId(chats[0].id);
         setAssemblyAiMessages(chats[0].messages?.length ? chats[0].messages : []);
         setAssemblyAiInsight(chats[0].insight || null);
         setAssemblyAiProvider(chats[0].provider || "openai");
-        setAssemblyAiModel(chats[0].model || "gpt-5.4-mini");
+        setAssemblyAiModel(normalizeAssemblyAiModel(chats[0].provider || "openai", chats[0].model));
         setAssemblyAiContextScope(chats[0].contextScope || "folder");
         setAssemblyAiFolderTarget(chats[0].contextScope === "folder" && chats[0].analysisAnchor?.mode === "project_message" ? "person" : "folder");
         setAssemblyAiIncludeIncomplete(canUseIncompleteAiAnalysis);
@@ -3013,7 +3067,7 @@ export default function DashboardPage() {
     setAssemblyAiMessages(chat.messages?.length ? chat.messages : []);
     setAssemblyAiInsight(chat.insight || null);
     setAssemblyAiProvider(chat.provider || "openai");
-    setAssemblyAiModel(chat.model || "gpt-5.4-mini");
+    setAssemblyAiModel(normalizeAssemblyAiModel(chat.provider || "openai", chat.model));
     setAssemblyAiContextScope(chat.contextScope || "folder");
     setAssemblyAiFolderTarget(chat.contextScope === "folder" && chat.analysisAnchor?.mode === "project_message" ? "person" : "folder");
     {
@@ -3059,7 +3113,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (assemblyAiModelOptions.some((item) => item.id === assemblyAiModel)) return;
-    setAssemblyAiModel(assemblyAiModelOptions[0]?.id || "gpt-5.4-mini");
+    setAssemblyAiModel(assemblyAiModelOptions[0]?.id || "gpt-5.6-terra");
   }, [assemblyAiModel, assemblyAiModelOptions]);
 
   useEffect(() => {
@@ -3866,7 +3920,7 @@ export default function DashboardPage() {
         className={`btn btn-sm ${desktopVariant === "scheme" ? "btn-primary" : "btn-secondary"}`}
         onClick={() => setDesktopVariant("scheme")}
       >
-        Основной
+        Конструктор
       </button>
       <button
         type="button"
@@ -3902,7 +3956,7 @@ export default function DashboardPage() {
         type="button"
         data-onboarding-id="dashboard-ai-analytics-entry"
         className="btn btn-secondary btn-sm"
-        onClick={() => setDesktopVariant("assembly")}
+        onClick={() => router.push("/analytics")}
       >
         AI-аналитика
       </button>
@@ -3965,17 +4019,27 @@ export default function DashboardPage() {
     </>
   );
   const assemblyAiWorkspace = (
-    <Layout title="AI-аналитика папок">
+    <Layout title={standaloneAiWorkspace ? undefined : "AI-аналитика папок"}>
       <OnboardingTour tourId="dashboard-ai-analytics-v1" steps={ASSEMBLY_AI_ONBOARDING_STEPS} autoStart={false} />
-      {mobileDashboard}
-      <div className="dashboard-experience dashboard-experience-classic relative isolate -mx-3 hidden overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 lg:block">
+      {!standaloneAiWorkspace && interfaceMode === "classic" ? mobileDashboard : null}
+      <div className={`dashboard-ai-workspace dashboard-experience dashboard-experience-classic relative isolate -mx-3 overflow-hidden rounded-[36px] px-3 py-3 sm:-mx-4 sm:px-4 sm:py-4 ${standaloneAiWorkspace || interfaceMode === "light" ? "block" : "hidden lg:block"}`}>
         {error ? <div className="mb-4 card dashboard-panel text-sm text-red-600">{error}</div> : null}
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/90 px-4 py-3 shadow-[0_16px_30px_-26px_rgba(54,35,19,0.18)] backdrop-blur-xl">
-          {desktopModeTabs}
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            {sceneEditControls}
-          </div>
+          {!standaloneAiWorkspace && interfaceMode === "classic" ? desktopModeTabs : (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => standaloneAiWorkspace ? router.push("/dashboard?desktop=simple") : setDesktopVariant("simple")}
+            >
+              К обзору
+            </button>
+          )}
+          {!standaloneAiWorkspace && interfaceMode === "classic" ? (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {sceneEditControls}
+            </div>
+          ) : null}
         </div>
 
         <div data-onboarding-id="assembly-ai-overview" className="mb-4 rounded-[26px] border border-[#d8e4ef] bg-[linear-gradient(180deg,#ffffff_0%,#edf6ff_100%)] px-5 py-4 shadow-[0_20px_42px_-32px_rgba(37,63,89,0.2)]">
@@ -4013,7 +4077,7 @@ export default function DashboardPage() {
               onChange={(event) => setAssemblyAiChatSearch(event.target.value)}
               placeholder="Найти чат"
             />
-            <div className="mt-3 max-h-[650px] space-y-2 overflow-y-auto pr-1">
+            <div className="assembly-ai-chat-list mt-3 max-h-[650px] space-y-2 overflow-y-auto pr-1">
               {filteredAssemblyAiChats.length ? filteredAssemblyAiChats.map((chat) => (
                 <div key={chat.id} className={`rounded-[18px] border px-3 py-3 transition ${chat.id === assemblyAiActiveChatId ? "border-[#7ca36f] bg-[#eef8ea]" : "border-[#e2ebf4] bg-[#f9fbfe]"}`}>
                   {assemblyAiEditingChatId === chat.id ? (
@@ -4092,7 +4156,7 @@ export default function DashboardPage() {
               </div>
             ) : null}
 
-            <div className="mt-4 h-[520px] overflow-y-auto rounded-[24px] border border-[#dce6f1] bg-white/88 p-4">
+            <div className="assembly-ai-message-list mt-4 h-[520px] overflow-y-auto rounded-[24px] border border-[#dce6f1] bg-white/88 p-4">
               <div className="space-y-3">
                 {assemblyAiMessages.map((message) => (
                   <div
@@ -4138,7 +4202,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="assembly-ai-controls space-y-4">
             <div data-onboarding-id="assembly-ai-models" className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Модель и цены</div>
               <div className="mt-3 grid gap-2">
@@ -4390,6 +4454,46 @@ export default function DashboardPage() {
       {trashRestoreModal}
     </Layout>
   );
+
+  if (standaloneAiWorkspace) {
+    return assemblyAiWorkspace;
+  }
+
+  if (desktopVariant === "simple") {
+    return (
+      <Layout title="Кабинет специалиста">
+        <OnboardingTour tourId="dashboard-specialist-v3" steps={DASHBOARD_ONBOARDING_STEPS} startTarget={dashboardTourStartTarget} autoStart={false} />
+        <div>
+          <SimpleDashboard
+            displayName={displayName}
+            workspaceName={workspaceName}
+            balanceText={balanceText}
+            attemptsCount={data?.stats.attempts_count || 0}
+            uniqueTestsCount={data?.stats.unique_tests_count || 0}
+            projects={projects}
+            folders={folders}
+            trashCount={trashEntries.length}
+            loading={loading}
+            error={error}
+            onCreateProject={() => router.push("/projects/new")}
+            onCreateFolder={promptAndCreateFolder}
+            onOpenCatalog={() => router.push("/assessments")}
+            onOpenAiAnalytics={() => router.push("/analytics")}
+            onOpenWallet={() => router.push("/wallet")}
+            onOpenTrash={() => setTrashOpen(true)}
+            onMoveProject={moveProject}
+            onRenameFolder={(folder) => openRenameFolder(folder as FolderRow)}
+            onDeleteFolder={(folder) => openDeleteFolder(folder as FolderRow)}
+            onRefresh={loadDashboard}
+            accessToken={session.access_token}
+            onOpenResults={(projectId) => router.push(`/projects/${projectId}/results`)}
+          />
+        </div>
+        {folderManagementDialogs}
+        {trashRestoreModal}
+      </Layout>
+    );
+  }
 
   if (desktopVariant === "assembly") {
     return assemblyAiWorkspace;

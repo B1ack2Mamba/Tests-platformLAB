@@ -34,6 +34,7 @@ import type { AnyTest } from "@/lib/testTypes";
 import { formatEstimatedMinutes, getTestDisplayTitle, getTestEstimatedMinutes, getTotalEstimatedMinutes } from "@/lib/testTitles";
 import { useWallet } from "@/lib/useWallet";
 import { friendlyErrorMessage } from "@/lib/friendlyErrors";
+import { useInterfaceMode } from "@/lib/interfaceMode";
 
 type WorkspacePayload = {
   ok: true;
@@ -299,7 +300,9 @@ function sameSlugSet(left: string[], right: string[]) {
 export default function NewProjectPage({ tests }: NewProjectPageProps) {
   const { session, user, loading: sessionLoading } = useSession();
   const { wallet, loading: walletLoading, refresh: refreshWallet, isUnlimited } = useWallet();
+  const { interfaceMode } = useInterfaceMode();
   const router = useRouter();
+  const simpleEmbedded = router.query.embedded === "1" && router.query.simple === "1";
   const initialGoal = router.query.goal;
   const allSlugs = useMemo(() => tests.map((item) => item.slug), [tests]);
 
@@ -325,6 +328,12 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
   const [templateLoaded, setTemplateLoaded] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateMessage, setTemplateMessage] = useState("");
+  const [collapsedCreateSections, setCollapsedCreateSections] = useState<Record<"person" | "assessment" | "submit", boolean>>({
+    person: false,
+    assessment: false,
+    submit: false,
+  });
+  const [simpleCreateStep, setSimpleCreateStep] = useState<"person" | "assessment" | "submit">("person");
   const canEditProjectCreateTemplate = (user?.email || "").toLowerCase() === PROJECT_CREATE_TEMPLATE_OWNER_EMAIL;
   const [builderGesture, setBuilderGesture] = useState<null | {
     target: "tablet" | "page";
@@ -817,7 +826,12 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
           window.localStorage.setItem(DASHBOARD_POST_PROJECT_TRASH_HINT_KEY, "1");
         }
       } catch {}
-      router.push(`/projects/${json.project_id}`);
+      if (simpleEmbedded && typeof window !== "undefined" && window.parent !== window) {
+        window.parent.postMessage({ type: "commercial-project-created", projectId: json.project_id }, window.location.origin);
+        await router.push(`/projects/${json.project_id}?embedded=1&simple=1`);
+      } else {
+        await router.push(`/projects/${json.project_id}`);
+      }
     } catch (err: any) {
       setError(friendlyErrorMessage(err, "Ошибка"));
     } finally {
@@ -867,11 +881,63 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
 
   const selectedCriteriaLabel =
     selectionMode === "goal" ? definition?.shortTitle || "Цель оценки" : getCompetencyLongLabel(selectedCompetencyIds);
+  const personStepReady = Boolean(personName.trim());
+  const assessmentStepReady = selectedTests.length > 0 && (selectionMode !== "competency" || selectedCompetencyIds.length > 0);
+  const activeCreateStep = !personStepReady ? "person" : !assessmentStepReady ? "assessment" : "submit";
+
+  function toggleCreateSection(section: "person" | "assessment" | "submit") {
+    setCollapsedCreateSections((current) => ({ ...current, [section]: !current[section] }));
+  }
+
+  function focusCreateSection(section: "person" | "assessment" | "submit") {
+    if (simpleEmbedded) setSimpleCreateStep(section);
+    setCollapsedCreateSections((current) => ({ ...current, [section]: false }));
+    window.setTimeout(() => {
+      document.querySelector(`[data-create-section="${section}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function renderBillingPlanCards() {
+    return (
+      <div className="light-create-plan-grid mt-3 grid gap-2 md:grid-cols-3">
+        {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
+          const activePriceRub = getActiveMonthlyPlanPriceRub(plan);
+          const canBuyFromWallet = walletBalanceReady && walletBalanceKopeks >= activePriceRub * 100;
+          return (
+            <div key={plan.key} className="rounded-[16px] border border-[#eadbc4] bg-[#fff8ee] p-3 text-left">
+              <div className="text-sm font-semibold text-[#3d3124]">{plan.shortTitle}</div>
+              <div className="mt-1 text-[12px] leading-5 text-[#6b5843]">
+                {formatRubAmount(activePriceRub)} · примерно {formatRubAmount(getActiveMonthlyPlanEffectiveProjectPriceRub(plan))} за проект
+              </div>
+              <div className="mt-2 grid gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => startPlanOnlinePurchase(plan.key)}
+                  disabled={Boolean(paymentBusyKey)}
+                  className="min-h-[34px] rounded-[12px] border border-[#d6bea0] bg-white px-3 py-1.5 text-xs font-semibold text-[#5d4830] shadow-sm transition hover:bg-[#fff2df] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {paymentBusyKey === `plan-online:${plan.key}` ? "Открываю..." : "Оплатить"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => buyPlanFromWallet(plan.key)}
+                  disabled={Boolean(paymentBusyKey) || !canBuyFromWallet}
+                  className="min-h-[34px] rounded-[12px] border border-[#c8d8bf] bg-[#f4fbf2] px-3 py-1.5 text-xs font-semibold text-[#3b663f] shadow-sm transition hover:bg-[#eef8eb] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {paymentBusyKey === `plan-wallet:${plan.key}` ? "Подключаю..." : "С баланса"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <Layout title="Новый проект оценки">
-      <OnboardingTour tourId="project-create-v1" steps={PROJECT_CREATE_ONBOARDING_STEPS} />
-      <div className="project-create-page mx-auto px-2 pb-6 pt-2 sm:px-4">
+      {!simpleEmbedded ? <OnboardingTour tourId="project-create-v1" steps={PROJECT_CREATE_ONBOARDING_STEPS} /> : null}
+      <div className={`project-create-page mx-auto px-2 pb-6 pt-2 sm:px-4 ${simpleEmbedded ? "project-create-simple" : ""}`}>
         <div className="project-create-shell relative mx-auto min-h-[calc(100vh-40px)] max-w-[1280px] overflow-visible">
           <div className="project-create-stage flex min-h-[calc(100vh-40px)] items-start justify-center overflow-visible pt-4">
             <div
@@ -884,7 +950,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                 transformOrigin: "top center",
               }}
             >
-              {canEditProjectCreateTemplate && pageBuilder.builderOpen ? (
+              {!simpleEmbedded && canEditProjectCreateTemplate && pageBuilder.builderOpen ? (
                 <>
                   <button
                     type="button"
@@ -911,7 +977,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   transformOrigin: "top center",
                 }}
               >
-                {canEditProjectCreateTemplate && pageBuilder.builderOpen ? (
+                {!simpleEmbedded && canEditProjectCreateTemplate && pageBuilder.builderOpen ? (
                   <>
                     <button
                       type="button"
@@ -931,10 +997,10 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </button>
                   </>
                 ) : null}
-            <div className="relative overflow-hidden rounded-[28px] border border-[rgba(172,140,101,0.24)] bg-[rgba(255,251,245,0.68)] px-3 pb-4 pt-5 shadow-[0_18px_40px_rgba(92,67,38,0.06)] backdrop-blur-[1px] sm:px-5 sm:pb-5 sm:pt-6">
+            <div className="project-create-surface relative overflow-hidden rounded-[28px] border border-[rgba(172,140,101,0.24)] bg-[rgba(255,251,245,0.68)] px-3 pb-4 pt-5 shadow-[0_18px_40px_rgba(92,67,38,0.06)] backdrop-blur-[1px] sm:px-5 sm:pb-5 sm:pt-6">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.78),rgba(255,255,255,0)_30%),linear-gradient(90deg,rgba(180,142,101,0.045)_1px,transparent_1px),linear-gradient(rgba(180,142,101,0.045)_1px,transparent_1px)] [background-size:auto,100%_100%,100%_34px] opacity-55" />
               <div className="relative">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="project-create-heading mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[#8a6a46]">Лист проекта</div>
                   <h1 className="mt-2.5 text-[24px] font-semibold tracking-[0.01em] text-[#31492f] sm:text-[28px]">Новый проект оценки</h1>
@@ -950,7 +1016,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                 </Link>
               </div>
 
-              {canEditProjectCreateTemplate ? (
+              {!simpleEmbedded && canEditProjectCreateTemplate ? (
                 <>
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[20px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] px-3 py-2.5 shadow-[0_8px_18px_rgba(98,73,41,0.04)]">
                     <div>
@@ -993,18 +1059,47 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                 </>
               ) : null}
 
-              <form onSubmit={onSubmit} className="grid gap-3.5">
-                <section data-onboarding-id="project-person-info" className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
+              <form onSubmit={onSubmit} className="project-create-form grid gap-3.5">
+                {interfaceMode === "light" ? (
+                  <nav className="light-create-progress" aria-label="Этапы создания проекта">
+                    <button type="button" data-active={(simpleEmbedded ? simpleCreateStep : activeCreateStep) === "person"} data-ready={personStepReady} onClick={() => focusCreateSection("person")}>
+                      <span>1</span><strong>Участник</strong><small>{personStepReady ? "Готово" : "Кого оцениваем"}</small>
+                    </button>
+                    <i aria-hidden="true" />
+                    <button type="button" data-active={(simpleEmbedded ? simpleCreateStep : activeCreateStep) === "assessment"} data-ready={assessmentStepReady} onClick={() => focusCreateSection("assessment")}>
+                      <span>2</span><strong>Оценка</strong><small>{assessmentStepReady ? `${selectedTests.length} тестов` : "Что проверяем"}</small>
+                    </button>
+                    <i aria-hidden="true" />
+                    <button type="button" data-active={(simpleEmbedded ? simpleCreateStep : activeCreateStep) === "submit"} data-ready={assessmentStepReady && personStepReady} onClick={() => focusCreateSection("submit")}>
+                      <span>3</span><strong>Создание</strong><small>Проверить и создать</small>
+                    </button>
+                  </nav>
+                ) : null}
+
+                <section
+                  data-onboarding-id="project-person-info"
+                  data-create-section="person"
+                  data-simple-active={!simpleEmbedded || simpleCreateStep === "person"}
+                  data-collapsed={collapsedCreateSections.person}
+                  className="project-create-step project-create-step-person rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-[18px] font-semibold text-[#3d3124]">Шаг 1. Личная информация клиента</div>
+                      <div className="text-[18px] font-semibold text-[#3d3124]">{simpleEmbedded ? "Кого оцениваем" : "Шаг 1. Личная информация клиента"}</div>
                       <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
-                        Заполни только базовые данные. Этого достаточно, чтобы сразу создать проект и выдать ссылку человеку.
+                        {simpleEmbedded ? "Имя обязательно. Остальные сведения помогают сделать итоговый анализ точнее." : "Заполни только базовые данные. Этого достаточно, чтобы сразу создать проект и выдать ссылку человеку."}
                       </div>
                     </div>
-                    <InfoHint label="Что обязательно на этом шаге?">
-                      Обязательно только имя. Остальное можно заполнить коротко: почта, текущая должность, целевая роль и контекст запроса.
-                    </InfoHint>
+                    <div className="project-create-step-actions">
+                      {!simpleEmbedded ? <InfoHint label="Что обязательно на этом шаге?">
+                        Обязательно только имя. Остальное можно заполнить коротко: почта, текущая должность, целевая роль и контекст запроса.
+                      </InfoHint> : null}
+                      {interfaceMode === "light" && !simpleEmbedded ? (
+                        <button type="button" className="light-create-collapse" onClick={() => toggleCreateSection("person")} aria-expanded={!collapsedCreateSections.person}>
+                          {collapsedCreateSections.person ? "Развернуть" : "Свернуть"}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -1058,20 +1153,33 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   </div>
                 </section>
 
-                <section data-onboarding-id="project-assessment-focus" className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
+                <section
+                  data-onboarding-id="project-assessment-focus"
+                  data-create-section="assessment"
+                  data-simple-active={!simpleEmbedded || simpleCreateStep === "assessment"}
+                  data-collapsed={collapsedCreateSections.assessment}
+                  className="project-create-step project-create-step-assessment rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-[18px] font-semibold text-[#3d3124]">Шаг 2. Что проверяем</div>
+                      <div className="text-[18px] font-semibold text-[#3d3124]">{simpleEmbedded ? "Что хотим оценить" : "Шаг 2. Что проверяем"}</div>
                       <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
-                        Можно идти от текущих целей оценки или от конкретных компетенций. Набор тестов система подберёт сама.
+                        {simpleEmbedded ? "Выберите готовую цель или настройте оценку по компетенциям. Тесты подберутся автоматически." : "Можно идти от текущих целей оценки или от конкретных компетенций. Набор тестов система подберёт сама."}
                       </div>
                     </div>
-                    <InfoHint label="Как выбирать режим?">
-                      Если нужен привычный сценарий — выбери цель. Если нужна точечная проверка, выбери одну или несколько компетенций, а система соберёт общий набор тестов.
-                    </InfoHint>
+                    <div className="project-create-step-actions">
+                      {!simpleEmbedded ? <InfoHint label="Как выбирать режим?">
+                        Если нужен привычный сценарий — выбери цель. Если нужна точечная проверка, выбери одну или несколько компетенций, а система соберёт общий набор тестов.
+                      </InfoHint> : null}
+                      {interfaceMode === "light" && !simpleEmbedded ? (
+                        <button type="button" className="light-create-collapse" onClick={() => toggleCreateSection("assessment")} aria-expanded={!collapsedCreateSections.assessment}>
+                          {collapsedCreateSections.assessment ? "Развернуть" : "Свернуть"}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="mt-4 inline-flex rounded-full border border-[#dcc8ab] bg-[#fff8ee] p-1.5 shadow-sm">
+                  <div className="light-create-mode-toggle mt-4 inline-flex rounded-full border border-[#dcc8ab] bg-[#fff8ee] p-1.5 shadow-sm">
                     <button
                       type="button"
                       onClick={() => setSelectionMode("goal")}
@@ -1079,7 +1187,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                         selectionMode === "goal" ? "bg-[#f0dcc1] text-[#4e3b25] shadow-sm" : "text-[#7b6650]"
                       }`}
                     >
-                      По текущей цели
+                      {simpleEmbedded ? "Готовая цель" : "По текущей цели"}
                     </button>
                     <button
                       type="button"
@@ -1093,17 +1201,29 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   </div>
 
                   {selectionMode === "goal" ? (
-                    <div className="mt-4 grid gap-2.5 lg:grid-cols-2">
-                      {COMMERCIAL_GOALS.map((item) => (
-                        <ChoiceCard
-                          key={item.key}
-                          active={item.key === goal}
-                          title={item.shortTitle}
-                          description={item.description}
-                          onClick={() => setGoal(item.key)}
-                        />
-                      ))}
-                    </div>
+                    simpleEmbedded ? (
+                      <label className="light-create-goal-select mt-4 grid gap-2">
+                        <span>Цель оценки</span>
+                        <select value={goal} onChange={(event) => setGoal(event.target.value as AssessmentGoal)}>
+                          {COMMERCIAL_GOALS.map((item) => (
+                            <option key={item.key} value={item.key}>{item.shortTitle}</option>
+                          ))}
+                        </select>
+                        <small>{definition?.description}</small>
+                      </label>
+                    ) : (
+                      <div className="mt-4 grid gap-2.5 lg:grid-cols-2">
+                        {COMMERCIAL_GOALS.map((item) => (
+                          <ChoiceCard
+                            key={item.key}
+                            active={item.key === goal}
+                            title={item.shortTitle}
+                            description={item.description}
+                            onClick={() => setGoal(item.key)}
+                          />
+                        ))}
+                      </div>
+                    )
                   ) : (
                     <div className="mt-4 grid gap-3">
                       <div className="rounded-[22px] border border-[#e7d8c0] bg-[#fff7eb] p-3">
@@ -1200,28 +1320,51 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                   )}
 
                   <div className="mt-4" data-onboarding-id="project-tests-list">
-                    <div className="rounded-[22px] border border-[#a8d1a7] bg-[#edf6ea] p-3.5">
+                    <div className={`rounded-[22px] border border-[#a8d1a7] bg-[#edf6ea] p-3.5 ${simpleEmbedded ? "light-create-tests-compact" : ""}`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <div className="text-[15px] font-semibold text-[#2f4c32]">Набор тестов подобран автоматически</div>
-                          <div className="mt-1 text-[13px] leading-5 text-[#507154]">
-                            {selectionMode === "goal"
-                              ? "Это рекомендуемый набор под выбранную цель."
-                              : "Это стандартный маршрут по выбранным компетенциям. При необходимости его можно скорректировать вручную."}
+                          <div className="text-[15px] font-semibold text-[#2f4c32]">
+                            {simpleEmbedded
+                              ? selectionMode === "competency" && selectedCompetencyIds.length === 0
+                                ? "Сначала выберите компетенции"
+                                : `${testsLabel(selectedTestCards.length)} подобрано`
+                              : "Набор тестов подобран автоматически"}
                           </div>
+                          {simpleEmbedded ? (
+                            <div className="mt-1 text-[13px] leading-5 text-[#507154]">
+                              {selectionMode === "competency" && selectedCompetencyIds.length === 0
+                                ? "После выбора система автоматически соберёт набор тестов."
+                                : `Примерное время: ${formatEstimatedMinutes(selectedTestsTotalMinutes)}`}
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-[13px] leading-5 text-[#507154]">
+                              {selectionMode === "goal"
+                                ? "Это рекомендуемый набор под выбранную цель."
+                                : "Это стандартный маршрут по выбранным компетенциям. При необходимости его можно скорректировать вручную."}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-2 ${simpleEmbedded ? "light-create-tests-actions" : ""}`}>
                           {hasCustomTestSelection ? (
                             <span className="rounded-full border border-[#ebcf93] bg-[#fff6dc] px-3 py-1 text-[11px] font-semibold text-[#886428]">
                               Набор изменён вручную
                             </span>
                           ) : null}
-                          <span className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-[11px] font-semibold text-[#2f4c32]">
-                            {testsLabel(selectedTestCards.length)}
-                          </span>
-                          <span className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-[11px] font-semibold text-[#2f4c32]">
-                            Примерно {formatEstimatedMinutes(selectedTestsTotalMinutes)}
-                          </span>
+                          {simpleEmbedded && !(selectionMode === "competency" && selectedCompetencyIds.length === 0) ? (
+                            <button type="button" onClick={() => setEditorOpen((prev) => !prev)}>
+                              {editorOpen ? "Готово" : "Изменить набор"}
+                            </button>
+                          ) : null}
+                          {!simpleEmbedded ? (
+                            <>
+                              <span className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-[11px] font-semibold text-[#2f4c32]">
+                                {testsLabel(selectedTestCards.length)}
+                              </span>
+                              <span className="rounded-full border border-[#9ac09d] bg-[#fffdf8] px-3 py-1 text-[11px] font-semibold text-[#2f4c32]">
+                                Примерно {formatEstimatedMinutes(selectedTestsTotalMinutes)}
+                              </span>
+                            </>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1229,7 +1372,7 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                         <div className="mt-3 rounded-[18px] border border-dashed border-[#c9c0b1] bg-[#fffdf8] px-3.5 py-3 text-[13px] text-[#7b6650]">
                           Сначала выбери хотя бы одну компетенцию — после этого система сразу соберёт набор тестов.
                         </div>
-                      ) : (
+                      ) : !simpleEmbedded ? (
                         <>
                           <div className="mt-3 flex flex-wrap gap-1.5">
                             {autoSelectedTestCards.map((test) => (
@@ -1268,10 +1411,10 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                             </button>
                           </div>
                         </>
-                      )}
+                      ) : null}
 
                       {editorOpen ? (
-                        <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                        <div className="light-create-test-editor mt-3 grid gap-2 xl:grid-cols-2">
                           {tests.map((test) => (
                             <TestToggleRow
                               key={test.slug}
@@ -1282,14 +1425,52 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                               onToggle={() => toggleTest(test.slug)}
                             />
                           ))}
+                          {simpleEmbedded && hasCustomTestSelection ? (
+                            <button type="button" className="light-create-restore-tests" onClick={restoreAutoSelected} disabled={!autoSelectedTests.length}>
+                              Вернуть рекомендованный набор
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
                   </div>
                 </section>
 
-                <section data-onboarding-id="project-submit" className="rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5">
+                <section
+                  data-onboarding-id="project-submit"
+                  data-create-section="submit"
+                  data-simple-active={!simpleEmbedded || simpleCreateStep === "submit"}
+                  data-collapsed={collapsedCreateSections.submit}
+                  className="project-create-step project-create-step-submit rounded-[24px] border border-[#eadbc4] bg-[rgba(255,252,246,0.88)] p-3.5 shadow-[0_10px_22px_rgba(98,73,41,0.05)] sm:p-4.5"
+                >
+                  {interfaceMode === "light" ? (
+                    <div className="light-create-submit-heading">
+                      <div>
+                        <div className="text-[18px] font-semibold text-[#3d3124]">{simpleEmbedded ? "Всё готово к созданию" : "Шаг 3. Проверка и создание"}</div>
+                        <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">{simpleEmbedded ? "Проверьте основные данные и создайте проект." : "Проверьте выбранный набор, способ оплаты и создайте проект."}</div>
+                      </div>
+                      {!simpleEmbedded ? <button type="button" className="light-create-collapse" onClick={() => toggleCreateSection("submit")} aria-expanded={!collapsedCreateSections.submit}>
+                        {collapsedCreateSections.submit ? "Развернуть" : "Свернуть"}
+                      </button> : null}
+                    </div>
+                  ) : null}
                   <div className="grid gap-3">
+                    {simpleEmbedded ? (
+                      <div className="light-create-review" aria-label="Проверка проекта">
+                        <div>
+                          <span>Участник</span>
+                          <strong>{personName.trim() || "Не указан"}</strong>
+                        </div>
+                        <div>
+                          <span>Цель оценки</span>
+                          <strong>{selectedCriteriaLabel}</strong>
+                        </div>
+                        <div>
+                          <span>Набор</span>
+                          <strong>{testsLabel(selectedTestCards.length)} · {formatEstimatedMinutes(selectedTestsTotalMinutes)}</strong>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="rounded-[20px] border border-[#d8c5a8] bg-[#fff8ee] px-4 py-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
@@ -1315,44 +1496,23 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </div>
 
                     {showBillingChoices ? (
+                      simpleEmbedded ? (
+                        <details className="light-create-plans">
+                          <summary>
+                            <span>Тарифы для нескольких проектов</span>
+                            <small>Показать варианты</small>
+                          </summary>
+                          {renderBillingPlanCards()}
+                        </details>
+                      ) : (
                         <div className="rounded-[20px] border border-[#e5d3b8] bg-[#fffdf8] p-3.5">
                           <div className="text-sm font-semibold text-[#3d3124]">Тариф на несколько проектов</div>
                           <div className="mt-1 text-[13px] leading-5 text-[#6b5843]">
                             Если проектов будет больше, тариф дешевле за один проект и списывает доступ сразу при создании.
                           </div>
-                          <div className="mt-3 grid gap-2 md:grid-cols-3">
-                            {MONTHLY_SUBSCRIPTION_PLANS.map((plan) => {
-                              const activePriceRub = getActiveMonthlyPlanPriceRub(plan);
-                              const canBuyFromWallet = walletBalanceReady && walletBalanceKopeks >= activePriceRub * 100;
-                              return (
-                                <div key={plan.key} className="rounded-[16px] border border-[#eadbc4] bg-[#fff8ee] p-3 text-left">
-                                  <div className="text-sm font-semibold text-[#3d3124]">{plan.shortTitle}</div>
-                                  <div className="mt-1 text-[12px] leading-5 text-[#6b5843]">
-                                    {formatRubAmount(activePriceRub)} · примерно {formatRubAmount(getActiveMonthlyPlanEffectiveProjectPriceRub(plan))} за проект
-                                  </div>
-                                  <div className="mt-2 grid gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => startPlanOnlinePurchase(plan.key)}
-                                      disabled={Boolean(paymentBusyKey)}
-                                      className="min-h-[34px] rounded-[12px] border border-[#d6bea0] bg-white px-3 py-1.5 text-xs font-semibold text-[#5d4830] shadow-sm transition hover:bg-[#fff2df] disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      {paymentBusyKey === `plan-online:${plan.key}` ? "Открываю..." : "Оплатить"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => buyPlanFromWallet(plan.key)}
-                                      disabled={Boolean(paymentBusyKey) || !canBuyFromWallet}
-                                      className="min-h-[34px] rounded-[12px] border border-[#c8d8bf] bg-[#f4fbf2] px-3 py-1.5 text-xs font-semibold text-[#3b663f] shadow-sm transition hover:bg-[#eef8eb] disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      {paymentBusyKey === `plan-wallet:${plan.key}` ? "Подключаю..." : "С баланса"}
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                          {renderBillingPlanCards()}
                         </div>
+                      )
                     ) : null}
 
                     {paymentError ? (
@@ -1367,7 +1527,9 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                       <div className="w-full max-w-3xl rounded-[20px] border border-[#efc7b6] bg-[#fff1ea] px-4 py-3 text-sm text-[#9a4d31]">{error}</div>
                     ) : (
                       <div className="max-w-3xl text-sm leading-6 text-[#6b5843]">
-                        После создания сразу появится ссылка и QR-код для клиента. Оплата закрепляется за проектом сразу, поэтому в конце анализа повторной оплаты не будет.
+                        {simpleEmbedded
+                          ? "После создания появятся ссылка и QR-код участника."
+                          : "После создания сразу появится ссылка и QR-код для клиента. Оплата закрепляется за проектом сразу, поэтому в конце анализа повторной оплаты не будет."}
                       </div>
                     )}
                     <button
@@ -1380,6 +1542,22 @@ export default function NewProjectPage({ tests }: NewProjectPageProps) {
                     </div>
                   </div>
                 </section>
+                {simpleEmbedded ? (
+                  <div className="light-create-navigation">
+                    <span>Шаг {simpleCreateStep === "person" ? "1" : simpleCreateStep === "assessment" ? "2" : "3"} из 3</span>
+                    <div>
+                      {simpleCreateStep !== "person" ? (
+                        <button type="button" onClick={() => focusCreateSection(simpleCreateStep === "submit" ? "assessment" : "person")}>Назад</button>
+                      ) : null}
+                      {simpleCreateStep === "person" ? (
+                        <button type="button" data-primary="true" disabled={!personStepReady} onClick={() => focusCreateSection("assessment")}>Продолжить</button>
+                      ) : null}
+                      {simpleCreateStep === "assessment" ? (
+                        <button type="button" data-primary="true" disabled={!assessmentStepReady} onClick={() => focusCreateSection("submit")}>Продолжить</button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </form>
             </div>
           </div>

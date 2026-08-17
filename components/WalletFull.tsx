@@ -625,7 +625,7 @@ export default function WalletPage() {
           <Link href="/auth?next=/wallet" className={ACTION_PRIMARY}>Вход</Link>
         </>
       ) : (
-        <div className="space-y-5">
+        <div className="wallet-page space-y-5">
 <div data-onboarding-id="wallet-topup-area" className={FRAME_CARD + " relative overflow-hidden px-6 py-6 sm:px-7 sm:py-7"}>
   <div className="pointer-events-none absolute inset-y-0 right-0 w-[34%] bg-[radial-gradient(circle_at_right_center,rgba(180,223,198,0.32),rgba(180,223,198,0)_72%)]" />
   <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[124px] font-light leading-none text-[#d8ccb4]/40 select-none">☿</div>

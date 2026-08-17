@@ -54,9 +54,9 @@ type ProjectContextOptions = {
   blockMax?: number;
 };
 
-const OPENAI_MODELS = ["gpt-5.4-mini", "gpt-5.5"];
+const OPENAI_MODELS = ["gpt-5.6-terra", "gpt-5.6-sol"];
 const DEEPSEEK_MODELS = ["deepseek-v4-flash", "deepseek-v4-pro"];
-const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
+const DEFAULT_OPENAI_MODEL = "gpt-5.6-terra";
 const DEFAULT_MAX_OUTPUT_TOKENS = 11776;
 const MAX_CONTEXT_CHARS = 46000;
 const INCOMPLETE_AI_ANALYSIS_EMAILS = new Set(["jdanova_2002@mail.ru"]);
@@ -116,10 +116,16 @@ function canUseIncompleteAiAnalysis(email?: string | null) {
   return INCOMPLETE_AI_ANALYSIS_EMAILS.has(String(email || "").trim().toLowerCase());
 }
 
+function normalizeOpenAiModel(model: string) {
+  if (model === "gpt-5.6-luna" || model === "gpt-5.4-mini" || model === "gpt-5.4" || model === "gpt-5.5") return "gpt-5.6-terra";
+  return model;
+}
+
 function getPriceKopeks(provider: AiProvider, model: string, mode: AiMode) {
   if (mode === "message") {
     if (provider === "deepseek") return rubToKopeks(model === "deepseek-v4-pro" ? 20 : 10);
-    return rubToKopeks(model === "gpt-5.4-mini" ? 30 : 50);
+    if (model === "gpt-5.6-sol") return rubToKopeks(75);
+    return rubToKopeks(50);
   }
 
   if (provider === "deepseek") {
@@ -127,9 +133,9 @@ function getPriceKopeks(provider: AiProvider, model: string, mode: AiMode) {
     return rubToKopeks(model === "deepseek-v4-pro" ? base * 2 : base);
   }
 
-  if (model === "gpt-5.4-mini") {
-    if (mode === "folder_analysis") return rubToKopeks(1000);
-    if (mode === "project_message") return rubToKopeks(350);
+  if (model === "gpt-5.6-sol") {
+    if (mode === "folder_analysis") return rubToKopeks(3000);
+    if (mode === "project_message") return rubToKopeks(750);
   }
 
   if (mode === "folder_analysis") return rubToKopeks(2000);
@@ -863,7 +869,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const body = typeof req.body === "object" && req.body ? req.body : {};
   const provider = String(body.provider || "openai") as AiProvider;
-  const model = String(body.model || DEFAULT_OPENAI_MODEL).trim();
+  const requestedModel = String(body.model || DEFAULT_OPENAI_MODEL).trim();
+  const model = provider === "openai" ? normalizeOpenAiModel(requestedModel) : requestedModel;
   const contextScope: AiContextScope = body.context_scope === "loose" ? "loose" : body.context_scope === "none" ? "none" : "folder";
   const requestedMode = String(body.mode || "").trim();
   const folderId = String(body.folder_id || "").trim();

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React from "react";
 import dynamic from "next/dynamic";
+import { useInterfaceMode } from "@/lib/interfaceMode";
 
 const AuthNavNoSSR = dynamic(
   () => import("@/components/AuthNav").then((m) => m.AuthNav),
@@ -28,13 +29,31 @@ export function Layout({
   candidateMode?: boolean;
 }) {
   const router = useRouter();
+  const { interfaceMode, setInterfaceMode, isMobileViewport } = useInterfaceMode();
   const detectedCandidateMode =
     router.pathname.startsWith("/invite/") ||
     (router.pathname === "/tests/[slug]/take" && typeof router.query.invite === "string" && router.query.invite.trim().length > 0);
   const isCandidateMode = candidateMode ?? detectedCandidateMode;
+  const isAdminPage = router.pathname.startsWith("/admin");
+  const isParticipantPage =
+    isCandidateMode ||
+    router.pathname.startsWith("/invite/") ||
+    router.pathname.startsWith("/tests/");
+  const interfaceSwitchEnabled = !isAdminPage && !isParticipantPage && !isMobileViewport;
+  const effectiveInterfaceMode = isAdminPage || isParticipantPage ? "classic" : interfaceMode;
+  const hideLightDashboardTitle = effectiveInterfaceMode === "light" && router.pathname === "/dashboard";
+  const embeddedPage = router.query.embedded === "1";
+
+  if (embeddedPage) {
+    return (
+      <div className="app-shell embedded-page-shell min-h-screen bg-white text-slate-950" data-interface-mode={effectiveInterfaceMode}>
+        {children}
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-clean-white text-slate-950">
+    <div className="app-shell min-h-screen bg-clean-white text-slate-950" data-interface-mode={effectiveInterfaceMode}>
       <header className="app-header border-b border-slate-200 bg-white shadow-sm">
         <div className="app-header-inner mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between">
           <Link
@@ -56,8 +75,28 @@ export function Layout({
 
           {!isCandidateMode ? (
             <nav className="app-header-nav flex flex-wrap items-center gap-2 sm:justify-end">
+              {interfaceSwitchEnabled ? (
+                <div className="interface-mode-toggle" role="group" aria-label="Выбор интерфейса">
+                  <button
+                    type="button"
+                    aria-pressed={interfaceMode === "light"}
+                    className={interfaceMode === "light" ? "is-active" : ""}
+                    onClick={() => setInterfaceMode("light")}
+                  >
+                    Облегчённый
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={interfaceMode === "classic"}
+                    className={interfaceMode === "classic" ? "is-active" : ""}
+                    onClick={() => setInterfaceMode("classic")}
+                  >
+                    Классический
+                  </button>
+                </div>
+              ) : null}
               <Link
-                href="/dashboard?desktop=scheme"
+                href={`/dashboard?desktop=${effectiveInterfaceMode === "light" ? "simple" : "scheme"}`}
                 className="btn btn-secondary btn-sm"
                 onClick={() => {
                   if (typeof window !== "undefined") {
@@ -76,7 +115,7 @@ export function Layout({
       </header>
 
       <main className="app-main mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
-        {title ? <h1 className="app-page-title mb-4 text-2xl font-semibold tracking-tight text-[#1f6b55]">{title}</h1> : null}
+        {title && !hideLightDashboardTitle ? <h1 className="app-page-title mb-4 text-2xl font-semibold tracking-tight text-[#1f6b55]">{title}</h1> : null}
         {children}
       </main>
 
