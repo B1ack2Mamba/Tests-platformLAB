@@ -275,6 +275,16 @@ export default function WalletPage() {
     if (typeof window !== "undefined") {
       setWalletHermesLayout(readWalletHermesLayout());
       const url = new URL(window.location.href);
+      const focus = url.searchParams.get("focus");
+      if (focus === "topup") setTopupOpen(true);
+      if (focus === "topup" || focus === "subscription") {
+        window.setTimeout(() => {
+          const target = document.querySelector<HTMLElement>(
+            focus === "subscription" ? '[data-onboarding-id="wallet-plans"]' : '[data-onboarding-id="wallet-topup-area"]'
+          );
+          target?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 180);
+      }
       if (url.searchParams.get("plan_paid") === "1") {
         setSubscriptionInfo("Оплата тарифа принята. Проверяем активацию и обновляем лимит проектов…");
       }

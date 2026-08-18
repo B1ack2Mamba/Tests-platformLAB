@@ -7,7 +7,7 @@ import { SimpleDashboard } from "@/components/SimpleDashboard";
 import { OnboardingTour, openOnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
 import { refreshSessionThroughServer } from "@/lib/authRefreshClient";
-import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal } from "@/lib/commercialGoals";
+import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal, type EvaluationPackage } from "@/lib/commercialGoals";
 import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRouter";
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
 import { useWallet } from "@/lib/useWallet";
@@ -43,7 +43,9 @@ type ProjectRow = {
   id: string;
   title: string;
   goal: AssessmentGoal;
-  package_mode: string;
+  package_mode: EvaluationPackage;
+  unlocked_package_mode: EvaluationPackage | null;
+  unlocked_package_paid_at?: string | null;
   target_role: string | null;
   status: string;
   created_at: string;
@@ -4566,6 +4568,10 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
             displayName={displayName}
             workspaceName={workspaceName}
             balanceText={balanceText}
+            balanceKopeks={wallet ? Number(wallet.balance_kopeks || 0) : null}
+            walletLoading={walletChecking}
+            isUnlimited={isUnlimited}
+            activeSubscription={activeSubscription}
             attemptsCount={data?.stats.attempts_count || 0}
             uniqueTestsCount={data?.stats.unique_tests_count || 0}
             projects={projects}
@@ -4577,12 +4583,13 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
             onCreateFolder={promptAndCreateFolder}
             onOpenCatalog={() => router.push("/assessments")}
             onOpenAiAnalytics={() => router.push("/analytics")}
-            onOpenWallet={() => router.push("/wallet")}
+            onOpenWallet={(focus) => router.push(`/wallet?focus=${focus || "topup"}`)}
             onOpenTrash={() => setTrashOpen(true)}
             onMoveProject={moveProject}
             onRenameFolder={(folder) => openRenameFolder(folder as FolderRow)}
             onDeleteFolder={(folder) => openDeleteFolder(folder as FolderRow)}
             onRefresh={loadDashboard}
+            onRefreshWallet={refreshWallet}
             accessToken={session.access_token}
             onOpenResults={(projectId) => router.push(`/projects/${projectId}/results`)}
             onProjectOpenChange={handleSimpleProjectOpenChange}

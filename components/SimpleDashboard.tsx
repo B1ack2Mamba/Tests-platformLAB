@@ -1,6 +1,16 @@
-import { useDeferredValue, useEffect, useRef, useState, type DragEvent as ReactDragEvent, type FormEvent, type ReactNode } from "react";
+import { useDeferredValue, useEffect, useRef, useState, type DragEvent as ReactDragEvent, type FormEvent } from "react";
 import { QRCodeBlock } from "@/components/QRCodeBlock";
-import { COMMERCIAL_GOALS, getGoalDefinition, isAssessmentGoal, type AssessmentGoal } from "@/lib/commercialGoals";
+import { SimpleDashboardIcon as Icon } from "@/components/SimpleDashboardIcon";
+import {
+  COMMERCIAL_GOALS,
+  getGoalDefinition,
+  getUpgradePriceRub,
+  isAssessmentGoal,
+  isPackageAccessible,
+  type AssessmentGoal,
+  type EvaluationPackage,
+} from "@/lib/commercialGoals";
+import type { WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
 import { MOBILE_INTERFACE_MEDIA_QUERY } from "@/lib/interfaceMode";
 import styles from "../styles/SimpleDashboard.module.css";
 
@@ -9,6 +19,9 @@ export type SimpleDashboardProject = {
   title: string;
   status: string;
   goal?: string;
+  package_mode?: EvaluationPackage;
+  unlocked_package_mode?: EvaluationPackage | null;
+  unlocked_package_paid_at?: string | null;
   target_role: string | null;
   registry_comment?: string | null;
   invite_token?: string | null;
@@ -50,11 +63,20 @@ type AiPreview = {
   risks: string[];
   recommendation: string;
 };
+type AiPurchaseState = {
+  state: "processing" | "success" | "error";
+  message: string;
+};
+type WalletFocus = "topup" | "subscription";
 
 type Props = {
   displayName: string;
   workspaceName: string;
   balanceText: string;
+  balanceKopeks: number | null;
+  walletLoading: boolean;
+  isUnlimited: boolean;
+  activeSubscription: WorkspaceSubscriptionStatus | null;
   attemptsCount: number;
   uniqueTestsCount: number;
   projects: SimpleDashboardProject[];
@@ -66,12 +88,13 @@ type Props = {
   onCreateFolder: () => void;
   onOpenCatalog: () => void;
   onOpenAiAnalytics: () => void;
-  onOpenWallet: () => void;
+  onOpenWallet: (focus?: WalletFocus) => void;
   onOpenTrash: () => void;
   onMoveProject: (projectId: string, folderId: string | null) => Promise<void>;
   onRenameFolder: (folder: SimpleDashboardFolder) => void;
   onDeleteFolder: (folder: SimpleDashboardFolder) => void;
   onRefresh: () => Promise<unknown>;
+  onRefreshWallet: () => Promise<unknown>;
   accessToken: string;
   onOpenResults: (projectId: string) => void;
   onProjectOpenChange?: (open: boolean, userInitiated: boolean) => void;
@@ -81,6 +104,20 @@ const PRIMARY_INVITE_BASE_URLS = [
   { key: "vercel", label: "Основная ссылка", baseUrl: "https://tests-platform-lab.vercel.app" },
   { key: "rf", label: "Запасная ссылка", baseUrl: "https://www.xn--80aaachl0aqe6abetcez8t.xn--p1ai" },
 ] as const;
+
+const AI_PLUS_PACKAGE: EvaluationPackage = "premium_ai_plus";
+
+function formatCompactRub(value: number) {
+  return `${Math.max(0, Math.floor(value)).toLocaleString("ru-RU")} ₽`;
+}
+
+function formatProjectBalance(value: number) {
+  const amount = Math.max(0, Math.floor(value));
+  const mod100 = amount % 100;
+  const mod10 = amount % 10;
+  const word = mod100 >= 11 && mod100 <= 14 ? "проектов" : mod10 === 1 ? "проект" : mod10 >= 2 && mod10 <= 4 ? "проекта" : "проектов";
+  return `${amount} ${word}`;
+}
 
 const PROJECT_STATUS_LABELS: Record<string, string> = {
   active: "В процессе",
@@ -135,26 +172,6 @@ function initials(value: string) {
     .join("") || "ЛК";
 }
 
-function Icon({ name }: { name: "tests" | "folder" | "search" | "filter" | "plus" | "arrow" | "person" | "sparkles" | "archive" | "copy" | "download" | "edit" | "sliders" | "drag" }) {
-  const paths: Record<typeof name, ReactNode> = {
-    tests: <><path d="M7 4.5h10v15H7z" /><path d="M9.5 9h5M9.5 12h5M9.5 15h3M9 4.5V3h6v1.5" /></>,
-    folder: <><path d="M3.5 7.5h6l2 2H20.5v9H3.5z" /><path d="M3.5 7.5V5h6l2 2" /></>,
-    search: <><circle cx="10.5" cy="10.5" r="5.5" /><path d="m15 15 4 4" /></>,
-    filter: <path d="M4 6h16l-6.2 7v5l-3.6 2v-7z" />,
-    plus: <path d="M12 5v14M5 12h14" />,
-    arrow: <path d="M8 5l7 7-7 7" />,
-    person: <><circle cx="12" cy="8" r="3" /><path d="M5.5 19c.6-3.3 2.8-5 6.5-5s5.9 1.7 6.5 5" /></>,
-    sparkles: <><path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2z" /><path d="m18.5 13 .7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7z" /></>,
-    archive: <><path d="M5 7h14v12H5zM4 4h16v3H4z" /><path d="M9 11h6" /></>,
-    copy: <><rect x="8" y="8" width="10" height="11" rx="2" /><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" /></>,
-    download: <><path d="M12 4v10" /><path d="m8 10 4 4 4-4" /><path d="M5 19h14" /></>,
-    edit: <><path d="m5 16-.8 3.8L8 19l9.8-9.8-3-3z" /><path d="m13.8 7.2 3 3" /></>,
-    sliders: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></>,
-    drag: <><circle cx="8" cy="7" r="1" /><circle cx="16" cy="7" r="1" /><circle cx="8" cy="12" r="1" /><circle cx="16" cy="12" r="1" /><circle cx="8" cy="17" r="1" /><circle cx="16" cy="17" r="1" /></>,
-  };
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
-}
-
 function EmbeddedWorkspace({
   src,
   title,
@@ -205,6 +222,11 @@ function PanelHeader({
 }
 
 export function SimpleDashboard({
+  balanceText,
+  balanceKopeks,
+  walletLoading,
+  isUnlimited,
+  activeSubscription,
   projects,
   folders,
   trashCount,
@@ -214,11 +236,13 @@ export function SimpleDashboard({
   onCreateFolder,
   onOpenCatalog,
   onOpenAiAnalytics,
+  onOpenWallet,
   onOpenTrash,
   onMoveProject,
   onRenameFolder,
   onDeleteFolder,
   onRefresh,
+  onRefreshWallet,
   accessToken,
   onOpenResults,
   onProjectOpenChange,
@@ -237,6 +261,7 @@ export function SimpleDashboard({
   const [folderMoveNotice, setFolderMoveNotice] = useState("");
   const [aiPreviews, setAiPreviews] = useState<Record<string, AiPreview>>({});
   const [aiPreviewRevisions, setAiPreviewRevisions] = useState<Record<string, number>>({});
+  const [aiPurchaseStates, setAiPurchaseStates] = useState<Record<string, AiPurchaseState>>({});
   const [editingProjectId, setEditingProjectId] = useState("");
   const [inlineEditForm, setInlineEditForm] = useState<InlineEditForm | null>(null);
   const [savingProjectId, setSavingProjectId] = useState("");
@@ -354,6 +379,89 @@ export function SimpleDashboard({
       return;
     }
     setProjectView("results");
+  }
+
+  async function startAiPlusAnalysis(project: SimpleDashboardProject) {
+    if (!accessToken || aiPurchaseStates[project.id]?.state === "processing") return;
+
+    const completed = Math.min(project.attempts_count, project.tests.length);
+    const allTestsCompleted = project.tests.length > 0 && completed >= project.tests.length;
+    if (!allTestsCompleted) {
+      setAiPurchaseStates((current) => ({
+        ...current,
+        [project.id]: { state: "error", message: "ИИ-анализ станет доступен после завершения всех назначенных тестов." },
+      }));
+      return;
+    }
+
+    const currentMode = project.unlocked_package_mode || null;
+    if (isPackageAccessible(currentMode, AI_PLUS_PACKAGE)) {
+      setProjectView("results");
+      return;
+    }
+
+    const upgradePriceRub = getUpgradePriceRub(currentMode, AI_PLUS_PACKAGE);
+    const coveredBySubscription = Boolean(activeSubscription?.covered_project_ids?.includes(project.id));
+    const subscriptionAvailable = coveredBySubscription || Number(activeSubscription?.projects_remaining || 0) > 0;
+    const walletBalanceRub = Math.floor(Number(balanceKopeks || 0) / 100);
+
+    if (!isUnlimited && !subscriptionAvailable && walletLoading) {
+      setAiPurchaseStates((current) => ({
+        ...current,
+        [project.id]: { state: "error", message: "Баланс ещё загружается. Подождите несколько секунд и повторите запуск." },
+      }));
+      return;
+    }
+
+    if (!isUnlimited && !subscriptionAvailable && walletBalanceRub < upgradePriceRub) {
+      setAiPurchaseStates((current) => ({
+        ...current,
+        [project.id]: {
+          state: "error",
+          message: `Для Премиум AI+ не хватает ${formatCompactRub(upgradePriceRub - walletBalanceRub)}. Пополните кошелёк или подключите тариф.`,
+        },
+      }));
+      return;
+    }
+
+    setAiPurchaseStates((current) => ({
+      ...current,
+      [project.id]: { state: "processing", message: "Открываем Премиум AI+ и запускаем анализ..." },
+    }));
+
+    try {
+      const response = await fetch("/api/commercial/projects/unlock", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ project_id: project.id, package_mode: AI_PLUS_PACKAGE }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Не удалось открыть Премиум AI+");
+
+      const chargedRub = Number(payload?.charged_rub || 0);
+      const remaining = Number(payload?.subscription_remaining);
+      const successMessage = payload?.used_subscription
+        ? `Премиум AI+ открыт по тарифу${Number.isFinite(remaining) ? `. Осталось проектов: ${remaining}` : ""}.`
+        : chargedRub > 0
+          ? `Премиум AI+ открыт. Списано ${formatCompactRub(chargedRub)}.`
+          : "Премиум AI+ уже открыт для этого проекта.";
+
+      setAiPurchaseStates((current) => ({
+        ...current,
+        [project.id]: { state: "success", message: successMessage },
+      }));
+      await Promise.allSettled([onRefresh(), onRefreshWallet()]);
+      setAiPreviewRevisions((current) => ({ ...current, [project.id]: (current[project.id] || 0) + 1 }));
+      setProjectView("results");
+    } catch (purchaseError: any) {
+      setAiPurchaseStates((current) => ({
+        ...current,
+        [project.id]: { state: "error", message: purchaseError?.message || "Не удалось открыть Премиум AI+." },
+      }));
+    }
   }
 
   async function moveProjectToFolder(projectId: string, folderId: string) {
@@ -594,6 +702,25 @@ export function SimpleDashboard({
               const accessCollapsed = Boolean(collapsedPanels[`${project.id}:access`]);
               const resultsCollapsed = Boolean(collapsedPanels[`${project.id}:results`]);
               const aiPreview = aiPreviews[project.id];
+              const aiPurchaseState = aiPurchaseStates[project.id];
+              const currentPackageMode = project.unlocked_package_mode || null;
+              const aiPlusUnlocked = isPackageAccessible(currentPackageMode, AI_PLUS_PACKAGE);
+              const aiPlusUpgradePriceRub = getUpgradePriceRub(currentPackageMode, AI_PLUS_PACKAGE);
+              const projectCoveredBySubscription = Boolean(activeSubscription?.covered_project_ids?.includes(project.id));
+              const subscriptionCanCoverProject = projectCoveredBySubscription || Number(activeSubscription?.projects_remaining || 0) > 0;
+              const showSubscriptionBalance = projectCoveredBySubscription || (!aiPlusUnlocked && subscriptionCanCoverProject);
+              const walletBalanceRub = Math.floor(Number(balanceKopeks || 0) / 100);
+              const walletCanCoverProject = isUnlimited || walletBalanceRub >= aiPlusUpgradePriceRub;
+              const subscriptionRemainingAfter = projectCoveredBySubscription
+                ? Number(activeSubscription?.projects_remaining || 0)
+                : Math.max(0, Number(activeSubscription?.projects_remaining || 0) - 1);
+              const walletBalanceAfterRub = Math.max(0, walletBalanceRub - aiPlusUpgradePriceRub);
+              const aiPlusNeedsPayment = allTestsCompleted
+                && !aiPlusUnlocked
+                && !isUnlimited
+                && !subscriptionCanCoverProject
+                && !walletLoading
+                && !walletCanCoverProject;
               const goalDefinition = getGoalDefinition(project.goal);
               const isEditing = editingProjectId === project.id && inlineEditForm;
               const statusLabel = projectStatusLabel(project.status);
@@ -785,11 +912,22 @@ export function SimpleDashboard({
                                   <button
                                     type="button"
                                     className={styles.primaryAction}
-                                    onClick={() => setProjectView("results")}
-                                    disabled={!allTestsCompleted}
-                                    title={allTestsCompleted ? "Открыть выбор уровня и запустить ИИ-анализ" : "ИИ-анализ станет доступен после завершения всех тестов"}
+                                    onClick={() => void startAiPlusAnalysis(project)}
+                                    disabled={!allTestsCompleted || aiPurchaseState?.state === "processing"}
+                                    title={allTestsCompleted
+                                      ? aiPlusUnlocked
+                                        ? "Открыть готовый анализ Премиум AI+"
+                                        : subscriptionCanCoverProject || isUnlimited
+                                          ? "Открыть Премиум AI+ по действующему тарифу"
+                                          : `Открыть Премиум AI+ за ${formatCompactRub(aiPlusUpgradePriceRub)}`
+                                      : "ИИ-анализ станет доступен после завершения всех тестов"}
                                   >
-                                    <Icon name="sparkles" />Сделать ИИ-анализ
+                                    <Icon name="sparkles" />
+                                    {aiPurchaseState?.state === "processing"
+                                      ? "Открываем AI+..."
+                                      : aiPlusUnlocked
+                                        ? "Открыть ИИ-анализ"
+                                        : "Сделать ИИ-анализ"}
                                   </button>
                                   <button
                                     type="button"
@@ -805,6 +943,57 @@ export function SimpleDashboard({
                                     <Icon name="download" />Скачать анализ
                                   </button>
                                 </div>
+                                <div
+                                  className={styles.aiBillingSummary}
+                                  data-tone={aiPlusUnlocked ? "ready" : aiPlusNeedsPayment ? "attention" : "available"}
+                                  aria-label="Условия запуска Премиум AI+"
+                                >
+                                  <div>
+                                    <span>Уровень</span>
+                                    <strong>Премиум AI+</strong>
+                                  </div>
+                                  <div>
+                                    <span>Списание</span>
+                                    <strong>
+                                      {aiPlusUnlocked || isUnlimited
+                                        ? "0 ₽"
+                                        : subscriptionCanCoverProject
+                                          ? projectCoveredBySubscription ? "Уже учтён" : "1 проект"
+                                          : walletLoading || balanceKopeks == null
+                                            ? "Проверяем..."
+                                            : formatCompactRub(aiPlusUpgradePriceRub)}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <span>{showSubscriptionBalance ? "Остаток тарифа" : aiPlusUnlocked ? "Баланс" : "Баланс после"}</span>
+                                    <strong>
+                                      {showSubscriptionBalance
+                                        ? formatProjectBalance(aiPlusUnlocked ? Number(activeSubscription?.projects_remaining || 0) : subscriptionRemainingAfter)
+                                        : isUnlimited
+                                          ? "Без лимита"
+                                          : walletLoading || balanceKopeks == null
+                                            ? balanceText
+                                            : formatCompactRub(aiPlusUnlocked ? walletBalanceRub : walletCanCoverProject ? walletBalanceAfterRub : walletBalanceRub)}
+                                    </strong>
+                                  </div>
+                                </div>
+                                {aiPlusNeedsPayment ? (
+                                  <div className={styles.aiBillingPaywall}>
+                                    <div>
+                                      <strong>Для анализа нужно пополнить баланс или подключить тариф</strong>
+                                      <span>На кошельке {balanceText}. Для этого проекта не хватает {formatCompactRub(aiPlusUpgradePriceRub - walletBalanceRub)}.</span>
+                                    </div>
+                                    <div>
+                                      <button type="button" onClick={() => onOpenWallet("topup")}>Пополнить кошелёк</button>
+                                      <button type="button" onClick={() => onOpenWallet("subscription")}>Выбрать подписку</button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                                {aiPurchaseState?.message ? (
+                                  <div className={styles.aiPurchaseNotice} data-tone={aiPurchaseState.state} role="status" aria-live="polite">
+                                    {aiPurchaseState.message}
+                                  </div>
+                                ) : null}
                                 {!allTestsCompleted ? (
                                   <span className={styles.analysisWaiting}>Кнопки станут доступны после завершения всех назначенных тестов.</span>
                                 ) : null}
@@ -881,7 +1070,7 @@ export function SimpleDashboard({
                         <EmbeddedWorkspace
                           src={`/projects/${project.id}/results?embedded=1&compact=1`}
                           title={`Анализ: ${project.person?.full_name || project.title}`}
-                          description="База, Премиум и Премиум ИИ+"
+                          description="Премиум AI+"
                           variant="analysis"
                           onBack={() => setProjectView("overview")}
                           onOpenSeparate={() => onOpenResults(project.id)}
