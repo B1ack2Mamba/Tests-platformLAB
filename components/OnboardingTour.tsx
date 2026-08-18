@@ -140,6 +140,9 @@ export function OnboardingTour({
     try {
       if (autoStart && typeof window !== "undefined" && !startTarget && !window.localStorage.getItem(completedKey)) {
         window.setTimeout(() => {
+          try {
+            window.localStorage.setItem(completedKey, "1");
+          } catch {}
           if (guide?.imageSrc) setWelcomeOpen(true);
           else setOpen(true);
         }, 550);
@@ -287,19 +290,19 @@ export function OnboardingTour({
           ) : null}
 
           <div
-            className="pointer-events-auto absolute rounded-[22px] border border-emerald-100 bg-white p-4 text-slate-800 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            className="pointer-events-auto absolute w-[calc(100vw-32px)] overflow-hidden rounded-[22px] border border-emerald-100 bg-white p-4 text-slate-800 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
             style={getPanelStyle(rect, step.placement, Boolean(stepGuideImageSrc))}
             role="dialog"
             aria-live="polite"
           >
             <div className={stepGuideImageSrc ? `flex items-end gap-3 ${stepGuideSide === "right" ? "flex-row-reverse" : ""}` : ""}>
               {stepGuideImageSrc ? (
-                <div className="relative h-[108px] w-[64px] shrink-0 overflow-visible sm:h-[170px] sm:w-[98px]">
+                <div className="relative h-[132px] w-[82px] shrink-0 overflow-hidden rounded-[16px] bg-[radial-gradient(circle_at_50%_35%,#f3fbf5_0%,#e2f2e6_58%,#d3e9d9_100%)] sm:h-[196px] sm:w-[132px]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={stepGuideImageSrc}
                     alt=""
-                    className="absolute bottom-[-12px] left-1/2 h-[126px] w-auto max-w-none -translate-x-1/2 object-contain drop-shadow-[0_12px_18px_rgba(21,78,45,0.16)] sm:bottom-[-16px] sm:h-[190px]"
+                    className="h-full w-full object-contain object-bottom drop-shadow-[0_12px_18px_rgba(21,78,45,0.16)]"
                   />
                 </div>
               ) : null}

@@ -781,6 +781,33 @@ export function SimpleDashboard({
                             <PanelHeader title="Результаты и ИИ" icon="sparkles" collapsed={resultsCollapsed} onToggle={() => togglePanel(project.id, "results")} />
                             {!resultsCollapsed ? (
                               <div className={`${styles.panelBody} ${styles.resultsBody}`}>
+                                <div className={styles.analysisActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.primaryAction}
+                                    onClick={() => setProjectView("results")}
+                                    disabled={!allTestsCompleted}
+                                    title={allTestsCompleted ? "Открыть выбор уровня и запустить ИИ-анализ" : "ИИ-анализ станет доступен после завершения всех тестов"}
+                                  >
+                                    <Icon name="sparkles" />Сделать ИИ-анализ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.secondaryAction}
+                                    onClick={() => downloadProjectAnalysis(project.id)}
+                                    disabled={!allTestsCompleted || aiPreview?.state !== "ready"}
+                                    title={!allTestsCompleted
+                                      ? "Скачивание станет доступно после завершения всех тестов"
+                                      : aiPreview?.state === "ready"
+                                        ? "Скачать сформированный анализ в Word"
+                                        : "Сначала сформируйте ИИ-анализ"}
+                                  >
+                                    <Icon name="download" />Скачать анализ
+                                  </button>
+                                </div>
+                                {!allTestsCompleted ? (
+                                  <span className={styles.analysisWaiting}>Кнопки станут доступны после завершения всех назначенных тестов.</span>
+                                ) : null}
                                 {project.attempts_count > 0 ? (
                                   <iframe
                                     key={`${project.id}:${aiPreviewRevisions[project.id] || 0}`}
@@ -843,24 +870,6 @@ export function SimpleDashboard({
                                   </div>
                                 )}
 
-                                {allTestsCompleted ? (
-                                  <div className={styles.analysisActions}>
-                                    <button type="button" className={styles.primaryAction} onClick={() => setProjectView("results")}>
-                                      <Icon name="sparkles" />Сделать ИИ-анализ
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={styles.secondaryAction}
-                                      onClick={() => downloadProjectAnalysis(project.id)}
-                                      disabled={aiPreview?.state !== "ready"}
-                                      title={aiPreview?.state === "ready" ? "Скачать сформированный анализ в Word" : "Сначала сформируйте ИИ-анализ"}
-                                    >
-                                      <Icon name="download" />Скачать анализ
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className={styles.analysisWaiting}>Кнопки анализа появятся после завершения всех тестов.</span>
-                                )}
                                 {aiPreview?.state === "ready" ? <span className={styles.scrollHint}>Результат прокручивается внутри этого окна</span> : null}
                               </div>
                             ) : null}

@@ -323,6 +323,7 @@ const MAX_LAYOUT_BACKUPS = 8;
 const DASHBOARD_FIRST_LOGIN_ONBOARDING_KEY = "dashboard-first-login-onboarding";
 const DASHBOARD_POST_PROJECT_TRASH_HINT_KEY = "dashboard-post-project-trash-hint";
 const DASHBOARD_TRASH_HINT_SHOWN_KEY = "dashboard-trash-hint-shown";
+const SIMPLE_PROJECT_ONBOARDING_SHOWN_KEY = "onboarding-tour:dashboard-simple-project-v1:shown";
 const TRASH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const ASSEMBLY_PROJECT_LIMIT = 20;
 const BOARD_ZONE = { x: 238, y: 124, width: 770, height: 214 };
@@ -1614,10 +1615,20 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
   const [dashboardTourStartTarget, setDashboardTourStartTarget] = useState<string | null>(null);
   const [simpleProjectOpen, setSimpleProjectOpen] = useState(false);
   const [simpleTourStartTarget, setSimpleTourStartTarget] = useState<string | null>(null);
+  const simpleProjectTourShownRef = useRef(false);
 
   const handleSimpleProjectOpenChange = useCallback((open: boolean, userInitiated: boolean) => {
     setSimpleProjectOpen(open);
     if (!open || !userInitiated) return;
+    if (simpleProjectTourShownRef.current) return;
+    try {
+      if (window.localStorage.getItem(SIMPLE_PROJECT_ONBOARDING_SHOWN_KEY) === "1") {
+        simpleProjectTourShownRef.current = true;
+        return;
+      }
+      window.localStorage.setItem(SIMPLE_PROJECT_ONBOARDING_SHOWN_KEY, "1");
+    } catch {}
+    simpleProjectTourShownRef.current = true;
     setSimpleTourStartTarget("simple-project-participant");
     window.setTimeout(() => setSimpleTourStartTarget(null), 1800);
   }, []);

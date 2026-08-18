@@ -1,9 +1,9 @@
 export const ONBOARDING_GUIDE_POSES = {
   welcome: "/onboarding-specialist-guide.png",
-  pointRight: "/onboarding-guide-point-right.webp",
-  pointLeft: "/onboarding-guide-point-left.webp",
-  present: "/onboarding-guide-present.webp",
-  results: "/onboarding-guide-results.webp",
+  pointRight: "/onboarding-guide-point-right.png",
+  pointLeft: "/onboarding-guide-point-left.png",
+  present: "/onboarding-guide-present.png",
+  results: "/onboarding-guide-results.png",
 } as const;
 
 export const PLATFORM_ONBOARDING_GUIDE = {
