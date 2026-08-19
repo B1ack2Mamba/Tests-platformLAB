@@ -18,6 +18,8 @@ export type SimpleDashboardProject = {
   id: string;
   title: string;
   status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
   goal?: string;
   package_mode?: EvaluationPackage;
   unlocked_package_mode?: EvaluationPackage | null;
@@ -155,6 +157,36 @@ function projectProgress(project: SimpleDashboardProject) {
 
 function completedTestCount(project: SimpleDashboardProject) {
   return Math.min(project.completed_test_slugs?.length ?? project.attempts_count, project.tests.length);
+}
+
+function projectStage(project: SimpleDashboardProject) {
+  const completed = completedTestCount(project);
+  if (project.tests.length > 0 && completed >= project.tests.length) {
+    return { label: "Тесты завершены", tone: "ready" } as const;
+  }
+  if (completed > 0) {
+    return { label: "Проходит тесты", tone: "active" } as const;
+  }
+
+  const fallback = projectStatusLabel(project.status);
+  if (!project.tests.length && /готов|заверш/i.test(fallback)) {
+    return { label: fallback, tone: "ready" } as const;
+  }
+  if (!project.tests.length || /ожида|пауз|не нач|чернов|нов/i.test(fallback)) {
+    return { label: "Черновик", tone: "waiting" } as const;
+  }
+  return { label: fallback, tone: statusTone(project) } as const;
+}
+
+function formatProjectUpdatedAt(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+  }).format(date);
 }
 
 function statusTone(project: SimpleDashboardProject) {
@@ -884,6 +916,21 @@ export function SimpleDashboard({
               <div className={styles.empty}><strong>Ничего не найдено</strong><span>Измените запрос, статус или выберите другую папку.</span><button type="button" onClick={() => { setQuery(""); setFolderFilter("all"); setStatusFilter("all"); }}>Сбросить фильтры</button></div>
             ) : null}
 
+            {!loading && visibleProjects.length ? (
+              <div className={styles.registryColumns} aria-hidden="true">
+                <span />
+                <div>
+                  <span>Проект</span>
+                  <span>Тесты</span>
+                  <span>Статус</span>
+                  <span>Обновлено</span>
+                  <span>Прогресс</span>
+                  <span />
+                </div>
+                <span>Папка</span>
+              </div>
+            ) : null}
+
             {!loading ? visibleProjectGroups.map((group) => {
               const targetFolderId = group.key === "without-folder" ? "" : group.key;
               const draggedProject = draggedProjectId ? projects.find((project) => project.id === draggedProjectId) : null;
@@ -959,7 +1006,7 @@ export function SimpleDashboard({
                 && !walletCanCoverProject;
               const goalDefinition = getGoalDefinition(project.goal);
               const isEditing = editingProjectId === project.id && inlineEditForm;
-              const statusLabel = projectStatusLabel(project.status);
+              const stage = projectStage(project);
 
               return (
                 <article key={project.id} className={styles.projectEntry} data-open={isSelected} data-dragging={draggedProjectId === project.id}>
@@ -979,7 +1026,9 @@ export function SimpleDashboard({
                     </span>
                     <button type="button" className={styles.projectToggle} onClick={() => selectProject(project.id)} aria-expanded={isSelected}>
                       <span className={styles.rowTitle}><i><Icon name="folder" /></i><span><strong>{project.title}</strong><small>{project.target_role || "Проект оценки"}</small></span></span>
-                      <span className={styles.status} data-tone={statusTone(project)}>{statusLabel}</span>
+                      <span className={styles.rowTests}>{project.tests.length ? `${completed} из ${project.tests.length}` : "Не назначены"}</span>
+                      <span className={styles.status} data-tone={stage.tone}>{stage.label}</span>
+                      <span className={styles.rowUpdated}>{formatProjectUpdatedAt(project.updated_at || project.created_at)}</span>
                       <span className={styles.rowProgress}><b>{progress}%</b><i><u style={{ width: `${progress}%` }} /></i></span>
                       <span className={styles.chevron}><Icon name="arrow" /></span>
                     </button>
