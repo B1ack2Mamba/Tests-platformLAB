@@ -97,30 +97,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       workspace,
       folders: folders || [],
-      projects: (projects || []).map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        goal: item.goal,
-        package_mode: item.package_mode,
-        unlocked_package_mode: item.unlocked_package_mode || null,
-        unlocked_package_paid_at: item.unlocked_package_paid_at || null,
-        target_role: item.target_role,
-        status: item.status,
-        created_at: item.created_at,
-        updated_at: item.updated_at || null,
-        registry_comment: item.registry_comment || null,
-        registry_comment_updated_at: item.registry_comment_updated_at || null,
-        invite_token: item.invite_token || null,
-        folder_id: item.folder_id || null,
-        person: item.commercial_people || null,
-        tests: (item.commercial_project_tests || [])
-          .map((test: any) => ({
-            ...test,
-            test_title: getTestDisplayTitle(test?.test_slug, test?.test_title),
-          }))
-          .sort((a: any, b: any) => a.sort_order - b.sort_order),
-        attempts_count: (item.commercial_project_attempts || []).length,
-      })),
+      projects: (projects || []).map((item: any) => {
+        const completedTestSlugs = Array.from(new Set(
+          (item.commercial_project_attempts || [])
+            .map((attempt: any) => String(attempt?.test_slug || "").trim())
+            .filter(Boolean)
+        ));
+        return {
+          id: item.id,
+          title: item.title,
+          goal: item.goal,
+          package_mode: item.package_mode,
+          unlocked_package_mode: item.unlocked_package_mode || null,
+          unlocked_package_paid_at: item.unlocked_package_paid_at || null,
+          target_role: item.target_role,
+          status: item.status,
+          created_at: item.created_at,
+          updated_at: item.updated_at || null,
+          registry_comment: item.registry_comment || null,
+          registry_comment_updated_at: item.registry_comment_updated_at || null,
+          invite_token: item.invite_token || null,
+          folder_id: item.folder_id || null,
+          person: item.commercial_people || null,
+          tests: (item.commercial_project_tests || [])
+            .map((test: any) => ({
+              ...test,
+              test_title: getTestDisplayTitle(test?.test_slug, test?.test_title),
+            }))
+            .sort((a: any, b: any) => a.sort_order - b.sort_order),
+          attempts_count: completedTestSlugs.length,
+          completed_test_slugs: completedTestSlugs,
+        };
+      }),
       active_subscription: activeSubscription,
       shared_scene_standard: standard,
     });

@@ -6,7 +6,11 @@ import { Layout } from "@/components/Layout";
 import { SimpleDashboard } from "@/components/SimpleDashboard";
 import { OnboardingTour, openOnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
 import { useSession } from "@/lib/useSession";
-import { refreshSessionThroughServer } from "@/lib/authRefreshClient";
+import {
+  isInvalidSessionRefreshError,
+  refreshSessionThroughServer,
+} from "@/lib/authRefreshClient";
+import { clearPersistedSupabaseSession } from "@/lib/supabaseBrowser";
 import { COMMERCIAL_GOALS, getGoalDefinition, type AssessmentGoal, type EvaluationPackage } from "@/lib/commercialGoals";
 import { COMPETENCY_ROUTES, getCompetencyLongLabel } from "@/lib/competencyRouter";
 import { FOLDER_ICONS, getFolderIcon, type FolderIconKey } from "@/lib/folderIcons";
@@ -56,6 +60,7 @@ type ProjectRow = {
   person: { id: string; full_name: string; email: string | null; current_position: string | null; notes?: string | null; updated_at?: string | null } | null;
   tests: Array<{ test_slug: string; test_title: string; sort_order: number }>;
   attempts_count: number;
+  completed_test_slugs?: string[];
 };
 
 type WorkspacePayload = {
@@ -459,7 +464,7 @@ const SIMPLE_PROJECT_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     target: "simple-project-results",
     title: "Результаты и ИИ-анализ",
-    body: "Здесь появляется адаптированный итоговый вывод. После завершения всех тестов кнопка «Сделать ИИ-анализ» откроет выбор уровня, а «Скачать анализ» сохранит уже сформированный отчёт Word.",
+    body: "Здесь появляется адаптированный итоговый вывод. После завершения всех тестов кнопка «Сделать полный анализ» сформирует отчёт, а «Скачать анализ» сохранит готовый документ Word.",
     placement: "left",
     guideImageSrc: ONBOARDING_GUIDE_POSES.results,
     guideSide: "right",
@@ -1722,7 +1727,12 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
           });
           resp = await requestBootstrap(refreshedSession.access_token);
           if (!isLatestRequest()) return false;
-        } catch {}
+        } catch (refreshError) {
+          if (isInvalidSessionRefreshError(refreshError)) {
+            clearPersistedSupabaseSession();
+            return false;
+          }
+        }
       }
       const json = (await resp.json().catch(() => ({}))) as Partial<DashboardBootstrapPayload> & { error?: string };
       if (!isLatestRequest()) return false;
@@ -4139,7 +4149,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
 
         <div data-onboarding-id="assembly-ai-overview" className="mb-4 rounded-[26px] border border-[#d8e4ef] bg-[linear-gradient(180deg,#ffffff_0%,#edf6ff_100%)] px-5 py-4 shadow-[0_20px_42px_-32px_rgba(37,63,89,0.2)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+            <div className="assembly-ai-overview-copy">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#647c95]">ИИ-аналитика</div>
               <h1 className="mt-1 text-2xl font-semibold text-[#17283a]">Чат и анализ папок</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5d7185]">
@@ -4147,10 +4157,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
               </p>
             </div>
             <div className="flex flex-wrap items-start justify-end gap-2">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={openOnboardingTour}>
-                Подсказки
-              </button>
-              <div className="rounded-[18px] border border-[#dbe7f1] bg-white px-4 py-3 text-right">
+              <div className="assembly-ai-balance rounded-[18px] border border-[#dbe7f1] bg-white px-4 py-3 text-right">
                 <div className="text-xs uppercase tracking-[0.18em] text-[#7a8fa4]">Баланс</div>
                 <div className="mt-1 text-xl font-semibold text-[#17283a]">{balanceText}</div>
               </div>
@@ -4159,7 +4166,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
-          <div data-onboarding-id="assembly-ai-chats" className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
+          <div data-onboarding-id="assembly-ai-chats" className="order-2 rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)] xl:order-1">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Чаты</div>
               <button type="button" className="btn btn-primary btn-sm" onClick={startNewAssemblyAiChat} disabled={assemblyAiBusy}>
@@ -4225,7 +4232,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
             </div>
           </div>
 
-          <div data-onboarding-id="assembly-ai-chat-panel" className="min-w-0 rounded-[30px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-5 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)]">
+          <div data-onboarding-id="assembly-ai-chat-panel" className="order-1 min-w-0 rounded-[30px] border border-[#d5deea] bg-[linear-gradient(180deg,#fbfdff_0%,#eef4fb_100%)] p-5 shadow-[0_24px_54px_-36px_rgba(53,34,17,0.16)] xl:order-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Чат аналитика</div>
@@ -4251,8 +4258,22 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
               </div>
             ) : null}
 
-            <div className="assembly-ai-message-list mt-4 h-[520px] overflow-y-auto rounded-[24px] border border-[#dce6f1] bg-white/88 p-4">
+            <div
+              className={`assembly-ai-message-list mt-4 overflow-y-auto rounded-[24px] border border-[#dce6f1] bg-white/88 p-4 ${assemblyAiMessages.length ? "h-[clamp(300px,52vh,520px)]" : "min-h-[190px]"}`}
+              data-empty={!assemblyAiMessages.length}
+              aria-live="polite"
+            >
               <div className="space-y-3">
+                {!assemblyAiMessages.length ? (
+                  <div className="grid min-h-[158px] place-items-center rounded-[18px] border border-dashed border-[#d9e4ee] bg-[#fbfdff] px-5 py-7 text-center">
+                    <div>
+                      <div className="text-base font-semibold text-[#294054]">Начните с вопроса или готового анализа</div>
+                      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#6f8193]">
+                        Выберите папку или человека в настройках ниже. Обычный вопрос можно отправить сразу без контекста проектов.
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 {assemblyAiMessages.map((message) => (
                   <div
                     key={message.id}
@@ -4269,7 +4290,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
 
             <div data-onboarding-id="assembly-ai-input" className="mt-4 rounded-[24px] border border-[#dce6f1] bg-white p-4">
               <textarea
-                className="min-h-[118px] w-full resize-y rounded-[18px] border border-[#d5deea] bg-[#fbfdff] px-4 py-3 text-sm leading-6 text-[#223548] outline-none transition focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1]"
+                className="min-h-[96px] w-full resize-y rounded-[18px] border border-[#d5deea] bg-[#fbfdff] px-4 py-3 text-sm leading-6 text-[#223548] outline-none transition focus:border-[#8db37f] focus:ring-2 focus:ring-[#d8ecd1] sm:min-h-[118px]"
                 value={assemblyAiDraft}
                 onChange={(event) => setAssemblyAiDraft(event.target.value)}
                 onKeyDown={(event) => {
@@ -4297,7 +4318,7 @@ export default function DashboardPage({ standaloneAiWorkspace = false }: Dashboa
             </div>
           </div>
 
-          <div className="assembly-ai-controls space-y-4">
+          <div className="assembly-ai-controls order-3 space-y-4 xl:order-3">
             <div data-onboarding-id="assembly-ai-models" className="rounded-[28px] border border-[#d5deea] bg-white p-4 shadow-[0_18px_42px_-34px_rgba(37,63,89,0.18)]">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#68809a]">Модель и цены</div>
               <div className="mt-3 grid gap-2">

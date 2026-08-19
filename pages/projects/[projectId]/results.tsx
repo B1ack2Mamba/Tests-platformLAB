@@ -62,9 +62,17 @@ type EvaluationPayload = {
   stage?: "summary" | "tests" | "competencies" | "full";
   has_more?: boolean;
   batch?: { current: number; total: number };
+  analysis_pipeline?: {
+    version: string;
+    test_model: string;
+    competency_model: string;
+    final_model: string;
+    source_layers: string[];
+  } | null;
+  cache_miss?: boolean;
   evaluation: {
     mode: string;
-    sections: Array<{ kind: string; title: string; body: string }>;
+    sections: Array<{ kind: string; title: string; body: string; source?: "terra" | "deterministic" }>;
   } | null;
 };
 
@@ -144,6 +152,39 @@ function parseCompactList(body: string | null | undefined): string[] {
     .split(/\n+/)
     .map((line) => line.replace(/^[-•*\u2022\s]+/, "").trim())
     .filter(Boolean);
+}
+
+function mergeCompactLists(...lists: string[][]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+
+  for (const item of lists.flat()) {
+    const value = item.trim();
+    if (!value) continue;
+    const key = value
+      .toLowerCase()
+      .replace(/ё/g, "е")
+      .replace(/[.,;:!?()[\]{}«»"']/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(value);
+  }
+
+  return merged;
+}
+
+function buildBalancedRiskList(
+  limitations: string[],
+  risks: string[],
+  fallback: string[] = [],
+  maxItems = 6
+): string[] {
+  const uniqueLimitations = mergeCompactLists(limitations);
+  const uniqueRisks = mergeCompactLists(risks);
+  const balanced = mergeCompactLists(uniqueLimitations.slice(0, 3), uniqueRisks.slice(0, 3));
+  return mergeCompactLists(balanced, uniqueLimitations, uniqueRisks, fallback).slice(0, maxItems);
 }
 
 function compactText(body: string | null | undefined, maxLength = 110): string {
@@ -326,7 +367,11 @@ function buildEvaluationCacheKey(params: {
   const { projectId, mode, customRequest, fitRequested, fitProfileId, fitRequest, registryVersion } = params;
   return [
     "commercial-project-evaluation",
-    mode === "basic" ? "basic-full-score-v1" : "standard-format",
+    mode === "basic"
+      ? "basic-full-score-v1"
+      : mode === "premium_ai_plus"
+      ? "dual-source-terra-sol-v2"
+      : "standard-format",
     projectId,
     mode,
     (customRequest || "").trim(),
@@ -363,6 +408,7 @@ export default function ProjectResultsStandalonePage() {
   const { balance_rub, refresh: refreshWallet, isUnlimited } = useWalletBalance();
   const projectId = typeof router.query.projectId === "string" ? router.query.projectId : "";
   const compactEmbedded = router.query.embedded === "1" && router.query.compact === "1";
+  const compactReadOnly = compactEmbedded && router.query.view_only === "1";
   const [data, setData] = useState<ResultsPagePayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [collecting, setCollecting] = useState(false);
@@ -372,6 +418,7 @@ export default function ProjectResultsStandalonePage() {
   const [lastCollectedAt, setLastCollectedAt] = useState<string | null>(null);
   const [evaluationByMode, setEvaluationByMode] = useState<Partial<Record<EvaluationPackage, EvaluationPayload>>>({});
   const [evaluationLoading, setEvaluationLoading] = useState<Partial<Record<EvaluationPackage, boolean>>>({});
+  const [evaluationCacheMiss, setEvaluationCacheMiss] = useState<Partial<Record<EvaluationPackage, boolean>>>({});
   const [activeEvaluationMode, setActiveEvaluationMode] = useState<EvaluationPackage | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [aiPlusRequest, setAiPlusRequest] = useState("");
@@ -437,6 +484,7 @@ export default function ProjectResultsStandalonePage() {
 
   async function loadEvaluation(mode: EvaluationPackage, opts?: LoadEvaluationOptions) {
     if (!session?.access_token || !projectId) return;
+    const cacheOnly = compactReadOnly && !opts?.force;
 
     const cacheKey = buildEvaluationCacheKey({
       projectId,
@@ -454,12 +502,19 @@ export default function ProjectResultsStandalonePage() {
         })
       : "";
     const cachedPayload = readCachedEvaluation(cacheKey);
+    const cachedSections = cachedPayload?.evaluation?.sections || [];
+    const cachedEvaluationComplete = mode !== "premium_ai_plus" || cachedSections.some(
+      (section) => section.kind === "portrait" && section.title === "Общий вывод"
+    );
     if (cachedPayload?.evaluation?.sections?.length) {
       setEvaluationByMode((prev) => ({
         ...prev,
         [mode]: cachedPayload,
       }));
-      if (!opts?.force) return;
+      if (!opts?.force && cachedEvaluationComplete) {
+        setEvaluationCacheMiss((prev) => ({ ...prev, [mode]: false }));
+        return;
+      }
     }
     if (!opts?.force && evaluationInFlightKeys.has(cacheKey)) return;
     evaluationInFlightKeys.add(cacheKey);
@@ -473,6 +528,7 @@ export default function ProjectResultsStandalonePage() {
     const isStale = () => controller.signal.aborted || evaluationRequestIdRef.current[mode] !== requestId;
 
     setEvaluationLoading((prev) => ({ ...prev, [mode]: true }));
+    setEvaluationCacheMiss((prev) => ({ ...prev, [mode]: false }));
     setError("");
     const hasExistingSections = Boolean(
       cachedPayload?.evaluation?.sections?.length || evaluationByMode[mode]?.evaluation?.sections?.length
@@ -483,7 +539,7 @@ export default function ProjectResultsStandalonePage() {
         const prevPayload = replace ? null : prev[mode];
         const prevSections = prevPayload?.evaluation?.sections || [];
         const incomingSections = incoming.evaluation?.sections || [];
-        const sectionMap = new Map<string, { kind: string; title: string; body: string }>();
+        const sectionMap = new Map<string, { kind: string; title: string; body: string; source?: "terra" | "deterministic" }>();
         for (const section of [...prevSections, ...incomingSections]) {
           const key = `${section.kind}:${section.title}`;
           sectionMap.set(key, section);
@@ -512,7 +568,7 @@ export default function ProjectResultsStandalonePage() {
         const cachedPremium = premiumCacheKey ? readCachedEvaluation(premiumCacheKey) : null;
         const prevPayload = prev.premium || cachedPremium;
         const prevSections = prevPayload?.evaluation?.sections || [];
-        const sectionMap = new Map<string, { kind: string; title: string; body: string }>();
+        const sectionMap = new Map<string, { kind: string; title: string; body: string; source?: "terra" | "deterministic" }>();
         for (const section of [...prevSections, ...testSections]) {
           sectionMap.set(`${section.kind}:${section.title}`, section);
         }
@@ -538,6 +594,7 @@ export default function ProjectResultsStandalonePage() {
       url.searchParams.set("mode", mode);
       url.searchParams.set("stage", stage);
       if (opts?.force) url.searchParams.set("refresh", "1");
+      if (cacheOnly) url.searchParams.set("cache_only", "1");
       if (typeof batchStart === "number") {
         url.searchParams.set("batch_start", String(batchStart));
         url.searchParams.set("batch_size", "2");
@@ -564,16 +621,35 @@ export default function ProjectResultsStandalonePage() {
           });
           const testsJson = await testsResp.json().catch(() => ({}));
           if (!testsResp.ok || !testsJson?.ok) throw new Error(testsJson?.error || "Не удалось загрузить интерпретации тестов");
+          if ((testsJson as EvaluationPayload).cache_miss) {
+            setEvaluationCacheMiss((prev) => ({ ...prev, [mode]: true }));
+            return false;
+          }
           appendPayload(testsJson as EvaluationPayload, replaceFirstBatch && batchStart === 0);
           appendAiPlusTestsToPremium(testsJson as EvaluationPayload);
-          if (isStale()) return;
+          if (isStale()) return false;
           if (!(testsJson as EvaluationPayload).has_more) break;
           batchStart += 2;
         }
+        return true;
       };
 
       if (mode === "premium_ai_plus") {
-        await loadTestBatches(!hasExistingSections);
+        const testsAvailable = await loadTestBatches(!hasExistingSections);
+        if (!testsAvailable) return;
+        if (isStale()) return;
+        const competencyResp = await fetch(buildUrl("competencies"), {
+          headers: { authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const competencyJson = await competencyResp.json().catch(() => ({}));
+        if (!competencyResp.ok || !competencyJson?.ok) throw new Error(competencyJson?.error || "Не удалось загрузить компетенции");
+        if ((competencyJson as EvaluationPayload).cache_miss) {
+          setEvaluationCacheMiss((prev) => ({ ...prev, [mode]: true }));
+          return;
+        }
+        appendPayload(competencyJson as EvaluationPayload);
         if (isStale()) return;
       }
 
@@ -584,22 +660,15 @@ export default function ProjectResultsStandalonePage() {
       });
       const summaryJson = await summaryResp.json().catch(() => ({}));
       if (!summaryResp.ok || !summaryJson?.ok) throw new Error(summaryJson?.error || "Не удалось загрузить уровень анализа");
+      if ((summaryJson as EvaluationPayload).cache_miss) {
+        setEvaluationCacheMiss((prev) => ({ ...prev, [mode]: true }));
+        return;
+      }
       appendPayload(summaryJson as EvaluationPayload, mode === "premium_ai_plus" ? false : !hasExistingSections);
       if (isStale()) return;
 
       if (mode !== "basic" && mode !== "premium_ai_plus") {
         await loadTestBatches(false);
-      }
-
-      if (mode === "premium_ai_plus") {
-        const competencyResp = await fetch(buildUrl("competencies"), {
-          headers: { authorization: `Bearer ${session.access_token}` },
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        const competencyJson = await competencyResp.json().catch(() => ({}));
-        if (!competencyResp.ok || !competencyJson?.ok) throw new Error(competencyJson?.error || "Не удалось загрузить компетенции");
-        appendPayload(competencyJson as EvaluationPayload);
       }
     } catch (err: any) {
       if (err?.name === "AbortError" || isStale()) return;
@@ -730,7 +799,7 @@ export default function ProjectResultsStandalonePage() {
     if (!isPackageAccessible(data.project.unlocked_package_mode, activeEvaluationMode)) return;
     if (evaluationByMode[activeEvaluationMode] || evaluationLoading[activeEvaluationMode]) return;
     loadEvaluation(activeEvaluationMode, activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : undefined);
-  }, [activeEvaluationMode, resultsReady, data?.project.unlocked_package_mode, aiPlusRequest, fitRequested, fitProfileId, fitRequest]);
+  }, [activeEvaluationMode, resultsReady, data?.project.unlocked_package_mode, aiPlusRequest, fitRequested, fitProfileId, fitRequest, compactReadOnly]);
 
   const blueprint = data?.blueprint || null;
   const coverage = blueprint?.summary.promptCoverage || null;
@@ -772,25 +841,32 @@ export default function ProjectResultsStandalonePage() {
   const compactAiPreview = useMemo(() => {
     const summarySection = overviewSections.find((item) => /коротк|итогов|общий вывод/.test(normalizeTitle(item.title))) || null;
     const strengthsSection = overviewSections.find((item) => /сильн|ресурс|преимущ|опора/.test(normalizeTitle(item.title))) || null;
-    const risksSection = overviewSections.find((item) => /риск|огранич|уязвим|зона риска/.test(normalizeTitle(item.title))) || null;
+    const limitationsSection = overviewSections.find((item) => /минус|огранич|слаб|уязвим/.test(normalizeTitle(item.title))) || null;
+    const risksSection = overviewSections.find((item) => /^риски?$|зона риска/.test(normalizeTitle(item.title))) || null;
     const importantSection = overviewSections.find((item) => /важно|учетом профиля|учётом профиля|рекомендац/.test(normalizeTitle(item.title))) || null;
     const parsed = parseSummaryOutline(summarySection?.body);
+    const strengths = strengthsSection ? parseCompactList(strengthsSection.body) : parsed.strengths;
+    const limitations = limitationsSection ? parseCompactList(limitationsSection.body) : [];
+    const risks = risksSection ? parseCompactList(risksSection.body) : parsed.risks;
 
     return {
       modeTitle: activeEvaluationMode ? getEvaluationPackageDefinition(activeEvaluationMode)?.title || "Результат" : "Результат",
       summary: parsed.summary || (summarySection ? splitSectionBody(summarySection.body).preview : ""),
-      strengths: strengthsSection ? parseCompactList(strengthsSection.body) : parsed.strengths,
-      risks: risksSection ? parseCompactList(risksSection.body) : parsed.risks,
+      strengths: mergeCompactLists(strengths).slice(0, 6),
+      risks: buildBalancedRiskList(limitations, risks, parsed.risks),
       recommendation: importantSection ? cleanSectionBody(importantSection.body) : parsed.important,
     };
   }, [activeEvaluationMode, overviewSections]);
 
   useEffect(() => {
     if (!compactEmbedded || typeof window === "undefined" || window.parent === window || !projectId) return;
+    const cacheMiss = activeEvaluationMode ? Boolean(evaluationCacheMiss[activeEvaluationMode]) : false;
     const state = !data || loading || busy
       ? "loading"
       : !activeEvaluationMode
         ? "locked"
+        : cacheMiss
+          ? "empty"
         : activeSections.length
           ? "ready"
           : "loading";
@@ -800,7 +876,7 @@ export default function ProjectResultsStandalonePage() {
       state,
       payload: compactAiPreview,
     }, window.location.origin);
-  }, [activeEvaluationMode, activeSections.length, busy, compactAiPreview, compactEmbedded, data, loading, projectId]);
+  }, [activeEvaluationMode, activeSections.length, busy, compactAiPreview, compactEmbedded, data, evaluationCacheMiss, loading, projectId]);
 
 
 
@@ -846,14 +922,20 @@ export default function ProjectResultsStandalonePage() {
 
   const summarySection = overviewSections.find((item) => /коротк|итогов|общий вывод/.test(normalizeTitle(item.title))) || null;
   const strengthsSection = overviewSections.find((item) => /сильн|ресурс|преимущ|опора/.test(normalizeTitle(item.title))) || null;
-  const risksSection = overviewSections.find((item) => /риск|огранич|уязвим|зона риска/.test(normalizeTitle(item.title))) || null;
+  const limitationsSection = overviewSections.find((item) => /минус|огранич|слаб|уязвим/.test(normalizeTitle(item.title))) || null;
+  const risksSection = overviewSections.find((item) => /^риски?$|зона риска/.test(normalizeTitle(item.title))) || null;
   const focusSection = overviewSections.find((item) => /фокус/.test(normalizeTitle(item.title))) || null;
   const contextSection = overviewSections.find((item) => /контекст/.test(normalizeTitle(item.title))) || null;
   const importantSection = overviewSections.find((item) => /важно|учетом профиля|учётом профиля|рекомендац/.test(normalizeTitle(item.title))) || null;
   const parsedSummaryOutline = parseSummaryOutline(summarySection?.body);
   const displaySummary = parsedSummaryOutline.summary || (summarySection ? splitSectionBody(summarySection.body).preview : "");
-  const displayStrengths = strengthsSection ? parseCompactList(strengthsSection.body) : parsedSummaryOutline.strengths;
-  const displayRisks = risksSection ? parseCompactList(risksSection.body) : parsedSummaryOutline.risks;
+  const fullStrengths = strengthsSection ? parseCompactList(strengthsSection.body) : parsedSummaryOutline.strengths;
+  const fullLimitations = limitationsSection ? parseCompactList(limitationsSection.body) : [];
+  const fullRisks = risksSection ? parseCompactList(risksSection.body) : parsedSummaryOutline.risks;
+  const displayStrengths = mergeCompactLists(fullStrengths).slice(0, 6);
+  const displayRisks = buildBalancedRiskList(fullLimitations, fullRisks, parsedSummaryOutline.risks);
+  const exportStrengths = mergeCompactLists(fullStrengths);
+  const exportRisks = mergeCompactLists(fullLimitations, fullRisks, parsedSummaryOutline.risks);
   const displayImportant = importantSection ? cleanSectionBody(importantSection.body) : parsedSummaryOutline.important;
 
   const compactIndexesSource = overviewSections.filter((item) => {
@@ -888,7 +970,7 @@ export default function ProjectResultsStandalonePage() {
   ].filter(Boolean) as CompactIndexItem[];
 
   const compactIndexBodies = new Set(compactIndexes.map((item) => item.body));
-  const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, risksSection, focusSection, contextSection, importantSection].includes(item as any) && !compactIndexBodies.has(item.body));
+  const remainingOverviewCards = overviewSections.filter((item) => ![summarySection, strengthsSection, limitationsSection, risksSection, focusSection, contextSection, importantSection].includes(item as any) && !compactIndexBodies.has(item.body));
   const fallbackRisks = displayRisks.length ? displayRisks : remainingOverviewCards.filter((item) => inferSectionTone(item.title) === "warning").flatMap((item) => parseCompactList(item.body)).slice(0, 6);
 
   function buildExportHtml() {
@@ -950,15 +1032,15 @@ export default function ProjectResultsStandalonePage() {
   ${indexHtml}
   <section>
     <h2>Короткий вывод</h2>
-    <div class="card">${bodyToHtml(displaySummary)}</div>
+    <div class="card">${bodyToHtml(summarySection?.body || displaySummary)}</div>
   </section>
   ${
-    displayStrengths.length || fallbackRisks.length
+    exportStrengths.length || exportRisks.length
       ? `<section>
     <h2>Сильные стороны и риски</h2>
     <div class="card">
-      ${displayStrengths.length ? `<h3>Сильные стороны</h3><ul>${displayStrengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
-      ${fallbackRisks.length ? `<h3>Риски</h3><ul>${fallbackRisks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+      ${exportStrengths.length ? `<h3>Сильные стороны</h3><ul>${exportStrengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+      ${exportRisks.length ? `<h3>Риски и ограничения</h3><ul>${exportRisks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
     </div>
   </section>`
       : ""
@@ -1354,6 +1436,18 @@ export default function ProjectResultsStandalonePage() {
                                 </div>
                               </div>
                             ) : null}
+                          </div>
+                        ) : evaluationCacheMiss[activeEvaluationMode] ? (
+                          <div className="rounded-[24px] border border-[#e2d1b6] bg-[#fcf7ef] p-5 text-sm leading-6 text-[#6f6454]">
+                            <div className="font-semibold text-[#4d3b24]">Сохранённый анализ для текущих данных ещё не собран</div>
+                            <div className="mt-2">Открытие отчёта больше не запускает модели автоматически. Чтобы сформировать новую версию, нажмите кнопку ниже.</div>
+                            <button
+                              type="button"
+                              className="mt-4 rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]"
+                              onClick={() => loadEvaluation(activeEvaluationMode, activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest, force: true } : { force: true })}
+                            >
+                              Сделать ИИ-анализ
+                            </button>
                           </div>
                         ) : evaluationLoading[activeEvaluationMode] ? (
                           <ThinkingStatus title={activeEvaluationMode === "premium_ai_plus" ? "AI+ формирует профиль" : activeEvaluationMode === "premium" ? "AI формирует интерпретацию" : "Собираем результат"} messages={getThinkingMessages(activeEvaluationMode)} />

@@ -6,6 +6,20 @@ type RefreshSessionResponse = {
   session?: Session | null;
 };
 
+export class SessionRefreshError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "SessionRefreshError";
+    this.status = status;
+  }
+}
+
+export function isInvalidSessionRefreshError(error: unknown) {
+  return error instanceof SessionRefreshError && error.status === 401;
+}
+
 export async function refreshSessionThroughServer(refreshToken: string): Promise<Session> {
   const response = await fetch("/api/auth/refresh", {
     method: "POST",
@@ -14,7 +28,7 @@ export async function refreshSessionThroughServer(refreshToken: string): Promise
   });
   const data = (await response.json().catch(() => ({}))) as RefreshSessionResponse;
   if (!response.ok || !data?.ok || !data.session?.access_token || !data.session.refresh_token) {
-    throw new Error(data?.error || "Session refresh failed");
+    throw new SessionRefreshError(data?.error || "Session refresh failed", response.status);
   }
   return data.session;
 }

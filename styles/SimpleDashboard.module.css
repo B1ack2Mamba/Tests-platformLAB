@@ -233,6 +233,18 @@
   background: #f5f9f4;
 }
 
+.statusFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.statusFilters button[data-active="true"] {
+  color: var(--green-strong);
+  border-color: #a8c3af;
+  background: #eaf4ec;
+}
+
 .quickTools svg {
   width: 16px;
   height: 16px;
@@ -253,6 +265,10 @@
 }
 
 .sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 0 8px;
   margin-bottom: 16px;
 }
@@ -262,6 +278,10 @@
   font-family: Georgia, "Times New Roman", serif;
   font-size: 22px;
   font-weight: 600;
+}
+
+.folderMobileToggle {
+  display: none;
 }
 
 .folderActions {
@@ -477,6 +497,76 @@
 
 .registry {
   margin-top: 13px;
+}
+
+.projectFolderGroup {
+  min-width: 0;
+}
+
+.projectFolderGroup[data-grouped="true"] {
+  position: relative;
+  margin: 22px 0 18px;
+  padding: 18px 8px 0;
+  border: 1px solid #dfe7e1;
+  border-radius: 14px;
+  background: rgba(250, 252, 250, 0.72);
+  box-shadow: 0 12px 30px -30px rgba(25, 76, 47, 0.55);
+}
+
+.projectFolderGroupLabel {
+  position: absolute;
+  top: 0;
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: calc(100% - 28px);
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 1px solid #dfe7e1;
+  border-radius: 999px;
+  color: #355844;
+  background: #fff;
+  box-shadow: 0 5px 14px -12px rgba(22, 79, 47, 0.72);
+  transform: translateY(-50%);
+}
+
+.projectFolderGroupLabel svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--green);
+}
+
+.projectFolderGroupLabel strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectFolderGroupLabel small {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  color: #597064;
+  background: #edf4ee;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.projectFolderGroupList {
+  min-width: 0;
+}
+
+.projectFolderGroup[data-grouped="true"] .projectEntry:last-child {
+  margin-bottom: 8px;
 }
 
 .projectEntry {
@@ -1224,6 +1314,15 @@
   font-size: 11px;
 }
 
+.testList small[data-completed="true"] {
+  color: #256b44;
+  font-weight: 700;
+}
+
+.testList small[data-completed="false"] {
+  color: #8b7654;
+}
+
 .testList .noTests {
   display: block;
   padding: 16px 0;
@@ -1622,6 +1721,7 @@
 .analysisActions .primaryAction,
 .analysisActions .secondaryAction {
   min-width: 0;
+  min-height: 50px;
   margin-top: 0;
 }
 
@@ -1630,9 +1730,23 @@
   opacity: 0.45;
 }
 
-.aiBillingSummary {
+.analysisActionText {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  justify-items: center;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.analysisActionText small {
+  color: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  opacity: 0.86;
+}
+
+.aiBillingSummary {
+  display: block;
   margin: 0 0 12px;
   overflow: hidden;
   border: 1px solid #dce6df;
@@ -1651,17 +1765,13 @@
 }
 
 .aiBillingSummary > div {
-  display: grid;
-  align-content: center;
-  gap: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   min-width: 0;
-  min-height: 51px;
-  padding: 8px 10px;
-  border-right: 1px solid #e6ece7;
-}
-
-.aiBillingSummary > div:last-child {
-  border-right: 0;
+  min-height: 45px;
+  padding: 8px 12px;
 }
 
 .aiBillingSummary span {
@@ -1679,7 +1789,7 @@
 .aiBillingSummary strong {
   overflow: hidden;
   color: #263a30;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 750;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -2055,12 +2165,60 @@
     padding-bottom: 10px;
   }
 
+  .folderSection[data-mobile-open="false"] {
+    padding-bottom: 0;
+  }
+
+  .folderSection[data-mobile-open="false"] > :not(.sectionHeading) {
+    display: none;
+  }
+
   .sectionHeading {
+    min-height: 46px;
+    padding: 0;
     margin-bottom: 8px;
+  }
+
+  .folderSection[data-mobile-open="false"] .sectionHeading {
+    margin-bottom: 0;
   }
 
   .sectionHeading strong {
     font-size: 19px;
+  }
+
+  .folderMobileToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0 9px 0 12px;
+    overflow: hidden;
+    border: 1px solid #dce5de;
+    border-radius: 9px;
+    color: #43554b;
+    background: #fff;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .folderMobileToggle span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .folderMobileToggle svg {
+    width: 15px;
+    height: 15px;
+    transform: rotate(90deg);
+    transition: transform 160ms ease;
+  }
+
+  .folderMobileToggle[aria-expanded="true"] svg {
+    transform: rotate(-90deg);
   }
 
   .newFolderCard {
@@ -2146,8 +2304,29 @@
     padding-inline: 8px;
   }
 
+  .statusFilters {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .statusFilters button {
+    justify-content: center;
+  }
+
   .registry {
     margin-top: 10px;
+  }
+
+  .projectFolderGroup[data-grouped="true"] {
+    margin: 20px 0 15px;
+    padding: 16px 5px 0;
+    border-radius: 12px;
+  }
+
+  .projectFolderGroupLabel {
+    left: 10px;
+    max-width: calc(100% - 20px);
   }
 
   .projectEntry {
@@ -2197,14 +2376,14 @@
   }
 
   .rowTitle strong {
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.28;
   }
 
   .rowTitle small {
     display: -webkit-box;
     overflow: hidden;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.25;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -2234,7 +2413,7 @@
   .panelHeader {
     min-height: 50px;
     padding-inline: 12px;
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .panelBody {
@@ -2250,7 +2429,13 @@
   }
 
   .shareLinks input {
-    font-size: 13px;
+    font-size: 14px;
+  }
+
+  .testList span,
+  .testList small,
+  .testsHeading span {
+    font-size: 12px;
   }
 
   .embeddedWorkspace {
@@ -2287,11 +2472,11 @@
   }
 
   .aiBillingSummary span {
-    font-size: 8px;
+    font-size: 9px;
   }
 
   .aiBillingSummary strong {
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .aiBillingPaywall > div:last-child {

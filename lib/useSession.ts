@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { refreshSessionThroughServer } from "@/lib/authRefreshClient";
-import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import {
+  isInvalidSessionRefreshError,
+  refreshSessionThroughServer,
+} from "@/lib/authRefreshClient";
+import {
+  clearPersistedSupabaseSession,
+  getSupabaseBrowser,
+} from "@/lib/supabaseBrowser";
 
 const SESSION_REFRESH_CHECK_MS = 15 * 60 * 1000;
 const SESSION_REFRESH_SKEW_MS = 10 * 60 * 1000;
@@ -23,7 +29,10 @@ async function refreshPersistedSession(client: SupabaseClient) {
       access_token: refreshedSession.access_token,
       refresh_token: refreshedSession.refresh_token,
     });
-  } catch {
+  } catch (error) {
+    if (isInvalidSessionRefreshError(error)) {
+      clearPersistedSupabaseSession();
+    }
     // Keep the current session during transient network/Auth outages.
   } finally {
     sessionRefreshInFlight = false;

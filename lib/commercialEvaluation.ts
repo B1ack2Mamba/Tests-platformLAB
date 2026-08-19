@@ -51,6 +51,7 @@ type EvaluationSection = {
   kind: "summary" | "test" | "portrait" | "manager" | "development";
   title: string;
   body: string;
+  source?: "terra" | "deterministic";
 };
 
 type BuildOptions = {
@@ -62,6 +63,8 @@ type BuildOptions = {
   stage?: "summary" | "tests" | "competencies" | "full";
   batchStart?: number;
   batchSize?: number;
+  resolvedTestInterpretations?: TestNarrative[];
+  resolvedCompetencyAnalyses?: CompetencyNarrative[];
 };
 
 type CompetencySignal = {
@@ -77,6 +80,14 @@ type TestNarrative = {
   slug: string;
   title: string;
   body: string;
+  source?: "terra" | "deterministic";
+};
+
+type CompetencyNarrative = {
+  id?: string | null;
+  title: string;
+  body: string;
+  source?: "terra" | "deterministic";
 };
 
 type OpenAiTask = "testSummary" | "finalPortrait" | "premiumReview";
@@ -90,10 +101,31 @@ const DEFAULT_OPENAI_AI_PLUS_MODEL = DEFAULT_OPENAI_FINAL_MODEL;
 const RUSSIAN_TERMS_RULE =
   "- Не используй англицизмы в итоговом тексте: ownership заменяй на «личная ответственность», soft skills — на «гибкие навыки», performance — на «результативность», feedback — на «обратная связь», leadership — на «лидерство», team fit — на «соответствие команде».";
 
+function normalizeRepeatedAnalysisModel(value: string | undefined, fallback: string) {
+  const model = String(value || "").trim();
+  if (!model) return fallback;
+  if (model === "gpt-5.6-luna" || model === "gpt-5.6-sol" || model === "gpt-5.4-mini" || model === "gpt-5.4" || model === "gpt-5.5") {
+    return fallback;
+  }
+  return model;
+}
+
+function normalizeFinalAnalysisModel(value: string | undefined) {
+  const model = String(value || "").trim();
+  if (!model || model === "gpt-5.6-luna" || model === "gpt-5.6-terra" || model === "gpt-5.4-mini" || model === "gpt-5.4" || model === "gpt-5.5") {
+    return DEFAULT_OPENAI_FINAL_MODEL;
+  }
+  return model;
+}
+
 function openAiModelForTask(task: OpenAiTask) {
-  if (task === "testSummary") return process.env.OPENAI_TEST_MODEL || DEFAULT_OPENAI_TEST_MODEL;
-  if (task === "finalPortrait") return process.env.OPENAI_FINAL_MODEL || process.env.OPENAI_AI_PLUS_MODEL || DEFAULT_OPENAI_FINAL_MODEL;
-  return process.env.OPENAI_PREMIUM_MODEL || DEFAULT_OPENAI_PREMIUM_MODEL;
+  if (task === "testSummary") {
+    return normalizeRepeatedAnalysisModel(process.env.OPENAI_TEST_MODEL, DEFAULT_OPENAI_TEST_MODEL);
+  }
+  if (task === "finalPortrait") {
+    return normalizeFinalAnalysisModel(process.env.OPENAI_FINAL_MODEL || process.env.OPENAI_AI_PLUS_MODEL);
+  }
+  return normalizeRepeatedAnalysisModel(process.env.OPENAI_PREMIUM_MODEL, DEFAULT_OPENAI_PREMIUM_MODEL);
 }
 
 function rowsFromResult(result: any) {
@@ -478,14 +510,13 @@ async function buildCompetencyAiDetail(args: {
 }) {
   const { project, route, signal, relevantAttempts, premiumByTest, profileContext, overallReport, customRequest, fitRequest, promptConfig } = args;
   const template = String(promptConfig?.prompt_template || "").trim();
-  if (!template) return null;
 
   const systemPrompt = compactLine(
     promptConfig?.system_prompt,
     "Ты помогаешь специалисту по оценке персонала интерпретировать одну компетенцию по данным нескольких тестов."
   );
 
-  const prompt = renderPromptTemplate(template, {
+  const promptValues = {
     competency_id: route.id,
     competency_name: route.name,
     competency_cluster: route.cluster,
@@ -510,7 +541,19 @@ async function buildCompetencyAiDetail(args: {
       route.id,
       relevantAttempts.map((attempt) => attempt.test_slug)
     ),
-  });
+  };
+  const prompt = template
+    ? renderPromptTemplate(template, promptValues)
+    : [
+        `Проанализируй компетенцию «${route.name}» для специалиста по оценке персонала.`,
+        `Определение компетенции: ${route.definition}`,
+        `Расчётный сигнал: ${signal.score}/100. Статус: ${signal.status}.`,
+        `Короткий расчётный вывод: ${signal.short}`,
+        `Контекст проекта:\n${profileContext}`,
+        `Исходные числовые результаты релевантных тестов:\n${promptValues.test_results_block}`,
+        `Готовые интерпретации релевантных тестов от Terra:\n${promptValues.premium_interpretations_block}`,
+        `Пакет доказательств компетенции:\n${promptValues.competency_evidence_packet}`,
+      ].join("\n\n");
 
   const finalPrompt = [
     prompt,
@@ -526,8 +569,8 @@ ${trimText(overallReport, 1800)}`
     "- Не дублируй общий отчёт и не уходи в длинные списки.",
   ].filter(Boolean).join("\n\n");
 
-  const text = await callCommercialAi(systemPrompt, finalPrompt, 1400, "premiumReview").catch(() => null);
-  return text ? cleanText(text) : null;
+  const text = await callCommercialAi(systemPrompt, finalPrompt, 1400, "premiumReview");
+  return cleanText(text);
 }
 
 function goalLabel(goal: string) {
@@ -738,7 +781,11 @@ async function callAiPlusModel(system: string, prompt: string, maxTokens = 2600,
 
 async function callCommercialAi(system: string, prompt: string, maxTokens = 2600, task: OpenAiTask = "testSummary") {
   const localOverride = process.env.NODE_ENV !== "production" ? process.env.OPENAI_LOCAL_MODEL : undefined;
-  const openAiText = await callOpenAI(system, prompt, maxTokens, localOverride || openAiModelForTask(task), task);
+  const configuredModel = localOverride || openAiModelForTask(task);
+  const model = task === "finalPortrait"
+    ? normalizeFinalAnalysisModel(configuredModel)
+    : normalizeRepeatedAnalysisModel(configuredModel, task === "testSummary" ? DEFAULT_OPENAI_TEST_MODEL : DEFAULT_OPENAI_PREMIUM_MODEL);
+  const openAiText = await callOpenAI(system, prompt, maxTokens, model, task);
   if (openAiText) return openAiText;
   throw new Error("OpenAI model is unavailable");
 }
@@ -785,24 +832,63 @@ function buildPremiumPrompt(args: {
   ].filter(Boolean).join("\n");
 }
 
+function buildRawTestSignalsBlock(attempts: AttemptLike[]) {
+  return attempts.map((attempt, index) => {
+    const formatted = formatBaseRows(attempt.result);
+    const body = /нет унифицированного|пока нет/iu.test(formatted)
+      ? trimText(safeJson(attempt.result), 3600)
+      : trimText(formatted, 3600);
+    return [`${index + 1}. ${attempt.test_title || attempt.test_slug} [${attempt.test_slug}]`, body].join("\n");
+  }).join("\n\n---\n\n");
+}
+
+function buildTerraTestInterpretationsBlock(items: TestNarrative[]) {
+  return items.map((item, index) => [
+    `${index + 1}. ${item.title} [${item.slug}]`,
+    `Источник промежуточного вывода: ${item.source === "deterministic" ? "локальный резервный расчёт" : "Terra"}.`,
+    trimText(cleanText(item.body), 2400),
+  ].join("\n")).join("\n\n---\n\n");
+}
+
+function buildRawCompetencySignalsBlock(items: CompetencySignal[]) {
+  return items.map((item, index) => [
+    `${index + 1}. ${item.title} [${item.id}]`,
+    `Расчётный балл: ${item.score}/100. Статус: ${item.status}.`,
+    trimText(item.short, 800),
+    trimText(item.details, 1600),
+  ].join("\n")).join("\n\n---\n\n");
+}
+
+function buildTerraCompetencyAnalysesBlock(items: CompetencyNarrative[]) {
+  return items.map((item, index) => [
+    `${index + 1}. ${item.title}${item.id ? ` [${item.id}]` : ""}`,
+    `Источник промежуточного вывода: ${item.source === "deterministic" ? "локальный резервный расчёт" : "Terra"}.`,
+    trimText(cleanText(item.body), 1800),
+  ].join("\n")).join("\n\n---\n\n");
+}
+
 async function buildAiPlusPrompt(args: {
   project: ProjectLike;
   attempts: AttemptLike[];
-  premiumByTest: Array<{ title: string; body: string }>;
+  testInterpretations: TestNarrative[];
   competencySignals: CompetencySignal[];
+  competencyAnalyses: CompetencyNarrative[];
   fitRequest?: string | null;
   fitProfileId?: string | null;
 }) {
-  const { project, attempts, premiumByTest, competencySignals, fitRequest, fitProfileId } = args;
-  const testsBlock = (premiumByTest.length ? premiumByTest : attempts.map((attempt) => ({
-    title: attempt.test_title || attempt.test_slug,
-    body: formatTopRows(attempt.result),
-  }))).map((item, index) => [
-    `${index + 1}. ${item.title}`,
-    trimText(cleanText(item.body), 1600),
-  ].join("\n")).join("\n\n---\n\n");
-
-  const competencyBlock = competencySignals.map((item) => `${item.title}: ${item.status}; ${item.short}`).join("\n");
+  const {
+    project,
+    attempts,
+    testInterpretations,
+    competencySignals,
+    competencyAnalyses,
+    fitRequest,
+    fitProfileId,
+  } = args;
+  const rawTestsBlock = buildRawTestSignalsBlock(attempts);
+  const terraTestsBlock = buildTerraTestInterpretationsBlock(testInterpretations);
+  const rawCompetencyBlock = buildRawCompetencySignalsBlock(competencySignals);
+  const terraCompetencyBlock = buildTerraCompetencyAnalysesBlock(competencyAnalyses);
 
   return [
     "Собери общий профессиональный отчёт для специалиста по оценке персонала.",
@@ -816,18 +902,37 @@ ${buildRegistryCommentContext(project)}` : "",
     fitProfileId ? `Ролевая матрица: ${(await getServerFitProfileById(fitProfileId))?.label || fitProfileId}.` : "",
     fitRequest ? `Индекс соответствия нужен относительно запроса: ${fitRequest}.` : "",
     "",
-    "Короткие сигналы по фокусу оценки:",
-    competencyBlock,
+    "КОНТУР 1. ИСХОДНЫЕ ЧИСЛОВЫЕ СИГНАЛЫ ТЕСТОВ:",
+    rawTestsBlock,
     "",
-    "Материалы по пройденным тестам и их интерпретационным пакетам:",
-    testsBlock,
+    "КОНТУР 1. РАСЧЁТНЫЕ ЧИСЛОВЫЕ СИГНАЛЫ КОМПЕТЕНЦИЙ:",
+    rawCompetencyBlock,
+    "",
+    "КОНТУР 2. ГОТОВЫЕ ПРОМЕЖУТОЧНЫЕ ИНТЕРПРЕТАЦИИ ТЕСТОВ:",
+    terraTestsBlock,
+    "",
+    "КОНТУР 2. ГОТОВЫЕ ПРОМЕЖУТОЧНЫЕ ВЫВОДЫ ПО КОМПЕТЕНЦИЯМ:",
+    terraCompetencyBlock,
     "",
     "Требования к ответу:",
     "- Пиши по-русски, без воды.",
     RUSSIAN_TERMS_RULE,
     "- Никаких markdown-решёток и таблиц.",
-    "- Опирайся на материалы интерпретации каждого теста и собирай по ним общую картину.",
+    "- Проведи двухконтурную проверку: отдельно прочитай исходные числовые сигналы, отдельно выводы Terra, затем сопоставь их.",
+    "- Числовые сигналы являются первичным источником фактов. Выводы Terra являются экспертной интерпретацией этих фактов.",
+    "- Если формулировка Terra расходится с числами или не подтверждается несколькими источниками, прямо смягчи вывод и опирайся на числа.",
+    "- Не пропускай завершённые тесты и компетенции. Учитывай оба контура полностью, но не пересказывай их по очереди.",
     "- Не пересказывай каждый тест подряд, а собирай повторяющиеся сигналы, плюсы, минусы и риски.",
+    "- Чётко отделяй устойчивые выводы, подтверждённые несколькими источниками, от предварительных гипотез.",
+    "- Если среди промежуточных блоков есть локальный резервный расчёт вместо Terra, обозначь это как ограничение точности в блоке «Что особенно важно для цели оценки».",
+    "- Итог должен читаться быстро. Не повторяй один и тот же вывод в нескольких блоках.",
+    "- Финальный текст пиши как понятное кадровое заключение, а не как технический аудит двух контуров. Саму проверку выполни полностью, но не описывай её ход пользователю.",
+    "- Не перечисляй коды шкал, названия моделей и проценты, если конкретное число не меняет кадровый вывод. Доказательства своди к понятной деловой формулировке.",
+    "- Блок «Общий вывод»: 2–3 коротких абзаца по 2–3 предложения. Сначала цельный портрет, затем рабочие условия и главная зона развития. Без списка показателей и без перечня всех компетенций.",
+    "- Блок «Сильные стороны»: 5–6 коротких пунктов. Каждый пункт содержит один вывод и его практическое значение, не более двух предложений.",
+    "- Блок «Минусы и ограничения»: ровно 3 коротких пункта о текущих ограничениях, каждый не более двух предложений и без повторения рисков.",
+    "- Блок «Риски»: ровно 3 коротких пункта в форме «условие — возможное последствие», каждый не более двух предложений и без повторения ограничений.",
+    "- Блок «Что особенно важно для цели оценки»: 3–5 коротких прикладных пунктов для специалиста или руководителя.",
     "- Верни ответ строго в блоках с этими заголовками:",
     "Общий вывод",
     "Сильные стороны",
@@ -840,18 +945,29 @@ ${buildRegistryCommentContext(project)}` : "",
 async function buildAiPlusFollowupPrompt(args: {
   project: ProjectLike;
   attempts: AttemptLike[];
-  premiumByTest: Array<{ title: string; body: string }>;
+  testInterpretations: TestNarrative[];
   competencySignals: CompetencySignal[];
+  competencyAnalyses: CompetencyNarrative[];
   customRequest: string;
   fitRequest?: string | null;
   fitProfileId?: string | null;
 }) {
-  const { project, attempts, premiumByTest, competencySignals, customRequest, fitRequest, fitProfileId } = args;
+  const {
+    project,
+    attempts,
+    testInterpretations,
+    competencySignals,
+    competencyAnalyses,
+    customRequest,
+    fitRequest,
+    fitProfileId,
+  } = args;
   const basePrompt = await buildAiPlusPrompt({
     project,
     attempts,
-    premiumByTest,
+    testInterpretations,
     competencySignals,
+    competencyAnalyses,
     fitRequest,
     fitProfileId,
   });
@@ -1049,6 +1165,50 @@ export async function buildCommercialEvaluation(
     return { mode, sections };
   }
 
+  if (mode === "premium_ai_plus" && stage === "full") {
+    const testSections: EvaluationSection[] = [];
+    for (let start = 0; start < attempts.length; start += 2) {
+      const batchEvaluation = await buildCommercialEvaluation(project, attempts, mode, {
+        ...options,
+        stage: "tests",
+        batchStart: start,
+        batchSize: 2,
+      });
+      testSections.push(...batchEvaluation.sections.filter((section) => section.kind === "test"));
+    }
+    const resolvedTestInterpretations = testSections
+      .filter((section) => section.kind === "test")
+      .map((section, index) => ({
+        slug: attempts[index]?.test_slug || section.title,
+        title: section.title,
+        body: section.body,
+        source: section.source,
+      }));
+    const competenciesEvaluation = await buildCommercialEvaluation(project, attempts, mode, {
+      ...options,
+      stage: "competencies",
+      resolvedTestInterpretations,
+    });
+    const resolvedCompetencyAnalyses = competenciesEvaluation.sections
+      .filter((section) => section.kind === "development")
+      .map((section) => ({ title: section.title, body: section.body, source: section.source }));
+    const summaryEvaluation = await buildCommercialEvaluation(project, attempts, mode, {
+      ...options,
+      stage: "summary",
+      resolvedTestInterpretations,
+      resolvedCompetencyAnalyses,
+    });
+    const sectionMap = new Map<string, EvaluationSection>();
+    for (const section of [
+      ...summaryEvaluation.sections,
+      ...testSections,
+      ...competenciesEvaluation.sections,
+    ]) {
+      sectionMap.set(`${section.kind}:${section.title}`, section);
+    }
+    return { mode, sections: Array.from(sectionMap.values()) };
+  }
+
   const fitMatrix = mode === "premium_ai_plus" && options?.fitEnabled
     ? await resolveFitMatrixServer({
         goal: project.goal as AssessmentGoal,
@@ -1076,13 +1236,29 @@ export async function buildCommercialEvaluation(
   const promptDrivenNarratives = mode === "premium_ai_plus"
     ? buildPromptDrivenTestNarratives(project, attempts, interpretationKeysBySlug)
     : [];
+  const resolvedTestInterpretations = options?.resolvedTestInterpretations?.length
+    ? options.resolvedTestInterpretations
+    : promptDrivenNarratives.map((item) => ({ ...item, source: "deterministic" as const }));
+  const resolvedCompetencyAnalyses = options?.resolvedCompetencyAnalyses || [];
+
+  if (mode === "premium_ai_plus" && includeCompetencies && resolvedTestInterpretations.length < attempts.length) {
+    throw new Error("Сначала должны завершиться интерпретации всех тестов моделью Terra.");
+  }
+  if (
+    mode === "premium_ai_plus" &&
+    includeSummary &&
+    (resolvedTestInterpretations.length < attempts.length || resolvedCompetencyAnalyses.length < competencySignals.length)
+  ) {
+    throw new Error("Итоговый профиль Sol запускается только после завершения тестов и компетенций моделью Terra.");
+  }
 
   if (includeSummary && mode === "premium_ai_plus") {
     const synthesisPrompt = await buildAiPlusPrompt({
       project,
       attempts,
-      premiumByTest: promptDrivenNarratives,
+      testInterpretations: resolvedTestInterpretations,
       competencySignals,
+      competencyAnalyses: resolvedCompetencyAnalyses,
       fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
       fitProfileId: options?.fitEnabled ? options?.fitProfileId || null : null,
     });
@@ -1139,8 +1315,9 @@ export async function buildCommercialEvaluation(
       const followupPrompt = await buildAiPlusFollowupPrompt({
         project,
         attempts,
-        premiumByTest: promptDrivenNarratives,
+        testInterpretations: resolvedTestInterpretations,
         competencySignals,
+        competencyAnalyses: resolvedCompetencyAnalyses,
         customRequest: options.aiPlusRequest.trim(),
         fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
         fitProfileId: options?.fitEnabled ? options?.fitProfileId || null : null,
@@ -1149,7 +1326,7 @@ export async function buildCommercialEvaluation(
         "Ты помогаешь специалисту по оценке персонала дополнять уже собранный профиль отдельным прикладным ракурсом по запросу.",
         followupPrompt,
         2400,
-        "premiumReview"
+        "finalPortrait"
       ).catch(() => null);
       sections.push({
         kind: "portrait",
@@ -1203,16 +1380,18 @@ export async function buildCommercialEvaluation(
             buildPremiumPrompt({ project, attempt, keys }),
             4200,
             "testSummary"
-          ).then((text) => cleanText(text || "")).catch(() => aiInterpretation({
+          ).then((text) => ({ body: cleanText(text || ""), source: "terra" as const }))
+          .catch(() => aiInterpretation({
             test_slug: attempt.test_slug,
             test_title: attempt.test_title || attempt.test_slug,
             result: attempt.result,
-          }).then(cleanText))
+          }).then((text) => ({ body: cleanText(text), source: "deterministic" as const })))
         : await buildPremiumInterpretation(project, attempt, keys);
       sections.push({
         kind: "test",
         title: attempt.test_title || attempt.test_slug,
-        body,
+        body: typeof body === "string" ? body : body.body,
+        source: typeof body === "string" ? undefined : body.source,
       });
     }
   }
@@ -1238,18 +1417,23 @@ export async function buildCommercialEvaluation(
             route,
             signal: item,
             relevantAttempts,
-            premiumByTest: promptDrivenNarratives,
+            premiumByTest: resolvedTestInterpretations,
             profileContext,
             overallReport: overallReportBlock,
             customRequest: options?.aiPlusRequest || null,
             fitRequest: options?.fitEnabled ? options?.fitRequest || null : null,
             promptConfig: promptMap[item.id] || null,
-          }).catch(() => null)
+          }).then((body) => ({ body, source: "terra" as const })).catch(() => null)
         : null;
+      const resolvedBody = aiBody || {
+        body: buildCompetencyShortResult(item, project, attempts),
+        source: "deterministic" as const,
+      };
       sections.push({
         kind: "development",
         title: item.title,
-        body: aiBody || buildCompetencyShortResult(item, project, attempts),
+        body: resolvedBody.body,
+        source: resolvedBody.source,
       });
     }
   }

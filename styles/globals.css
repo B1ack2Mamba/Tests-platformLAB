@@ -4883,6 +4883,24 @@ html.native-app .app-brand {
     border-radius: 14px !important;
   }
 
+  .app-shell[data-interface-mode="light"] .dashboard-ai-workspace [data-onboarding-id="assembly-ai-overview"] {
+    margin-bottom: 10px !important;
+  }
+
+  .app-shell[data-interface-mode="light"] .dashboard-ai-workspace .assembly-ai-overview-copy p {
+    display: none;
+  }
+
+  .app-shell[data-interface-mode="light"] .dashboard-ai-workspace .assembly-ai-balance {
+    padding: 7px 10px !important;
+    border-radius: 10px !important;
+  }
+
+  .app-shell[data-interface-mode="light"] .dashboard-ai-workspace .assembly-ai-balance .text-xl {
+    margin-top: 1px !important;
+    font-size: 1rem !important;
+  }
+
   .app-shell[data-interface-mode="light"] .dashboard-ai-workspace h1,
   .app-shell[data-interface-mode="light"] .dashboard-ai-workspace [data-onboarding-id="assembly-ai-chat-panel"] .text-2xl {
     font-size: 1.25rem !important;
@@ -4890,10 +4908,15 @@ html.native-app .app-brand {
   }
 
   .app-shell[data-interface-mode="light"] .dashboard-ai-workspace .assembly-ai-message-list {
-    height: min(58dvh, 520px) !important;
-    min-height: 360px;
+    height: min(30dvh, 260px) !important;
+    min-height: 220px;
     padding: 10px !important;
     border-radius: 14px !important;
+  }
+
+  .app-shell[data-interface-mode="light"] .dashboard-ai-workspace .assembly-ai-message-list[data-empty="true"] {
+    height: auto !important;
+    min-height: 190px;
   }
 
   .app-shell[data-interface-mode="light"] .dashboard-ai-workspace .assembly-ai-chat-list {

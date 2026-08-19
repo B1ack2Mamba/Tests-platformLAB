@@ -140,7 +140,7 @@ function normalizeAuthError(err: any) {
     return "Неверный email или пароль. Проверьте данные и попробуйте ещё раз.";
   }
   if (isFetchNetworkError(err)) {
-    return friendlyErrorMessage(err, "Не удалось связаться с сервером авторизации.");
+    return "Не удалось связаться с сервером авторизации.";
   }
   return message || "Ошибка";
 }
@@ -172,12 +172,11 @@ function getAuthErrorHelp(error: string): AuthErrorHelp | null {
 
   if (/сервером авторизации|failed to fetch|fetch failed|load failed|network|timeout/i.test(message)) {
     return {
-      reason: "Браузер или сеть не смогли связаться с авторизацией.",
+      reason: "Соединение прервалось или сервис отвечает дольше обычного.",
       actions: [
-        "Обновите страницу через Ctrl+F5 и попробуйте снова.",
-        "Обновите страницу через Ctrl+F5 и попробуйте снова.",
+        "Проверьте подключение к интернету и нажмите «Войти» ещё раз.",
         CONNECTION_TROUBLE_HINT,
-        "Если не помогло, попробуйте другой браузер.",
+        "Если ошибка останется, попробуйте другой браузер.",
       ],
       showConnectionSupport: true,
     };
@@ -697,40 +696,29 @@ export default function AuthStartPage() {
 
             {error ? (
               <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700" role="alert">
-                <div className="font-medium">{error}</div>
+                <div className="font-semibold">{error}</div>
                 {authErrorHelp ? (
-                  <div className="mt-2 border-t border-red-100 pt-2 text-xs leading-5 text-red-800">
-                    <div>
-                      <span className="font-semibold">Причина:</span> {authErrorHelp.reason}
-                    </div>
-                    <div className="mt-1 font-semibold">Что сделать:</div>
-                    <ul className="mt-1 list-disc space-y-1 pl-5">
+                  <div className="mt-1 text-xs leading-5 text-red-800">
+                    <div>{authErrorHelp.reason}</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
                       {authErrorHelp.actions.map((action) => (
                         <li key={action}>{action}</li>
                       ))}
                     </ul>
                     {authErrorHelp.showConnectionSupport ? (
-                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-amber-950">
-                        <div className="font-semibold">Проблемы со связью</div>
-                        <div className="mt-1">
-                          {CONNECTION_TROUBLE_HINT} Если решить проблему не удалось, напишите мне лично в Telegram.
-                        </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-red-100 pt-3 text-slate-700">
+                        <span>Не получилось войти? Напишите нам в Telegram.</span>
                         <a
                           href="https://t.me/BalancEcnalab"
                           target="_blank"
                           rel="noreferrer"
-                          className="btn btn-secondary btn-sm mt-3 w-full justify-center sm:w-auto"
+                          className="btn btn-secondary btn-sm w-full justify-center sm:w-auto"
                         >
-                          Написать @BalancEcnalab
+                          Написать в Telegram
                         </a>
                       </div>
                     ) : null}
                   </div>
-                ) : null}
-                {mode === "login" ? (
-                  <button type="button" className="btn btn-secondary btn-sm mt-3" onClick={openPasswordReset}>
-                    Восстановить пароль
-                  </button>
                 ) : null}
               </div>
             ) : null}

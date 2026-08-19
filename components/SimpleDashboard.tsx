@@ -27,6 +27,7 @@ export type SimpleDashboardProject = {
   invite_token?: string | null;
   folder_id: string | null;
   attempts_count: number;
+  completed_test_slugs?: string[];
   tests: Array<{ test_slug: string; test_title: string; sort_order: number }>;
   person: {
     full_name: string;
@@ -45,7 +46,9 @@ export type SimpleDashboardFolder = {
 
 type MainView = "projects" | "tests" | "create";
 type ProjectView = "overview" | "results";
+type AnalysisLaunchMode = "view" | "generate";
 type DetailPanel = "participant" | "access" | "results";
+type StatusFilter = "all" | "active" | "waiting" | "completed";
 type InlineEditForm = {
   full_name: string;
   email: string;
@@ -56,12 +59,13 @@ type InlineEditForm = {
   registry_comment: string;
 };
 type AiPreview = {
-  state: "loading" | "locked" | "ready";
+  state: "loading" | "locked" | "empty" | "ready" | "error";
   modeTitle: string;
   summary: string;
   strengths: string[];
   risks: string[];
   recommendation: string;
+  message?: string;
 };
 type AiPurchaseState = {
   state: "processing" | "success" | "error";
@@ -111,14 +115,6 @@ function formatCompactRub(value: number) {
   return `${Math.max(0, Math.floor(value)).toLocaleString("ru-RU")} ₽`;
 }
 
-function formatProjectBalance(value: number) {
-  const amount = Math.max(0, Math.floor(value));
-  const mod100 = amount % 100;
-  const mod10 = amount % 10;
-  const word = mod100 >= 11 && mod100 <= 14 ? "проектов" : mod10 === 1 ? "проект" : mod10 >= 2 && mod10 <= 4 ? "проекта" : "проектов";
-  return `${amount} ${word}`;
-}
-
 const PROJECT_STATUS_LABELS: Record<string, string> = {
   active: "В процессе",
   archived: "В архиве",
@@ -153,7 +149,12 @@ function projectStatusLabel(status: string) {
 function projectProgress(project: SimpleDashboardProject) {
   if (/готов|заверш|completed|complete|done|finished|ready/i.test(project.status)) return 100;
   if (!project.tests.length) return 0;
-  return Math.min(100, Math.round((project.attempts_count / project.tests.length) * 100));
+  const completed = project.completed_test_slugs?.length ?? project.attempts_count;
+  return Math.min(100, Math.round((completed / project.tests.length) * 100));
+}
+
+function completedTestCount(project: SimpleDashboardProject) {
+  return Math.min(project.completed_test_slugs?.length ?? project.attempts_count, project.tests.length);
 }
 
 function statusTone(project: SimpleDashboardProject) {
@@ -249,10 +250,14 @@ export function SimpleDashboard({
 }: Props) {
   const [query, setQuery] = useState("");
   const [folderFilter, setFolderFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [mainView, setMainView] = useState<MainView>("projects");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectView, setProjectView] = useState<ProjectView>("overview");
+  const [analysisLaunchMode, setAnalysisLaunchMode] = useState<AnalysisLaunchMode>("view");
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [foldersExpanded, setFoldersExpanded] = useState(false);
+  const [isCompactLayout, setIsCompactLayout] = useState(false);
   const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({});
   const [copiedLink, setCopiedLink] = useState("");
   const [movingProjectId, setMovingProjectId] = useState("");
@@ -267,8 +272,10 @@ export function SimpleDashboard({
   const [savingProjectId, setSavingProjectId] = useState("");
   const [inlineEditError, setInlineEditError] = useState("");
   const [savedProjectId, setSavedProjectId] = useState("");
-  const firstProjectSelectedRef = useRef(false);
-  const aiPreviewFrameRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
+  const [downloadProjectId, setDownloadProjectId] = useState("");
+  const [downloadMessage, setDownloadMessage] = useState("");
+  const downloadFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const aiPreviewLoadsRef = useRef(new Set<string>());
   const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase("ru"));
 
   useEffect(() => {
@@ -276,20 +283,16 @@ export function SimpleDashboard({
   }, [onProjectOpenChange, selectedProjectId]);
 
   useEffect(() => {
-    if (!projects.length) {
-      setSelectedProjectId(null);
-      firstProjectSelectedRef.current = false;
-      return;
-    }
-    if (!firstProjectSelectedRef.current) {
-      firstProjectSelectedRef.current = true;
-      if (!window.matchMedia(MOBILE_INTERFACE_MEDIA_QUERY).matches) {
-        setSelectedProjectId(projects[0].id);
-      }
-      return;
-    }
+    const media = window.matchMedia(MOBILE_INTERFACE_MEDIA_QUERY);
+    const update = () => setIsCompactLayout(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
     if (selectedProjectId && !projects.some((project) => project.id === selectedProjectId)) {
-      setSelectedProjectId(window.matchMedia(MOBILE_INTERFACE_MEDIA_QUERY).matches ? null : projects[0].id);
+      setSelectedProjectId(null);
     }
   }, [projects, selectedProjectId]);
 
@@ -310,7 +313,7 @@ export function SimpleDashboard({
       }
       if (!message || message.type !== "commercial-project-ai-preview" || typeof message.projectId !== "string") return;
       const payload = message.payload || {};
-      const state = message.state === "ready" || message.state === "locked" ? message.state : "loading";
+      const state = message.state === "ready" || message.state === "locked" || message.state === "empty" ? message.state : "loading";
       setAiPreviews((current) => ({
         ...current,
         [message.projectId]: {
@@ -320,6 +323,7 @@ export function SimpleDashboard({
           strengths: Array.isArray(payload.strengths) ? payload.strengths.filter((item: unknown): item is string => typeof item === "string") : [],
           risks: Array.isArray(payload.risks) ? payload.risks.filter((item: unknown): item is string => typeof item === "string") : [],
           recommendation: typeof payload.recommendation === "string" ? payload.recommendation : "",
+          message: "",
         },
       }));
     }
@@ -331,6 +335,10 @@ export function SimpleDashboard({
     const matchesFolder = folderFilter === "all"
       || (folderFilter === "without-folder" ? !project.folder_id : project.folder_id === folderFilter);
     if (!matchesFolder) return false;
+    const progress = projectProgress(project);
+    const matchesStatus = statusFilter === "all"
+      || (statusFilter === "completed" ? progress === 100 : statusFilter === "active" ? progress > 0 && progress < 100 : progress === 0);
+    if (!matchesStatus) return false;
     if (!deferredQuery) return true;
     const searchable = [project.title, project.person?.full_name, project.person?.email, project.target_role, project.status]
       .filter(Boolean)
@@ -346,20 +354,152 @@ export function SimpleDashboard({
   }
   const projectsWithoutFolder = projects.filter((project) => !project.folder_id).length;
   const activeFolder = folders.find((folder) => folder.id === folderFilter) || null;
+  const visibleProjectGroups = folderFilter === "all"
+    ? [
+        ...folders.map((folder) => ({
+          key: folder.id,
+          name: folder.name,
+          projects: visibleProjects.filter((project) => project.folder_id === folder.id),
+        })),
+        {
+          key: "without-folder",
+          name: "Без папки",
+          projects: visibleProjects.filter((project) => !project.folder_id),
+        },
+      ].filter((group) => group.projects.length > 0)
+    : [{
+        key: folderFilter,
+        name: activeFolder?.name || "Без папки",
+        projects: visibleProjects,
+      }];
+  const selectedPreviewRevision = selectedProjectId ? aiPreviewRevisions[selectedProjectId] || 0 : 0;
+  const selectedCompletedCount = selectedProject ? completedTestCount(selectedProject) : 0;
+
+  useEffect(() => {
+    if (!selectedProjectId || !accessToken || selectedCompletedCount <= 0) return;
+
+    const loadKey = `${selectedProjectId}:${selectedPreviewRevision}`;
+    const previewLoads = aiPreviewLoadsRef.current;
+    if (previewLoads.has(loadKey)) return;
+    previewLoads.add(loadKey);
+    const controller = new AbortController();
+    let settled = false;
+
+    setAiPreviews((current) => ({
+      ...current,
+      [selectedProjectId]: {
+        state: "loading",
+        modeTitle: "Результат",
+        summary: "",
+        strengths: [],
+        risks: [],
+        recommendation: "",
+      },
+    }));
+
+    void fetch(`/api/commercial/projects/evaluation-preview?id=${encodeURIComponent(selectedProjectId)}`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Не удалось загрузить сохранённый анализ");
+        const preview = payload?.preview || {};
+        const state = payload?.state === "ready" || payload?.state === "locked" || payload?.state === "empty"
+          ? payload.state
+          : "empty";
+        setAiPreviews((current) => ({
+          ...current,
+          [selectedProjectId]: {
+            state,
+            modeTitle: typeof preview.modeTitle === "string" ? preview.modeTitle : "Результат",
+            summary: typeof preview.summary === "string" ? preview.summary : "",
+            strengths: Array.isArray(preview.strengths) ? preview.strengths.filter((item: unknown): item is string => typeof item === "string") : [],
+            risks: Array.isArray(preview.risks) ? preview.risks.filter((item: unknown): item is string => typeof item === "string") : [],
+            recommendation: typeof preview.recommendation === "string" ? preview.recommendation : "",
+          },
+        }));
+        settled = true;
+      })
+      .catch((previewError: any) => {
+        if (previewError?.name === "AbortError") return;
+        setAiPreviews((current) => ({
+          ...current,
+          [selectedProjectId]: {
+            state: "error",
+            modeTitle: "Результат",
+            summary: "",
+            strengths: [],
+            risks: [],
+            recommendation: "",
+            message: previewError?.message || "Не удалось загрузить сохранённый анализ",
+          },
+        }));
+        settled = true;
+      });
+
+    return () => {
+      controller.abort();
+      if (!settled) previewLoads.delete(loadKey);
+    };
+  }, [accessToken, selectedCompletedCount, selectedPreviewRevision, selectedProjectId]);
+
+  useEffect(() => {
+    if (!downloadProjectId) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      const downloadButton = downloadFrameRef.current?.contentDocument?.querySelector<HTMLButtonElement>("[data-simple-download-analysis]");
+      if (downloadButton && !downloadButton.disabled) {
+        downloadButton.click();
+        window.clearInterval(timer);
+        setDownloadMessage("Файл подготовлен и передан в загрузки браузера.");
+        window.setTimeout(() => {
+          setDownloadProjectId("");
+          setDownloadMessage("");
+        }, 2400);
+        return;
+      }
+      if (Date.now() - startedAt > 90000) {
+        window.clearInterval(timer);
+        setDownloadProjectId("");
+        setDownloadMessage("Не удалось подготовить файл автоматически. Откройте полный анализ и скачайте его там.");
+      }
+    }, 400);
+    return () => window.clearInterval(timer);
+  }, [downloadProjectId]);
 
   function selectProject(projectId: string) {
     const nextProjectId = selectedProjectId === projectId ? null : projectId;
     setSelectedProjectId(nextProjectId);
     onProjectOpenChange?.(Boolean(nextProjectId), true);
     setProjectView("overview");
+    setAnalysisLaunchMode("view");
     setEditingProjectId("");
     setInlineEditForm(null);
     setInlineEditError("");
+    if (nextProjectId && isCompactLayout) {
+      setCollapsedPanels((current) => ({
+        ...current,
+        [`${nextProjectId}:participant`]: false,
+        [`${nextProjectId}:access`]: true,
+        [`${nextProjectId}:results`]: true,
+      }));
+    }
   }
 
   function togglePanel(projectId: string, panel: DetailPanel) {
     const key = `${projectId}:${panel}`;
-    setCollapsedPanels((current) => ({ ...current, [key]: !current[key] }));
+    setCollapsedPanels((current) => {
+      const nextCollapsed = !current[key];
+      if (!isCompactLayout || nextCollapsed) return { ...current, [key]: nextCollapsed };
+      return {
+        ...current,
+        [`${projectId}:participant`]: panel !== "participant",
+        [`${projectId}:access`]: panel !== "access",
+        [`${projectId}:results`]: panel !== "results",
+      };
+    });
   }
 
   async function copyLink(url: string) {
@@ -372,13 +512,14 @@ export function SimpleDashboard({
   }
 
   function downloadProjectAnalysis(projectId: string) {
-    const frameDocument = aiPreviewFrameRefs.current[projectId]?.contentDocument;
-    const downloadButton = frameDocument?.querySelector<HTMLButtonElement>("[data-simple-download-analysis]");
-    if (downloadButton && !downloadButton.disabled) {
-      downloadButton.click();
-      return;
-    }
-    setProjectView("results");
+    if (downloadProjectId) return;
+    setDownloadMessage("Подготавливаем файл Word без повторного списания...");
+    setDownloadProjectId(projectId);
+  }
+
+  function chooseFolder(folderId: string) {
+    setFolderFilter(folderId);
+    if (isCompactLayout) setFoldersExpanded(false);
   }
 
   async function startAiPlusAnalysis(project: SimpleDashboardProject) {
@@ -396,6 +537,22 @@ export function SimpleDashboard({
 
     const currentMode = project.unlocked_package_mode || null;
     if (isPackageAccessible(currentMode, AI_PLUS_PACKAGE)) {
+      const previewState = aiPreviews[project.id]?.state;
+      if (!previewState || previewState === "loading") {
+        setAiPurchaseStates((current) => ({
+          ...current,
+          [project.id]: { state: "error", message: "Проверяем сохранённый анализ. Подождите несколько секунд." },
+        }));
+        return;
+      }
+      if (previewState === "error") {
+        setAiPurchaseStates((current) => ({
+          ...current,
+          [project.id]: { state: "error", message: "Не удалось проверить сохранённый анализ. Повторите загрузку результата." },
+        }));
+        return;
+      }
+      setAnalysisLaunchMode(previewState === "ready" ? "view" : "generate");
       setProjectView("results");
       return;
     }
@@ -455,6 +612,7 @@ export function SimpleDashboard({
       }));
       await Promise.allSettled([onRefresh(), onRefreshWallet()]);
       setAiPreviewRevisions((current) => ({ ...current, [project.id]: (current[project.id] || 0) + 1 }));
+      setAnalysisLaunchMode("generate");
       setProjectView("results");
     } catch (purchaseError: any) {
       setAiPurchaseStates((current) => ({
@@ -601,15 +759,31 @@ export function SimpleDashboard({
       {mainView === "projects" ? (
         <>
           <div className={styles.projectsLayout}>
-            <aside className={styles.folderSection} data-drag-active={Boolean(draggedProjectId)} data-onboarding-id="simple-folders" aria-label="Папки проектов">
+            <aside
+              className={styles.folderSection}
+              data-drag-active={Boolean(draggedProjectId)}
+              data-mobile-open={foldersExpanded}
+              data-onboarding-id="simple-folders"
+              aria-label="Папки проектов"
+            >
               <div className={styles.sectionHeading}>
                 <strong>Папки</strong>
+                <button
+                  type="button"
+                  className={styles.folderMobileToggle}
+                  onClick={() => setFoldersExpanded((current) => !current)}
+                  aria-expanded={foldersExpanded}
+                  aria-label={`${foldersExpanded ? "Свернуть" : "Открыть"} список папок. Выбрано: ${activeFolder?.name || (folderFilter === "without-folder" ? "Без папки" : "Все проекты")}`}
+                >
+                  <span>{activeFolder?.name || (folderFilter === "without-folder" ? "Без папки" : "Все проекты")}</span>
+                  <Icon name="arrow" />
+                </button>
               </div>
               <button type="button" className={styles.newFolderCard} data-onboarding-id="dashboard-create-folder" onClick={onCreateFolder}>
                 <Icon name="plus" /><span>Создать папку</span>
               </button>
               <div className={styles.folderCards}>
-                <button type="button" data-active={folderFilter === "all"} onClick={() => setFolderFilter("all")}>
+                <button type="button" data-active={folderFilter === "all"} onClick={() => chooseFolder("all")}>
                   <Icon name="folder" /><strong>Все проекты</strong><small>{projects.length}</small>
                 </button>
                 {folders.map((folder) => (
@@ -619,7 +793,7 @@ export function SimpleDashboard({
                     data-active={folderFilter === folder.id}
                     data-drop-enabled={Boolean(draggedProjectId)}
                     data-drop-target={dragOverFolderId === folder.id}
-                    onClick={() => setFolderFilter(folder.id)}
+                    onClick={() => chooseFolder(folder.id)}
                     onDragEnter={(event) => allowFolderDrop(event, folder.id)}
                     onDragOver={(event) => allowFolderDrop(event, folder.id)}
                     onDragLeave={() => setDragOverFolderId((current) => current === folder.id ? "" : current)}
@@ -633,7 +807,7 @@ export function SimpleDashboard({
                   data-active={folderFilter === "without-folder"}
                   data-drop-enabled={Boolean(draggedProjectId)}
                   data-drop-target={dragOverFolderId === "without-folder"}
-                  onClick={() => setFolderFilter("without-folder")}
+                  onClick={() => chooseFolder("without-folder")}
                   onDragEnter={(event) => allowFolderDrop(event, "")}
                   onDragOver={(event) => allowFolderDrop(event, "")}
                   onDragLeave={() => setDragOverFolderId((current) => current === "without-folder" ? "" : current)}
@@ -667,16 +841,29 @@ export function SimpleDashboard({
                   <Icon name="search" />
                   <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск проектов" />
                 </label>
-                <button type="button" className={styles.filterButton} data-active={toolsOpen} onClick={() => setToolsOpen((current) => !current)}>
+                <button
+                  type="button"
+                  className={styles.filterButton}
+                  data-active={toolsOpen || statusFilter !== "all"}
+                  onClick={() => setToolsOpen((current) => !current)}
+                  aria-label="Открыть фильтры и дополнительные действия"
+                  aria-expanded={toolsOpen}
+                >
                   <Icon name="filter" /><span>Фильтры</span>
                 </button>
               </section>
 
               {toolsOpen ? (
                 <section className={styles.quickTools}>
+                  <div className={styles.statusFilters} role="group" aria-label="Фильтр по готовности проектов">
+                    <button type="button" data-active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>Все</button>
+                    <button type="button" data-active={statusFilter === "active"} onClick={() => setStatusFilter("active")}>В процессе</button>
+                    <button type="button" data-active={statusFilter === "waiting"} onClick={() => setStatusFilter("waiting")}>Не начаты</button>
+                    <button type="button" data-active={statusFilter === "completed"} onClick={() => setStatusFilter("completed")}>Завершены</button>
+                  </div>
                   <button type="button" onClick={() => setMainView("tests")}><Icon name="tests" />Каталог тестов</button>
                   <button type="button" onClick={onOpenTrash}><Icon name="archive" />Корзина{trashCount ? ` · ${trashCount}` : ""}</button>
-                  <button type="button" onClick={() => { setFolderFilter("all"); setQuery(""); }}>Сбросить фильтры</button>
+                  <button type="button" onClick={() => { setFolderFilter("all"); setStatusFilter("all"); setQuery(""); }}>Сбросить</button>
                 </section>
               ) : null}
 
@@ -686,13 +873,26 @@ export function SimpleDashboard({
               <div className={styles.empty}><strong>Проектов пока нет</strong><span>Создайте первый проект, чтобы начать оценку.</span><button type="button" onClick={() => setMainView("create")}>Создать проект</button></div>
             ) : null}
             {!loading && projects.length > 0 && !visibleProjects.length ? (
-              <div className={styles.empty}><strong>Ничего не найдено</strong><span>Измените запрос или выберите другую папку.</span><button type="button" onClick={() => { setQuery(""); setFolderFilter("all"); }}>Сбросить фильтры</button></div>
+              <div className={styles.empty}><strong>Ничего не найдено</strong><span>Измените запрос, статус или выберите другую папку.</span><button type="button" onClick={() => { setQuery(""); setFolderFilter("all"); setStatusFilter("all"); }}>Сбросить фильтры</button></div>
             ) : null}
 
-            {!loading ? visibleProjects.map((project) => {
+            {!loading ? visibleProjectGroups.map((group) => (
+              <section key={group.key} className={styles.projectFolderGroup} data-grouped={folderFilter === "all"}>
+                {folderFilter === "all" ? (
+                  <header className={styles.projectFolderGroupLabel}>
+                    <Icon name="folder" />
+                    <strong>{group.name}</strong>
+                    <small>{group.projects.length}</small>
+                  </header>
+                ) : null}
+                <div className={styles.projectFolderGroupList}>
+                  {group.projects.map((project) => {
               const progress = projectProgress(project);
               const isSelected = selectedProject?.id === project.id;
-              const completed = Math.min(project.attempts_count, project.tests.length);
+              const completed = completedTestCount(project);
+              const completedSlugs = new Set(
+                project.completed_test_slugs || (progress === 100 ? project.tests.map((test) => test.test_slug) : [])
+              );
               const allTestsCompleted = project.tests.length > 0 && completed >= project.tests.length;
               const shareLinks = project.invite_token
                 ? PRIMARY_INVITE_BASE_URLS.map((item) => ({ ...item, url: `${item.baseUrl}/invite/${project.invite_token}` }))
@@ -705,16 +905,20 @@ export function SimpleDashboard({
               const aiPurchaseState = aiPurchaseStates[project.id];
               const currentPackageMode = project.unlocked_package_mode || null;
               const aiPlusUnlocked = isPackageAccessible(currentPackageMode, AI_PLUS_PACKAGE);
+              const aiPreviewChecking = aiPlusUnlocked && (!aiPreview || aiPreview.state === "loading");
               const aiPlusUpgradePriceRub = getUpgradePriceRub(currentPackageMode, AI_PLUS_PACKAGE);
               const projectCoveredBySubscription = Boolean(activeSubscription?.covered_project_ids?.includes(project.id));
               const subscriptionCanCoverProject = projectCoveredBySubscription || Number(activeSubscription?.projects_remaining || 0) > 0;
-              const showSubscriptionBalance = projectCoveredBySubscription || (!aiPlusUnlocked && subscriptionCanCoverProject);
               const walletBalanceRub = Math.floor(Number(balanceKopeks || 0) / 100);
               const walletCanCoverProject = isUnlimited || walletBalanceRub >= aiPlusUpgradePriceRub;
-              const subscriptionRemainingAfter = projectCoveredBySubscription
-                ? Number(activeSubscription?.projects_remaining || 0)
-                : Math.max(0, Number(activeSubscription?.projects_remaining || 0) - 1);
-              const walletBalanceAfterRub = Math.max(0, walletBalanceRub - aiPlusUpgradePriceRub);
+              const fullAnalysisReady = aiPreview?.state === "ready";
+              const fullAnalysisPriceLabel = aiPlusUnlocked
+                ? ""
+                : isUnlimited
+                  ? "(без списания)"
+                  : subscriptionCanCoverProject
+                    ? "(по подписке)"
+                    : `(${formatCompactRub(aiPlusUpgradePriceRub)})`;
               const aiPlusNeedsPayment = allTestsCompleted
                 && !aiPlusUnlocked
                 && !isUnlimited
@@ -756,7 +960,11 @@ export function SimpleDashboard({
                         aria-label={`Папка проекта «${project.title}»`}
                       >
                         <option value="">Без папки</option>
-                        {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                        {folders.map((folder) => (
+                          <option key={folder.id} value={folder.id}>
+                            {folder.name} · {projectCountByFolder.get(folder.id) || 0}
+                          </option>
+                        ))}
                       </select>
                     </label>
                   </div>
@@ -895,9 +1103,15 @@ export function SimpleDashboard({
                                   <div className={styles.completionBar}><i style={{ width: `${progress}%` }} /></div>
                                 </div>
                                 <div className={styles.testList}>
-                                  {project.tests.slice().sort((a, b) => a.sort_order - b.sort_order).map((test) => (
-                                    <div key={test.test_slug}><span>{test.test_title}</span><small>{progress === 100 ? "Завершён" : "Назначен"}</small></div>
-                                  ))}
+                                  {project.tests.slice().sort((a, b) => a.sort_order - b.sort_order).map((test) => {
+                                    const testCompleted = completedSlugs.has(test.test_slug);
+                                    return (
+                                      <div key={test.test_slug}>
+                                        <span>{test.test_title}</span>
+                                        <small data-completed={testCompleted}>{testCompleted ? "Завершён" : "Ожидает"}</small>
+                                      </div>
+                                    );
+                                  })}
                                   {!project.tests.length ? <div className={styles.noTests}>Тесты ещё не назначены.</div> : null}
                                 </div>
                               </div>
@@ -912,69 +1126,56 @@ export function SimpleDashboard({
                                   <button
                                     type="button"
                                     className={styles.primaryAction}
-                                    onClick={() => void startAiPlusAnalysis(project)}
-                                    disabled={!allTestsCompleted || aiPurchaseState?.state === "processing"}
+                                    onClick={() => fullAnalysisReady ? onOpenResults(project.id) : void startAiPlusAnalysis(project)}
+                                    disabled={!allTestsCompleted || aiPurchaseState?.state === "processing" || aiPreviewChecking}
                                     title={allTestsCompleted
-                                      ? aiPlusUnlocked
-                                        ? "Открыть готовый анализ Премиум AI+"
+                                      ? fullAnalysisReady
+                                        ? "Открыть страницу с полным анализом"
+                                        : aiPlusUnlocked
+                                        ? aiPreviewChecking
+                                          ? "Проверяем, есть ли сохранённый анализ"
+                                          : "Сформировать полный анализ Премиум AI+"
                                         : subscriptionCanCoverProject || isUnlimited
                                           ? "Открыть Премиум AI+ по действующему тарифу"
-                                          : `Открыть Премиум AI+ за ${formatCompactRub(aiPlusUpgradePriceRub)}`
+                                          : `Сделать полный анализ за ${formatCompactRub(aiPlusUpgradePriceRub)}`
                                       : "ИИ-анализ станет доступен после завершения всех тестов"}
                                   >
                                     <Icon name="sparkles" />
-                                    {aiPurchaseState?.state === "processing"
-                                      ? "Открываем AI+..."
-                                      : aiPlusUnlocked
-                                        ? "Открыть ИИ-анализ"
-                                        : "Сделать ИИ-анализ"}
+                                    <span className={styles.analysisActionText}>
+                                      <span>{aiPurchaseState?.state === "processing"
+                                        ? "Формируем полный анализ..."
+                                        : aiPreviewChecking
+                                          ? "Проверяем анализ..."
+                                          : fullAnalysisReady
+                                            ? "Открыть полный анализ"
+                                            : "Сделать полный анализ"}</span>
+                                      {!fullAnalysisReady && aiPurchaseState?.state !== "processing" && !aiPreviewChecking && fullAnalysisPriceLabel ? (
+                                        <small>{fullAnalysisPriceLabel}</small>
+                                      ) : null}
+                                    </span>
                                   </button>
                                   <button
                                     type="button"
                                     className={styles.secondaryAction}
                                     onClick={() => downloadProjectAnalysis(project.id)}
-                                    disabled={!allTestsCompleted || aiPreview?.state !== "ready"}
+                                    disabled={!allTestsCompleted || aiPreview?.state !== "ready" || Boolean(downloadProjectId)}
                                     title={!allTestsCompleted
                                       ? "Скачивание станет доступно после завершения всех тестов"
                                       : aiPreview?.state === "ready"
                                         ? "Скачать сформированный анализ в Word"
                                         : "Сначала сформируйте ИИ-анализ"}
                                   >
-                                    <Icon name="download" />Скачать анализ
+                                    <Icon name="download" />{downloadProjectId === project.id ? "Готовим файл..." : "Скачать анализ"}
                                   </button>
                                 </div>
                                 <div
                                   className={styles.aiBillingSummary}
                                   data-tone={aiPlusUnlocked ? "ready" : aiPlusNeedsPayment ? "attention" : "available"}
-                                  aria-label="Условия запуска Премиум AI+"
+                                  aria-label="Текущий баланс"
                                 >
                                   <div>
-                                    <span>Уровень</span>
-                                    <strong>Премиум AI+</strong>
-                                  </div>
-                                  <div>
-                                    <span>Списание</span>
-                                    <strong>
-                                      {aiPlusUnlocked || isUnlimited
-                                        ? "0 ₽"
-                                        : subscriptionCanCoverProject
-                                          ? projectCoveredBySubscription ? "Уже учтён" : "1 проект"
-                                          : walletLoading || balanceKopeks == null
-                                            ? "Проверяем..."
-                                            : formatCompactRub(aiPlusUpgradePriceRub)}
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span>{showSubscriptionBalance ? "Остаток тарифа" : aiPlusUnlocked ? "Баланс" : "Баланс после"}</span>
-                                    <strong>
-                                      {showSubscriptionBalance
-                                        ? formatProjectBalance(aiPlusUnlocked ? Number(activeSubscription?.projects_remaining || 0) : subscriptionRemainingAfter)
-                                        : isUnlimited
-                                          ? "Без лимита"
-                                          : walletLoading || balanceKopeks == null
-                                            ? balanceText
-                                            : formatCompactRub(aiPlusUnlocked ? walletBalanceRub : walletCanCoverProject ? walletBalanceAfterRub : walletBalanceRub)}
-                                    </strong>
+                                    <span>Текущий баланс</span>
+                                    <strong>{isUnlimited ? "Без лимита" : walletLoading || balanceKopeks == null ? balanceText : formatCompactRub(walletBalanceRub)}</strong>
                                   </div>
                                 </div>
                                 {aiPlusNeedsPayment ? (
@@ -994,21 +1195,13 @@ export function SimpleDashboard({
                                     {aiPurchaseState.message}
                                   </div>
                                 ) : null}
+                                {downloadMessage && (downloadProjectId === project.id || !downloadProjectId) ? (
+                                  <div className={styles.aiPurchaseNotice} data-tone={downloadProjectId ? "processing" : "success"} role="status" aria-live="polite">
+                                    {downloadMessage}
+                                  </div>
+                                ) : null}
                                 {!allTestsCompleted ? (
                                   <span className={styles.analysisWaiting}>Кнопки станут доступны после завершения всех назначенных тестов.</span>
-                                ) : null}
-                                {project.attempts_count > 0 ? (
-                                  <iframe
-                                    key={`${project.id}:${aiPreviewRevisions[project.id] || 0}`}
-                                    ref={(node) => {
-                                      aiPreviewFrameRefs.current[project.id] = node;
-                                    }}
-                                    className={styles.aiPreviewBridge}
-                                    src={`/projects/${project.id}/results?embedded=1&compact=1`}
-                                    title={`Подготовка аналитического вывода: ${project.title}`}
-                                    tabIndex={-1}
-                                    aria-hidden="true"
-                                  />
                                 ) : null}
 
                                 {aiPreview?.state === "ready" && aiPreview.summary ? (
@@ -1046,15 +1239,33 @@ export function SimpleDashboard({
                                 ) : aiPreview?.state === "loading" && project.attempts_count > 0 ? (
                                   <div className={styles.aiLoadingPreview}>
                                     <Icon name="sparkles" />
-                                    <strong>Подготавливаем итоговый вывод</strong>
-                                    <span>Загружаем уже сохранённый аналитический результат проекта.</span>
+                                    <strong>Открываем сохранённый вывод</strong>
+                                    <span>Только читаем готовый результат, без повторного анализа и списания.</span>
+                                  </div>
+                                ) : aiPreview?.state === "error" ? (
+                                  <div className={styles.aiEmptyPreview}>
+                                    <Icon name="sparkles" />
+                                    <strong>Не удалось показать сохранённый вывод</strong>
+                                    <span>{aiPreview.message || "Проверьте соединение и попробуйте ещё раз."}</span>
+                                    <button
+                                      type="button"
+                                      className={styles.secondaryAction}
+                                      onClick={() => {
+                                        aiPreviewLoadsRef.current.delete(`${project.id}:${aiPreviewRevisions[project.id] || 0}`);
+                                        setAiPreviewRevisions((current) => ({ ...current, [project.id]: (current[project.id] || 0) + 1 }));
+                                      }}
+                                    >
+                                      Повторить загрузку
+                                    </button>
                                   </div>
                                 ) : (
                                   <div className={styles.aiEmptyPreview}>
                                     <Icon name="sparkles" />
-                                    <strong>{project.attempts_count > 0 ? "Итоговый анализ ещё не открыт" : "Результатов пока нет"}</strong>
+                                    <strong>{project.attempts_count > 0 ? "Готового ИИ-вывода пока нет" : "Результатов пока нет"}</strong>
                                     <span>{project.attempts_count > 0
-                                      ? "Откройте результаты проекта, чтобы выбрать доступный уровень анализа. После этого вывод появится здесь автоматически."
+                                      ? allTestsCompleted
+                                        ? "Нажмите «Сделать полный анализ». После формирования готовый краткий вывод будет открываться здесь без повторного запуска модели."
+                                        : "Завершите назначенные тесты. Здесь появится итоговый вывод по их результатам."
                                       : "Окно анализа заполнится после первого завершённого теста."}</span>
                                   </div>
                                 )}
@@ -1068,11 +1279,14 @@ export function SimpleDashboard({
 
                       {projectView === "results" ? (
                         <EmbeddedWorkspace
-                          src={`/projects/${project.id}/results?embedded=1&compact=1`}
+                          src={`/projects/${project.id}/results?embedded=1&compact=1&${analysisLaunchMode === "generate" ? "generate=1" : "view_only=1"}`}
                           title={`Анализ: ${project.person?.full_name || project.title}`}
                           description="Премиум AI+"
                           variant="analysis"
-                          onBack={() => setProjectView("overview")}
+                          onBack={() => {
+                            setAnalysisLaunchMode("view");
+                            setProjectView("overview");
+                          }}
                           onOpenSeparate={() => onOpenResults(project.id)}
                         />
                       ) : null}
@@ -1080,12 +1294,25 @@ export function SimpleDashboard({
                   ) : null}
                 </article>
               );
-            }) : null}
+                  })}
+                </div>
+              </section>
+            )) : null}
               </section>
             </div>
           </div>
         </>
       ) : embeddedSection}
+      {downloadProjectId ? (
+        <iframe
+          ref={downloadFrameRef}
+          className={styles.aiPreviewBridge}
+          src={`/projects/${downloadProjectId}/results?embedded=1&compact=1&view_only=1`}
+          title="Подготовка файла анализа"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      ) : null}
     </main>
   );
 }

@@ -15,6 +15,13 @@ export function getSupabaseAuthStorageKey(url?: string) {
   }
 }
 
+export function clearPersistedSupabaseSession(url?: string) {
+  createSupabaseAuthStorage().removeItem(getSupabaseAuthStorageKey(url));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("lk-auth-session", { detail: null }));
+  }
+}
+
 /**
  * Browser-only singleton Supabase client.
  * Returns null if env is not configured.
