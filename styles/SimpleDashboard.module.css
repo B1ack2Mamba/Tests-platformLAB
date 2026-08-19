@@ -2731,12 +2731,11 @@
 
 .sidebarDecoration {
   width: min(100%, 226px);
-  height: clamp(320px, 42vh, 420px);
-  margin: 18px auto 0;
+  height: clamp(360px, 48vh, 470px);
+  margin: 28px auto 0;
   flex: 0 0 auto;
   background: url("/icons/lab-botanical-left.webp") center top / contain no-repeat;
-  opacity: 0.94;
-  filter: saturate(1.12) contrast(1.08);
+  opacity: 0.8;
   pointer-events: none;
   user-select: none;
 }
