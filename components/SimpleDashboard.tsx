@@ -870,6 +870,7 @@ export function SimpleDashboard({
                   <button type="button" data-danger="true" onClick={() => onDeleteFolder(activeFolder)}>Удалить</button>
                 </div>
               ) : null}
+              <div className={styles.sidebarDecoration} aria-hidden="true" />
             </aside>
 
             <div className={styles.projectWorkspace}>

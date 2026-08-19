@@ -2729,6 +2729,17 @@
   background: #fff;
 }
 
+.sidebarDecoration {
+  width: min(100%, 226px);
+  height: clamp(250px, 38vh, 380px);
+  margin: 24px auto 0;
+  flex: 0 0 auto;
+  background: url("/icons/lab-botanical-left.webp") center top / contain no-repeat;
+  opacity: 0.72;
+  pointer-events: none;
+  user-select: none;
+}
+
 .toolbar {
   grid-template-columns: 224px minmax(220px, 1fr) 142px;
   gap: 12px;
@@ -2964,6 +2975,16 @@
 
   .folderSection {
     padding-right: 0;
+  }
+
+  .sidebarDecoration {
+    display: none;
+  }
+}
+
+@media (min-width: 981px) and (max-height: 700px) {
+  .sidebarDecoration {
+    display: none;
   }
 }
 
