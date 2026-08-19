@@ -366,7 +366,7 @@ export function SimpleDashboard({
           name: "Без папки",
           projects: visibleProjects.filter((project) => !project.folder_id),
         },
-      ].filter((group) => group.projects.length > 0)
+      ]
     : [{
         key: folderFilter,
         name: activeFolder?.name || "Без папки",
@@ -648,14 +648,22 @@ export function SimpleDashboard({
     setDragOverFolderId("");
   }
 
-  function allowFolderDrop(event: ReactDragEvent<HTMLButtonElement>, folderId: string) {
+  function allowFolderDrop(event: ReactDragEvent<HTMLElement>, folderId: string) {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     setDragOverFolderId(folderId || "without-folder");
   }
 
-  async function dropProjectIntoFolder(event: ReactDragEvent<HTMLButtonElement>, folderId: string) {
+  function leaveFolderDropTarget(event: ReactDragEvent<HTMLElement>, folderId: string) {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+    const targetKey = folderId || "without-folder";
+    setDragOverFolderId((current) => current === targetKey ? "" : current);
+  }
+
+  async function dropProjectIntoFolder(event: ReactDragEvent<HTMLElement>, folderId: string) {
     event.preventDefault();
+    event.stopPropagation();
     const projectId = event.dataTransfer.getData("text/plain") || draggedProjectId;
     const project = projects.find((item) => item.id === projectId);
     const targetFolderId = folderId || "";
@@ -876,8 +884,26 @@ export function SimpleDashboard({
               <div className={styles.empty}><strong>Ничего не найдено</strong><span>Измените запрос, статус или выберите другую папку.</span><button type="button" onClick={() => { setQuery(""); setFolderFilter("all"); setStatusFilter("all"); }}>Сбросить фильтры</button></div>
             ) : null}
 
-            {!loading ? visibleProjectGroups.map((group) => (
-              <section key={group.key} className={styles.projectFolderGroup} data-grouped={folderFilter === "all"}>
+            {!loading ? visibleProjectGroups.map((group) => {
+              const targetFolderId = group.key === "without-folder" ? "" : group.key;
+              const draggedProject = draggedProjectId ? projects.find((project) => project.id === draggedProjectId) : null;
+              const acceptsDrop = folderFilter === "all"
+                && Boolean(draggedProject)
+                && (draggedProject?.folder_id || "") !== targetFolderId;
+              const targetKey = targetFolderId || "without-folder";
+
+              return (
+              <section
+                key={group.key}
+                className={styles.projectFolderGroup}
+                data-grouped={folderFilter === "all"}
+                data-drop-enabled={acceptsDrop}
+                data-drop-target={acceptsDrop && dragOverFolderId === targetKey}
+                onDragEnter={acceptsDrop ? (event) => allowFolderDrop(event, targetFolderId) : undefined}
+                onDragOver={acceptsDrop ? (event) => allowFolderDrop(event, targetFolderId) : undefined}
+                onDragLeave={acceptsDrop ? (event) => leaveFolderDropTarget(event, targetFolderId) : undefined}
+                onDrop={acceptsDrop ? (event) => void dropProjectIntoFolder(event, targetFolderId) : undefined}
+              >
                 {folderFilter === "all" ? (
                   <header className={styles.projectFolderGroupLabel}>
                     <Icon name="folder" />
@@ -886,6 +912,12 @@ export function SimpleDashboard({
                   </header>
                 ) : null}
                 <div className={styles.projectFolderGroupList}>
+                  {!group.projects.length ? (
+                    <div className={styles.projectFolderDropHint} data-active={acceptsDrop && dragOverFolderId === targetKey}>
+                      <Icon name="folder" />
+                      <span>Перетащите проект сюда</span>
+                    </div>
+                  ) : null}
                   {group.projects.map((project) => {
               const progress = projectProgress(project);
               const isSelected = selectedProject?.id === project.id;
@@ -1297,7 +1329,8 @@ export function SimpleDashboard({
                   })}
                 </div>
               </section>
-            )) : null}
+              );
+            }) : null}
               </section>
             </div>
           </div>

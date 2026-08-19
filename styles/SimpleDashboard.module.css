@@ -501,6 +501,7 @@
 
 .projectFolderGroup {
   min-width: 0;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .projectFolderGroup[data-grouped="true"] {
@@ -511,6 +512,24 @@
   border-radius: 14px;
   background: rgba(250, 252, 250, 0.72);
   box-shadow: 0 12px 30px -30px rgba(25, 76, 47, 0.55);
+}
+
+.projectFolderGroup[data-grouped="true"][data-drop-enabled="true"] {
+  border-style: dashed;
+  border-color: #b8cdbd;
+}
+
+.projectFolderGroup[data-grouped="true"][data-drop-target="true"] {
+  border-style: solid;
+  border-color: #3c8b5e;
+  background: #edf8ef;
+  box-shadow: 0 0 0 3px rgba(45, 126, 80, 0.12), 0 18px 34px -28px rgba(25, 76, 47, 0.62);
+}
+
+.projectFolderGroup[data-drop-target="true"] .projectFolderGroupLabel {
+  border-color: #72a982;
+  color: #174c31;
+  background: #f4fbf5;
 }
 
 .projectFolderGroupLabel {
@@ -563,6 +582,34 @@
 
 .projectFolderGroupList {
   min-width: 0;
+}
+
+.projectFolderDropHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 60px;
+  margin: 2px 0 10px;
+  padding: 12px 16px;
+  border: 1px dashed #cbd9ce;
+  border-radius: 10px;
+  color: #698075;
+  background: rgba(255, 255, 255, 0.66);
+  font-size: 13px;
+  text-align: center;
+}
+
+.projectFolderDropHint svg {
+  width: 18px;
+  height: 18px;
+  color: #5f9470;
+}
+
+.projectFolderDropHint[data-active="true"] {
+  border-color: #3c8b5e;
+  color: #174c31;
+  background: #def1e3;
 }
 
 .projectFolderGroup[data-grouped="true"] .projectEntry:last-child {
