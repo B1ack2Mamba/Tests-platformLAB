@@ -4,13 +4,14 @@ import { SimpleDashboardIcon as Icon } from "@/components/SimpleDashboardIcon";
 import {
   COMMERCIAL_GOALS,
   getGoalDefinition,
-  getUpgradePriceRub,
+  getEvaluationPackagePriceRub,
   isAssessmentGoal,
   isPackageAccessible,
   type AssessmentGoal,
   type EvaluationPackage,
 } from "@/lib/commercialGoals";
 import type { WorkspaceSubscriptionStatus } from "@/lib/commercialSubscriptions";
+import { buildCompactEvaluationPreview } from "@/lib/commercialEvaluationPreview";
 import { MOBILE_INTERFACE_MEDIA_QUERY } from "@/lib/interfaceMode";
 import styles from "../styles/SimpleDashboard.module.css";
 
@@ -72,6 +73,9 @@ type AiPreview = {
 type AiPurchaseState = {
   state: "processing" | "success" | "error";
   message: string;
+  progressStep?: number;
+  billingMessage?: string;
+  action?: WalletFocus;
 };
 type WalletFocus = "topup" | "subscription";
 
@@ -112,6 +116,40 @@ const PRIMARY_INVITE_BASE_URLS = [
 ] as const;
 
 const AI_PLUS_PACKAGE: EvaluationPackage = "premium_ai_plus";
+const AI_PLUS_PACKAGE_PRICE_RUB = getEvaluationPackagePriceRub(AI_PLUS_PACKAGE);
+const AI_ANALYSIS_STEPS = [
+  "Интерпретируем результаты тестов",
+  "Анализируем компетенции",
+  "Собираем итоговый профиль",
+  "Сохраняем результат",
+] as const;
+
+function normalizeAiPreview(payload: any): AiPreview {
+  const preview = payload?.preview || {};
+  const state = payload?.state === "ready" || payload?.state === "locked" || payload?.state === "empty"
+    ? payload.state
+    : "empty";
+
+  return {
+    state,
+    modeTitle: typeof preview.modeTitle === "string" ? preview.modeTitle : "Результат",
+    summary: typeof preview.summary === "string" ? preview.summary : "",
+    strengths: Array.isArray(preview.strengths) ? preview.strengths.filter((item: unknown): item is string => typeof item === "string") : [],
+    risks: Array.isArray(preview.risks) ? preview.risks.filter((item: unknown): item is string => typeof item === "string") : [],
+    recommendation: typeof preview.recommendation === "string" ? preview.recommendation : "",
+  };
+}
+
+async function requestAiPreview(accessToken: string, projectId: string, signal?: AbortSignal): Promise<AiPreview> {
+  const response = await fetch(`/api/commercial/projects/evaluation-preview?id=${encodeURIComponent(projectId)}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    signal,
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Не удалось загрузить сохранённый анализ");
+  return normalizeAiPreview(payload);
+}
 
 function formatCompactRub(value: number) {
   return `${Math.max(0, Math.floor(value)).toLocaleString("ru-RU")} ₽`;
@@ -308,6 +346,7 @@ export function SimpleDashboard({
   const [downloadMessage, setDownloadMessage] = useState("");
   const downloadFrameRef = useRef<HTMLIFrameElement | null>(null);
   const aiPreviewLoadsRef = useRef(new Set<string>());
+  const aiAnalysisRunsRef = useRef(new Set<string>());
   const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase("ru"));
 
   useEffect(() => {
@@ -429,28 +468,11 @@ export function SimpleDashboard({
       },
     }));
 
-    void fetch(`/api/commercial/projects/evaluation-preview?id=${encodeURIComponent(selectedProjectId)}`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-      signal: controller.signal,
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Не удалось загрузить сохранённый анализ");
-        const preview = payload?.preview || {};
-        const state = payload?.state === "ready" || payload?.state === "locked" || payload?.state === "empty"
-          ? payload.state
-          : "empty";
+    void requestAiPreview(accessToken, selectedProjectId, controller.signal)
+      .then((preview) => {
         setAiPreviews((current) => ({
           ...current,
-          [selectedProjectId]: {
-            state,
-            modeTitle: typeof preview.modeTitle === "string" ? preview.modeTitle : "Результат",
-            summary: typeof preview.summary === "string" ? preview.summary : "",
-            strengths: Array.isArray(preview.strengths) ? preview.strengths.filter((item: unknown): item is string => typeof item === "string") : [],
-            risks: Array.isArray(preview.risks) ? preview.risks.filter((item: unknown): item is string => typeof item === "string") : [],
-            recommendation: typeof preview.recommendation === "string" ? preview.recommendation : "",
-          },
+          [selectedProjectId]: preview,
         }));
         settled = true;
       })
@@ -554,8 +576,94 @@ export function SimpleDashboard({
     if (isCompactLayout) setFoldersExpanded(false);
   }
 
-  async function startAiPlusAnalysis(project: SimpleDashboardProject) {
-    if (!accessToken || aiPurchaseStates[project.id]?.state === "processing") return;
+  function focusInlineAnalysis(projectId: string) {
+    window.requestAnimationFrame(() => {
+      document.getElementById(`simple-ai-result-${projectId}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+
+  function setAiAnalysisProgress(projectId: string, step: number, billingMessage = "") {
+    setAiPurchaseStates((current) => ({
+      ...current,
+      [projectId]: {
+        state: "processing",
+        progressStep: step,
+        billingMessage: billingMessage || current[projectId]?.billingMessage,
+        message: `${step} из ${AI_ANALYSIS_STEPS.length}. ${AI_ANALYSIS_STEPS[step - 1]}...`,
+      },
+    }));
+  }
+
+  async function requestAiEvaluationStage(
+    projectId: string,
+    stage: "tests" | "competencies" | "summary",
+    options?: { batchStart?: number; force?: boolean }
+  ) {
+    const params = new URLSearchParams({
+      id: projectId,
+      mode: AI_PLUS_PACKAGE,
+      stage,
+    });
+    if (typeof options?.batchStart === "number") {
+      params.set("batch_start", String(options.batchStart));
+      params.set("batch_size", "2");
+    }
+    if (options?.force) params.set("refresh", "1");
+
+    const response = await fetch(`/api/commercial/projects/evaluation?${params.toString()}`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || "Не удалось сформировать полный анализ");
+    }
+    return payload;
+  }
+
+  async function buildInlineAiPlusAnalysis(projectId: string, force: boolean, billingMessage: string) {
+    setAiPreviews((current) => ({
+      ...current,
+      [projectId]: {
+        state: "loading",
+        modeTitle: "Премиум AI+",
+        summary: "",
+        strengths: [],
+        risks: [],
+        recommendation: "",
+      },
+    }));
+
+    setAiAnalysisProgress(projectId, 1, billingMessage);
+    let batchStart = 0;
+    for (;;) {
+      const testsPayload = await requestAiEvaluationStage(projectId, "tests", { batchStart, force });
+      if (!testsPayload?.has_more) break;
+      batchStart += 2;
+    }
+
+    setAiAnalysisProgress(projectId, 2, billingMessage);
+    await requestAiEvaluationStage(projectId, "competencies", { force });
+
+    setAiAnalysisProgress(projectId, 3, billingMessage);
+    const summaryPayload = await requestAiEvaluationStage(projectId, "summary", { force });
+
+    setAiAnalysisProgress(projectId, 4, billingMessage);
+    const compactResult = buildCompactEvaluationPreview(summaryPayload?.evaluation, "Премиум AI+");
+    const preview = compactResult
+      ? { state: "ready" as const, ...compactResult }
+      : await requestAiPreview(accessToken, projectId);
+    if (preview.state !== "ready" || !preview.summary) {
+      throw new Error("Анализ сформирован, но его краткий вывод пока не удалось открыть. Повторите загрузку.");
+    }
+
+    setAiPreviews((current) => ({ ...current, [projectId]: preview }));
+    return preview;
+  }
+
+  async function startAiPlusAnalysis(project: SimpleDashboardProject, options?: { force?: boolean }) {
+    const force = Boolean(options?.force);
+    if (!accessToken || aiAnalysisRunsRef.current.has(project.id)) return;
 
     const completed = Math.min(project.attempts_count, project.tests.length);
     const allTestsCompleted = project.tests.length > 0 && completed >= project.tests.length;
@@ -568,89 +676,96 @@ export function SimpleDashboard({
     }
 
     const currentMode = project.unlocked_package_mode || null;
-    if (isPackageAccessible(currentMode, AI_PLUS_PACKAGE)) {
-      const previewState = aiPreviews[project.id]?.state;
-      if (!previewState || previewState === "loading") {
-        setAiPurchaseStates((current) => ({
-          ...current,
-          [project.id]: { state: "error", message: "Проверяем сохранённый анализ. Подождите несколько секунд." },
-        }));
-        return;
-      }
-      if (previewState === "error") {
-        setAiPurchaseStates((current) => ({
-          ...current,
-          [project.id]: { state: "error", message: "Не удалось проверить сохранённый анализ. Повторите загрузку результата." },
-        }));
-        return;
-      }
-      setAnalysisLaunchMode(previewState === "ready" ? "view" : "generate");
-      setProjectView("results");
+    const alreadyUnlocked = isPackageAccessible(currentMode, AI_PLUS_PACKAGE);
+    const previewState = aiPreviews[project.id]?.state;
+    if (alreadyUnlocked && previewState === "ready" && !force) {
+      focusInlineAnalysis(project.id);
       return;
     }
 
-    const upgradePriceRub = getUpgradePriceRub(currentMode, AI_PLUS_PACKAGE);
-    const coveredBySubscription = Boolean(activeSubscription?.covered_project_ids?.includes(project.id));
-    const subscriptionAvailable = coveredBySubscription || Number(activeSubscription?.projects_remaining || 0) > 0;
-    const walletBalanceRub = Math.floor(Number(balanceKopeks || 0) / 100);
+    aiAnalysisRunsRef.current.add(project.id);
+    setAiPurchaseStates((current) => ({
+      ...current,
+      [project.id]: { state: "processing", message: alreadyUnlocked ? "Запускаем анализ в этом окне..." : "Проверяем оплату Премиум AI+..." },
+    }));
 
-    if (!isUnlimited && !subscriptionAvailable && walletLoading) {
+    let accessConfirmed = alreadyUnlocked;
+    let billingMessage = alreadyUnlocked
+      ? "Премиум AI+ уже доступен для этого проекта. Повторного списания не будет."
+      : "";
+
+    try {
+      if (!alreadyUnlocked) {
+        const response = await fetch("/api/commercial/projects/unlock", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ project_id: project.id, package_mode: AI_PLUS_PACKAGE }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Не удалось открыть Премиум AI+");
+
+        accessConfirmed = true;
+        const chargedRub = Number(payload?.charged_rub || 0);
+        const responseRemaining = payload?.subscription_remaining == null
+          ? Number.NaN
+          : Number(payload.subscription_remaining);
+        const alreadyCoveredBySubscription = Boolean(activeSubscription?.covered_project_ids?.includes(project.id));
+        const fallbackRemaining = Math.max(
+          0,
+          Number(activeSubscription?.projects_remaining || 0) - (alreadyCoveredBySubscription ? 0 : 1)
+        );
+        const remaining = Number.isFinite(responseRemaining) ? responseRemaining : fallbackRemaining;
+        billingMessage = payload?.used_subscription
+          ? `Использована 1 попытка Премиум AI+ по подписке. Осталось анализов: ${remaining}.`
+          : chargedRub > 0
+            ? `Использован 1 анализ Премиум AI+. Списано ${formatCompactRub(chargedRub)}.`
+            : "Премиум AI+ уже открыт для этого проекта. Повторного списания не будет.";
+      }
+
+      await buildInlineAiPlusAnalysis(project.id, force, billingMessage);
       setAiPurchaseStates((current) => ({
         ...current,
-        [project.id]: { state: "error", message: "Баланс ещё загружается. Подождите несколько секунд и повторите запуск." },
+        [project.id]: {
+          state: "success",
+          message: `${billingMessage ? `${billingMessage} ` : ""}Анализ готов и открыт в этом окне.`,
+        },
       }));
-      return;
-    }
-
-    if (!isUnlimited && !subscriptionAvailable && walletBalanceRub < upgradePriceRub) {
+      await Promise.allSettled([onRefresh(), onRefreshWallet()]);
+      focusInlineAnalysis(project.id);
+    } catch (purchaseError: any) {
+      const rawMessage = String(purchaseError?.message || "");
+      const insufficientFunds = /insufficient|недостаточно|не хватает/iu.test(rawMessage);
+      const failureMessage = insufficientFunds
+        ? "На балансе недостаточно средств для анализа Премиум AI+. Пополните кошелёк и повторите запуск."
+        : `${rawMessage || "Не удалось сформировать анализ."}${accessConfirmed ? " Доступ Премиум AI+ сохранён: повторный запуск не спишет оплату ещё раз." : ""}`;
       setAiPurchaseStates((current) => ({
         ...current,
         [project.id]: {
           state: "error",
-          message: `Для Премиум AI+ не хватает ${formatCompactRub(upgradePriceRub - walletBalanceRub)}. Пополните кошелёк или подключите тариф.`,
+          action: insufficientFunds ? "topup" : undefined,
+          message: failureMessage,
         },
       }));
-      return;
-    }
-
-    setAiPurchaseStates((current) => ({
-      ...current,
-      [project.id]: { state: "processing", message: "Открываем Премиум AI+ и запускаем анализ..." },
-    }));
-
-    try {
-      const response = await fetch("/api/commercial/projects/unlock", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ project_id: project.id, package_mode: AI_PLUS_PACKAGE }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Не удалось открыть Премиум AI+");
-
-      const chargedRub = Number(payload?.charged_rub || 0);
-      const remaining = Number(payload?.subscription_remaining);
-      const successMessage = payload?.used_subscription
-        ? `Премиум AI+ открыт по тарифу${Number.isFinite(remaining) ? `. Осталось проектов: ${remaining}` : ""}.`
-        : chargedRub > 0
-          ? `Премиум AI+ открыт. Списано ${formatCompactRub(chargedRub)}.`
-          : "Премиум AI+ уже открыт для этого проекта.";
-
-      setAiPurchaseStates((current) => ({
-        ...current,
-        [project.id]: { state: "success", message: successMessage },
-      }));
-      await Promise.allSettled([onRefresh(), onRefreshWallet()]);
-      setAiPreviewRevisions((current) => ({ ...current, [project.id]: (current[project.id] || 0) + 1 }));
-      setAnalysisLaunchMode("generate");
-      setProjectView("results");
-    } catch (purchaseError: any) {
-      setAiPurchaseStates((current) => ({
-        ...current,
-        [project.id]: { state: "error", message: purchaseError?.message || "Не удалось открыть Премиум AI+." },
-      }));
+      if (accessConfirmed) {
+        setAiPreviews((current) => ({
+          ...current,
+          [project.id]: {
+            state: "error",
+            modeTitle: "Премиум AI+",
+            summary: "",
+            strengths: [],
+            risks: [],
+            recommendation: "",
+            message: failureMessage,
+          },
+        }));
+        await Promise.allSettled([onRefresh(), onRefreshWallet()]);
+      }
+    } finally {
+      aiAnalysisRunsRef.current.delete(project.id);
     }
   }
 
@@ -986,25 +1101,24 @@ export function SimpleDashboard({
               const currentPackageMode = project.unlocked_package_mode || null;
               const aiPlusUnlocked = isPackageAccessible(currentPackageMode, AI_PLUS_PACKAGE);
               const aiPreviewChecking = aiPlusUnlocked && (!aiPreview || aiPreview.state === "loading");
-              const aiPlusUpgradePriceRub = getUpgradePriceRub(currentPackageMode, AI_PLUS_PACKAGE);
               const projectCoveredBySubscription = Boolean(activeSubscription?.covered_project_ids?.includes(project.id));
               const subscriptionCanCoverProject = projectCoveredBySubscription || Number(activeSubscription?.projects_remaining || 0) > 0;
+              const subscriptionRemaining = Math.max(0, Number(activeSubscription?.projects_remaining || 0));
               const walletBalanceRub = Math.floor(Number(balanceKopeks || 0) / 100);
-              const walletCanCoverProject = isUnlimited || walletBalanceRub >= aiPlusUpgradePriceRub;
               const fullAnalysisReady = aiPreview?.state === "ready";
               const fullAnalysisPriceLabel = aiPlusUnlocked
                 ? ""
                 : isUnlimited
                   ? "(без списания)"
                   : subscriptionCanCoverProject
-                    ? "(по подписке)"
-                    : `(${formatCompactRub(aiPlusUpgradePriceRub)})`;
-              const aiPlusNeedsPayment = allTestsCompleted
-                && !aiPlusUnlocked
-                && !isUnlimited
-                && !subscriptionCanCoverProject
-                && !walletLoading
-                && !walletCanCoverProject;
+                    ? "(1 анализ по подписке)"
+                    : `(${formatCompactRub(AI_PLUS_PACKAGE_PRICE_RUB)})`;
+              const aiTopupRequired = aiPurchaseState?.action === "topup";
+              const subscriptionUsageNotice = !aiPlusUnlocked && subscriptionCanCoverProject && !isUnlimited
+                ? projectCoveredBySubscription
+                  ? "Этот проект уже учтён в подписке. Повторная попытка не списывается."
+                  : `Подписка активна. Доступно анализов: ${subscriptionRemaining}. Запуск использует 1 попытку.`
+                : "";
               const goalDefinition = getGoalDefinition(project.goal);
               const isEditing = editingProjectId === project.id && inlineEditForm;
               const stage = projectStage(project);
@@ -1208,18 +1322,18 @@ export function SimpleDashboard({
                                   <button
                                     type="button"
                                     className={styles.primaryAction}
-                                    onClick={() => fullAnalysisReady ? onOpenResults(project.id) : void startAiPlusAnalysis(project)}
+                                    onClick={() => fullAnalysisReady ? focusInlineAnalysis(project.id) : void startAiPlusAnalysis(project)}
                                     disabled={!allTestsCompleted || aiPurchaseState?.state === "processing" || aiPreviewChecking}
                                     title={allTestsCompleted
                                       ? fullAnalysisReady
-                                        ? "Открыть страницу с полным анализом"
+                                        ? "Показать готовый анализ в этом окне"
                                         : aiPlusUnlocked
                                         ? aiPreviewChecking
                                           ? "Проверяем, есть ли сохранённый анализ"
                                           : "Сформировать полный анализ Премиум AI+"
                                         : subscriptionCanCoverProject || isUnlimited
                                           ? "Открыть Премиум AI+ по действующему тарифу"
-                                          : `Сделать полный анализ за ${formatCompactRub(aiPlusUpgradePriceRub)}`
+                                          : `Сделать полный анализ Премиум AI+ за ${formatCompactRub(AI_PLUS_PACKAGE_PRICE_RUB)}`
                                       : "ИИ-анализ станет доступен после завершения всех тестов"}
                                   >
                                     <Icon name="sparkles" />
@@ -1229,7 +1343,7 @@ export function SimpleDashboard({
                                         : aiPreviewChecking
                                           ? "Проверяем анализ..."
                                           : fullAnalysisReady
-                                            ? "Открыть полный анализ"
+                                            ? "Показать анализ"
                                             : "Сделать полный анализ"}</span>
                                       {!fullAnalysisReady && aiPurchaseState?.state !== "processing" && !aiPreviewChecking && fullAnalysisPriceLabel ? (
                                         <small>{fullAnalysisPriceLabel}</small>
@@ -1252,7 +1366,7 @@ export function SimpleDashboard({
                                 </div>
                                 <div
                                   className={styles.aiBillingSummary}
-                                  data-tone={aiPlusUnlocked ? "ready" : aiPlusNeedsPayment ? "attention" : "available"}
+                                  data-tone={aiPlusUnlocked ? "ready" : aiTopupRequired ? "attention" : "available"}
                                   aria-label="Текущий баланс"
                                 >
                                   <div>
@@ -1260,22 +1374,50 @@ export function SimpleDashboard({
                                     <strong>{isUnlimited ? "Без лимита" : walletLoading || balanceKopeks == null ? balanceText : formatCompactRub(walletBalanceRub)}</strong>
                                   </div>
                                 </div>
-                                {aiPlusNeedsPayment ? (
+                                {subscriptionUsageNotice && aiPurchaseState?.state !== "processing" ? (
+                                  <div className={styles.aiPurchaseNotice} data-tone="success" role="status">
+                                    {subscriptionUsageNotice}
+                                  </div>
+                                ) : null}
+                                {aiTopupRequired ? (
                                   <div className={styles.aiBillingPaywall}>
                                     <div>
-                                      <strong>Для анализа нужно пополнить баланс или подключить тариф</strong>
-                                      <span>На кошельке {balanceText}. Для этого проекта не хватает {formatCompactRub(aiPlusUpgradePriceRub - walletBalanceRub)}.</span>
+                                      <strong>Для анализа нужно пополнить баланс</strong>
+                                      <span>На кошельке {balanceText}. Полный анализ Премиум AI+ стоит {formatCompactRub(AI_PLUS_PACKAGE_PRICE_RUB)}.</span>
                                     </div>
                                     <div>
                                       <button type="button" onClick={() => onOpenWallet("topup")}>Пополнить кошелёк</button>
-                                      <button type="button" onClick={() => onOpenWallet("subscription")}>Выбрать подписку</button>
                                     </div>
+                                  </div>
+                                ) : null}
+                                {aiPurchaseState?.state === "processing" && aiPurchaseState.billingMessage ? (
+                                  <div className={styles.aiPurchaseNotice} data-tone="success" role="status">
+                                    {aiPurchaseState.billingMessage}
                                   </div>
                                 ) : null}
                                 {aiPurchaseState?.message ? (
                                   <div className={styles.aiPurchaseNotice} data-tone={aiPurchaseState.state} role="status" aria-live="polite">
                                     {aiPurchaseState.message}
                                   </div>
+                                ) : null}
+                                {aiPurchaseState?.state === "processing" && aiPurchaseState.progressStep ? (
+                                  <ol className={styles.aiAnalysisProgress} aria-label="Этапы подготовки анализа">
+                                    {AI_ANALYSIS_STEPS.map((stepLabel, stepIndex) => {
+                                      const stepNumber = stepIndex + 1;
+                                      const progressStep = aiPurchaseState.progressStep ?? 0;
+                                      const stepState = stepNumber < progressStep
+                                        ? "done"
+                                        : stepNumber === progressStep
+                                          ? "active"
+                                          : "waiting";
+                                      return (
+                                        <li key={stepLabel} data-state={stepState}>
+                                          <span>{stepState === "done" ? "✓" : stepNumber}</span>
+                                          <strong>{stepLabel}</strong>
+                                        </li>
+                                      );
+                                    })}
+                                  </ol>
                                 ) : null}
                                 {downloadMessage && (downloadProjectId === project.id || !downloadProjectId) ? (
                                   <div className={styles.aiPurchaseNotice} data-tone={downloadProjectId ? "processing" : "success"} role="status" aria-live="polite">
@@ -1287,9 +1429,19 @@ export function SimpleDashboard({
                                 ) : null}
 
                                 {aiPreview?.state === "ready" && aiPreview.summary ? (
-                                  <div className={styles.aiAdaptedResult}>
+                                  <div id={`simple-ai-result-${project.id}`} className={styles.aiAdaptedResult}>
                                     <div className={styles.aiResultLead}>
-                                      <span><Icon name="sparkles" />{aiPreview.modeTitle}</span>
+                                      <div className={styles.aiResultHeading}>
+                                        <span><Icon name="sparkles" />{aiPreview.modeTitle}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => void startAiPlusAnalysis(project, { force: true })}
+                                          disabled={aiPurchaseState?.state === "processing"}
+                                          title="Явно пересобрать анализ по текущим данным без повторной оплаты"
+                                        >
+                                          Обновить анализ
+                                        </button>
+                                      </div>
                                       <strong>Итоговый аналитический вывод</strong>
                                       <p>{aiPreview.summary}</p>
                                     </div>
@@ -1321,8 +1473,10 @@ export function SimpleDashboard({
                                 ) : aiPreview?.state === "loading" && project.attempts_count > 0 ? (
                                   <div className={styles.aiLoadingPreview}>
                                     <Icon name="sparkles" />
-                                    <strong>Открываем сохранённый вывод</strong>
-                                    <span>Только читаем готовый результат, без повторного анализа и списания.</span>
+                                    <strong>{aiPurchaseState?.state === "processing" ? "Формируем полный анализ" : "Открываем сохранённый вывод"}</strong>
+                                    <span>{aiPurchaseState?.state === "processing"
+                                      ? "Оставайтесь в этой карточке: готовый результат появится здесь автоматически."
+                                      : "Только читаем готовый результат, без повторного анализа и списания."}</span>
                                   </div>
                                 ) : aiPreview?.state === "error" ? (
                                   <div className={styles.aiEmptyPreview}>
