@@ -260,8 +260,13 @@
   overflow-y: auto;
   border-right: 1px solid #e4e9e5;
   background: transparent;
-  scrollbar-color: #c2d0c6 transparent;
-  scrollbar-width: thin;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.folderSection::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .sectionHeading {
