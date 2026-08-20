@@ -540,8 +540,8 @@
   align-items: center;
   gap: 7px;
   max-width: calc(100% - 28px);
-  min-height: 24px;
-  padding: 2px 9px;
+  min-height: 30px;
+  padding: 4px 11px;
   border: 1px solid #dfe7e1;
   border-radius: 999px;
   color: #355844;
@@ -552,14 +552,14 @@
 
 .projectFolderGroupLabel svg {
   flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   color: var(--green);
 }
 
 .projectFolderGroupLabel strong {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 750;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -2799,8 +2799,8 @@
 
 .projectFolderGroupLabel {
   left: 15px;
-  min-height: 24px;
-  padding-inline: 9px;
+  min-height: 30px;
+  padding-inline: 11px;
   border-color: #dfe7e1;
   color: #315640;
   background: #fffefd;
@@ -2808,8 +2808,8 @@
 }
 
 .projectFolderGroupLabel strong {
-  font-size: 12px;
-  font-weight: 720;
+  font-size: 15px;
+  font-weight: 750;
 }
 
 .projectFolderGroupList {
