@@ -9,6 +9,11 @@ import { isEvaluationPackage, isPackageAccessible, type EvaluationPackage } from
 import { parseProjectSummary } from "@/lib/projectRoutingMeta";
 import { isRegistrySchemaMissing } from "@/lib/registrySchema";
 import { canUseIncompleteProjectResults } from "@/lib/incompleteProjectAccess";
+import { isTestUnlimitedEmail } from "@/lib/testWallet";
+import {
+  assertCommercialAiPlusRefreshAuthorization,
+  completeCommercialAiPlusRefresh,
+} from "@/lib/serverCommercialAiRefresh";
 
 const MAX_BATCH_SIZE = 3;
 const TEST_BATCH_SIZE = 2;
@@ -151,6 +156,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const stageRaw = typeof req.query.stage === "string" ? req.query.stage.trim() : "summary";
   const stage = stageRaw === "tests" || stageRaw === "competencies" || stageRaw === "full" ? stageRaw : "summary";
   const cacheOnly = req.query.cache_only === "1";
+  const refreshOperationKey = typeof req.query.refresh_operation_key === "string"
+    ? req.query.refresh_operation_key.trim()
+    : "";
   const batchStartRaw = typeof req.query.batch_start === "string" ? Number(req.query.batch_start) : 0;
   const batchSizeRaw = typeof req.query.batch_size === "string" ? Number(req.query.batch_size) : 2;
   const batchStart = Number.isFinite(batchStartRaw) ? Math.max(0, Math.trunc(batchStartRaw)) : 0;
@@ -280,10 +288,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const forceRefresh =
+    const forceRefreshRequested =
       req.query.refresh === "1" ||
       req.query.force_refresh === "1" ||
       req.query.no_cache === "1";
+    let refreshAuthorization: Awaited<ReturnType<typeof assertCommercialAiPlusRefreshAuthorization>> | null = null;
+    if (modeToBuild === "premium_ai_plus" && forceRefreshRequested) {
+      if (!refreshOperationKey) {
+        return res.status(402).json({
+          ok: false,
+          request_id: requestId,
+          code: "AI_PLUS_REFRESH_PAYMENT_REQUIRED",
+          error: "Сначала подтвердите обновление анализа за 500 ₽ или используйте бесплатную попытку по подписке.",
+        });
+      }
+      refreshAuthorization = await assertCommercialAiPlusRefreshAuthorization(authed.supabaseAdmin, {
+        workspaceId: access.project!.workspace_id,
+        projectId: id,
+        operationKey: refreshOperationKey,
+        unlimited: isTestUnlimitedEmail(authed.user.email),
+      });
+      if (!refreshAuthorization.authorized) {
+        return res.status(402).json({
+          ok: false,
+          request_id: requestId,
+          code: "AI_PLUS_REFRESH_PAYMENT_REQUIRED",
+          error: "Обновление анализа не подтверждено. Повторите запуск через кнопку «Обновить анализ».",
+        });
+      }
+    }
+    const forceRefresh = forceRefreshRequested && !refreshAuthorization?.completed;
     const cacheKeyFor = (
       cacheStage: "summary" | "tests" | "competencies" | "full",
       cacheBatchStart = 0,
@@ -389,10 +423,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     const pipelineInfo = modeToBuild === "premium_ai_plus" ? getAiPlusPipelineFingerprint() : null;
 
+    let readyCache: Awaited<ReturnType<typeof readReadyEvaluation>> = null;
     if (!forceRefresh) {
-      const cached = await readReadyEvaluation(cacheKey);
+      readyCache = await readReadyEvaluation(cacheKey);
 
-      if (cached?.evaluation) {
+      if (readyCache?.evaluation) {
         return res.status(200).json({
           ok: true,
           request_id: requestId,
@@ -400,16 +435,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           completed,
           total,
           partial_results_allowed,
-          evaluation: cached.evaluation,
+          evaluation: readyCache.evaluation,
           unlocked_package_mode: unlockedMode,
           stage,
           has_more: hasMore,
           batch: { current: currentBatch, total: totalBatches },
           cached: true,
-          cached_at: (cached as any).built_at || null,
+          cached_at: (readyCache as any).built_at || null,
           analysis_pipeline: pipelineInfo,
+          refresh_completed: Boolean(refreshAuthorization?.completed),
         });
       }
+    }
+
+    if (forceRefreshRequested && refreshAuthorization?.completed && !readyCache?.evaluation) {
+      return res.status(409).json({
+        ok: false,
+        request_id: requestId,
+        code: "AI_PLUS_REFRESH_ALREADY_COMPLETED",
+        error: "Это обновление уже завершено. Для новой версии запустите обновление ещё раз.",
+      });
     }
 
     if (cacheOnly) return returnCacheMiss();
@@ -461,6 +506,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logApiError("commercial.projects.evaluation.cache_write", requestId, cacheWrite.error, { project_id: id, stage, mode: modeToBuild });
     }
 
+    if (
+      modeToBuild === "premium_ai_plus" &&
+      stage === "summary" &&
+      forceRefreshRequested &&
+      refreshAuthorization?.authorized &&
+      !refreshAuthorization.completed &&
+      cacheWrite.error
+    ) {
+      return res.status(503).json({
+        ok: false,
+        request_id: requestId,
+        code: "AI_PLUS_REFRESH_SAVE_FAILED",
+        error: "Новый анализ сформирован, но сохранить его пока не удалось. Повторите обновление: второй раз деньги или бесплатная попытка не спишутся.",
+      });
+    }
+
+    let refreshCompleted = false;
+    if (
+      modeToBuild === "premium_ai_plus" &&
+      stage === "summary" &&
+      forceRefreshRequested &&
+      refreshAuthorization?.authorized &&
+      !refreshAuthorization.completed &&
+      !cacheWrite.error
+    ) {
+      await completeCommercialAiPlusRefresh(authed.supabaseAdmin, {
+        workspaceId: access.project!.workspace_id,
+        projectId: id,
+        operationKey: refreshOperationKey,
+        unlimited: isTestUnlimitedEmail(authed.user.email),
+      });
+      refreshCompleted = true;
+    }
+
     return res.status(200).json({
       ok: true,
       request_id: requestId,
@@ -475,6 +554,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       batch: { current: currentBatch, total: totalBatches },
       cached: false,
       analysis_pipeline: pipelineInfo,
+      refresh_completed: refreshCompleted,
     });
   } catch (error: any) {
     logApiError("commercial.projects.evaluation", requestId, error, { project_id: id, stage, mode: requestedMode || null });

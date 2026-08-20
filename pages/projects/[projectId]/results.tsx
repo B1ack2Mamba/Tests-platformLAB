@@ -19,6 +19,16 @@ import { useWalletBalance } from "@/lib/useWalletBalance";
 import type { ResultsBlueprint } from "@/lib/projectResultsBlueprint";
 import { friendlyErrorMessage } from "@/lib/friendlyErrors";
 import { ONBOARDING_GUIDE_POSES, PLATFORM_ONBOARDING_GUIDE } from "@/lib/onboardingGuide";
+import {
+  AI_PLUS_REFRESH_PRICE_RUB,
+  type AiPlusRefreshAccess,
+  clearPendingAiPlusRefreshOperation,
+  createAiPlusRefreshOperationKey,
+  getPendingAiPlusRefreshOperation,
+  rememberPendingAiPlusRefreshOperation,
+  requestAiPlusRefreshAccess,
+  reserveAiPlusRefresh,
+} from "@/lib/commercialAiRefresh";
 
 type ResultsPagePayload = {
   ok: true;
@@ -70,6 +80,7 @@ type EvaluationPayload = {
     source_layers: string[];
   } | null;
   cache_miss?: boolean;
+  refresh_completed?: boolean;
   evaluation: {
     mode: string;
     sections: Array<{ kind: string; title: string; body: string; source?: "terra" | "deterministic" }>;
@@ -79,6 +90,7 @@ type EvaluationPayload = {
 type LoadEvaluationOptions = {
   customRequest?: string;
   force?: boolean;
+  refreshOperationKey?: string;
 };
 
 const evaluationInFlightKeys = new Set<string>();
@@ -428,6 +440,7 @@ export default function ProjectResultsStandalonePage() {
   const [activeSubscription, setActiveSubscription] = useState<WorkspaceSubscriptionStatus | null>(null);
   const [fitProfiles, setFitProfiles] = useState<FitRoleProfile[]>(() => getFitRoleProfiles());
   const [showAiPlusPrompt, setShowAiPlusPrompt] = useState(false);
+  const [aiRefreshAccess, setAiRefreshAccess] = useState<AiPlusRefreshAccess | null>(null);
 
   const evaluationAbortRef = useRef<Partial<Record<EvaluationPackage, AbortController>>>({});
   const evaluationRequestIdRef = useRef<Partial<Record<EvaluationPackage, number>>>({});
@@ -483,7 +496,7 @@ export default function ProjectResultsStandalonePage() {
   }
 
   async function loadEvaluation(mode: EvaluationPackage, opts?: LoadEvaluationOptions) {
-    if (!session?.access_token || !projectId) return;
+    if (!session?.access_token || !projectId) return false;
     const cacheOnly = compactReadOnly && !opts?.force;
 
     const cacheKey = buildEvaluationCacheKey({
@@ -513,10 +526,10 @@ export default function ProjectResultsStandalonePage() {
       }));
       if (!opts?.force && cachedEvaluationComplete) {
         setEvaluationCacheMiss((prev) => ({ ...prev, [mode]: false }));
-        return;
+        return true;
       }
     }
-    if (!opts?.force && evaluationInFlightKeys.has(cacheKey)) return;
+    if (!opts?.force && evaluationInFlightKeys.has(cacheKey)) return false;
     evaluationInFlightKeys.add(cacheKey);
 
     evaluationAbortRef.current[mode]?.abort();
@@ -594,6 +607,9 @@ export default function ProjectResultsStandalonePage() {
       url.searchParams.set("mode", mode);
       url.searchParams.set("stage", stage);
       if (opts?.force) url.searchParams.set("refresh", "1");
+      if (opts?.force && opts.refreshOperationKey) {
+        url.searchParams.set("refresh_operation_key", opts.refreshOperationKey);
+      }
       if (cacheOnly) url.searchParams.set("cache_only", "1");
       if (typeof batchStart === "number") {
         url.searchParams.set("batch_start", String(batchStart));
@@ -610,6 +626,8 @@ export default function ProjectResultsStandalonePage() {
       return url.toString();
     };
 
+    let succeeded = false;
+    let refreshCompleted = mode !== "premium_ai_plus" || !opts?.force;
     try {
       const loadTestBatches = async (replaceFirstBatch: boolean) => {
         let batchStart = 0;
@@ -665,10 +683,17 @@ export default function ProjectResultsStandalonePage() {
         return;
       }
       appendPayload(summaryJson as EvaluationPayload, mode === "premium_ai_plus" ? false : !hasExistingSections);
+      if (mode === "premium_ai_plus" && opts?.force) {
+        refreshCompleted = Boolean((summaryJson as EvaluationPayload).refresh_completed);
+      }
       if (isStale()) return;
 
       if (mode !== "basic" && mode !== "premium_ai_plus") {
         await loadTestBatches(false);
+      }
+      succeeded = refreshCompleted;
+      if (!refreshCompleted) {
+        setError("Обновлённый анализ сформирован, но сохранить его пока не удалось. Повторите запуск: второй раз деньги не спишутся.");
       }
     } catch (err: any) {
       if (err?.name === "AbortError" || isStale()) return;
@@ -679,15 +704,64 @@ export default function ProjectResultsStandalonePage() {
         setEvaluationLoading((prev) => ({ ...prev, [mode]: false }));
       }
     }
+    return succeeded;
+  }
+
+  async function refreshAiPlusEvaluation(customRequest = aiPlusRequest) {
+    if (!session?.access_token || !projectId) return false;
+    const operationKey = getPendingAiPlusRefreshOperation(projectId) || createAiPlusRefreshOperationKey();
+    rememberPendingAiPlusRefreshOperation(projectId, operationKey);
+    setError("");
+    setInfo("Проверяем доступное обновление AI+...");
+
+    try {
+      const reservation = await reserveAiPlusRefresh(session.access_token, projectId, operationKey);
+      setAiRefreshAccess(reservation);
+      const billingMessage = reservation.completed
+        ? "Открываем уже подтверждённое обновление без повторного списания."
+        : reservation.billing_source === "subscription"
+          ? `${reservation.already_reserved ? "Продолжаем бесплатное обновление" : "Использовано бесплатное обновление по подписке"}. Осталось попыток: ${reservation.free_refreshes_remaining}.`
+          : reservation.billing_source === "wallet"
+            ? reservation.already_reserved
+              ? `Продолжаем уже оплаченное обновление за ${AI_PLUS_REFRESH_PRICE_RUB} ₽ без повторного списания.`
+              : `Списано ${AI_PLUS_REFRESH_PRICE_RUB} ₽ за обновление анализа AI+.`
+            : "Обновление AI+ доступно без списания.";
+      setInfo(`${billingMessage} Анализ обновляется в этом окне.`);
+
+      const success = await loadEvaluation("premium_ai_plus", {
+        customRequest,
+        force: true,
+        refreshOperationKey: operationKey,
+      });
+      if (!success) return false;
+
+      clearPendingAiPlusRefreshOperation(projectId, operationKey);
+      const [latestAccess] = await Promise.all([
+        requestAiPlusRefreshAccess(session.access_token, projectId).catch(() => null),
+        refreshWallet(),
+      ]);
+      if (latestAccess) setAiRefreshAccess(latestAccess);
+      setInfo(`${billingMessage} Результат обновлён по текущим данным проекта.`);
+      return true;
+    } catch (refreshError: any) {
+      const message = String(refreshError?.message || "");
+      const insufficientFunds = refreshError?.code === "INSUFFICIENT_BALANCE" || /insufficient|недостаточно|не хватает/iu.test(message);
+      setError(insufficientFunds
+        ? `На балансе недостаточно средств. Обновление анализа AI+ стоит ${AI_PLUS_REFRESH_PRICE_RUB} ₽. Пополните кошелёк и повторите запуск.`
+        : friendlyErrorMessage(refreshError, "Не удалось обновить анализ AI+. Если оплата уже подтверждена, повторный запуск не спишет деньги ещё раз."));
+      setInfo("");
+      return false;
+    }
   }
 
   async function refreshActiveEvaluation() {
     if (!activeEvaluationMode) return;
-    await loadEvaluation(
-      activeEvaluationMode,
-      activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest, force: true } : { force: true }
-    );
-    setInfo("Результат обновлён по текущим данным проекта.");
+    if (activeEvaluationMode === "premium_ai_plus") {
+      await refreshAiPlusEvaluation();
+      return;
+    }
+    const success = await loadEvaluation(activeEvaluationMode, { force: true });
+    if (success) setInfo("Результат обновлён по текущим данным проекта.");
   }
 
   async function unlockPackage(mode: EvaluationPackage) {
@@ -716,7 +790,7 @@ export default function ProjectResultsStandalonePage() {
       await loadSubscriptionStatus();
       await refreshWallet();
       setActiveEvaluationMode(mode);
-      await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest, force: true } : { force: true });
+      await loadEvaluation(mode, mode === "premium_ai_plus" ? { customRequest: aiPlusRequest } : { force: true });
       if (mode === "premium") await loadEvaluation("basic");
       if (mode === "premium_ai_plus") {
         await loadEvaluation("basic");
@@ -805,6 +879,20 @@ export default function ProjectResultsStandalonePage() {
   const coverage = blueprint?.summary.promptCoverage || null;
   const unlockedMode = data?.project.unlocked_package_mode || null;
   const projectCoveredBySubscription = false;
+  useEffect(() => {
+    if (!session?.access_token || !projectId || !resultsReady || !isPackageAccessible(unlockedMode, "premium_ai_plus")) {
+      setAiRefreshAccess(null);
+      return;
+    }
+    const controller = new AbortController();
+    void requestAiPlusRefreshAccess(session.access_token, projectId, controller.signal)
+      .then(setAiRefreshAccess)
+      .catch((refreshError: any) => {
+        if (refreshError?.name !== "AbortError") console.warn("Не удалось загрузить условия обновления AI+", refreshError);
+      });
+    return () => controller.abort();
+  }, [projectId, resultsReady, session?.access_token, unlockedMode]);
+
   useEffect(() => {
     if (!projectId) return;
     const cacheKey = buildEvaluationCacheKey({
@@ -914,6 +1002,11 @@ export default function ProjectResultsStandalonePage() {
     );
   }
 
+  const aiPlusRefreshButtonLabel = isUnlimited || aiRefreshAccess?.unlimited
+    ? "Обновить AI+ без списания"
+    : aiRefreshAccess?.subscription_covered && aiRefreshAccess.free_refreshes_remaining > 0
+      ? `Обновить AI+ бесплатно · осталось ${aiRefreshAccess.free_refreshes_remaining}`
+      : `Обновить AI+ · ${AI_PLUS_REFRESH_PRICE_RUB} ₽`;
   const collectedLabel = formatCollectedAt(lastCollectedAt || data?.collected_at || null);
   const overviewCards = overviewSections.slice(0, 3);
   const primaryOverviewCards = overviewCards.slice(0, 2);
@@ -1114,7 +1207,16 @@ export default function ProjectResultsStandalonePage() {
     <Layout title={data?.project.title ? `${data.project.title} — результаты` : "Страница результатов"}>
       {!compactEmbedded ? <OnboardingTour tourId="project-results-v2" steps={PROJECT_RESULTS_ONBOARDING_STEPS} guide={PLATFORM_ONBOARDING_GUIDE} /> : null}
       <div className={`project-results-page mx-auto max-w-[1360px] px-3 pb-12 pt-5 sm:px-4 ${compactEmbedded ? "project-results-compact" : ""}`}>
-        {error ? <div className="mb-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+        {error ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <span>{error}</span>
+            {/недостаточно средств|пополните кошел/iu.test(error) ? (
+              <Link href="/wallet?focus=topup" className="rounded-xl border border-rose-300 bg-white px-3 py-1.5 font-semibold text-rose-700">
+                Пополнить кошелёк
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
         {info ? <div className="mb-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
 
         <div className="project-results-shell relative overflow-hidden rounded-[38px] border border-[#dcc8aa] bg-[radial-gradient(circle_at_14%_18%,rgba(164,137,92,0.08)_0,transparent_26%),radial-gradient(circle_at_78%_22%,rgba(129,157,115,0.07)_0,transparent_24%),linear-gradient(180deg,#fffefb_0%,#f7f0e4_100%)] shadow-[0_22px_48px_rgba(93,71,39,0.08)]">
@@ -1266,7 +1368,11 @@ export default function ProjectResultsStandalonePage() {
                           disabled={!activeEvaluationMode || !!evaluationLoading[activeEvaluationMode]}
                           onClick={() => refreshActiveEvaluation()}
                         >
-                          {activeEvaluationMode && evaluationLoading[activeEvaluationMode] ? "Обновляем…" : "Обновить результат"}
+                          {activeEvaluationMode && evaluationLoading[activeEvaluationMode]
+                            ? "Обновляем…"
+                            : activeEvaluationMode === "premium_ai_plus"
+                              ? aiPlusRefreshButtonLabel
+                              : "Обновить результат"}
                         </button>
                         {activeSections.length ? (
                           <>
@@ -1297,8 +1403,8 @@ export default function ProjectResultsStandalonePage() {
                         <div className="mt-3 grid gap-3">
                           <textarea className="input min-h-[92px]" value={aiPlusRequest} onChange={(e) => setAiPlusRequest(e.target.value)} placeholder="Например: сделай акцент на управленческий потенциал, стиле взаимодействия и зонах риска." />
                           <div className="flex justify-end">
-                            <button type="button" className="rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => loadEvaluation("premium_ai_plus", { customRequest: aiPlusRequest, force: true })}>
-                              {evaluationLoading.premium_ai_plus ? "Собираем…" : "Обновить AI+"}
+                            <button type="button" className="rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]" disabled={!!evaluationLoading.premium_ai_plus} onClick={() => refreshAiPlusEvaluation(aiPlusRequest)}>
+                              {evaluationLoading.premium_ai_plus ? "Собираем…" : aiPlusRefreshButtonLabel}
                             </button>
                           </div>
                         </div>
@@ -1444,7 +1550,9 @@ export default function ProjectResultsStandalonePage() {
                             <button
                               type="button"
                               className="mt-4 rounded-[18px] border border-[#7ca36f] bg-[#a8d19d] px-4 py-2.5 text-sm font-semibold text-[#264029]"
-                              onClick={() => loadEvaluation(activeEvaluationMode, activeEvaluationMode === "premium_ai_plus" ? { customRequest: aiPlusRequest, force: true } : { force: true })}
+                              onClick={() => activeEvaluationMode === "premium_ai_plus"
+                                ? void refreshAiPlusEvaluation(aiPlusRequest)
+                                : void loadEvaluation(activeEvaluationMode, { force: true })}
                             >
                               Сделать ИИ-анализ
                             </button>

@@ -214,6 +214,8 @@ function storeWalletHermesLayout(layout: WalletHermesLayout) {
 }
 
 function reasonLabel(reason: string): string {
+  if (reason.startsWith("commercial_ai_plus_refresh_free")) return "Бесплатное обновление анализа AI+";
+  if (reason.startsWith("commercial_ai_plus_refresh")) return "Обновление анализа AI+";
   switch (reason) {
     case "topup":
       return "Пополнение";
