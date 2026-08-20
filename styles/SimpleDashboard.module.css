@@ -2735,8 +2735,8 @@
   margin: 28px auto 0;
   flex: 0 0 auto;
   background: url("/icons/lab-botanical-left.webp") center top / contain no-repeat;
-  opacity: 1;
-  filter: saturate(2.2) contrast(0.96);
+  opacity: 0.86;
+  filter: none;
   pointer-events: none;
   user-select: none;
 }
