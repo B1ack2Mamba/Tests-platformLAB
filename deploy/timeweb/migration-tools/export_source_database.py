@@ -60,6 +60,8 @@ def audit(cursor):
     for schema,name,count,content_hash in cursor.fetchall():
         result['tables'].append({'schema':schema,'table':name,'rows':count,'content_hash':content_hash})
     queries={
+      'columns':"select table_schema as schema_name,table_name,column_name,udt_name from information_schema.columns where table_schema in ('public','auth','storage') order by table_schema,table_name,ordinal_position",
+      'sequences':"select schemaname,sequencename,start_value,min_value,max_value,increment_by,cycle,last_value from pg_sequences where schemaname in ('public','auth','storage') order by 1,2",
       'extensions':"select extname,extversion from pg_extension order by extname",
       'rls':"select n.nspname,c.relname,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p') order by c.relname",
       'policies':"select schemaname,tablename,policyname,roles,cmd,md5(coalesce(qual,'')||'|'||coalesce(with_check,'')) as definition_hash from pg_policies where schemaname='public' order by tablename,policyname",
