@@ -1,5 +1,6 @@
 """Restore only into the empty migration database, and verify every imported table."""
 from pathlib import Path
+import ast
 import hashlib
 import json
 import os
@@ -16,7 +17,7 @@ def quote(name):
 
 def query(sql):
     result=subprocess.run(['docker','exec','-i','supabase-db','psql','-X','-qAt','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1'],
-        input=sql,text=True,capture_output=True,timeout=120)
+        input="SET TIMEZONE TO 'UTC';\n"+sql,text=True,capture_output=True,timeout=120)
     if result.returncode:
         raise RuntimeError('Target inspection query failed')
     return json.loads(result.stdout.strip())
@@ -95,6 +96,17 @@ def main():
     target_sequences=query("select coalesce(json_agg(q),'[]') from (select schemaname,sequencename,start_value,min_value,max_value,increment_by,cycle,last_value from pg_sequences where schemaname in ('public','auth','storage') order by 1,2) q;")
     if target_sequences!=audit['sequences']:
         mismatches.append('sequence_state')
+    module=ast.parse((Path(__file__).parent/'export_source_database.py').read_text())
+    audit_function=next(n for n in module.body if isinstance(n,ast.FunctionDef) and n.name=='audit')
+    query_node=next(n.value for n in audit_function.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='queries' for t in n.targets))
+    checks=ast.literal_eval(query_node)
+    schema_results={}
+    for name in ('rls','policies','indexes','functions','grants','custom_auth_storage_triggers'):
+        metadata=query("select coalesce(json_agg(q),'[]') from ("+checks[name]+') q;')
+        schema_results[name]={'matches':metadata==audit[name],'source_items':len(audit[name]),'target_items':len(metadata)}
+        if metadata!=audit[name]:
+            mismatches.append(name)
+    (folder/'schema-validation.json').write_text(json.dumps(schema_results,indent=2)+'\n')
     report={'import_transaction_committed':True,'verified_tables':len(actual),'rows':sum(t['rows'] for t in actual),
         'all_imported_row_counts_and_hashes_match':not mismatches,'mismatches':mismatches,
         'excluded_provider_migration_tables':['auth.schema_migrations','storage.migrations'],
