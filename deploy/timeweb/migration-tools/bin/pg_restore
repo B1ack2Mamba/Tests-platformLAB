@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 tool=$(basename "$0")
 case "$tool" in pg_dump|pg_dumpall|pg_restore) ;; *) exit 2 ;; esac
-args=(run --rm --network host)
+args=(run --rm --network host --user 0 --entrypoint "$tool")
 for key in PGHOST PGHOSTADDR PGGSSENCMODE PGPORT PGUSER PGDATABASE PGPASSWORD PGSSLMODE PGSSLROOTCERT PGCONNECT_TIMEOUT PGAPPNAME PGCLIENTENCODING; do
   [[ ! -v $key ]] || args+=(--env "$key")
 done
@@ -14,4 +14,4 @@ if [[ -n ${KADRLAB_BACKUP_DEST:-} ]]; then
   [[ $KADRLAB_BACKUP_DEST == /opt/kadrlab/backups/source-backup-* && -d $KADRLAB_BACKUP_DEST ]] || exit 4
   args+=(--mount "type=bind,source=$KADRLAB_BACKUP_DEST,target=$KADRLAB_BACKUP_DEST,readonly")
 fi
-exec docker "${args[@]}" postgres:17 "$tool" "$@"
+exec docker "${args[@]}" supabase/postgres:17.6.1.136 "$@"
