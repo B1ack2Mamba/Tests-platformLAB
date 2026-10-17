@@ -1,6 +1,9 @@
 # For the official Supabase self-hosted/v0.8.2 compose (service api-gw).
 # Apply AFTER the upstream file; Compose >= 2.24.4 is required.
 services:
+  # This platform has no Edge Functions. Enable only if functions are added later.
+  functions:
+    profiles: [edge-functions]
   api-gw:
     ports: !override
       - "127.0.0.1:8000:8000"

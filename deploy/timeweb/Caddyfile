@@ -15,7 +15,7 @@
 {$SUPABASE_DOMAIN} {
 	encode zstd gzip
 	# Publish application APIs only. Studio and database administration stay private.
-	@api path /auth/v1/* /rest/v1/* /storage/v1/* /realtime/v1/* /functions/v1/* /graphql/v1
+	@api path /auth/v1/* /rest/v1/* /storage/v1/* /realtime/v1/* /graphql/v1
 	handle @api {
 		reverse_proxy supabase-gateway:8000
 	}
