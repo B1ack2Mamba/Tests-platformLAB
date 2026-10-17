@@ -1,0 +1,85 @@
+name: kadrlab-timeweb
+
+services:
+  app:
+    image: kadrlab-app:${APP_IMAGE_TAG:-timeweb-candidate}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_ADMIN_EMAIL: ${NEXT_PUBLIC_ADMIN_EMAIL:-}
+        NEXT_PUBLIC_ADMIN_EMAILS: ${NEXT_PUBLIC_ADMIN_EMAILS:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?Set NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_EMAIL_RECOVERY_ENABLED: ${NEXT_PUBLIC_EMAIL_RECOVERY_ENABLED:-0}
+        NEXT_PUBLIC_ENABLE_PWA: ${NEXT_PUBLIC_ENABLE_PWA:-0}
+        NEXT_PUBLIC_GLOBAL_TEMPLATE_OWNER_EMAIL: ${NEXT_PUBLIC_GLOBAL_TEMPLATE_OWNER_EMAIL:-}
+        NEXT_PUBLIC_INVITE_BASE_URL: ${NEXT_PUBLIC_INVITE_BASE_URL:?Set NEXT_PUBLIC_INVITE_BASE_URL}
+        NEXT_PUBLIC_PAYMENTS_ENABLED: ${NEXT_PUBLIC_PAYMENTS_ENABLED:-0}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL}
+        NEXT_PUBLIC_SPECIALIST_EMAILS: ${NEXT_PUBLIC_SPECIALIST_EMAILS:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_SUPABASE_PROJECT_REGION: ${NEXT_PUBLIC_SUPABASE_PROJECT_REGION:-ru}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set the Russian Supabase HTTPS URL}
+        NEXT_PUBLIC_TEST_TAKE_PRICE_RUB: ${NEXT_PUBLIC_TEST_TAKE_PRICE_RUB:-}
+        NEXT_PUBLIC_TEST_UNLIMITED_EMAILS: ${NEXT_PUBLIC_TEST_UNLIMITED_EMAILS:-}
+        NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED: ${NEXT_PUBLIC_YOOKASSA_TEST_UI_ENABLED:-0}
+    env_file:
+      - ${TIMEWEB_ENV_FILE:-../../.env.timeweb.local}
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 5m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      APP_REDIRECT_DOMAIN: ${APP_REDIRECT_DOMAIN:?Set APP_REDIRECT_DOMAIN}
+      SUPABASE_DOMAIN: ${SUPABASE_DOMAIN:?Set SUPABASE_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - default
+      - kadrlab_data
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  kadrlab_data:
+    external: true
+    name: kadrlab-data
+
+volumes:
+  caddy_data:
+  caddy_config:

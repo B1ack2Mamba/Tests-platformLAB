@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getOpenAIRequestConfig } from "@/lib/openaiTransport";
 import { requireUser } from "@/lib/serverAuth";
 import { isSpecialistUser } from "@/lib/specialist";
 import type { ScoreResult } from "@/lib/score";
@@ -128,14 +129,14 @@ function extractOpenAIText(payload: any) {
 }
 
 async function callOpenAI(prompt: string): Promise<string | null> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
   const model = process.env.OPENAI_TEST_MODEL || "gpt-5.6-terra";
-  const r = await fetch("https://api.openai.com/v1/responses", {
+  const connection = getOpenAIRequestConfig(model);
+  if (!connection) return null;
+  const r = await fetch(connection.url, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    headers: { "content-type": "application/json", authorization: `Bearer ${connection.apiKey}` },
     body: JSON.stringify({
-      model,
+      model: connection.model,
       input: [
         { role: "system", content: "Ты помогаешь специалисту расшифровать результаты тестов для тренинга." },
         { role: "user", content: prompt },

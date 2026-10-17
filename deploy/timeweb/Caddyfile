@@ -1,0 +1,25 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Preserve existing links to the bare domain, including their path and query.
+{$APP_REDIRECT_DOMAIN} {
+	redir https://{$APP_DOMAIN}{uri} 308
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+
+{$SUPABASE_DOMAIN} {
+	encode zstd gzip
+	# Publish application APIs only. Studio and database administration stay private.
+	@api path /auth/v1/* /rest/v1/* /storage/v1/* /realtime/v1/* /functions/v1/* /graphql/v1
+	handle @api {
+		reverse_proxy supabase-gateway:8000
+	}
+	handle {
+		respond "Not found" 404
+	}
+}

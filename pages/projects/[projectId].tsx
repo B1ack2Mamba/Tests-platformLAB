@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps, @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { DEFAULT_INVITE_BASE_URL, PRIMARY_INVITE_BASE_URLS } from "@/lib/inviteLinks";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { OnboardingTour, type OnboardingStep } from "@/components/OnboardingTour";
@@ -317,11 +318,6 @@ function MobileProjectDetails({
 
 const PROJECT_DETAILS_TEMPLATE_OWNER_EMAIL = "storyguild9@gmail.com";
 const PROJECT_DETAILS_TEMPLATE_STORAGE_KEY = "project_details_template_builder_v3";
-const DEFAULT_INVITE_BASE_URL = "https://tests-platform-lab.vercel.app";
-const PRIMARY_INVITE_BASE_URLS = [
-  { key: "vercel", label: "Vercel", baseUrl: "https://tests-platform-lab.vercel.app" },
-  { key: "rf", label: "\u0420\u0443\u0441\u0441\u043a\u0438\u0439 \u0434\u043e\u043c\u0435\u043d", baseUrl: "https://www.xn--80aaachl0aqe6abetcez8t.xn--p1ai" },
-] as const;
 
 function getInviteBaseUrl(currentOrigin?: string) {
   return (currentOrigin ||

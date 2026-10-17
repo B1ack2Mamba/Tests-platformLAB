@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useState, type DragEvent as ReactDragEvent, type FormEvent } from "react";
+import { PRIMARY_INVITE_BASE_URLS } from "@/lib/inviteLinks";
 import { QRCodeBlock } from "@/components/QRCodeBlock";
 import { SimpleDashboardIcon as Icon } from "@/components/SimpleDashboardIcon";
 import {
@@ -121,10 +122,7 @@ type Props = {
   onProjectOpenChange?: (open: boolean, userInitiated: boolean) => void;
 };
 
-const PRIMARY_INVITE_BASE_URLS = [
-  { key: "vercel", label: "Основная ссылка", baseUrl: "https://tests-platform-lab.vercel.app" },
-  { key: "rf", label: "Запасная ссылка", baseUrl: "https://www.xn--80aaachl0aqe6abetcez8t.xn--p1ai" },
-] as const;
+
 
 const AI_PLUS_PACKAGE: EvaluationPackage = "premium_ai_plus";
 const AI_PLUS_PACKAGE_PRICE_RUB = getEvaluationPackagePriceRub(AI_PLUS_PACKAGE);

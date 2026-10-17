@@ -78,6 +78,8 @@ type Mode = "login" | "signup" | "reset";
 type AuthMethod = "email" | "name";
 
 
+const EMAIL_RECOVERY_ENABLED = process.env.NEXT_PUBLIC_EMAIL_RECOVERY_ENABLED !== "0";
+
 const PENDING_PROMO_CODE_KEY = "pending_promo_code";
 const PROMO_FLASH_SUCCESS_KEY = "promo_flash_success";
 const PROMO_FLASH_ERROR_KEY = "promo_flash_error";
@@ -155,7 +157,9 @@ function getAuthErrorHelp(error: string): AuthErrorHelp | null {
       reason: "Email или пароль не совпали с данными кабинета.",
       actions: [
         "Проверьте раскладку, Caps Lock и лишние пробелы в email.",
-        "Если пароль забыли, нажмите «Восстановить пароль».",
+        EMAIL_RECOVERY_ENABLED
+          ? "Если пароль забыли, нажмите «Восстановить пароль»."
+          : "Обратитесь к администратору платформы, если не помните пароль.",
       ],
     };
   }
@@ -163,10 +167,9 @@ function getAuthErrorHelp(error: string): AuthErrorHelp | null {
   if (/email not confirmed|почт|подтверд/i.test(message)) {
     return {
       reason: "Email ещё не подтверждён.",
-      actions: [
-        "Откройте письмо от сервиса и подтвердите почту.",
-        "Проверьте папки «Спам» и «Промоакции».",
-      ],
+      actions: EMAIL_RECOVERY_ENABLED
+        ? ["Откройте письмо от сервиса и подтвердите почту.", "Проверьте папки «Спам» и «Промоакции»."]
+        : ["Обратитесь к администратору платформы для подтверждения доступа."],
     };
   }
 
@@ -347,8 +350,12 @@ export default function AuthStartPage() {
   const submitInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (isPasswordReset) setMode("reset");
-  }, [isPasswordReset]);
+    if (isPasswordReset && (EMAIL_RECOVERY_ENABLED || session?.access_token)) {
+      setMode("reset");
+    } else if (!EMAIL_RECOVERY_ENABLED && !session?.access_token) {
+      setMode((current) => current === "reset" ? "login" : current);
+    }
+  }, [isPasswordReset, session?.access_token]);
 
   useEffect(() => {
     if (sessionLoading || !session?.access_token || !user) return;
@@ -409,6 +416,7 @@ export default function AuthStartPage() {
   }
 
   function openPasswordReset() {
+    if (!EMAIL_RECOVERY_ENABLED) return;
     setMode("reset");
     setAuthMethod("email");
     setError("");
@@ -511,6 +519,7 @@ export default function AuthStartPage() {
           return;
         }
 
+        if (!EMAIL_RECOVERY_ENABLED) throw new Error("Обратитесь к администратору платформы для восстановления доступа.");
         if (!email.trim()) throw new Error("Укажи email, к которому привязан кабинет.");
         const { error } = await authClient.auth.resetPasswordForEmail(email.trim(), { redirectTo });
         if (error) throw error;
@@ -610,7 +619,8 @@ export default function AuthStartPage() {
             ) : null}
             {mode !== "reset" && authMethod === "name" ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
-                Вход по имени проще для тех, у кого нет email. Имя и фамилию нужно вводить так же, как при регистрации; для восстановления пароля проще и безопаснее регистрация по email.
+                Вход по имени проще для тех, у кого нет email. Имя и фамилию нужно вводить так же, как при регистрации.
+                {EMAIL_RECOVERY_ENABLED ? " Для восстановления пароля проще и безопаснее регистрация по email." : null}
               </div>
             ) : null}
 
@@ -732,7 +742,7 @@ export default function AuthStartPage() {
               {loading ? (mode === "login" ? "Входим..." : "...") : mode === "signup" ? "Создать кабинет" : mode === "reset" && session?.access_token ? "Сохранить новый пароль" : mode === "reset" ? "Отправить ссылку" : "Войти"}
             </button>
 
-            {mode === "login" ? (
+            {mode === "login" && EMAIL_RECOVERY_ENABLED ? (
               <button type="button" disabled={loading} className="btn btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-60" onClick={openPasswordReset}>
                 Забыли пароль? Восстановить
               </button>

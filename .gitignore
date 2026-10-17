@@ -21,3 +21,7 @@ Tests-platformLAB-main
 *.zip
 *.xlsx
 *.patch
+
+# Timeweb migration build and private state
+.next-*
+.tmp/

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getOpenAIRequestConfig } from "@/lib/openaiTransport";
 import { createHash, randomUUID } from "crypto";
 import { setNoStore } from "@/lib/apiHardening";
 import { requireUser } from "@/lib/serverAuth";
@@ -178,17 +179,17 @@ function transcriptForOpenAI(messages: ChatMessage[]) {
 }
 
 async function callOpenAI(args: { model: string; messages: ChatMessage[]; maxOutputTokens: number }) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("На сервере не настроен OPENAI_API_KEY.");
+  const connection = getOpenAIRequestConfig(args.model);
+  if (!connection) throw new Error("На сервере не настроен ключ выбранного провайдера GPT.");
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch(connection.url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${key}`,
+      authorization: `Bearer ${connection.apiKey}`,
     },
     body: JSON.stringify({
-      model: args.model,
+      model: connection.model,
       instructions: SYSTEM_PROMPT,
       input: transcriptForOpenAI(args.messages),
       max_output_tokens: args.maxOutputTokens,

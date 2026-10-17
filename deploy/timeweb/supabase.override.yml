@@ -1,0 +1,20 @@
+# For the official Supabase self-hosted/v0.8.2 compose (service api-gw).
+# Apply AFTER the upstream file; Compose >= 2.24.4 is required.
+services:
+  api-gw:
+    ports: !override
+      - "127.0.0.1:8000:8000"
+    networks:
+      default: {}
+      kadrlab_data:
+        aliases:
+          - supabase-gateway
+  supavisor:
+    ports: !override
+      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:6543:6543"
+
+networks:
+  kadrlab_data:
+    external: true
+    name: kadrlab-data

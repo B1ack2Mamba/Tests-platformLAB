@@ -1,4 +1,5 @@
 import { aiInterpretation } from "@/lib/aiInterpretation";
+import { getOpenAIRequestConfig } from "@/lib/openaiTransport";
 import {
   buildCompetencyEvidencePromptPacket,
   evaluateCompetencyCoverage,
@@ -716,17 +717,17 @@ function extractOpenAIText(payload: any) {
 }
 
 async function callOpenAI(system: string, prompt: string, maxTokens = 2600, modelOverride?: string, task?: OpenAiTask) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
   const model = modelOverride || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
-  const r = await fetch("https://api.openai.com/v1/responses", {
+  const connection = getOpenAIRequestConfig(model);
+  if (!connection) return null;
+  const r = await fetch(connection.url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${key}`,
+      authorization: `Bearer ${connection.apiKey}`,
     },
     body: JSON.stringify({
-      model,
+      model: connection.model,
       input: [
         { role: "system", content: system },
         { role: "user", content: prompt },
