@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run only on the newly provisioned kadrlab-ru server, before restoring data.
-# Docker installation follows https://docs.docker.com/engine/install/ubuntu/.
+# Use signed Ubuntu packages by default; Docker CE remains an explicit option.
 set -Eeuo pipefail
 umask 027
 
@@ -21,8 +21,14 @@ if ! command -v docker >/dev/null 2>&1; then
       exit 1
     fi
   done
+  case ${KADRLAB_DOCKER_SOURCE:-ubuntu} in
+    ubuntu)
+      # The signed Ubuntu repository is mirrored locally by Timeweb.
+      apt-get install -y docker.io docker-compose-v2 docker-buildx
+      ;;
+    docker)
   install -m 0755 -d /etc/apt/keyrings
-  curl --fail --silent --show-error --location https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  curl --fail --silent --show-error --location --connect-timeout 15 --max-time 60 --retry 2 https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   chmod 0644 /etc/apt/keyrings/docker.asc
   cat > /etc/apt/sources.list.d/kadrlab-docker.sources <<EOF
 Types: deb
@@ -34,9 +40,34 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
   apt-get update
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      ;;
+    *) echo 'KADRLAB_DOCKER_SOURCE must be ubuntu or docker.' >&2; exit 1 ;;
+  esac
 fi
 
 systemctl enable --now docker
+# Official Timeweb mirror: https://timeweb.cloud/tutorials/docker/ispolzovanie-storonnego-reestra-docker
+# Preserve other daemon settings and an exact backup of any pre-existing file.
+python3 - <<'PY'
+from pathlib import Path
+from datetime import datetime, timezone
+import json
+path=Path('/etc/docker/daemon.json')
+original=path.read_bytes() if path.exists() else None
+data=json.loads(original) if original else {}
+mirror='https://dockerhub.timeweb.cloud'
+previous=data.get('registry-mirrors',[])
+if not isinstance(previous,list):
+    raise RuntimeError('Unexpected Docker registry-mirrors configuration')
+desired=[mirror]+[value for value in previous if value!=mirror]
+if previous!=desired:
+    if original is not None:
+        backup=path.with_name('daemon.json.before-kadrlab-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
+        backup.write_bytes(original)
+    data['registry-mirrors']=desired
+    path.write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
+PY
+systemctl reload docker
 compose_version=$(docker compose version --short | sed 's/^v//')
 dpkg --compare-versions "$compose_version" ge 2.24.4 || { echo 'Docker Compose >= 2.24.4 is required.' >&2; exit 1; }
 

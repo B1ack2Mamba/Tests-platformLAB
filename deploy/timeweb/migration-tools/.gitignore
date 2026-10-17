@@ -1,0 +1,3 @@
+supabase-cli-*.sh
+supabase-cli-*.ts
+__pycache__/

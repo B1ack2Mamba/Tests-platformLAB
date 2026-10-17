@@ -1,0 +1,25 @@
+{
+  "version": "v2.121.0",
+  "files": [
+    {
+      "name": "supabase-cli-dump_role.sh",
+      "url": "https://raw.githubusercontent.com/supabase/cli/v2.121.0/apps/cli-go/pkg/migration/scripts/dump_role.sh",
+      "sha256": "cc442e4f19d349b7db1dde69913ed06ef20f68198391d9beef33f63493cf26c8"
+    },
+    {
+      "name": "supabase-cli-dump_schema.sh",
+      "url": "https://raw.githubusercontent.com/supabase/cli/v2.121.0/apps/cli-go/pkg/migration/scripts/dump_schema.sh",
+      "sha256": "5cd57189f6565ddf651ff149995398a4c9b1971ca34a0093a77c011a41f21d64"
+    },
+    {
+      "name": "supabase-cli-dump_data.sh",
+      "url": "https://raw.githubusercontent.com/supabase/cli/v2.121.0/apps/cli-go/pkg/migration/scripts/dump_data.sh",
+      "sha256": "c943c7a926122ea0649ddd4bf9b8fb9b12bed23ac9f33da0b489ac83e687d241"
+    },
+    {
+      "name": "supabase-cli-pg-dump.env.ts",
+      "url": "https://raw.githubusercontent.com/supabase/cli/v2.121.0/apps/cli/src/command-internal/pg-dump.env.ts",
+      "sha256": "79779ff72ef6aec53b2ab42c54df2d2db6e171c54f69fd35504469748fc08269"
+    }
+  ]
+}
