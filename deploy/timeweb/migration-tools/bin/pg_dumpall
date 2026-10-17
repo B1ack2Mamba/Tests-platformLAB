@@ -2,6 +2,10 @@
 set -Eeuo pipefail
 tool=$(basename "$0")
 case "$tool" in pg_dump|pg_dumpall|pg_restore) ;; *) exit 2 ;; esac
+if [[ ${KADRLAB_NATIVE_PG_CLIENT:-0} == 1 ]]; then
+  [[ -f /opt/kadrlab/pg-client/manifest.json ]] || exit 5
+  exec env LD_LIBRARY_PATH=/opt/kadrlab/pg-client/lib "/opt/kadrlab/pg-client/bin/$tool" "$@"
+fi
 args=(run --rm --network host --user 0 --entrypoint "$tool")
 for key in PGHOST PGHOSTADDR PGGSSENCMODE PGPORT PGUSER PGDATABASE PGPASSWORD PGSSLMODE PGSSLROOTCERT PGCONNECT_TIMEOUT PGAPPNAME PGCLIENTENCODING; do
   [[ ! -v $key ]] || args+=(--env "$key")
