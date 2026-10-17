@@ -61,7 +61,9 @@ def main():
     with destination.open('x') as output:
         output.write('# PRIVATE REHEARSAL. DNS and production integrations are not switched.\n')
         for name,value in env.items():
-            output.write(name+'='+json.dumps(value,ensure_ascii=True)+'\n')
+            if any(c in value for c in ("'", '\n', '\r', '\x00')):
+                raise RuntimeError('Unsupported character in generated environment value')
+            output.write(name+"='"+value+"'\n")
     destination.chmod(0o600)
     subprocess.run(['docker','compose','--env-file',str(destination),'-f',str(APP/'deploy/timeweb/docker-compose.yml'),'config','--quiet'],check=True)
     print(json.dumps({'rehearsal_configuration_ready':True,'file_mode':'0600',
