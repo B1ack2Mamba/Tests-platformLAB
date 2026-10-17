@@ -119,7 +119,7 @@ def main():
     for key in ('PGSERVICE','PGSERVICEFILE','PGPASSFILE','BASH_ENV','ENV','SHELLOPTS','BASHOPTS','EXTRA_FLAGS','EXTRA_SED'):
         env.pop(key,None)
     env.update(PGHOST=HOST,PGPORT='5432',PGUSER=USER,PGDATABASE='postgres',PGPASSWORD=password,
-        PGSSLMODE='verify-full',PGSSLROOTCERT=str(CA),PGCONNECT_TIMEOUT='15',
+        PGSSLMODE='verify-full',PGSSLROOTCERT=str(CA),PGCONNECT_TIMEOUT='15',PGGSSENCMODE='disable',
         PGAPPNAME='kadrlab_readonly_backup',PGCLIENTENCODING='UTF8',
         PATH=str(BIN)+os.pathsep+env.get('PATH',''),
         LC_ALL='C',KADRLAB_BACKUP_DEST=str(DEST))
@@ -129,8 +129,10 @@ def main():
     for filename in ('supabase-cli-dump_role.sh','supabase-cli-dump_schema.sh','supabase-cli-dump_data.sh','supabase-cli-pg-dump.env.ts'):
         manifest.setdefault('export_rule_hashes',{})[filename]=digest(HERE/filename)
     with psycopg.connect(host=HOST,port=5432,user=USER,dbname='postgres',password=password,
-            sslmode='verify-full',sslrootcert=str(CA),connect_timeout=15,
+            sslmode='verify-full',sslrootcert=str(CA),connect_timeout=15,gssencmode='disable',
             application_name='kadrlab_readonly_backup_snapshot') as connection:
+        env['PGHOSTADDR']=connection.info.hostaddr
+        manifest['source_hostaddr']=connection.info.hostaddr
         connection.isolation_level=psycopg.IsolationLevel.REPEATABLE_READ
         connection.read_only=True
         with connection.cursor() as cursor:

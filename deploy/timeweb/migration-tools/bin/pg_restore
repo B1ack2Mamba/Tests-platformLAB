@@ -3,7 +3,7 @@ set -Eeuo pipefail
 tool=$(basename "$0")
 case "$tool" in pg_dump|pg_dumpall|pg_restore) ;; *) exit 2 ;; esac
 args=(run --rm --network host)
-for key in PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD PGSSLMODE PGSSLROOTCERT PGCONNECT_TIMEOUT PGAPPNAME PGCLIENTENCODING; do
+for key in PGHOST PGHOSTADDR PGGSSENCMODE PGPORT PGUSER PGDATABASE PGPASSWORD PGSSLMODE PGSSLROOTCERT PGCONNECT_TIMEOUT PGAPPNAME PGCLIENTENCODING; do
   [[ ! -v $key ]] || args+=(--env "$key")
 done
 if [[ -n ${PGSSLROOTCERT:-} ]]; then
