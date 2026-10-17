@@ -6,6 +6,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 
 BASE = Path('/opt/kadrlab')
 SOURCE = BASE/'supabase-source'
@@ -27,6 +28,7 @@ def main():
     if any(RUNTIME.iterdir()):
         raise RuntimeError('Runtime is not empty; refusing to replace configuration or data')
     shutil.copytree(SOURCE/'docker',RUNTIME,dirs_exist_ok=True)
+    run([sys.executable,str(Path(__file__).with_name('repair_public_runtime_permissions.py'))],stdout=subprocess.DEVNULL)
     shutil.copyfile(RUNTIME/'.env.example',RUNTIME/'.env')
     (RUNTIME/'.env').chmod(0o600)
     private=BASE/'secrets'
