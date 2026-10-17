@@ -12,13 +12,13 @@ os.umask(0o077)
 (root/'bin').mkdir(parents=True,exist_ok=True)
 (root/'lib').mkdir(exist_ok=True)
 image='postgres:17.11-bookworm'
-paths=subprocess.run(['docker','run','--rm','--entrypoint','sh',image,'-c','command -v pg_dump; command -v pg_dumpall; command -v pg_restore; ldd "$(command -v pg_dump)"'],capture_output=True,text=True,check=True).stdout.splitlines()
-binary_paths=paths[:3]
-if not all(path.startswith('/usr/') and ' ' not in path for path in binary_paths):
+binary_paths=subprocess.run(['docker','run','--rm','--entrypoint','sh',image,'-c','for tool in pg_dump pg_dumpall pg_restore; do find /usr/lib/postgresql -name "$tool" -type f; done'],capture_output=True,text=True,check=True).stdout.splitlines()
+if len(binary_paths)!=3 or not all(path.startswith('/usr/lib/postgresql/') and ' ' not in path for path in binary_paths):
     raise RuntimeError('Unexpected client binary paths')
+paths=subprocess.run(['docker','run','--rm','--entrypoint','ldd',image,binary_paths[0]],capture_output=True,text=True,check=True).stdout.splitlines()
 libraries={}
 host_glibc={'libc.so.6','libm.so.6','libpthread.so.0','libdl.so.2','librt.so.1'}
-for line in paths[3:]:
+for line in paths:
     if '=>' not in line:
         continue
     name,location=line.split('=>',1)
